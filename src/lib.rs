@@ -2,14 +2,13 @@ use std::cell::RefCell;
 use std::mem::{drop, replace};
 use std::rc::{Rc, Weak};
 
-pub struct BindSource(Rc<BindSourceCell>);
-struct BindSourceCell(RefCell<BindSourceData>);
+pub struct BindSource(RefCell<BindSourceData>);
 struct BindSourceData {
-    sinks: Vec<BindSinkLink>,
+    sinks: Vec<BindSinkEntry>,
     locked: usize,
     modified: bool,
 }
-struct BindSinkLink {
+struct BindSinkEntry {
     sink: Weak<dyn BindSink>,
     locked: bool,
     modified: bool,
@@ -17,19 +16,16 @@ struct BindSinkLink {
 
 impl BindSource {
     pub fn new() -> Self {
-        Self(Rc::new(BindSourceCell(RefCell::new(BindSourceData {
+        Self(RefCell::new(BindSourceData {
             sinks: Vec::new(),
             locked: 0,
             modified: false,
-        }))))
+        }))
     }
-}
-
-impl BindSourceCell {
     fn bind(&self, sink: &Rc<dyn BindSink>) -> usize {
         let mut b = self.0.borrow_mut();
         let locked = b.locked != 0;
-        let s = BindSinkLink {
+        let s = BindSinkEntry {
             sink: Rc::downgrade(sink),
             locked,
             modified: false,
@@ -53,11 +49,17 @@ impl BindSourceCell {
         idx
     }
     fn unbind(&self, idx: usize, sink: &Weak<dyn BindSink>) {
+        struct DummyBindSink;
+        impl BindSink for DummyBindSink {
+            fn lock(&self) {}
+            fn unlock(&self, modified: bool) {}
+        }
+
         let mut b = self.0.borrow_mut();
         if let Some(s) = b.sinks.get_mut(idx) {
             if s.sink.ptr_eq(sink) {
                 let locked = s.locked;
-                s.sink = Weak::<Self>::new();
+                s.sink = Weak::<DummyBindSink>::new();
                 s.locked = false;
                 if locked {
                     if let Some(sink) = sink.upgrade() {
@@ -91,7 +93,7 @@ impl BindSourceCell {
         }
     }
 }
-impl BindSink for BindSourceCell {
+impl BindSink for BindSource {
     fn lock(&self) {
         let mut b = self.0.borrow_mut();
         if b.locked == usize::max_value() {
@@ -132,7 +134,7 @@ impl BindSink for BindSourceCell {
     }
 }
 
-impl BindSinkLink {
+impl BindSinkEntry {
     fn set_locked(&mut self, locked: bool) -> Option<Rc<dyn BindSink>> {
         if locked != self.locked {
             if let Some(sink) = self.sink.upgrade() {
