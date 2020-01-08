@@ -7,10 +7,12 @@ struct BindSourceCell(RefCell<BindSourceData>);
 struct BindSourceData {
     sinks: Vec<BindSinkLink>,
     locked: usize,
+    modified: bool,
 }
 struct BindSinkLink {
     sink: Weak<dyn BindSink>,
     locked: bool,
+    modified: bool,
 }
 
 impl BindSource {
@@ -18,17 +20,8 @@ impl BindSource {
         Self(Rc::new(BindSourceCell(RefCell::new(BindSourceData {
             sinks: Vec::new(),
             locked: 0,
-        }))))
-    }
-    pub fn lock(&self) -> BindSourceLockGuard {
-        self.0.lock();
-        BindSourceLockGuard {
-            source: &self.0,
             modified: false,
-        }
-    }
-    pub fn as_bind_sink(&self) -> Rc<dyn BindSink> {
-        self.0 as Rc<dyn BindSink>
+        }))))
     }
 }
 
@@ -39,6 +32,7 @@ impl BindSourceCell {
         let s = BindSinkLink {
             sink: Rc::downgrade(sink),
             locked,
+            modified: false,
         };
         let mut idx = 0;
         loop {
@@ -67,65 +61,74 @@ impl BindSourceCell {
                 s.locked = false;
                 if locked {
                     if let Some(sink) = sink.upgrade() {
-                        sink.unlock();
+                        sink.unlock(false);
                     }
                 }
             }
         }
     }
-    fn for_each<T>(
-        &self,
-        init: impl Fn(&mut BindSourceData) -> bool,
-        get: impl Fn(&mut BindSinkLink) -> Option<T>,
-        apply: impl Fn(T),
-    ) {
+    fn unlock_apply(&self) {
         let mut b = self.0.borrow_mut();
-        init(&mut b);
+        if b.locked != 0 {
+            return;
+        }
         let mut idx = 0;
-        while let Some(sink) = b.sinks.get_mut(idx) {
-            if let Some(value) = get(sink) {
-                drop(b);
-                apply(value);
-                b = self.0.borrow_mut();
+        loop {
+            if let Some(sink) = b.sinks.get_mut(idx) {
+                let modified = replace(&mut sink.modified, false);
+                if let Some(sink) = sink.set_locked(false) {
+                    drop(b);
+                    sink.unlock(modified);
+                    b = self.0.borrow_mut();
+                    if b.locked != 0 {
+                        return;
+                    }
+                }
+                idx += 1;
+            } else {
+                break;
             }
-            idx += 1;
         }
     }
 }
 impl BindSink for BindSourceCell {
     fn lock(&self) {
-        self.for_each(
-            |b| {
-                if b.locked == usize::max_value() {
-                    panic!("BindSource : too many locked.")
-                }
-                b.locked += 1;
-                true
-            },
-            |sink| sink.set_locked(true),
-            |sink| sink.lock(),
-        );
+        let mut b = self.0.borrow_mut();
+        if b.locked == usize::max_value() {
+            panic!("BindSource : too many locked.")
+        }
+        b.locked += 1;
+        if b.locked > 1 {
+            return;
+        }
+
+        let mut idx = 0;
+        while let Some(sink) = b.sinks.get_mut(idx) {
+            if let Some(sink) = sink.set_locked(true) {
+                drop(b);
+                sink.lock();
+                b = self.0.borrow_mut();
+            }
+            idx += 1;
+        }
+        if b.locked == 0 {
+            self.unlock_apply();
+        }
     }
-    fn modify(&self) {
-        self.for_each(
-            |b| {
-                assert!(b.locked != 0, "BindSource : modify when not locked.");
-                true
-            },
-            |sink| sink.sink_if_locked(),
-            |sink| sink.modify(),
-        );
-    }
-    fn unlock(&self) {
-        self.for_each(
-            |b| {
-                assert!(b.locked != 0, "BindSource : unlock when not locked.");
-                b.locked -= 1;
-                true
-            },
-            |sink| sink.set_locked(false),
-            |sink| sink.unlock(),
-        );
+    fn unlock(&self, modified: bool) {
+        let mut b = self.0.borrow_mut();
+        assert!(b.locked != 0, "BindSource : unlock when not locked.");
+        b.locked -= 1;
+        b.modified |= modified;
+        if b.locked != 0 {
+            return;
+        }
+        let modified = b.modified;
+        for s in b.sinks.iter_mut() {
+            s.modified |= modified;
+        }
+        b.modified = false;
+        self.unlock_apply();
     }
 }
 
@@ -139,39 +142,6 @@ impl BindSinkLink {
         }
         None
     }
-    fn sink_if_locked(&mut self) -> Option<Rc<dyn BindSink>> {
-        if self.locked {
-            self.sink.upgrade()
-        } else {
-            None
-        }
-    }
-}
-
-pub struct BindSourceLockGuard<'a> {
-    source: &'a BindSourceCell,
-    modified: bool,
-}
-impl<'a> BindSourceLockGuard<'a> {
-    pub fn modify(&mut self) {
-        if self.modified {
-            return;
-        }
-        self.modified = true;
-        self.source.modify();
-    }
-}
-impl<'a> Drop for BindSourceLockGuard<'a> {
-    fn drop(&mut self) {
-        self.source.unlock();
-    }
-}
-
-trait BindSinkDef {
-    type State;
-    fn lock(&self, state: &mut Self::State);
-    fn modify(&self, state: &mut Self::State);
-    fn unlock(&self, state: &mut Self::State);
 }
 
 // pub struct BindSink<F>(Rc<RefCell<BindSinkData<F>>>);
@@ -192,8 +162,7 @@ trait BindSinkDef {
 // }
 trait BindSink {
     fn lock(&self);
-    fn modify(&self);
-    fn unlock(&self);
+    fn unlock(&self, modified: bool);
 }
 
 pub struct BindContext {}
@@ -202,13 +171,6 @@ pub trait Re {
     type Item;
 
     fn get(&self, ctx: &BindContext) -> Self::Item;
-}
-
-pub fn bind<T>(source: impl Re<Item = T>, f: impl Fn(T)) {
-    //-> impl Drop {
-    let sink = BindSink::new(f);
-
-    unimplemented!()
 }
 
 // use std::future::Future;
