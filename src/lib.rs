@@ -13,6 +13,13 @@ struct BindSinkEntry {
     locked: bool,
     modified: bool,
 }
+pub struct Binding {
+    idx: usize,
+}
+pub trait BindSink {
+    fn lock(&self);
+    fn unlock(&self, modified: bool);
+}
 
 impl BindSource {
     pub fn new() -> Self {
@@ -22,7 +29,7 @@ impl BindSource {
             modified: false,
         }))
     }
-    fn bind(&self, sink: &Rc<dyn BindSink>) -> usize {
+    pub fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding {
         let mut b = self.0.borrow_mut();
         let locked = b.locked != 0;
         let s = BindSinkEntry {
@@ -46,15 +53,15 @@ impl BindSource {
             drop(b);
             sink.lock();
         }
-        idx
+        Binding { idx }
     }
-    fn unbind(&self, idx: usize, sink: &Weak<dyn BindSink>) {
+    pub fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>) {
         struct DummyBindSink;
         impl BindSink for DummyBindSink {
             fn lock(&self) {}
-            fn unlock(&self, modified: bool) {}
+            fn unlock(&self, _modified: bool) {}
         }
-
+        let Binding { idx } = binding;
         let mut b = self.0.borrow_mut();
         if let Some(s) = b.sinks.get_mut(idx) {
             if s.sink.ptr_eq(sink) {
@@ -162,10 +169,6 @@ impl BindSinkEntry {
 //         })))
 //     }
 // }
-trait BindSink {
-    fn lock(&self);
-    fn unlock(&self, modified: bool);
-}
 
 pub struct BindContext {}
 
