@@ -2,8 +2,20 @@ use std::cell::RefCell;
 use std::mem::{drop, replace};
 use std::rc::{Rc, Weak};
 
-pub struct BindSource(RefCell<BindSourceData>);
-struct BindSourceData {
+pub trait BindSource {
+    fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding;
+    fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>);
+}
+pub trait BindSink {
+    fn lock(&self);
+    fn unlock(&self, modified: bool);
+}
+pub struct Binding {
+    idx: usize,
+}
+
+pub struct BindSinks(RefCell<BindSinksData>);
+struct BindSinksData {
     sinks: Vec<BindSinkEntry>,
     locked: usize,
     modified: bool,
@@ -13,68 +25,14 @@ struct BindSinkEntry {
     locked: bool,
     modified: bool,
 }
-pub struct Binding {
-    idx: usize,
-}
-pub trait BindSink {
-    fn lock(&self);
-    fn unlock(&self, modified: bool);
-}
 
-impl BindSource {
+impl BindSinks {
     pub fn new() -> Self {
-        Self(RefCell::new(BindSourceData {
+        Self(RefCell::new(BindSinksData {
             sinks: Vec::new(),
             locked: 0,
             modified: false,
         }))
-    }
-    pub fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding {
-        let mut b = self.0.borrow_mut();
-        let locked = b.locked != 0;
-        let s = BindSinkEntry {
-            sink: Rc::downgrade(sink),
-            locked,
-            modified: false,
-        };
-        let mut idx = 0;
-        loop {
-            if idx == b.sinks.len() {
-                b.sinks.push(s);
-                break;
-            }
-            if let None = Weak::upgrade(&b.sinks[idx].sink) {
-                b.sinks[idx] = s;
-                break;
-            }
-            idx += 1;
-        }
-        if locked {
-            drop(b);
-            sink.lock();
-        }
-        Binding { idx }
-    }
-    pub fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>) {
-        struct DummyBindSink;
-        impl BindSink for DummyBindSink {
-            fn lock(&self) {}
-            fn unlock(&self, _modified: bool) {}
-        }
-        let Binding { idx } = binding;
-        let mut b = self.0.borrow_mut();
-        if let Some(s) = b.sinks.get_mut(idx) {
-            if s.sink.ptr_eq(sink) {
-                let locked = s.locked;
-                s.sink = Weak::<DummyBindSink>::new();
-                s.locked = false;
-                if locked {
-                    if let Some(sink) = sink.upgrade() {
-                        sink.unlock(false);
-                    }
-                }
-            }
-        }
     }
     fn unlock_apply(&self) {
         let mut b = self.0.borrow_mut();
@@ -100,7 +58,56 @@ impl BindSource {
         }
     }
 }
-impl BindSink for BindSource {
+impl BindSource for BindSinks {
+    fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding {
+        let mut b = self.0.borrow_mut();
+        let locked = b.locked != 0;
+        let s = BindSinkEntry {
+            sink: Rc::downgrade(sink),
+            locked,
+            modified: false,
+        };
+        let mut idx = 0;
+        loop {
+            if idx == b.sinks.len() {
+                b.sinks.push(s);
+                break;
+            }
+            if let None = Weak::upgrade(&b.sinks[idx].sink) {
+                b.sinks[idx] = s;
+                break;
+            }
+            idx += 1;
+        }
+        if locked {
+            drop(b);
+            sink.lock();
+        }
+        Binding { idx }
+    }
+    fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>) {
+        struct DummyBindSink;
+        impl BindSink for DummyBindSink {
+            fn lock(&self) {}
+            fn unlock(&self, _modified: bool) {}
+        }
+        let Binding { idx } = binding;
+        let mut b = self.0.borrow_mut();
+        if let Some(s) = b.sinks.get_mut(idx) {
+            if s.sink.ptr_eq(sink) {
+                let locked = s.locked;
+                s.sink = Weak::<DummyBindSink>::new();
+                s.locked = false;
+                if locked {
+                    if let Some(sink) = sink.upgrade() {
+                        sink.unlock(false);
+                    }
+                }
+            }
+        }
+    }
+}
+impl BindSink for BindSinks {
     fn lock(&self) {
         let mut b = self.0.borrow_mut();
         if b.locked == usize::max_value() {
