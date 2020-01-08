@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::mem::{drop, replace};
 use std::rc::{Rc, Weak};
@@ -5,6 +6,8 @@ use std::rc::{Rc, Weak};
 pub trait BindSource {
     fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding;
     fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>);
+
+    fn as_bind_sinks(&self) -> &BindSinks;
 }
 pub trait BindSink {
     fn lock(&self);
@@ -147,7 +150,6 @@ impl BindSink for BindSinks {
         self.unlock_apply();
     }
 }
-
 impl BindSinkEntry {
     fn set_locked(&mut self, locked: bool) -> Option<Rc<dyn BindSink>> {
         if locked != self.locked {
@@ -158,4 +160,85 @@ impl BindSinkEntry {
         }
         None
     }
+}
+
+pub trait Re {
+    type Item;
+    fn get(&self, ctx: &mut ReContext) -> Self::Item;
+}
+
+pub struct BindSources(Vec<BindSourceEntry>);
+struct BindSourceEntry {
+    src: Rc<dyn BindSource>,
+    binding: Binding,
+}
+
+pub struct ReContext {
+    sink: Rc<dyn BindSink>,
+    sink_weak: Weak<dyn BindSink>,
+    srcs: Vec<BindSourceEntry>,
+    srcs_len: usize,
+}
+impl ReContext {
+    pub fn new(srcs: BindSources, sink: Rc<dyn BindSink>) -> Self {
+        let sink_weak = Rc::downgrade(&sink);
+        let srcs = srcs.0;
+        let srcs_len = srcs.len();
+        Self {
+            sink,
+            sink_weak,
+            srcs,
+            srcs_len,
+        }
+    }
+
+    pub fn bind(&mut self, src: Rc<dyn BindSource>) {
+        if self.srcs_len < self.srcs.len() {
+            let e = &mut self.srcs[self.srcs_len];
+            if !Rc::ptr_eq(&src, &e.src) {
+                let binding = src.bind(&self.sink);
+                let e = replace(e, BindSourceEntry { src, binding });
+                e.unbind(&self.sink_weak);
+            }
+        } else {
+            let binding = src.bind(&self.sink);
+            self.srcs.push(BindSourceEntry { src, binding });
+        }
+        self.srcs_len += 1;
+    }
+    pub fn finish(mut self) -> BindSources {
+        let range = self.srcs_len..self.srcs.len();
+        for e in self.srcs.drain(range) {
+            e.unbind(&self.sink_weak);
+        }
+        BindSources(self.srcs)
+    }
+}
+impl BindSourceEntry {
+    fn unbind(self, sink: &Weak<dyn BindSink>) {
+        self.src.unbind(self.binding, sink);
+    }
+}
+
+pub struct ReCell<T>(Rc<ReCellData<T>>);
+struct ReCellData<T> {
+    value: Cell<T>,
+    sinks: BindSinks,
+}
+impl<T> ReCell<T> {}
+impl<T> Re for ReCell<T> {
+    type Item = T;
+
+    fn get(&self, ctx: &mut ReContext) -> Self::Item {
+        unimplemented!()
+    }
+}
+impl<T> BindSource for ReCellData<T> {}
+
+pub struct ReCache<T, F>(Rc<ReCacheData<T, F>>);
+struct ReCacheData<T, F> {
+    f: F,
+    value: Option<T>,
+    sinks: BindSinks,
+    srcs: BindSources,
 }
