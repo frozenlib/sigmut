@@ -181,54 +181,54 @@ pub trait Re {
     type Item;
     fn get(&self, ctx: &mut ReContext) -> Self::Item;
 
-    fn cached(self) -> ReRefRc<Self::Item>
+    fn cached(self) -> ReBorrowRc<Self::Item>
     where
         Self: Sized + 'static,
     {
-        ReRefRc(Rc::new(ReCacheData::new(self)))
+        ReBorrowRc(Rc::new(ReCacheData::new(self)))
     }
 }
-pub trait ReRef {
+pub trait ReBorrow {
     type Item;
-    fn borrow(&self, ctx: &mut ReContext) -> ReBorrow<Self::Item>;
+    fn borrow(&self, ctx: &mut ReContext) -> ReRef<Self::Item>;
 }
-pub enum ReBorrow<'a, T> {
+pub enum ReRef<'a, T> {
     Value(T),
     Ref(&'a T),
     RefCell(Ref<'a, T>),
 }
-impl<'a, T> ReBorrow<'a, T> {
+impl<'a, T> ReRef<'a, T> {
     pub fn take_or_clone(self) -> T
     where
         T: Clone,
     {
         match self {
-            ReBorrow::Value(x) => x,
+            ReRef::Value(x) => x,
             x => (*x).clone(),
         }
     }
     pub fn try_unwrap(self) -> Option<T> {
         match self {
-            ReBorrow::Value(x) => Some(x),
+            ReRef::Value(x) => Some(x),
             _ => None,
         }
     }
 }
 
-impl<'a, T> Deref for ReBorrow<'a, T> {
+impl<'a, T> Deref for ReRef<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &T {
         match self {
-            ReBorrow::Value(x) => x,
-            ReBorrow::Ref(x) => x,
-            ReBorrow::RefCell(x) => x,
+            ReRef::Value(x) => x,
+            ReRef::Ref(x) => x,
+            ReRef::RefCell(x) => x,
         }
     }
 }
 
-pub struct BindSources(Vec<BindSourceEntry>);
-struct BindSourceEntry {
+pub struct Bindings(Vec<BindingEntry>);
+struct BindingEntry {
     src: Rc<dyn BindSource>,
     binding: Binding,
 }
@@ -236,10 +236,10 @@ struct BindSourceEntry {
 pub struct ReContext<'a> {
     sink: Rc<dyn BindSink>,
     sink_weak: Weak<dyn BindSink>,
-    srcs: &'a mut Vec<BindSourceEntry>,
+    srcs: &'a mut Vec<BindingEntry>,
     srcs_len: usize,
 }
-impl BindSources {
+impl Bindings {
     pub fn new() -> Self {
         Self(Vec::new())
     }
@@ -260,11 +260,11 @@ impl<'a> ReContext<'a> {
         if self.srcs_len < self.srcs.len() {
             let e = &mut self.srcs[self.srcs_len];
             if !Rc::ptr_eq(&src, &e.src) {
-                let e = replace(e, BindSourceEntry::bind(src, &self.sink));
+                let e = replace(e, BindingEntry::bind(src, &self.sink));
                 e.unbind(&self.sink_weak);
             }
         } else {
-            self.srcs.push(BindSourceEntry::bind(src, &self.sink));
+            self.srcs.push(BindingEntry::bind(src, &self.sink));
         }
         self.srcs_len += 1;
     }
@@ -278,28 +278,28 @@ impl<'a> Drop for ReContext<'a> {
     }
 }
 
-impl BindSourceEntry {
+impl BindingEntry {
     fn bind(src: Rc<dyn BindSource>, sink: &Rc<dyn BindSink>) -> Self {
         let binding = src.bind(sink);
-        BindSourceEntry { src, binding }
+        BindingEntry { src, binding }
     }
     fn unbind(self, sink: &Weak<dyn BindSink>) {
         self.src.unbind(self.binding, sink);
     }
 }
 
-pub trait DynReRef<T> {
+pub trait DynReBorrow<T> {
     fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn borrow(&self, this: Rc<dyn Any>, ctx: &mut ReContext) -> ReBorrow<T>;
+    fn borrow(&self, this: Rc<dyn Any>, ctx: &mut ReContext) -> ReRef<T>;
 }
 
-pub struct ReRefRc<T>(Rc<dyn DynReRef<T>>);
+pub struct ReBorrowRc<T>(Rc<dyn DynReBorrow<T>>);
 
-impl<T> ReRefRc<T> {}
-impl<T> ReRef for ReRefRc<T> {
+impl<T> ReBorrowRc<T> {}
+impl<T> ReBorrow for ReBorrowRc<T> {
     type Item = T;
 
-    fn borrow(&self, ctx: &mut ReContext) -> ReBorrow<T> {
+    fn borrow(&self, ctx: &mut ReContext) -> ReRef<T> {
         self.0.borrow(self.0.clone().as_any(), ctx)
     }
 }
@@ -308,7 +308,7 @@ struct ReCacheData<S: Re> {
     src: S,
     value: RefCell<Option<S::Item>>,
     sinks: BindSinks,
-    srcs: RefCell<BindSources>,
+    srcs: RefCell<Bindings>,
 }
 impl<S: Re> ReCacheData<S> {
     fn new(src: S) -> Self {
@@ -316,7 +316,7 @@ impl<S: Re> ReCacheData<S> {
             src,
             value: RefCell::new(None),
             sinks: BindSinks::new(),
-            srcs: RefCell::new(BindSources::new()),
+            srcs: RefCell::new(Bindings::new()),
         }
     }
 }
@@ -336,11 +336,11 @@ impl<S: Re> BindSink for ReCacheData<S> {
     }
 }
 
-impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
+impl<S: Re + 'static> DynReBorrow<S::Item> for ReCacheData<S> {
     fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
-    fn borrow(&self, this: Rc<dyn Any>, ctx: &mut ReContext) -> ReBorrow<S::Item> {
+    fn borrow(&self, this: Rc<dyn Any>, ctx: &mut ReContext) -> ReRef<S::Item> {
         let this = Rc::downcast::<Self>(this).unwrap();
         ctx.bind(this.clone());
         let mut b = self.value.borrow();
@@ -350,7 +350,7 @@ impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
                 Some(self.src.get(&mut self.srcs.borrow_mut().context(this)));
             b = self.value.borrow();
         }
-        return ReBorrow::RefCell(Ref::map(b, |x| x.as_ref().unwrap()));
+        return ReRef::RefCell(Ref::map(b, |x| x.as_ref().unwrap()));
     }
 }
 
@@ -361,9 +361,9 @@ impl<T: Clone> Re for Constant<T> {
         self.0.clone()
     }
 }
-impl<T> ReRef for Constant<T> {
+impl<T> ReBorrow for Constant<T> {
     type Item = T;
-    fn borrow(&self, _ctx: &mut ReContext) -> ReBorrow<Self::Item> {
-        ReBorrow::Ref(&self.0)
+    fn borrow(&self, _ctx: &mut ReContext) -> ReRef<Self::Item> {
+        ReRef::Ref(&self.0)
     }
 }

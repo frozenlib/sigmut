@@ -35,11 +35,11 @@ impl<T: Clone + 'static> Re for ReCell<T> {
         self.borrow(ctx).clone()
     }
 }
-impl<T: 'static> ReRef for ReCell<T> {
+impl<T: 'static> ReBorrow for ReCell<T> {
     type Item = T;
-    fn borrow(&self, ctx: &mut ReContext) -> ReBorrow<T> {
+    fn borrow(&self, ctx: &mut ReContext) -> ReRef<T> {
         ctx.bind(self.0.clone());
-        ReBorrow::RefCell(self.0.value.borrow())
+        ReRef::RefCell(self.0.value.borrow())
     }
 }
 
