@@ -178,6 +178,13 @@ impl BindSinkEntry {
 pub trait Re {
     type Item;
     fn get(&self, ctx: &mut ReContext) -> Self::Item;
+
+    fn cached(self) -> ReRefRc<Self::Item>
+    where
+        Self: Sized + 'static,
+    {
+        ReRefRc(Rc::new(ReCacheData::new(self)))
+    }
 }
 pub trait ReRef {
     type Item;
@@ -371,20 +378,10 @@ pub trait DynReRef<T> {
     fn borrow(&self, this: Rc<dyn Any>, ctx: &mut ReContext) -> ReBorrow<T>;
 }
 
-pub struct ReCache<T>(Rc<dyn DynReRef<T>>);
-struct ReCacheData<S: Re> {
-    src: S,
-    value: RefCell<Option<S::Item>>,
-    sinks: BindSinks,
-    srcs: RefCell<BindSources>,
-}
+pub struct ReRefRc<T>(Rc<dyn DynReRef<T>>);
 
-impl<T> ReCache<T> {
-    pub fn from_re_ref(src: impl Re<Item = T> + 'static) -> Self {
-        ReCache(Rc::new(ReCacheData::new(src)))
-    }
-}
-impl<T> ReRef for ReCache<T> {
+impl<T> ReRefRc<T> {}
+impl<T> ReRef for ReRefRc<T> {
     type Item = T;
 
     fn borrow(&self, ctx: &mut ReContext) -> ReBorrow<T> {
@@ -392,6 +389,12 @@ impl<T> ReRef for ReCache<T> {
     }
 }
 
+struct ReCacheData<S: Re> {
+    src: S,
+    value: RefCell<Option<S::Item>>,
+    sinks: BindSinks,
+    srcs: RefCell<BindSources>,
+}
 impl<S: Re> ReCacheData<S> {
     fn new(src: S) -> Self {
         Self {
@@ -412,7 +415,9 @@ impl<S: Re> BindSink for ReCacheData<S> {
         self.sinks.lock();
     }
     fn unlock(&self, modified: bool) {
-        self.sinks.unlock_with(modified, || unimplemented!());
+        self.sinks.unlock_with(modified, || {
+            *self.value.borrow_mut() = None;
+        });
     }
 }
 
@@ -431,5 +436,19 @@ impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
             b = self.value.borrow();
         }
         return ReBorrow::RefCell(Ref::map(b, |x| x.as_ref().unwrap()));
+    }
+}
+
+pub struct Constant<T>(T);
+impl<T: Clone> Re for Constant<T> {
+    type Item = T;
+    fn get(&self, _ctx: &mut ReContext) -> Self::Item {
+        self.0.clone()
+    }
+}
+impl<T> ReRef for Constant<T> {
+    type Item = T;
+    fn borrow(&self, _ctx: &mut ReContext) -> ReBorrow<Self::Item> {
+        ReBorrow::Ref(&self.0)
     }
 }
