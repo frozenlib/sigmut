@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::{Ref, RefCell, RefMut};
 use std::mem::ManuallyDrop;
 use std::mem::{drop, replace};
@@ -365,27 +366,29 @@ impl<'a, T> Drop for ReCellRefMut<'a, T> {
     }
 }
 
-pub struct ReCache<T>(Rc<dyn DynReCacheData<T>>);
+pub trait DynReRef<T> {
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
+    fn borrow(&self, this: Rc<dyn Any>, ctx: &mut ReContext) -> ReBorrow<T>;
+}
+
+pub struct ReCache<T>(Rc<dyn DynReRef<T>>);
 struct ReCacheData<S: Re> {
     src: S,
     value: RefCell<Option<S::Item>>,
     sinks: BindSinks,
     srcs: RefCell<BindSources>,
 }
-trait DynReCacheData<T> {
-    fn borrow(&self, this: Rc<dyn DynReCacheData<T>>, ctx: &mut ReContext) -> ReBorrow<T>;
-}
 
-impl<T: 'static> ReCache<T> {
+impl<T> ReCache<T> {
     pub fn from_re_ref(src: impl Re<Item = T> + 'static) -> Self {
-        ReCache(Rc::new(ReCacheData::new(src)) as Rc<dyn DynReCacheData<T>>)
+        ReCache(Rc::new(ReCacheData::new(src)))
     }
 }
 impl<T> ReRef for ReCache<T> {
     type Item = T;
 
     fn borrow(&self, ctx: &mut ReContext) -> ReBorrow<T> {
-        self.0.borrow(self.0.clone(), ctx)
+        self.0.borrow(self.0.clone().as_any(), ctx)
     }
 }
 
@@ -413,13 +416,12 @@ impl<S: Re> BindSink for ReCacheData<S> {
     }
 }
 
-impl<S: Re + 'static> DynReCacheData<S::Item> for ReCacheData<S> {
-    fn borrow(
-        &self,
-        this: Rc<dyn DynReCacheData<S::Item>>,
-        ctx: &mut ReContext,
-    ) -> ReBorrow<S::Item> {
-        let this = unsafe { Rc::from_raw(Rc::into_raw(this) as *const Self) };
+impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+    fn borrow(&self, this: Rc<dyn Any>, ctx: &mut ReContext) -> ReBorrow<S::Item> {
+        let this = Rc::downcast::<Self>(this).unwrap();
         ctx.bind(this.clone());
         let mut b = self.value.borrow();
         if b.is_none() {
