@@ -89,6 +89,50 @@ impl BindSinks {
             }
         }
     }
+    pub fn lock(&self) {
+        let mut b = self.0.borrow_mut();
+        if b.locked == usize::max_value() {
+            panic!("BindSource : too many locked.")
+        }
+        b.locked += 1;
+        if b.locked > 1 {
+            return;
+        }
+
+        let mut idx = 0;
+        while let Some(sink) = b.sinks.get_mut(idx) {
+            if let Some(sink) = sink.set_locked(true) {
+                drop(b);
+                sink.lock();
+                b = self.0.borrow_mut();
+            }
+            idx += 1;
+        }
+        if b.locked == 0 {
+            self.unlock_apply();
+        }
+    }
+    pub fn unlock(&self, modified: bool) {
+        self.unlock_with(modified, || {});
+    }
+    pub fn unlock_with(&self, modified: bool, on_modify_completed: impl Fn()) {
+        let mut b = self.0.borrow_mut();
+        assert!(b.locked != 0, "BindSource : unlock when not locked.");
+        b.locked -= 1;
+        b.modified |= modified;
+        if b.locked != 0 {
+            return;
+        }
+        let modified = b.modified;
+        for s in b.sinks.iter_mut() {
+            s.modified |= modified;
+        }
+        b.modified = false;
+        if modified {
+            on_modify_completed();
+        }
+        self.unlock_apply();
+    }
     fn unlock_apply(&self) {
         let mut b = self.0.borrow_mut();
         if b.locked != 0 {
@@ -118,46 +162,6 @@ impl BindSource for BindSinks {
         self
     }
 }
-impl BindSink for BindSinks {
-    fn lock(&self) {
-        let mut b = self.0.borrow_mut();
-        if b.locked == usize::max_value() {
-            panic!("BindSource : too many locked.")
-        }
-        b.locked += 1;
-        if b.locked > 1 {
-            return;
-        }
-
-        let mut idx = 0;
-        while let Some(sink) = b.sinks.get_mut(idx) {
-            if let Some(sink) = sink.set_locked(true) {
-                drop(b);
-                sink.lock();
-                b = self.0.borrow_mut();
-            }
-            idx += 1;
-        }
-        if b.locked == 0 {
-            self.unlock_apply();
-        }
-    }
-    fn unlock(&self, modified: bool) {
-        let mut b = self.0.borrow_mut();
-        assert!(b.locked != 0, "BindSource : unlock when not locked.");
-        b.locked -= 1;
-        b.modified |= modified;
-        if b.locked != 0 {
-            return;
-        }
-        let modified = b.modified;
-        for s in b.sinks.iter_mut() {
-            s.modified |= modified;
-        }
-        b.modified = false;
-        self.unlock_apply();
-    }
-}
 impl BindSinkEntry {
     fn set_locked(&mut self, locked: bool) -> Option<Rc<dyn BindSink>> {
         if locked != self.locked {
@@ -183,6 +187,24 @@ pub enum ReBorrow<'a, T> {
     Ref(&'a T),
     RefCell(Ref<'a, T>),
 }
+impl<'a, T> ReBorrow<'a, T> {
+    pub fn take_or_clone(self) -> T
+    where
+        T: Clone,
+    {
+        match self {
+            ReBorrow::Value(x) => x,
+            x => (*x).clone(),
+        }
+    }
+    pub fn try_unwrap(self) -> Option<T> {
+        match self {
+            ReBorrow::Value(x) => Some(x),
+            _ => None,
+        }
+    }
+}
+
 impl<'a, T> Deref for ReBorrow<'a, T> {
     type Target = T;
 
@@ -201,27 +223,30 @@ struct BindSourceEntry {
     binding: Binding,
 }
 
-pub struct ReContext {
+pub struct ReContext<'a> {
     sink: Rc<dyn BindSink>,
     sink_weak: Weak<dyn BindSink>,
-    srcs: Vec<BindSourceEntry>,
+    srcs: &'a mut Vec<BindSourceEntry>,
     srcs_len: usize,
 }
-impl ReContext {
-    pub fn new(srcs: BindSources, sink: Rc<dyn BindSink>) -> Self {
+impl BindSources {
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+    pub fn context(&mut self, sink: Rc<dyn BindSink>) -> ReContext {
         let sink_weak = Rc::downgrade(&sink);
-        let srcs = srcs.0;
+        let srcs = &mut self.0;
         let srcs_len = srcs.len();
-        Self {
+        ReContext {
             sink,
             sink_weak,
             srcs,
             srcs_len,
         }
     }
-
-    pub fn bind(&mut self, src: &Rc<impl BindSource + 'static>) {
-        let src = src.clone() as Rc<dyn BindSource>;
+}
+impl<'a> ReContext<'a> {
+    pub fn bind(&mut self, src: Rc<dyn BindSource>) {
         if self.srcs_len < self.srcs.len() {
             let e = &mut self.srcs[self.srcs_len];
             if !Rc::ptr_eq(&src, &e.src) {
@@ -233,18 +258,20 @@ impl ReContext {
         }
         self.srcs_len += 1;
     }
-    pub fn finish(mut self) -> BindSources {
+}
+impl<'a> Drop for ReContext<'a> {
+    fn drop(&mut self) {
         let range = self.srcs_len..self.srcs.len();
         for e in self.srcs.drain(range) {
             e.unbind(&self.sink_weak);
         }
-        BindSources(self.srcs)
     }
 }
+
 impl BindSourceEntry {
     fn bind(src: Rc<dyn BindSource>, sink: &Rc<dyn BindSink>) -> Self {
         let binding = src.bind(sink);
-        Self { src, binding }
+        BindSourceEntry { src, binding }
     }
     fn unbind(self, sink: &Weak<dyn BindSink>) {
         self.src.unbind(self.binding, sink);
@@ -284,7 +311,7 @@ impl<T: Clone + 'static> Re for ReCell<T> {
 impl<T: 'static> ReRef for ReCell<T> {
     type Item = T;
     fn borrow(&self, ctx: &mut ReContext) -> ReBorrow<T> {
-        ctx.bind(&self.0);
+        ctx.bind(self.0.clone());
         ReBorrow::RefCell(self.0.value.borrow())
     }
 }
@@ -313,6 +340,7 @@ pub struct ReCellRefMut<'a, T> {
     sinks: &'a BindSinks,
     modified: bool,
 }
+
 impl<'a, T> Deref for ReCellRefMut<'a, T> {
     type Target = T;
     fn deref(&self) -> &T {
@@ -337,10 +365,69 @@ impl<'a, T> Drop for ReCellRefMut<'a, T> {
     }
 }
 
-pub struct ReCache<T, F>(Rc<ReCacheData<T, F>>);
-struct ReCacheData<T, F> {
-    f: F,
-    value: RefCell<Option<T>>,
+pub struct ReCache<T>(Rc<dyn DynReCacheData<T>>);
+struct ReCacheData<S: Re> {
+    src: S,
+    value: RefCell<Option<S::Item>>,
     sinks: BindSinks,
-    srcs: BindSources,
+    srcs: RefCell<BindSources>,
+}
+trait DynReCacheData<T> {
+    fn borrow(&self, this: Rc<dyn DynReCacheData<T>>, ctx: &mut ReContext) -> ReBorrow<T>;
+}
+
+impl<T: 'static> ReCache<T> {
+    pub fn from_re_ref(src: impl Re<Item = T> + 'static) -> Self {
+        ReCache(Rc::new(ReCacheData::new(src)) as Rc<dyn DynReCacheData<T>>)
+    }
+}
+impl<T> ReRef for ReCache<T> {
+    type Item = T;
+
+    fn borrow(&self, ctx: &mut ReContext) -> ReBorrow<T> {
+        self.0.borrow(self.0.clone(), ctx)
+    }
+}
+
+impl<S: Re> ReCacheData<S> {
+    fn new(src: S) -> Self {
+        Self {
+            src,
+            value: RefCell::new(None),
+            sinks: BindSinks::new(),
+            srcs: RefCell::new(BindSources::new()),
+        }
+    }
+}
+impl<S: Re> BindSource for ReCacheData<S> {
+    fn bind_sinks(&self) -> &BindSinks {
+        &self.sinks
+    }
+}
+impl<S: Re> BindSink for ReCacheData<S> {
+    fn lock(&self) {
+        self.sinks.lock();
+    }
+    fn unlock(&self, modified: bool) {
+        self.sinks.unlock_with(modified, || unimplemented!());
+    }
+}
+
+impl<S: Re + 'static> DynReCacheData<S::Item> for ReCacheData<S> {
+    fn borrow(
+        &self,
+        this: Rc<dyn DynReCacheData<S::Item>>,
+        ctx: &mut ReContext,
+    ) -> ReBorrow<S::Item> {
+        let this = unsafe { Rc::from_raw(Rc::into_raw(this) as *const Self) };
+        ctx.bind(this.clone());
+        let mut b = self.value.borrow();
+        if b.is_none() {
+            drop(b);
+            *self.value.borrow_mut() =
+                Some(self.src.get(&mut self.srcs.borrow_mut().context(this)));
+            b = self.value.borrow();
+        }
+        return ReBorrow::RefCell(Ref::map(b, |x| x.as_ref().unwrap()));
+    }
 }
