@@ -102,13 +102,12 @@ trait DynRe<T> {
 // When arbitrary_self_types is stabilized,
 // change to `fn dyn_borrow(self: &Rc<Self>, ctx: &mut BindContext) -> Ref<T>`;
 trait DynReRef<T> {
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<T>;
-    fn downcast(&self, this: Rc<dyn Any>) -> Rc<Self>
+    fn dyn_borrow(&self, this: &dyn Any, ctx: &mut BindContext) -> Ref<T>;
+    fn downcast(this: &dyn Any) -> &Rc<Self>
     where
         Self: Sized + 'static,
     {
-        Rc::downcast::<Self>(this).unwrap()
+        this.downcast_ref().unwrap()
     }
 }
 
@@ -118,10 +117,7 @@ impl<R: Re> DynRe<R::Item> for R {
     }
 }
 impl<R: ReRef + Any> DynReRef<R::Item> for R {
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-    fn dyn_borrow(&self, _this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<R::Item> {
+    fn dyn_borrow(&self, _this: &dyn Any, ctx: &mut BindContext) -> Ref<R::Item> {
         self.borrow(ctx)
     }
 }
@@ -141,11 +137,11 @@ impl<T> Re for RcRe<T> {
         self
     }
 }
-impl<T> ReRef for RcReRef<T> {
+impl<T: 'static> ReRef for RcReRef<T> {
     type Item = T;
 
     fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
-        self.0.dyn_borrow(self.0.clone().as_any(), ctx)
+        self.0.dyn_borrow(&self.0, ctx)
     }
     fn into_rc(self) -> RcReRef<T> {
         self
@@ -204,17 +200,16 @@ impl<S: Re> BindSink for ReCacheData<S> {
 }
 
 impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-    fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<S::Item> {
-        let this = self.downcast(this);
+    fn dyn_borrow(&self, this: &dyn Any, ctx: &mut BindContext) -> Ref<S::Item> {
+        let this = Self::downcast(this);
         ctx.bind(this.clone());
         let mut b = self.value.borrow();
         if b.is_none() {
             drop(b);
-            *self.value.borrow_mut() =
-                Some(self.src.get(&mut self.binds.borrow_mut().context(this)));
+            *self.value.borrow_mut() = Some(
+                self.src
+                    .get(&mut self.binds.borrow_mut().context(this.clone())),
+            );
             b = self.value.borrow();
         }
         return Ref::Cell(std::cell::Ref::map(b, |x| x.as_ref().unwrap()));
