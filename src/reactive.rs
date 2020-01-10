@@ -158,6 +158,12 @@ impl<T, F: Fn(&BindContext) -> T> Re for F {
         self(ctx)
     }
 }
+impl<S: Re> Re for Option<S> {
+    type Item = Option<S::Item>;
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        self.as_ref().map(|s| s.get(ctx))
+    }
+}
 impl<S0: Re, S1: Re> Re for (S0, S1) {
     type Item = (S0::Item, S1::Item);
     fn get(&self, ctx: &mut BindContext) -> Self::Item {
