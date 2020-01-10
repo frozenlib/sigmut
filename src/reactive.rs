@@ -1,6 +1,5 @@
 use std::any::Any;
 use std::cell::RefCell;
-use std::marker::PhantomData;
 use std::mem::drop;
 use std::ops::Deref;
 use std::rc::Rc;

@@ -1,6 +1,6 @@
 pub mod binding;
 pub mod reactive;
 
-pub use self::binding::BindContext;
-pub use self::reactive::cell::ReCell;
-pub use self::reactive::{Constant, RcReRef, Re, ReRef};
+pub use binding::BindContext;
+pub use reactive::cell::ReRefCell;
+pub use reactive::{Constant, RcReRef, Re, ReRef};

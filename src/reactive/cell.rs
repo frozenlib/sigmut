@@ -8,15 +8,15 @@ use super::*;
 use crate::binding::*;
 
 #[derive(Clone)]
-pub struct ReCell<T>(Rc<ReCellData<T>>);
-struct ReCellData<T> {
+pub struct ReRefCell<T>(Rc<ReRefCellData<T>>);
+struct ReRefCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,
 }
 
-impl<T> ReCell<T> {
+impl<T> ReRefCell<T> {
     pub fn new(value: T) -> Self {
-        Self(Rc::new(ReCellData {
+        Self(Rc::new(ReRefCellData {
             value: RefCell::new(value),
             sinks: BindSinks::new(),
         }))
@@ -36,14 +36,14 @@ impl<T> ReCell<T> {
         LockGuard(self)
     }
 }
-impl<T> ReCellData<T> {
+impl<T> ReRefCellData<T> {
     fn borrow(&self, this: Rc<dyn BindSource>, ctx: &mut BindContext) -> Ref<T> {
         ctx.bind(this);
         Ref::RefCell(self.value.borrow())
     }
 }
 
-impl<T: 'static> ReRef for ReCell<T> {
+impl<T: 'static> ReRef for ReRefCell<T> {
     type Item = T;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
         self.0.borrow(self.0.clone(), ctx)
@@ -53,7 +53,7 @@ impl<T: 'static> ReRef for ReCell<T> {
     }
 }
 
-impl<T: 'static> DynReRef<T> for ReCellData<T> {
+impl<T: 'static> DynReRef<T> for ReRefCellData<T> {
     fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
@@ -62,16 +62,16 @@ impl<T: 'static> DynReRef<T> for ReCellData<T> {
     }
 }
 
-impl<T> BindSource for ReCellData<T> {
+impl<T> BindSource for ReRefCellData<T> {
     fn bind_sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
 
-pub struct LockGuard<'a, T>(&'a ReCell<T>);
+pub struct LockGuard<'a, T>(&'a ReRefCell<T>);
 impl<'a, T> Deref for LockGuard<'a, T> {
-    type Target = ReCell<T>;
-    fn deref(&self) -> &ReCell<T> {
+    type Target = ReRefCell<T>;
+    fn deref(&self) -> &ReRefCell<T> {
         &self.0
     }
 }
