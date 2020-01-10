@@ -23,6 +23,30 @@ pub trait ReRef {
     type Item;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
 }
+
+pub trait ImplRe: Re<Item = <Self as ImplRe>::ImplItem> {
+    type ImplItem;
+}
+pub trait ImplReRef: ReRef<Item = <Self as ImplReRef>::ImplItem> {
+    type ImplItem;
+}
+
+impl<R: ImplRe> ReRef for R {
+    type Item = R::ImplItem;
+    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+        Ref::Value(self.get(ctx))
+    }
+}
+impl<R: ImplReRef> Re for R
+where
+    R::ImplItem: Clone,
+{
+    type Item = R::ImplItem;
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        self.borrow(ctx).take_or_clone()
+    }
+}
+
 pub enum Ref<'a, T> {
     Value(T),
     Ref(&'a T),
@@ -58,19 +82,53 @@ impl<'a, T> Deref for Ref<'a, T> {
     }
 }
 
+pub trait DynRe<T> {
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
+    fn dyn_get(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> T;
+}
 pub trait DynReRef<T> {
     fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<T>;
+    fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<T>;
 }
 
+impl<R: Re + Any> DynRe<R::Item> for R {
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+    fn dyn_get(&self, _this: Rc<dyn Any>, ctx: &mut BindContext) -> R::Item {
+        Re::get(self, ctx)
+    }
+}
+impl<R: ReRef + Any> DynReRef<R::Item> for R {
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+    fn dyn_borrow(&self, _this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<R::Item> {
+        self.borrow(ctx)
+    }
+}
+
+pub struct RcRe<T>(Rc<dyn DynRe<T>>);
 pub struct RcReRef<T>(Rc<dyn DynReRef<T>>);
 
-impl<T> RcReRef<T> {}
+impl<T> Re for RcRe<T> {
+    type Item = T;
+    fn get(&self, ctx: &mut BindContext) -> T {
+        self.0.dyn_get(self.0.clone().as_any(), ctx)
+    }
+}
+
+impl<T: Clone> Re for RcReRef<T> {
+    type Item = T;
+    fn get(&self, ctx: &mut BindContext) -> T {
+        self.borrow(ctx).take_or_clone()
+    }
+}
 impl<T> ReRef for RcReRef<T> {
     type Item = T;
 
     fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
-        self.0.borrow(self.0.clone().as_any(), ctx)
+        self.0.dyn_borrow(self.0.clone().as_any(), ctx)
     }
 }
 
@@ -110,7 +168,7 @@ impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
     fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
-    fn borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<S::Item> {
+    fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<S::Item> {
         let this = Rc::downcast::<Self>(this).unwrap();
         ctx.bind(this.clone());
         let mut b = self.value.borrow();
