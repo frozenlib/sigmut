@@ -3,4 +3,4 @@ pub mod reactive;
 
 pub use binding::BindContext;
 pub use reactive::cell::ReRefCell;
-pub use reactive::{Constant, RcReRef, Re, ReRef};
+pub use reactive::{Constant, RcRe, RcReRef, Re, ReRef};
