@@ -39,7 +39,7 @@ impl<T> ReRefCell<T> {
 impl<T> ReRefCellData<T> {
     fn borrow(&self, this: Rc<dyn BindSource>, ctx: &mut BindContext) -> Ref<T> {
         ctx.bind(this);
-        Ref::RefCell(self.value.borrow())
+        Ref::Cell(self.value.borrow())
     }
 }
 

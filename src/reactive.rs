@@ -66,12 +66,15 @@ pub trait ReRef {
 }
 
 pub enum Ref<'a, T> {
-    Ref(&'a T),
-    RefCell(std::cell::Ref<'a, T>),
+    Native(&'a T),
+    Cell(std::cell::Ref<'a, T>),
 }
 impl<'a, T> Ref<'a, T> {
-    pub fn map<U>(self, f: impl FnOnce(&T) -> &U) -> Ref<'a, U> {
-        unimplemented!()
+    pub fn map<U>(this: Self, f: impl FnOnce(&T) -> &U) -> Ref<'a, U> {
+        match this {
+            Ref::Native(x) => Ref::Native(f(x)),
+            Ref::Cell(x) => Ref::Cell(std::cell::Ref::map(x, f)),
+        }
     }
 }
 
@@ -80,8 +83,8 @@ impl<'a, T> Deref for Ref<'a, T> {
 
     fn deref(&self) -> &T {
         match self {
-            Ref::Ref(x) => x,
-            Ref::RefCell(x) => x,
+            Ref::Native(x) => x,
+            Ref::Cell(x) => x,
         }
     }
 }
@@ -192,7 +195,7 @@ impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
                 Some(self.src.get(&mut self.binds.borrow_mut().context(this)));
             b = self.value.borrow();
         }
-        return Ref::RefCell(std::cell::Ref::map(b, |x| x.as_ref().unwrap()));
+        return Ref::Cell(std::cell::Ref::map(b, |x| x.as_ref().unwrap()));
     }
 }
 
@@ -200,7 +203,7 @@ pub struct Constant<T>(T);
 impl<T> ReRef for Constant<T> {
     type Item = T;
     fn borrow(&self, _ctx: &mut BindContext) -> Ref<Self::Item> {
-        Ref::Ref(&self.0)
+        Ref::Native(&self.0)
     }
 }
 
@@ -246,6 +249,6 @@ pub struct MapRefRef<S, F> {
 impl<S: ReRef, F: Fn(&S::Item) -> &U, U> ReRef for MapRefRef<S, F> {
     type Item = U;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<U> {
-        self.s.borrow(ctx).map(&self.f)
+        Ref::map(self.s.borrow(ctx), &self.f)
     }
 }
