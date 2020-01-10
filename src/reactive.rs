@@ -43,6 +43,12 @@ pub trait ReRef {
     {
         MapRef { s: self, f }
     }
+    fn map_ref<F: Fn(&Self::Item) -> &U, U>(self, f: F) -> MapRefRef<Self, F>
+    where
+        Self: Sized,
+    {
+        MapRefRef { s: self, f }
+    }
 
     fn cloned(self) -> Cloned<Self>
     where
