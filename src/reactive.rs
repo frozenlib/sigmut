@@ -31,7 +31,7 @@ pub trait Re {
     {
         RcReRef(Rc::new(ReCacheData::new(self)))
     }
-    fn into_rc(self) -> RcRe<Self::Item>
+    fn rc(self) -> RcRe<Self::Item>
     where
         Self: Sized + 'static,
     {
@@ -54,6 +54,12 @@ pub trait ReRef {
     {
         RefMapRef { s: self, f }
     }
+    fn flat_map<F: Fn(&Self::Item) -> U, U: Re>(self, f: F) -> RefFlatMap<Self, F>
+    where
+        Self: Sized,
+    {
+        RefFlatMap { s: self, f }
+    }
 
     fn cloned(self) -> Cloned<Self>
     where
@@ -63,7 +69,7 @@ pub trait ReRef {
         Cloned(self)
     }
 
-    fn into_rc(self) -> RcReRef<Self::Item>
+    fn rc(self) -> RcReRef<Self::Item>
     where
         Self: Sized + 'static,
     {
@@ -122,7 +128,10 @@ impl<R: ReRef + Any> DynReRef<R::Item> for R {
     }
 }
 
+#[derive(Clone)]
 pub struct RcRe<T>(Rc<dyn DynRe<T>>);
+
+#[derive(Clone)]
 pub struct RcReRef<T>(Rc<dyn DynReRef<T>>);
 
 impl<T> RcRe<T> {}
@@ -133,7 +142,7 @@ impl<T> Re for RcRe<T> {
     fn get(&self, ctx: &mut BindContext) -> T {
         self.0.clone().dyn_get(ctx)
     }
-    fn into_rc(self) -> RcRe<T> {
+    fn rc(self) -> RcRe<T> {
         self
     }
 }
@@ -143,7 +152,7 @@ impl<T: 'static> ReRef for RcReRef<T> {
     fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
         self.0.dyn_borrow(&self.0, ctx)
     }
-    fn into_rc(self) -> RcReRef<T> {
+    fn rc(self) -> RcReRef<T> {
         self
     }
 }
@@ -273,4 +282,23 @@ impl<S: ReRef, F: Fn(&S::Item) -> &U, U> ReRef for RefMapRef<S, F> {
 pub struct FlatMap<S, F> {
     s: S,
     f: F,
+}
+
+impl<S: Re, F: Fn(S::Item) -> U, U: Re> Re for FlatMap<S, F> {
+    type Item = U::Item;
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        (self.f)(self.s.get(ctx)).get(ctx)
+    }
+}
+
+pub struct RefFlatMap<S, F> {
+    s: S,
+    f: F,
+}
+
+impl<S: ReRef, F: Fn(&S::Item) -> U, U: Re> Re for RefFlatMap<S, F> {
+    type Item = U::Item;
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        (self.f)(&self.s.borrow(ctx)).get(ctx)
+    }
 }

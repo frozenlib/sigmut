@@ -48,7 +48,7 @@ impl<T: 'static> ReRef for ReRefCell<T> {
     fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
         self.0.borrow(self.0.clone(), ctx)
     }
-    fn into_rc(self) -> RcReRef<T> {
+    fn rc(self) -> RcReRef<T> {
         RcReRef(self.0)
     }
 }
