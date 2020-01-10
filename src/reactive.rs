@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::cell::RefCell;
+use std::marker::PhantomData;
 use std::mem::drop;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -12,45 +13,60 @@ pub trait Re {
     type Item;
     fn get(&self, ctx: &mut BindContext) -> Self::Item;
 
+    fn map<F: Fn(Self::Item) -> U, U>(self, f: F) -> Map<Self, F>
+    where
+        Self: Sized,
+    {
+        Map { s: self, f }
+    }
+
     fn cached(self) -> RcReRef<Self::Item>
     where
         Self: Sized + 'static,
     {
         RcReRef(Rc::new(ReCacheData::new(self)))
     }
+    fn into_rc(self) -> RcRe<Self::Item>
+    where
+        Self: Sized + 'static,
+    {
+        RcRe::new(Rc::new(self))
+    }
 }
 pub trait ReRef {
     type Item;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
 
-    fn cloned(self) -> Cloned<Self>
+    fn map<F: Fn(&Self::Item) -> U, U>(self, f: F) -> MapRef<Self, F>
     where
         Self: Sized,
     {
+        MapRef { s: self, f }
+    }
+
+    fn cloned(self) -> Cloned<Self>
+    where
+        Self: Sized,
+        Self::Item: Clone,
+    {
         Cloned(self)
+    }
+
+    fn into_rc(self) -> RcReRef<Self::Item>
+    where
+        Self: Sized + 'static,
+    {
+        RcReRef::new(Rc::new(self))
     }
 }
 
 pub enum Ref<'a, T> {
-    Value(T),
     Ref(&'a T),
     RefCell(std::cell::Ref<'a, T>),
 }
 impl<'a, T> Ref<'a, T> {
-    pub fn take_or_clone(self) -> T
-    where
-        T: Clone,
-    {
-        match self {
-            Ref::Value(x) => x,
-            x => (*x).clone(),
-        }
-    }
-    pub fn try_take(self) -> Option<T> {
-        match self {
-            Ref::Value(x) => Some(x),
-            _ => None,
-        }
+    pub fn map<U>(self, f: impl FnOnce(&T) -> &U) -> Ref<'a, U> {
+        unimplemented!()
     }
 }
 
@@ -59,7 +75,6 @@ impl<'a, T> Deref for Ref<'a, T> {
 
     fn deref(&self) -> &T {
         match self {
-            Ref::Value(x) => x,
             Ref::Ref(x) => x,
             Ref::RefCell(x) => x,
         }
@@ -95,10 +110,24 @@ impl<R: ReRef + Any> DynReRef<R::Item> for R {
 pub struct RcRe<T>(Rc<dyn DynRe<T>>);
 pub struct RcReRef<T>(Rc<dyn DynReRef<T>>);
 
+impl<T> RcRe<T> {
+    pub fn new<S: Re<Item = T> + 'static>(s: Rc<S>) -> Self {
+        RcRe(s)
+    }
+}
+impl<T> RcReRef<T> {
+    pub fn new<S: ReRef<Item = T> + 'static>(s: Rc<S>) -> Self {
+        RcReRef(s)
+    }
+}
+
 impl<T> Re for RcRe<T> {
     type Item = T;
     fn get(&self, ctx: &mut BindContext) -> T {
         self.0.dyn_get(self.0.clone().as_any(), ctx)
+    }
+    fn into_rc(self) -> RcRe<T> {
+        self
     }
 }
 impl<T> ReRef for RcReRef<T> {
@@ -107,13 +136,16 @@ impl<T> ReRef for RcReRef<T> {
     fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
         self.0.dyn_borrow(self.0.clone().as_any(), ctx)
     }
+    fn into_rc(self) -> RcReRef<T> {
+        self
+    }
 }
 
 struct ReCacheData<S: Re> {
     src: S,
     value: RefCell<Option<S::Item>>,
     sinks: BindSinks,
-    srcs: RefCell<Bindings>,
+    binds: RefCell<Bindings>,
 }
 impl<S: Re> ReCacheData<S> {
     fn new(src: S) -> Self {
@@ -121,7 +153,7 @@ impl<S: Re> ReCacheData<S> {
             src,
             value: RefCell::new(None),
             sinks: BindSinks::new(),
-            srcs: RefCell::new(Bindings::new()),
+            binds: RefCell::new(Bindings::new()),
         }
     }
 }
@@ -152,7 +184,7 @@ impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
         if b.is_none() {
             drop(b);
             *self.value.borrow_mut() =
-                Some(self.src.get(&mut self.srcs.borrow_mut().context(this)));
+                Some(self.src.get(&mut self.binds.borrow_mut().context(this)));
             b = self.value.borrow();
         }
         return Ref::RefCell(std::cell::Ref::map(b, |x| x.as_ref().unwrap()));
@@ -167,13 +199,48 @@ impl<T> ReRef for Constant<T> {
     }
 }
 
-pub struct Cloned<R>(R);
-impl<R: ReRef> Re for Cloned<R>
+pub struct Cloned<S>(S);
+impl<S: ReRef> Re for Cloned<S>
 where
-    R::Item: Clone,
+    S::Item: Clone,
 {
-    type Item = R::Item;
+    type Item = S::Item;
     fn get(&self, ctx: &mut BindContext) -> Self::Item {
-        self.0.borrow(ctx).take_or_clone()
+        self.0.borrow(ctx).clone()
+    }
+}
+
+pub struct Map<S, F> {
+    s: S,
+    f: F,
+}
+
+impl<S: Re, F: Fn(S::Item) -> U, U> Re for Map<S, F> {
+    type Item = U;
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        (self.f)(self.s.get(ctx))
+    }
+}
+
+pub struct MapRef<S, F> {
+    s: S,
+    f: F,
+}
+impl<S: ReRef, F: Fn(&S::Item) -> U, U> Re for MapRef<S, F> {
+    type Item = U;
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        (self.f)(&self.s.borrow(ctx))
+    }
+}
+
+pub struct MapRefRef<S, F> {
+    s: S,
+    f: F,
+}
+
+impl<S: ReRef, F: Fn(&S::Item) -> &U, U> ReRef for MapRefRef<S, F> {
+    type Item = U;
+    fn borrow(&self, ctx: &mut BindContext) -> Ref<U> {
+        self.s.borrow(ctx).map(&self.f)
     }
 }

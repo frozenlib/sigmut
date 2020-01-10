@@ -36,12 +36,29 @@ impl<T> ReCell<T> {
         LockGuard(self)
     }
 }
+impl<T> ReCellData<T> {
+    fn borrow(&self, this: Rc<dyn BindSource>, ctx: &mut BindContext) -> Ref<T> {
+        ctx.bind(this);
+        Ref::RefCell(self.value.borrow())
+    }
+}
 
 impl<T: 'static> ReRef for ReCell<T> {
     type Item = T;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
-        ctx.bind(self.0.clone());
-        Ref::RefCell(self.0.value.borrow())
+        self.0.borrow(self.0.clone(), ctx)
+    }
+    fn into_rc(self) -> RcReRef<T> {
+        RcReRef(self.0)
+    }
+}
+
+impl<T: 'static> DynReRef<T> for ReCellData<T> {
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+    fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<T> {
+        self.borrow(Rc::downcast::<Self>(this).unwrap(), ctx)
     }
 }
 
