@@ -2,13 +2,16 @@ use std::cell;
 use std::cell::RefCell;
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use super::*;
 use crate::binding::*;
 
 #[derive(Clone)]
 pub struct ReRefCell<T>(Rc<ReRefCellData<T>>);
+
+#[derive(Clone)]
+pub struct WeakReRefCell<T>(Weak<ReRefCellData<T>>);
 struct ReRefCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,
@@ -35,7 +38,16 @@ impl<T> ReRefCell<T> {
         self.0.sinks.lock();
         LockGuard(self)
     }
+    pub fn downgrade(&self) -> WeakReRefCell<T> {
+        WeakReRefCell(Rc::downgrade(&self.0))
+    }
 }
+impl<T> WeakReRefCell<T> {
+    pub fn upgrade(&self) -> Option<ReRefCell<T>> {
+        self.0.upgrade().map(ReRefCell)
+    }
+}
+
 impl<T> ReRefCellData<T> {
     fn borrow(&self, this: Rc<dyn BindSource>, ctx: &mut BindContext) -> Ref<T> {
         ctx.bind(this);
