@@ -60,7 +60,7 @@ impl<T: 'static> DynReRef<T> for ReRefCellData<T> {
 }
 
 impl<T> BindSource for ReRefCellData<T> {
-    fn bind_sinks(&self) -> &BindSinks {
+    fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }

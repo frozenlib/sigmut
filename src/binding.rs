@@ -3,13 +3,13 @@ use std::mem::{drop, replace};
 use std::rc::{Rc, Weak};
 
 pub trait BindSource {
-    fn bind_sinks(&self) -> &BindSinks;
+    fn sinks(&self) -> &BindSinks;
 
     fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding {
-        self.bind_sinks().bind(sink)
+        self.sinks().bind(sink)
     }
     fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>) {
-        self.bind_sinks().unbind(binding, sink);
+        self.sinks().unbind(binding, sink);
     }
 }
 pub trait BindSink {
@@ -156,7 +156,7 @@ impl BindSinks {
     }
 }
 impl BindSource for BindSinks {
-    fn bind_sinks(&self) -> &BindSinks {
+    fn sinks(&self) -> &BindSinks {
         self
     }
 }

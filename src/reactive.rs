@@ -193,7 +193,7 @@ impl<S: Re> ReCacheData<S> {
     }
 }
 impl<S: Re> BindSource for ReCacheData<S> {
-    fn bind_sinks(&self) -> &BindSinks {
+    fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
