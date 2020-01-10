@@ -147,6 +147,12 @@ impl<T, F: Fn(&BindContext) -> T> Re for F {
         self(ctx)
     }
 }
+impl<S0: Re, S1: Re> Re for (S0, S1) {
+    type Item = (S0::Item, S1::Item);
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        (self.0.get(ctx), self.1.get(ctx))
+    }
+}
 
 struct ReCacheData<S: Re> {
     src: S,
