@@ -22,28 +22,12 @@ pub trait Re {
 pub trait ReRef {
     type Item;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
-}
 
-pub trait ImplRe: Re<Item = <Self as ImplRe>::ImplItem> {
-    type ImplItem;
-}
-pub trait ImplReRef: ReRef<Item = <Self as ImplReRef>::ImplItem> {
-    type ImplItem;
-}
-
-impl<R: ImplRe> ReRef for R {
-    type Item = R::ImplItem;
-    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        Ref::Value(self.get(ctx))
-    }
-}
-impl<R: ImplReRef> Re for R
-where
-    R::ImplItem: Clone,
-{
-    type Item = R::ImplItem;
-    fn get(&self, ctx: &mut BindContext) -> Self::Item {
-        self.borrow(ctx).take_or_clone()
+    fn cloned(self) -> Cloned<Self>
+    where
+        Self: Sized,
+    {
+        Cloned(self)
     }
 }
 
@@ -117,13 +101,6 @@ impl<T> Re for RcRe<T> {
         self.0.dyn_get(self.0.clone().as_any(), ctx)
     }
 }
-
-impl<T: Clone> Re for RcReRef<T> {
-    type Item = T;
-    fn get(&self, ctx: &mut BindContext) -> T {
-        self.borrow(ctx).take_or_clone()
-    }
-}
 impl<T> ReRef for RcReRef<T> {
     type Item = T;
 
@@ -183,15 +160,20 @@ impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
 }
 
 pub struct Constant<T>(T);
-impl<T: Clone> Re for Constant<T> {
-    type Item = T;
-    fn get(&self, _ctx: &mut BindContext) -> Self::Item {
-        self.0.clone()
-    }
-}
 impl<T> ReRef for Constant<T> {
     type Item = T;
     fn borrow(&self, _ctx: &mut BindContext) -> Ref<Self::Item> {
         Ref::Ref(&self.0)
+    }
+}
+
+pub struct Cloned<R>(R);
+impl<R: ReRef> Re for Cloned<R>
+where
+    R::Item: Clone,
+{
+    type Item = R::Item;
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        self.0.borrow(ctx).take_or_clone()
     }
 }
