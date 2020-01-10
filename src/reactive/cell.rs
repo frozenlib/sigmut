@@ -104,7 +104,10 @@ impl<'a, T> Deref for RefMut<'a, T> {
 }
 impl<'a, T> DerefMut for RefMut<'a, T> {
     fn deref_mut(&mut self) -> &mut T {
-        self.modified = true;
+        if !self.modified {
+            self.modified = true;
+            self.sinks.lock();
+        }
         &mut self.b
     }
 }
@@ -114,7 +117,6 @@ impl<'a, T> Drop for RefMut<'a, T> {
             ManuallyDrop::drop(&mut self.b);
         }
         if self.modified {
-            self.sinks.lock();
             self.sinks.unlock(true);
         }
     }
