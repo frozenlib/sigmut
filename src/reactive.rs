@@ -18,6 +18,12 @@ pub trait Re {
     {
         Map { s: self, f }
     }
+    fn flat_map<F: Fn(Self::Item) -> R, R: Re>(self, f: F) -> FlatMap<Self, F>
+    where
+        Self: Sized,
+    {
+        FlatMap { s: self, f }
+    }
 
     fn cached(self) -> RcReRef<Self::Item>
     where
@@ -36,17 +42,17 @@ pub trait ReRef {
     type Item;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
 
-    fn map<F: Fn(&Self::Item) -> U, U>(self, f: F) -> MapRef<Self, F>
+    fn map<F: Fn(&Self::Item) -> U, U>(self, f: F) -> RefMap<Self, F>
     where
         Self: Sized,
     {
-        MapRef { s: self, f }
+        RefMap { s: self, f }
     }
-    fn map_ref<F: Fn(&Self::Item) -> &U, U>(self, f: F) -> MapRefRef<Self, F>
+    fn map_ref<F: Fn(&Self::Item) -> &U, U>(self, f: F) -> RefMapRef<Self, F>
     where
         Self: Sized,
     {
-        MapRefRef { s: self, f }
+        RefMapRef { s: self, f }
     }
 
     fn cloned(self) -> Cloned<Self>
@@ -89,21 +95,26 @@ impl<'a, T> Deref for Ref<'a, T> {
     }
 }
 
-pub trait DynRe<T> {
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn dyn_get(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> T;
-}
-pub trait DynReRef<T> {
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<T>;
+trait DynRe<T> {
+    fn dyn_get(self: Rc<Self>, ctx: &mut BindContext) -> T;
 }
 
-impl<R: Re + Any> DynRe<R::Item> for R {
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
+// When arbitrary_self_types is stabilized,
+// change to `fn dyn_borrow(self: &Rc<Self>, ctx: &mut BindContext) -> Ref<T>`;
+trait DynReRef<T> {
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
+    fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<T>;
+    fn downcast(&self, this: Rc<dyn Any>) -> Rc<Self>
+    where
+        Self: Sized + 'static,
+    {
+        Rc::downcast::<Self>(this).unwrap()
     }
-    fn dyn_get(&self, _this: Rc<dyn Any>, ctx: &mut BindContext) -> R::Item {
-        Re::get(self, ctx)
+}
+
+impl<R: Re> DynRe<R::Item> for R {
+    fn dyn_get(self: Rc<Self>, ctx: &mut BindContext) -> R::Item {
+        self.get(ctx)
     }
 }
 impl<R: ReRef + Any> DynReRef<R::Item> for R {
@@ -124,7 +135,7 @@ impl<T> RcReRef<T> {}
 impl<T> Re for RcRe<T> {
     type Item = T;
     fn get(&self, ctx: &mut BindContext) -> T {
-        self.0.dyn_get(self.0.clone().as_any(), ctx)
+        self.0.clone().dyn_get(ctx)
     }
     fn into_rc(self) -> RcRe<T> {
         self
@@ -191,7 +202,7 @@ impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
         self
     }
     fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<S::Item> {
-        let this = Rc::downcast::<Self>(this).unwrap();
+        let this = self.downcast(this);
         ctx.bind(this.clone());
         let mut b = self.value.borrow();
         if b.is_none() {
@@ -235,25 +246,30 @@ impl<S: Re, F: Fn(S::Item) -> U, U> Re for Map<S, F> {
     }
 }
 
-pub struct MapRef<S, F> {
+pub struct RefMap<S, F> {
     s: S,
     f: F,
 }
-impl<S: ReRef, F: Fn(&S::Item) -> U, U> Re for MapRef<S, F> {
+impl<S: ReRef, F: Fn(&S::Item) -> U, U> Re for RefMap<S, F> {
     type Item = U;
     fn get(&self, ctx: &mut BindContext) -> Self::Item {
         (self.f)(&self.s.borrow(ctx))
     }
 }
 
-pub struct MapRefRef<S, F> {
+pub struct RefMapRef<S, F> {
     s: S,
     f: F,
 }
 
-impl<S: ReRef, F: Fn(&S::Item) -> &U, U> ReRef for MapRefRef<S, F> {
+impl<S: ReRef, F: Fn(&S::Item) -> &U, U> ReRef for RefMapRef<S, F> {
     type Item = U;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<U> {
         Ref::map(self.s.borrow(ctx), &self.f)
     }
+}
+
+pub struct FlatMap<S, F> {
+    s: S,
+    f: F,
 }

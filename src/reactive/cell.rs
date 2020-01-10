@@ -58,7 +58,7 @@ impl<T: 'static> DynReRef<T> for ReRefCellData<T> {
         self
     }
     fn dyn_borrow(&self, this: Rc<dyn Any>, ctx: &mut BindContext) -> Ref<T> {
-        self.borrow(Rc::downcast::<Self>(this).unwrap(), ctx)
+        self.borrow(self.downcast(this), ctx)
     }
 }
 
