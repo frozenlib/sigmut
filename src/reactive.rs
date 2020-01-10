@@ -29,7 +29,7 @@ pub trait Re {
     where
         Self: Sized + 'static,
     {
-        RcRe::new(Rc::new(self))
+        RcRe(Rc::new(self))
     }
 }
 pub trait ReRef {
@@ -61,7 +61,7 @@ pub trait ReRef {
     where
         Self: Sized + 'static,
     {
-        RcReRef::new(Rc::new(self))
+        RcReRef(Rc::new(self))
     }
 }
 
@@ -118,16 +118,8 @@ impl<R: ReRef + Any> DynReRef<R::Item> for R {
 pub struct RcRe<T>(Rc<dyn DynRe<T>>);
 pub struct RcReRef<T>(Rc<dyn DynReRef<T>>);
 
-impl<T> RcRe<T> {
-    pub fn new<S: Re<Item = T> + 'static>(s: Rc<S>) -> Self {
-        RcRe(s)
-    }
-}
-impl<T> RcReRef<T> {
-    pub fn new<S: ReRef<Item = T> + 'static>(s: Rc<S>) -> Self {
-        RcReRef(s)
-    }
-}
+impl<T> RcRe<T> {}
+impl<T> RcReRef<T> {}
 
 impl<T> Re for RcRe<T> {
     type Item = T;
@@ -146,6 +138,13 @@ impl<T> ReRef for RcReRef<T> {
     }
     fn into_rc(self) -> RcReRef<T> {
         self
+    }
+}
+
+impl<T, F: Fn(&BindContext) -> T> Re for F {
+    type Item = T;
+    fn get(&self, ctx: &mut BindContext) -> T {
+        self(ctx)
     }
 }
 
