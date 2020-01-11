@@ -12,6 +12,13 @@ pub trait Re {
     type Item;
     fn get(&self, ctx: &mut BindContext) -> Self::Item;
 
+    fn for_each<F: Fn(Self::Item) + 'static>(self, f: F) -> ForEach
+    where
+        Self: Sized + 'static,
+    {
+        ForEach::new(self, f)
+    }
+
     fn map<F: Fn(Self::Item) -> U, U>(self, f: F) -> Map<Self, F>
     where
         Self: Sized,
@@ -201,7 +208,7 @@ impl<S: Re> BindSink for ReCacheData<S> {
     fn lock(&self) {
         self.sinks.lock();
     }
-    fn unlock(&self, modified: bool) {
+    fn unlock(self: Rc<Self>, modified: bool) {
         self.sinks.unlock_with(modified, || {
             *self.value.borrow_mut() = None;
         });
@@ -300,5 +307,47 @@ impl<S: ReRef, F: Fn(&S::Item) -> U, U: Re> Re for RefFlatMap<S, F> {
     type Item = U::Item;
     fn get(&self, ctx: &mut BindContext) -> Self::Item {
         (self.f)(&self.s.borrow(ctx)).get(ctx)
+    }
+}
+
+pub struct ForEach(Rc<dyn BindSink>);
+
+impl ForEach {
+    fn new<S: Re + 'static, F: Fn(S::Item) + 'static>(s: S, f: F) -> Self {
+        let this = Rc::new(ForEachData {
+            s,
+            f,
+            binds: RefCell::new(Bindings::new()),
+            ls: RefCell::new(LockState::new()),
+        });
+        ForEachData::run(&this);
+        Self(this)
+    }
+}
+
+struct ForEachData<S, F> {
+    s: S,
+    f: F,
+    binds: RefCell<Bindings>,
+    ls: RefCell<LockState>,
+}
+
+impl<S: Re + 'static, F: Fn(S::Item) + 'static> ForEachData<S, F> {
+    fn run(this: &Rc<Self>) {
+        let sink = this.clone();
+        (this.f)(this.s.get(&mut this.binds.borrow_mut().context(sink)));
+    }
+}
+
+impl<S: Re + 'static, F: Fn(S::Item) + 'static> BindSink for ForEachData<S, F> {
+    fn lock(&self) {
+        self.ls.borrow_mut().lock();
+    }
+    fn unlock(self: Rc<Self>, modified: bool) {
+        let mut ls = self.ls.borrow_mut();
+        if ls.unlock(modified) {
+            drop(ls);
+            ForEachData::run(&self);
+        }
     }
 }

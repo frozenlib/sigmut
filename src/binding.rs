@@ -14,7 +14,7 @@ pub trait BindSource {
 }
 pub trait BindSink {
     fn lock(&self);
-    fn unlock(&self, modified: bool);
+    fn unlock(self: Rc<Self>, modified: bool);
 }
 pub struct Binding {
     idx: usize,
@@ -23,8 +23,7 @@ pub struct Binding {
 pub struct BindSinks(RefCell<BindSinksData>);
 struct BindSinksData {
     sinks: Vec<BindSinkEntry>,
-    locked: usize,
-    modified: bool,
+    ls: LockState,
 }
 struct BindSinkEntry {
     sink: Weak<dyn BindSink>,
@@ -36,13 +35,12 @@ impl BindSinks {
     pub fn new() -> Self {
         Self(RefCell::new(BindSinksData {
             sinks: Vec::new(),
-            locked: 0,
-            modified: false,
+            ls: LockState::new(),
         }))
     }
     pub fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding {
         let mut b = self.0.borrow_mut();
-        let locked = b.locked != 0;
+        let locked = b.ls.is_locked();
         let s = BindSinkEntry {
             sink: Rc::downgrade(sink),
             locked,
@@ -70,7 +68,7 @@ impl BindSinks {
         struct DummyBindSink;
         impl BindSink for DummyBindSink {
             fn lock(&self) {}
-            fn unlock(&self, _modified: bool) {}
+            fn unlock(self: Rc<Self>, _modified: bool) {}
         }
         let Binding { idx } = binding;
         let mut b = self.0.borrow_mut();
@@ -89,14 +87,10 @@ impl BindSinks {
     }
     pub fn lock(&self) {
         let mut b = self.0.borrow_mut();
-        if b.locked == usize::max_value() {
-            panic!("BindSource : too many locked.")
-        }
-        b.locked += 1;
-        if b.locked > 1 {
+        b.ls.lock();
+        if b.ls.is_locked() {
             return;
         }
-
         let mut idx = 0;
         while let Some(sink) = b.sinks.get_mut(idx) {
             if let Some(sink) = sink.set_locked(true) {
@@ -106,7 +100,7 @@ impl BindSinks {
             }
             idx += 1;
         }
-        if b.locked == 0 {
+        if !b.ls.is_locked() {
             self.unlock_apply();
         }
     }
@@ -115,17 +109,13 @@ impl BindSinks {
     }
     pub fn unlock_with(&self, modified: bool, on_modify_completed: impl Fn()) {
         let mut b = self.0.borrow_mut();
-        assert!(b.locked != 0, "BindSource : unlock when not locked.");
-        b.locked -= 1;
-        b.modified |= modified;
-        if b.locked != 0 {
+        let modified = b.ls.unlock(modified);
+        if b.ls.is_locked() {
             return;
         }
-        let modified = b.modified;
         for s in b.sinks.iter_mut() {
             s.modified |= modified;
         }
-        b.modified = false;
         if modified {
             on_modify_completed();
         }
@@ -133,7 +123,7 @@ impl BindSinks {
     }
     fn unlock_apply(&self) {
         let mut b = self.0.borrow_mut();
-        if b.locked != 0 {
+        if !b.ls.is_locked() {
             return;
         }
         let mut idx = 0;
@@ -144,7 +134,7 @@ impl BindSinks {
                     drop(b);
                     sink.unlock(modified);
                     b = self.0.borrow_mut();
-                    if b.locked != 0 {
+                    if !b.ls.is_locked() {
                         return;
                     }
                 }
@@ -230,5 +220,39 @@ impl BindingEntry {
     }
     fn unbind(self, sink: &Weak<dyn BindSink>) {
         self.src.unbind(self.binding, sink);
+    }
+}
+
+pub struct LockState {
+    lock_count: usize,
+    modified: bool,
+}
+impl LockState {
+    pub fn new() -> Self {
+        Self {
+            lock_count: 0,
+            modified: false,
+        }
+    }
+    pub fn is_locked(&self) -> bool {
+        self.lock_count != 0
+    }
+    pub fn lock(&mut self) {
+        if self.lock_count == usize::max_value() {
+            panic!("too many locked.")
+        }
+        self.lock_count += 1;
+    }
+    pub fn unlock(&mut self, modified: bool) -> bool {
+        assert!(self.lock_count != 0, "unlock when not locked.");
+        self.lock_count -= 1;
+        if self.lock_count == 0 {
+            let modified = self.modified | modified;
+            self.modified = false;
+            modified
+        } else {
+            self.modified |= modified;
+            false
+        }
     }
 }
