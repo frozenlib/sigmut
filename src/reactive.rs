@@ -5,6 +5,7 @@ use std::ops::Deref;
 use std::rc::Rc;
 
 pub mod cell;
+mod map_async;
 
 use crate::binding::*;
 
@@ -12,11 +13,11 @@ pub trait Re {
     type Item;
     fn get(&self, ctx: &mut BindContext) -> Self::Item;
 
-    fn for_each<F: Fn(Self::Item) + 'static>(self, f: F) -> ForEach
+    fn for_each<F: Fn(Self::Item) + 'static>(self, f: F) -> Subscription
     where
         Self: Sized + 'static,
     {
-        ForEach::new(self, f)
+        Subscription(ForEachData::new(self, f))
     }
 
     fn map<F: Fn(Self::Item) -> U, U>(self, f: F) -> Map<Self, F>
@@ -32,12 +33,35 @@ pub trait Re {
         FlatMap { s: self, f }
     }
 
+    fn map_async_cached<F, Fut, T, GetPendingValue, Spawn>(
+        self,
+        f: F,
+        get_pending_value: GetPendingValue,
+        spawn: Spawn,
+    ) -> RcReRef<T>
+    where
+        Self: Sized + 'static,
+        F: Fn(Self::Item) -> Fut + 'static,
+        Fut: std::future::Future<Output = T> + 'static,
+        T: 'static,
+        GetPendingValue: Fn(Option<T>) -> T + 'static,
+        Spawn: futures::task::LocalSpawn + 'static,
+    {
+        RcReRef(Rc::new(map_async::MapAsyncCacheData::new(
+            self,
+            f,
+            get_pending_value,
+            spawn,
+        )))
+    }
+
     fn cached(self) -> RcReRef<Self::Item>
     where
         Self: Sized + 'static,
     {
-        RcReRef(Rc::new(ReCacheData::new(self)))
+        RcReRef(Rc::new(CacheData::new(self)))
     }
+
     fn rc(self) -> RcRe<Self::Item>
     where
         Self: Sized + 'static,
@@ -48,6 +72,13 @@ pub trait Re {
 pub trait ReRef {
     type Item;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
+
+    fn for_each<F: Fn(&Self::Item) + 'static>(self, f: F) -> Subscription
+    where
+        Self: Sized + 'static,
+    {
+        Subscription(RefForEachData::new(self, f))
+    }
 
     fn map<F: Fn(&Self::Item) -> U, U>(self, f: F) -> RefMap<Self, F>
     where
@@ -183,15 +214,15 @@ impl<S0: Re, S1: Re> Re for (S0, S1) {
     }
 }
 
-struct ReCacheData<S: Re> {
+struct CacheData<S: Re> {
     src: S,
     value: RefCell<Option<S::Item>>,
     sinks: BindSinks,
     binds: RefCell<Bindings>,
 }
-impl<S: Re> ReCacheData<S> {
+impl<S: Re> CacheData<S> {
     fn new(src: S) -> Self {
-        Self {
+        CacheData {
             src,
             value: RefCell::new(None),
             sinks: BindSinks::new(),
@@ -199,23 +230,23 @@ impl<S: Re> ReCacheData<S> {
         }
     }
 }
-impl<S: Re> BindSource for ReCacheData<S> {
+impl<S: Re> BindSource for CacheData<S> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<S: Re> BindSink for ReCacheData<S> {
+impl<S: Re> BindSink for CacheData<S> {
     fn lock(&self) {
         self.sinks.lock();
     }
     fn unlock(self: Rc<Self>, modified: bool) {
         self.sinks.unlock_with(modified, || {
-            *self.value.borrow_mut() = None;
+            self.value.replace(None);
         });
     }
 }
 
-impl<S: Re + 'static> DynReRef<S::Item> for ReCacheData<S> {
+impl<S: Re + 'static> DynReRef<S::Item> for CacheData<S> {
     fn dyn_borrow(&self, this: &dyn Any, ctx: &mut BindContext) -> Ref<S::Item> {
         let this = Self::downcast(this);
         ctx.bind(this.clone());
@@ -310,20 +341,7 @@ impl<S: ReRef, F: Fn(&S::Item) -> U, U: Re> Re for RefFlatMap<S, F> {
     }
 }
 
-pub struct ForEach(Rc<dyn BindSink>);
-
-impl ForEach {
-    fn new<S: Re + 'static, F: Fn(S::Item) + 'static>(s: S, f: F) -> Self {
-        let this = Rc::new(ForEachData {
-            s,
-            f,
-            binds: RefCell::new(Bindings::new()),
-            ls: RefCell::new(LockState::new()),
-        });
-        ForEachData::run(&this);
-        Self(this)
-    }
-}
+pub struct Subscription(Rc<dyn BindSink>);
 
 struct ForEachData<S, F> {
     s: S,
@@ -333,6 +351,16 @@ struct ForEachData<S, F> {
 }
 
 impl<S: Re + 'static, F: Fn(S::Item) + 'static> ForEachData<S, F> {
+    fn new(s: S, f: F) -> Rc<Self> {
+        let this = Rc::new(Self {
+            s,
+            f,
+            binds: RefCell::new(Bindings::new()),
+            ls: RefCell::new(LockState::new()),
+        });
+        Self::run(&this);
+        this
+    }
     fn run(this: &Rc<Self>) {
         let sink = this.clone();
         (this.f)(this.s.get(&mut this.binds.borrow_mut().context(sink)));
@@ -348,6 +376,43 @@ impl<S: Re + 'static, F: Fn(S::Item) + 'static> BindSink for ForEachData<S, F> {
         if ls.unlock(modified) {
             drop(ls);
             ForEachData::run(&self);
+        }
+    }
+}
+
+struct RefForEachData<S, F> {
+    s: S,
+    f: F,
+    binds: RefCell<Bindings>,
+    ls: RefCell<LockState>,
+}
+
+impl<S: ReRef + 'static, F: Fn(&S::Item) + 'static> RefForEachData<S, F> {
+    fn new(s: S, f: F) -> Rc<Self> {
+        let this = Rc::new(Self {
+            s,
+            f,
+            binds: RefCell::new(Bindings::new()),
+            ls: RefCell::new(LockState::new()),
+        });
+        Self::run(&this);
+        this
+    }
+    fn run(this: &Rc<Self>) {
+        let sink = this.clone();
+        (this.f)(&this.s.borrow(&mut this.binds.borrow_mut().context(sink)));
+    }
+}
+
+impl<S: ReRef + 'static, F: Fn(&S::Item) + 'static> BindSink for RefForEachData<S, F> {
+    fn lock(&self) {
+        self.ls.borrow_mut().lock();
+    }
+    fn unlock(self: Rc<Self>, modified: bool) {
+        let mut ls = self.ls.borrow_mut();
+        if ls.unlock(modified) {
+            drop(ls);
+            RefForEachData::run(&self);
         }
     }
 }
