@@ -65,18 +65,12 @@ impl BindSinks {
         Binding { idx }
     }
     pub fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>) {
-        struct DummyBindSink;
-        impl BindSink for DummyBindSink {
-            fn lock(&self) {}
-            fn unlock(self: Rc<Self>, _modified: bool) {}
-        }
         let Binding { idx } = binding;
         let mut b = self.0.borrow_mut();
         if let Some(s) = b.sinks.get_mut(idx) {
             if s.sink.ptr_eq(sink) {
                 let locked = s.locked;
-                s.sink = Weak::<DummyBindSink>::new();
-                s.locked = false;
+                s.detach();
                 if locked {
                     if let Some(sink) = sink.upgrade() {
                         sink.unlock(false);
@@ -128,9 +122,12 @@ impl BindSinks {
         }
         let mut idx = 0;
         loop {
-            if let Some(sink) = b.sinks.get_mut(idx) {
-                let modified = replace(&mut sink.modified, false);
-                if let Some(sink) = sink.set_locked(false) {
+            if let Some(s) = b.sinks.get_mut(idx) {
+                let modified = replace(&mut s.modified, false);
+                if let Some(sink) = s.set_locked(false) {
+                    if s.modified {
+                        s.detach();
+                    }
                     drop(b);
                     sink.unlock(modified);
                     b = self.0.borrow_mut();
@@ -159,6 +156,15 @@ impl BindSinkEntry {
             }
         }
         None
+    }
+    fn detach(&mut self) {
+        struct DummyBindSink;
+        impl BindSink for DummyBindSink {
+            fn lock(&self) {}
+            fn unlock(self: Rc<Self>, _modified: bool) {}
+        }
+        self.sink = Weak::<DummyBindSink>::new();
+        self.locked = false;
     }
 }
 
@@ -244,7 +250,7 @@ impl LockState {
         self.lock_count += 1;
     }
     pub fn unlock(&mut self, modified: bool) -> bool {
-        assert!(self.lock_count != 0, "unlock when not locked.");
+        assert!(self.lock_count != 0, "`unlock` called when not locked.");
         self.lock_count -= 1;
         if self.lock_count == 0 {
             let modified = self.modified | modified;
