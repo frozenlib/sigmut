@@ -1,264 +1,166 @@
 use std::cell::RefCell;
+use std::cmp::min;
 use std::mem::{drop, replace};
 use std::rc::{Rc, Weak};
 
-pub trait BindSource {
+pub trait BindSource: 'static {
     fn sinks(&self) -> &BindSinks;
+    fn bind(self: Rc<Self>, sink: &Rc<dyn BindSink>) -> Binding
+    where
+        Self: Sized,
+    {
+        let idx = self.sinks().0.borrow_mut().insert(sink);
+        Binding {
+            source: self,
+            sink: Rc::downgrade(sink),
+            idx,
+        }
+    }
+}
 
-    fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding {
-        self.sinks().bind(sink)
-    }
-    fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>) {
-        self.sinks().unbind(binding, sink);
-    }
-}
 pub trait BindSink {
-    fn lock(&self);
-    fn unlock(self: Rc<Self>, modified: bool);
+    fn notify(&self, ctx: &NotifyContext);
 }
+pub struct NotifyContext(RefCell<NotifyContextData>);
+struct NotifyContextData {
+    ref_count: usize,
+    tasks: Vec<Rc<dyn Task>>,
+}
+
 pub struct Binding {
+    source: Rc<dyn BindSource>,
+    sink: Weak<dyn BindSink>,
     idx: usize,
 }
-
-pub struct BindSinks(RefCell<BindSinksData>);
-struct BindSinksData {
-    sinks: Vec<BindSinkEntry>,
-    ls: LockState,
-}
-struct BindSinkEntry {
-    sink: Weak<dyn BindSink>,
-    locked: bool,
-    modified: bool,
+impl Drop for Binding {
+    fn drop(&mut self) {
+        self.source
+            .sinks()
+            .0
+            .borrow_mut()
+            .remove(self.idx, &self.sink);
+    }
 }
 
-impl BindSinks {
-    pub fn new() -> Self {
-        Self(RefCell::new(BindSinksData {
-            sinks: Vec::new(),
-            ls: LockState::new(),
+pub trait Task {
+    fn run(&self);
+}
+
+impl NotifyContext {
+    fn new() -> Self {
+        Self(RefCell::new(NotifyContextData {
+            ref_count: 0,
+            tasks: Vec::new(),
         }))
     }
-    pub fn bind(&self, sink: &Rc<dyn BindSink>) -> Binding {
-        let mut b = self.0.borrow_mut();
-        let locked = b.ls.is_locked();
-        let s = BindSinkEntry {
-            sink: Rc::downgrade(sink),
-            locked,
-            modified: false,
-        };
-        let mut idx = 0;
-        loop {
-            if idx == b.sinks.len() {
-                b.sinks.push(s);
-                break;
-            }
-            if let None = Weak::upgrade(&b.sinks[idx].sink) {
-                b.sinks[idx] = s;
-                break;
-            }
-            idx += 1;
-        }
-        if locked {
-            drop(b);
-            sink.lock();
-        }
-        Binding { idx }
+
+    pub fn with(f: impl Fn(&NotifyContext)) {
+        thread_local!(static CTX: NotifyContext = NotifyContext::new());
+        CTX.with(|ctx| {
+            ctx.enter();
+            f(ctx);
+            ctx.leave();
+        });
     }
-    pub fn unbind(&self, binding: Binding, sink: &Weak<dyn BindSink>) {
-        let Binding { idx } = binding;
-        let mut b = self.0.borrow_mut();
-        if let Some(s) = b.sinks.get_mut(idx) {
-            if s.sink.ptr_eq(sink) {
-                let locked = s.locked;
-                s.detach();
-                if locked {
-                    if let Some(sink) = sink.upgrade() {
-                        sink.unlock(false);
-                    }
-                }
+    fn enter(&self) {
+        let mut d = self.0.borrow_mut();
+        assert!(d.ref_count != usize::max_value());
+        d.ref_count += 1;
+    }
+    fn leave(&self) {
+        let mut d = self.0.borrow_mut();
+        assert!(d.ref_count != 0);
+        if d.ref_count == 1 {
+            while let Some(task) = d.tasks.pop() {
+                drop(d);
+                task.run();
+                d = self.0.borrow_mut();
             }
         }
+        d.ref_count -= 1;
     }
-    pub fn lock(&self) {
-        let mut b = self.0.borrow_mut();
-        b.ls.lock();
-        if b.ls.is_locked() {
-            return;
-        }
-        let mut idx = 0;
-        while let Some(sink) = b.sinks.get_mut(idx) {
-            if let Some(sink) = sink.set_locked(true) {
-                drop(b);
-                sink.lock();
-                b = self.0.borrow_mut();
-            }
-            idx += 1;
-        }
-        if !b.ls.is_locked() {
-            self.unlock_apply();
-        }
-    }
-    pub fn unlock(&self, modified: bool) {
-        self.unlock_with(modified, || {});
-    }
-    pub fn unlock_with(&self, modified: bool, on_modify_completed: impl Fn()) {
-        let mut b = self.0.borrow_mut();
-        let modified = b.ls.unlock(modified);
-        if b.ls.is_locked() {
-            return;
-        }
-        for s in b.sinks.iter_mut() {
-            s.modified |= modified;
-        }
-        if modified {
-            on_modify_completed();
-        }
-        self.unlock_apply();
-    }
-    fn unlock_apply(&self) {
-        let mut b = self.0.borrow_mut();
-        if !b.ls.is_locked() {
-            return;
-        }
-        let mut idx = 0;
-        loop {
-            if let Some(s) = b.sinks.get_mut(idx) {
-                let modified = replace(&mut s.modified, false);
-                if let Some(sink) = s.set_locked(false) {
-                    if s.modified {
-                        s.detach();
-                    }
-                    drop(b);
-                    sink.unlock(modified);
-                    b = self.0.borrow_mut();
-                    if !b.ls.is_locked() {
-                        return;
-                    }
-                }
-                idx += 1;
-            } else {
-                break;
-            }
-        }
-    }
-}
-impl BindSource for BindSinks {
-    fn sinks(&self) -> &BindSinks {
-        self
-    }
-}
-impl BindSinkEntry {
-    fn set_locked(&mut self, locked: bool) -> Option<Rc<dyn BindSink>> {
-        if locked != self.locked {
-            if let Some(sink) = self.sink.upgrade() {
-                self.locked = locked;
-                return Some(sink);
-            }
-        }
-        None
-    }
-    fn detach(&mut self) {
-        struct DummyBindSink;
-        impl BindSink for DummyBindSink {
-            fn lock(&self) {}
-            fn unlock(self: Rc<Self>, _modified: bool) {}
-        }
-        self.sink = Weak::<DummyBindSink>::new();
-        self.locked = false;
+
+    pub fn push_task(&mut self, task: Rc<dyn Task>) {
+        self.0.borrow_mut().tasks.push(task);
     }
 }
 
-pub struct Bindings(Vec<BindingEntry>);
-struct BindingEntry {
-    src: Rc<dyn BindSource>,
-    binding: Binding,
-}
-impl Bindings {
+pub struct BindSinks(RefCell<BindSinkData>);
+impl BindSinks {
     pub fn new() -> Self {
-        Self(Vec::new())
+        Self(RefCell::new(BindSinkData::new()))
     }
-    pub fn context(&mut self, sink: Rc<dyn BindSink>) -> BindContext {
-        let sink_weak = Rc::downgrade(&sink);
-        let srcs = &mut self.0;
-        let srcs_len = srcs.len();
-        BindContext {
-            sink,
-            sink_weak,
-            srcs,
-            srcs_len,
-        }
+    pub fn notify_with(&self, ctx: &NotifyContext) {
+        self.0.borrow_mut().notify(ctx);
+    }
+    pub fn notify(&self) {
+        NotifyContext::with(|ctx| self.notify_with(ctx));
     }
 }
 
-pub struct BindContext<'a> {
-    sink: Rc<dyn BindSink>,
-    sink_weak: Weak<dyn BindSink>,
-    srcs: &'a mut Vec<BindingEntry>,
-    srcs_len: usize,
+struct BindSinkData {
+    sinks: Vec<Weak<dyn BindSink>>,
+    idx_next: usize,
 }
-impl<'a> BindContext<'a> {
-    pub fn bind(&mut self, src: Rc<dyn BindSource>) {
-        if self.srcs_len < self.srcs.len() {
-            let e = &mut self.srcs[self.srcs_len];
-            if !Rc::ptr_eq(&src, &e.src) {
-                let e = replace(e, BindingEntry::bind(src, &self.sink));
-                e.unbind(&self.sink_weak);
-            }
-        } else {
-            self.srcs.push(BindingEntry::bind(src, &self.sink));
-        }
-        self.srcs_len += 1;
-    }
-}
-impl<'a> Drop for BindContext<'a> {
-    fn drop(&mut self) {
-        let range = self.srcs_len..self.srcs.len();
-        for e in self.srcs.drain(range) {
-            e.unbind(&self.sink_weak);
-        }
-    }
-}
-
-impl BindingEntry {
-    fn bind(src: Rc<dyn BindSource>, sink: &Rc<dyn BindSink>) -> Self {
-        let binding = src.bind(sink);
-        BindingEntry { src, binding }
-    }
-    fn unbind(self, sink: &Weak<dyn BindSink>) {
-        self.src.unbind(self.binding, sink);
-    }
-}
-
-pub struct LockState {
-    lock_count: usize,
-    modified: bool,
-}
-impl LockState {
-    pub fn new() -> Self {
+impl BindSinkData {
+    fn new() -> Self {
         Self {
-            lock_count: 0,
-            modified: false,
+            sinks: Vec::new(),
+            idx_next: 0,
         }
     }
-    pub fn is_locked(&self) -> bool {
-        self.lock_count != 0
-    }
-    pub fn lock(&mut self) {
-        if self.lock_count == usize::max_value() {
-            panic!("too many locked.")
+    fn insert(&mut self, sink: &Rc<dyn BindSink>) -> usize {
+        let sink = Rc::downgrade(sink);
+        while self.idx_next < self.sinks.len() {
+            if self.sinks[self.idx_next].strong_count() == 0 {
+                let idx = self.idx_next;
+                self.sinks[idx] = sink;
+                self.idx_next += 1;
+                return idx;
+            }
         }
-        self.lock_count += 1;
+        let idx = self.sinks.len();
+        self.sinks.push(sink);
+        idx
     }
-    pub fn unlock(&mut self, modified: bool) -> bool {
-        assert!(self.lock_count != 0, "`unlock` called when not locked.");
-        self.lock_count -= 1;
-        if self.lock_count == 0 {
-            let modified = self.modified | modified;
-            self.modified = false;
-            modified
-        } else {
-            self.modified |= modified;
-            false
+    fn remove(&mut self, idx: usize, sink: &Weak<dyn BindSink>) {
+        if let Some(s) = self.sinks.get_mut(idx) {
+            if Weak::ptr_eq(s, sink) {
+                *s = freed_sink();
+                self.idx_next = min(self.idx_next, idx);
+            }
         }
+    }
+
+    fn notify(&mut self, ctx: &NotifyContext) {
+        for s in &mut self.sinks {
+            if let Some(sink) = Weak::upgrade(&replace(s, freed_sink())) {
+                sink.notify(ctx);
+            }
+        }
+        self.sinks.clear();
+        self.idx_next = 0;
+    }
+}
+fn freed_sink() -> Weak<dyn BindSink> {
+    struct DummyBindSink;
+    impl BindSink for DummyBindSink {
+        fn notify(&self, _ctx: &NotifyContext) {}
+    }
+    Weak::<DummyBindSink>::new()
+}
+pub struct BindContext {
+    sink: Rc<dyn BindSink>,
+    bindings: Vec<Binding>,
+}
+impl BindContext {
+    pub fn new(sink: Rc<dyn BindSink>, bindings: Vec<Binding>) -> Self {
+        Self { sink, bindings }
+    }
+    pub fn bind(&mut self, src: Rc<impl BindSource>) {
+        self.bindings.push(src.bind(&self.sink));
+    }
+    pub fn into_bindings(self) -> Vec<Binding> {
+        self.bindings
     }
 }
