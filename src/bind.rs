@@ -217,7 +217,7 @@ impl<B: Bind> BindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
-        BindExt(Map { b: self, f })
+        bind_fn(move |ctx| f(self.bind(ctx)))
     }
     pub fn map_async<Fut: Future + 'static>(
         self,
@@ -253,7 +253,7 @@ impl<B: RefBind> RefBindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
-        BindExt(RefMap { b: self, f })
+        bind_fn(move |ctx| f(&self.bind(ctx)))
     }
     pub fn map_ref<U>(
         self,
@@ -647,6 +647,10 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
     RefBindExt(Constant(value))
 }
 
+pub fn bind_fn<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
+    BindExt(f)
+}
+
 #[derive(Clone)]
 struct Constant<T: 'static>(T);
 
@@ -657,14 +661,14 @@ impl<T> RefBind for Constant<T> {
     }
 }
 
-impl<F: Fn(&BindContext) -> T + 'static, T> Bind for F {
+impl<F: Fn(&mut BindContext) -> T + 'static, T> Bind for F {
     type Item = T;
     fn bind(&self, ctx: &mut BindContext) -> Self::Item {
         self(ctx)
     }
 }
 
-impl<F: Fn(&BindContext) -> &'static T + 'static, T: 'static> RefBind for F {
+impl<F: Fn(&mut BindContext) -> &'static T + 'static, T: 'static> RefBind for F {
     type Item = T;
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
         Ref::Native(self(ctx))
