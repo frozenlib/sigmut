@@ -186,30 +186,6 @@ pub trait Bind: Sized + 'static {
     type Item;
 
     fn bind(&self, ctx: &mut BindContext) -> Self::Item;
-
-    fn cached(self) -> Cached<Self> {
-        Cached::new(self)
-    }
-    fn cached_ne(self) -> Dedup<Self>
-    where
-        Self::Item: PartialEq,
-    {
-        Dedup::new(self)
-    }
-
-    fn for_each(self, f: impl Fn(Self::Item) + 'static) -> Unbind {
-        Unbind(ForEachData::new(self, f))
-    }
-
-    fn map<F: Fn(Self::Item) -> U, U>(self, f: F) -> Map<Self, F> {
-        Map { b: self, f }
-    }
-    fn map_async<F: Fn(Self::Item) -> Fut + 'static, Fut: Future + 'static>(
-        self,
-        f: F,
-    ) -> MapAsync<Self, F, Fut> {
-        MapAsync::new(self, f)
-    }
 }
 
 #[derive(Clone)]
@@ -255,23 +231,6 @@ pub trait RefBind: Sized + 'static {
     type Item;
 
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
-
-    fn for_each(self, f: impl Fn(&Self::Item) + 'static) -> Unbind {
-        Unbind(RefForEachData::new(self, f))
-    }
-
-    fn map<F: Fn(&Self::Item) -> U, U>(self, f: F) -> RefMap<Self, F> {
-        RefMap { b: self, f }
-    }
-    fn map_ref<F: Fn(&Self::Item) -> &U, U>(self, f: F) -> RefMapRef<Self, F> {
-        RefMapRef { b: self, f }
-    }
-    fn cloned(self) -> Cloned<Self>
-    where
-        Self::Item: Clone,
-    {
-        Cloned(self)
-    }
 }
 
 #[derive(Clone)]
