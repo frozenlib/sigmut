@@ -554,13 +554,13 @@ impl LocalSpawn for LocalSpawnNotSet {
         &self,
         _: futures::task::LocalFutureObj<'static, ()>,
     ) -> Result<(), futures::task::SpawnError> {
-        panic!("`get_local_spawn` called before `set_local_spawn` called.");
+        panic!("need to call `set_current_local_spawn`.");
     }
 }
 
-pub fn set_local_spawn(sp: impl LocalSpawn + 'static) {
+pub fn set_current_local_spawn(sp: impl LocalSpawn + 'static) {
     LOCAL_SPAWN.with(|value| *value.borrow_mut() = Rc::new(sp));
 }
-pub fn get_local_spawn() -> Rc<dyn LocalSpawn + 'static> {
+pub fn get_current_local_spawn() -> Rc<dyn LocalSpawn + 'static> {
     LOCAL_SPAWN.with(|value| value.borrow().clone())
 }
