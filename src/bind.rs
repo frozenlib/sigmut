@@ -513,30 +513,6 @@ impl<B: RefBind, F: Fn(&B::Item) + 'static> Task for RefForEachData<B, F> {
     }
 }
 
-struct Map<B, F> {
-    b: B,
-    f: F,
-}
-impl<B: Bind, F: Fn(B::Item) -> U + 'static, U> Bind for Map<B, F> {
-    type Item = U;
-
-    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
-        (self.f)(self.b.bind(ctx))
-    }
-}
-
-struct RefMap<B, F> {
-    b: B,
-    f: F,
-}
-impl<B: RefBind, F: Fn(&B::Item) -> U + 'static, U> Bind for RefMap<B, F> {
-    type Item = U;
-
-    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
-        (self.f)(&self.b.bind(ctx))
-    }
-}
-
 struct RefMapRef<B, F> {
     b: B,
     f: F,
