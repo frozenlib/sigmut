@@ -620,21 +620,19 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
 }
 
 pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
+    #[derive(Clone)]
+    struct Constant<T: 'static>(T);
+    impl<T> RefBind for Constant<T> {
+        type Item = T;
+        fn bind(&self, _: &mut BindContext) -> Ref<Self::Item> {
+            Ref::Native(&self.0)
+        }
+    }
     RefBindExt(Constant(value))
 }
 
 pub fn bind_fn<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
     BindExt(f)
-}
-
-#[derive(Clone)]
-struct Constant<T: 'static>(T);
-
-impl<T> RefBind for Constant<T> {
-    type Item = T;
-    fn bind(&self, _: &mut BindContext) -> Ref<Self::Item> {
-        Ref::Native(&self.0)
-    }
 }
 
 impl<F: Fn(&mut BindContext) -> T + 'static, T> Bind for F {
