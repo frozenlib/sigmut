@@ -4,7 +4,6 @@ use std::rc::Rc;
 
 use crate::bind::*;
 
-#[derive(Clone)]
 pub struct BCell<T: Copy>(Rc<BCellData<T>>);
 
 struct BCellData<T: Copy> {
@@ -23,6 +22,10 @@ impl<T: Copy> BCell<T> {
         self.0.value.set(value);
         self.0.sinks.notify();
     }
+
+    pub fn ext(&self) -> BindExt<Self> {
+        BindExt(self.clone())
+    }
 }
 impl<T: Copy + 'static> Bind for BCell<T> {
     type Item = T;
@@ -37,13 +40,17 @@ impl<T: Copy + 'static> BindSource for BCellData<T> {
         &self.sinks
     }
 }
+impl<T: Copy> Clone for BCell<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 impl<T: Copy + std::fmt::Debug> std::fmt::Debug for BCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.0.value, f)
     }
 }
 
-#[derive(Clone)]
 pub struct BRefCell<T>(Rc<BRefCellData<T>>);
 struct BRefCellData<T> {
     value: RefCell<T>,
@@ -57,6 +64,9 @@ impl<T> BRefCell<T> {
             modified: false,
         }
     }
+    pub fn ext(&self) -> RefBindExt<Self> {
+        RefBindExt(self.clone())
+    }
 }
 impl<T: 'static> RefBind for BRefCell<T> {
     type Item = T;
@@ -69,6 +79,11 @@ impl<T: 'static> RefBind for BRefCell<T> {
 impl<T: 'static> BindSource for BRefCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
+    }
+}
+impl<T> Clone for BRefCell<T> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 impl<T: std::fmt::Debug> std::fmt::Debug for BRefCell<T> {

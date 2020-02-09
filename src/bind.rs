@@ -189,7 +189,7 @@ pub trait Bind: Sized + 'static {
 }
 
 #[derive(Clone)]
-pub struct BindExt<B>(B);
+pub struct BindExt<B>(pub B);
 
 impl<B: Bind> Bind for BindExt<B> {
     type Item = B::Item;
@@ -234,7 +234,7 @@ pub trait RefBind: Sized + 'static {
 }
 
 #[derive(Clone)]
-pub struct RefBindExt<B>(B);
+pub struct RefBindExt<B>(pub B);
 
 impl<B: RefBind> RefBind for RefBindExt<B> {
     type Item = B::Item;
