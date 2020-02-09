@@ -189,6 +189,10 @@ pub trait RefBind: Sized + 'static {
     type Item;
 
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
+
+    fn for_each(self, f: impl Fn(&Self::Item) + 'static) -> Unbind {
+        Unbind(RefForEachData::new(self, f))
+    }
 }
 
 pub enum Ref<'a, T> {
@@ -283,7 +287,7 @@ struct ForEachData<B, F> {
 
 impl<B: Bind, F: Fn(B::Item) + 'static> ForEachData<B, F> {
     fn new(b: B, f: F) -> Rc<Self> {
-        let s = Rc::new(ForEachData {
+        let s = Rc::new(Self {
             b,
             f,
             binds: RefCell::new(Vec::new()),
@@ -304,6 +308,40 @@ impl<B: Bind, F: Fn(B::Item) + 'static> BindSink for ForEachData<B, F> {
     }
 }
 impl<B: Bind, F: Fn(B::Item) + 'static> Task for ForEachData<B, F> {
+    fn run(self: Rc<Self>) {
+        self.next();
+    }
+}
+
+struct RefForEachData<B, F> {
+    b: B,
+    f: F,
+    binds: RefCell<Vec<Binding>>,
+}
+
+impl<B: RefBind, F: Fn(&B::Item) + 'static> RefForEachData<B, F> {
+    fn new(b: B, f: F) -> Rc<Self> {
+        let s = Rc::new(Self {
+            b,
+            f,
+            binds: RefCell::new(Vec::new()),
+        });
+        s.next();
+        s
+    }
+
+    fn next(self: &Rc<Self>) {
+        let mut b = self.binds.borrow_mut();
+        let mut ctx = BindContext::new(&self, &mut b);
+        (self.f)(&self.b.bind(&mut ctx));
+    }
+}
+impl<B: RefBind, F: Fn(&B::Item) + 'static> BindSink for RefForEachData<B, F> {
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        ctx.spawn(Rc::downgrade(&self))
+    }
+}
+impl<B: RefBind, F: Fn(&B::Item) + 'static> Task for RefForEachData<B, F> {
     fn run(self: Rc<Self>) {
         self.next();
     }
