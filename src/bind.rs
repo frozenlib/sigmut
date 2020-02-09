@@ -295,7 +295,7 @@ impl<'a, T> Deref for Ref<'a, T> {
 pub struct Unbind(Rc<dyn Any>);
 
 #[derive(Clone)]
-pub struct Cached<B: Bind>(Rc<CachedData<B>>);
+struct Cached<B: Bind>(Rc<CachedData<B>>);
 struct CachedData<B: Bind> {
     b: B,
     sinks: BindSinks,
@@ -307,7 +307,7 @@ struct CachedState<T> {
 }
 
 impl<B: Bind> Cached<B> {
-    pub fn new(b: B) -> Self {
+    fn new(b: B) -> Self {
         Self(Rc::new(CachedData {
             b,
             sinks: BindSinks::new(),
@@ -354,14 +354,14 @@ impl<B: Bind> BindSink for CachedData<B> {
 }
 
 #[derive(Clone)]
-pub struct Dedup<B: Bind>(Rc<CachedNeData<B>>);
+struct Dedup<B: Bind>(Rc<DedupData<B>>);
 
-struct CachedNeData<B: Bind> {
+struct DedupData<B: Bind> {
     b: B,
     sinks: BindSinks,
-    state: RefCell<CachedNeState<B::Item>>,
+    state: RefCell<DedupState<B::Item>>,
 }
-struct CachedNeState<T> {
+struct DedupState<T> {
     value: Option<T>,
     is_ready: bool,
     binds: Vec<Binding>,
@@ -370,11 +370,11 @@ impl<B: Bind> Dedup<B>
 where
     B::Item: PartialEq,
 {
-    pub fn new(b: B) -> Self {
-        Self(Rc::new(CachedNeData {
+    fn new(b: B) -> Self {
+        Self(Rc::new(DedupData {
             b,
             sinks: BindSinks::new(),
-            state: RefCell::new(CachedNeState {
+            state: RefCell::new(DedupState {
                 value: None,
                 is_ready: false,
                 binds: Vec::new(),
@@ -398,7 +398,7 @@ where
         return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
     }
 }
-impl<B: Bind> BindSource for CachedNeData<B>
+impl<B: Bind> BindSource for DedupData<B>
 where
     B::Item: PartialEq,
 {
@@ -406,7 +406,7 @@ where
         &self.sinks
     }
 }
-impl<B: Bind> BindSink for CachedNeData<B>
+impl<B: Bind> BindSink for DedupData<B>
 where
     B::Item: PartialEq,
 {
@@ -421,7 +421,7 @@ where
         }
     }
 }
-impl<B: Bind> CachedNeData<B>
+impl<B: Bind> DedupData<B>
 where
     B::Item: PartialEq,
 {
@@ -436,7 +436,7 @@ where
         }
     }
 }
-impl<B: Bind> Task for CachedNeData<B>
+impl<B: Bind> Task for DedupData<B>
 where
     B::Item: PartialEq,
 {
@@ -513,7 +513,7 @@ impl<B: RefBind, F: Fn(&B::Item) + 'static> Task for RefForEachData<B, F> {
     }
 }
 
-pub struct Map<B, F> {
+struct Map<B, F> {
     b: B,
     f: F,
 }
@@ -525,7 +525,7 @@ impl<B: Bind, F: Fn(B::Item) -> U + 'static, U> Bind for Map<B, F> {
     }
 }
 
-pub struct RefMap<B, F> {
+struct RefMap<B, F> {
     b: B,
     f: F,
 }
@@ -537,7 +537,7 @@ impl<B: RefBind, F: Fn(&B::Item) -> U + 'static, U> Bind for RefMap<B, F> {
     }
 }
 
-pub struct RefMapRef<B, F> {
+struct RefMapRef<B, F> {
     b: B,
     f: F,
 }
@@ -549,7 +549,7 @@ impl<B: RefBind, F: Fn(&B::Item) -> &U + 'static, U> RefBind for RefMapRef<B, F>
     }
 }
 
-pub struct MapAsync<B: Bind, F: Fn(B::Item) -> Fut, Fut: Future>(Rc<MapAsyncData<B, F, Fut>>);
+struct MapAsync<B: Bind, F: Fn(B::Item) -> Fut, Fut: Future>(Rc<MapAsyncData<B, F, Fut>>);
 
 struct MapAsyncData<B: Bind, F: Fn(B::Item) -> Fut, Fut: Future> {
     sp: Rc<dyn LocalSpawn>,
@@ -643,7 +643,7 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
     }
 }
 
-pub struct Cloned<B>(B);
+struct Cloned<B>(B);
 impl<B: RefBind> Bind for Cloned<B>
 where
     B::Item: Clone,
@@ -654,12 +654,12 @@ where
     }
 }
 
-pub fn constant<T>(value: T) -> Constant<T> {
-    Constant(value)
+pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
+    RefBindExt(Constant(value))
 }
 
 #[derive(Clone)]
-pub struct Constant<T: 'static>(T);
+struct Constant<T: 'static>(T);
 
 impl<T> RefBind for Constant<T> {
     type Item = T;
