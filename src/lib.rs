@@ -1,44 +1,47 @@
+use self::bind::*;
+use std::any::Any;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::mem::{drop, replace};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
+pub mod bind;
 pub mod cell;
 
 pub use cell::BCell;
 pub use cell::BRefCell;
 
-pub trait BindSource {
+pub trait BindSource: 'static {
     fn sinks(&self) -> &BindSinks;
-    fn bind<'a>(self: Rc<Self>, sink: &Rc<dyn BindSink+'a>) -> Binding<'a>
+    fn bind(self: Rc<Self>, sink: Weak<dyn BindSink>) -> Binding
     where
         Self: Sized,
     {
-        let idx = self.sinks().0.borrow_mut().insert(sink);
+        let idx = self.sinks().0.borrow_mut().insert(sink.clone());
         Binding {
             source: self,
-            sink: Rc::downgrade(sink),
+            sink,
             idx,
         }
     }
 }
 
-pub trait BindSink {
-    fn notify(&self, ctx: &NotifyContext);
+pub trait BindSink: 'static {
+    fn notify(self: Rc<Self>, ctx: &NotifyContext);
 }
 pub struct NotifyContext(RefCell<NotifyContextData>);
 struct NotifyContextData {
     ref_count: usize,
-    tasks: Vec<Rc<dyn Task>>,
+    tasks: Vec<Weak<dyn Task>>,
 }
 
-pub struct Binding<'a> {
-    source: Rc<dyn BindSource+'a>,
-    sink: Weak<dyn BindSink+'a>,
+pub struct Binding {
+    source: Rc<dyn BindSource>,
+    sink: Weak<dyn BindSink>,
     idx: usize,
 }
-impl<'a> Drop for Binding<'a> {
+impl Drop for Binding {
     fn drop(&mut self) {
         self.source
             .sinks()
@@ -48,8 +51,8 @@ impl<'a> Drop for Binding<'a> {
     }
 }
 
-pub trait Task {
-    fn run(&self);
+pub trait Task: 'static {
+    fn run(self: Rc<Self>);
 }
 
 impl NotifyContext {
@@ -78,15 +81,17 @@ impl NotifyContext {
         assert!(d.ref_count != 0);
         if d.ref_count == 1 {
             while let Some(task) = d.tasks.pop() {
-                drop(d);
-                task.run();
-                d = self.0.borrow_mut();
+                if let Some(task) = Weak::upgrade(&task) {
+                    drop(d);
+                    task.run();
+                    d = self.0.borrow_mut();
+                }
             }
         }
         d.ref_count -= 1;
     }
 
-    pub fn push_task(&mut self, task: Rc<dyn Task>) {
+    pub fn spawn(&self, task: Weak<impl Task>) {
         self.0.borrow_mut().tasks.push(task);
     }
 }
@@ -115,8 +120,7 @@ impl BindSinkData {
             idx_next: 0,
         }
     }
-    fn insert(&mut self, sink: &Rc<dyn BindSink>) -> usize {
-        let sink = Rc::downgrade(sink);
+    fn insert(&mut self, sink: Weak<dyn BindSink>) -> usize {
         while self.idx_next < self.sinks.len() {
             if self.sinks[self.idx_next].strong_count() == 0 {
                 let idx = self.idx_next;
@@ -151,40 +155,41 @@ impl BindSinkData {
 fn freed_sink() -> Weak<dyn BindSink> {
     struct DummyBindSink;
     impl BindSink for DummyBindSink {
-        fn notify(&self, _ctx: &NotifyContext) {}
+        fn notify(self: Rc<Self>, _ctx: &NotifyContext) {}
     }
     Weak::<DummyBindSink>::new()
 }
-pub struct BindContext {
-    sink: Rc<dyn BindSink>,
-    bindings: Vec<Binding>,
+pub struct BindContext<'a> {
+    sink: Weak<dyn BindSink>,
+    bindings: &'a mut Vec<Binding>,
 }
-impl BindContext {
-    pub fn new(sink: Rc<dyn BindSink>, bindings: Vec<Binding>) -> Self {
-        Self { sink, bindings }
+impl<'a> BindContext<'a> {
+    pub fn new(sink: &Rc<impl BindSink + 'static>, bindings: &'a mut Vec<Binding>) -> Self {
+        Self {
+            sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
+            bindings,
+        }
     }
     pub fn bind(&mut self, src: Rc<impl BindSource>) {
-        self.bindings.push(src.bind(&self.sink));
-    }
-    pub fn into_bindings(self) -> Vec<Binding> {
-        self.bindings
+        self.bindings.push(src.bind(self.sink.clone()));
     }
 }
 
-pub trait Bind {
+pub trait Bind: Sized + 'static {
     type Item;
 
     fn bind(&self, ctx: &mut BindContext) -> Self::Item;
 
-    fn cached(self) -> Cached<Self>
-    where
-        Self: Sized,
-    {
+    fn cached(self) -> Cached<Self> {
         Cached::new(self)
+    }
+
+    fn for_each(self, f: impl Fn(Self::Item) + 'static) -> Unbind {
+        Unbind(ForEachData::new(self, f))
     }
 }
 
-pub trait RefBind {
+pub trait RefBind: Sized + 'static {
     type Item;
 
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
@@ -213,35 +218,4 @@ impl<'a, T> Deref for Ref<'a, T> {
         }
     }
 }
-
-#[derive(Clone)]
-pub struct Cached<B: Bind>(Rc<CachedData<B>>);
-struct CachedData<B: Bind> {
-    b: B,
-    value: RefCell<Option<B::Item>>,
-    sinks: BindSinks,
-}
-
-impl<B: Bind> Cached<B> {
-    fn new(b: B) -> Self {
-        Self(Rc::new(CachedData {
-            b,
-            value: RefCell::new(None),
-            sinks: BindSinks::new(),
-        }))
-    }
-}
-impl<B: Bind> RefBind for Cached<B> {
-    type Item = B::Item;
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        ctx.bind(self.0.clone())
-        unimplemented!()
-    }
-}
-impl<B: Bind+'static> BindSource for CachedData<B> {
-    fn sinks(&self) -> &BindSinks {
-        &self.sinks
-    }
-}
-
-
+pub struct Unbind(Rc<dyn Any>);

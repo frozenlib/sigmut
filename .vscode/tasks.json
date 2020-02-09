@@ -26,6 +26,28 @@
             //         "RUST_BACKTRACE": "1",
             //     }
             // }
+        },
+        {
+            "type": "shell",
+            "label": "cargo doc open",
+            "command": "cargo",
+            "args": [
+                "doc",
+                "--open",
+                "--no-deps",
+            ],
+            "problemMatcher": [
+                "$rustc"
+            ],
+            "presentation": {
+                "panel": "dedicated",
+                "clear": true,
+            }
+            // "options": {
+            //     "env": {
+            //         "RUST_BACKTRACE": "1",
+            //     }
+            // }
         }
     ]
 }
