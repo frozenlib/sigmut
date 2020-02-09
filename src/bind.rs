@@ -190,11 +190,11 @@ pub trait Bind: Sized + 'static {
     fn cached(self) -> Cached<Self> {
         Cached::new(self)
     }
-    fn cached_ne(self) -> CachedNe<Self>
+    fn cached_ne(self) -> Dedup<Self>
     where
         Self::Item: PartialEq,
     {
-        CachedNe::new(self)
+        Dedup::new(self)
     }
 
     fn for_each(self, f: impl Fn(Self::Item) + 'static) -> Unbind {
@@ -221,7 +221,7 @@ impl<B: Bind> BindExt<B> {
     where
         B::Item: PartialEq,
     {
-        RefBindExt(CachedNe::new(self))
+        RefBindExt(Dedup::new(self))
     }
 
     pub fn for_each(self, f: impl Fn(B::Item) + 'static) -> Unbind {
@@ -356,7 +356,7 @@ impl<B: Bind> BindSink for CachedData<B> {
 }
 
 #[derive(Clone)]
-pub struct CachedNe<B: Bind>(Rc<CachedNeData<B>>);
+pub struct Dedup<B: Bind>(Rc<CachedNeData<B>>);
 
 struct CachedNeData<B: Bind> {
     b: B,
@@ -368,7 +368,7 @@ struct CachedNeState<T> {
     is_ready: bool,
     binds: Vec<Binding>,
 }
-impl<B: Bind> CachedNe<B>
+impl<B: Bind> Dedup<B>
 where
     B::Item: PartialEq,
 {
@@ -384,7 +384,7 @@ where
         }))
     }
 }
-impl<B: Bind> RefBind for CachedNe<B>
+impl<B: Bind> RefBind for Dedup<B>
 where
     B::Item: PartialEq,
 {
