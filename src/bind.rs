@@ -217,6 +217,12 @@ pub trait RefBind: Sized + 'static {
     fn map_ref<F: Fn(&Self::Item) -> &U, U>(self, f: F) -> RefMapRef<Self, F> {
         RefMapRef { b: self, f }
     }
+    fn cloned(self) -> Cloned<Self>
+    where
+        Self::Item: Clone,
+    {
+        Cloned(self)
+    }
 }
 
 pub enum Ref<'a, T> {
@@ -499,11 +505,41 @@ impl<B: RefBind, F: Fn(&B::Item) -> &U + 'static, U> RefBind for RefMapRef<B, F>
     }
 }
 
-pub struct Constant<T>(T);
+pub struct Cloned<B>(B);
+impl<B: RefBind> Bind for Cloned<B>
+where
+    B::Item: Clone,
+{
+    type Item = B::Item;
+    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
+        self.0.bind(ctx).clone()
+    }
+}
 
-impl<T: 'static> RefBind for Constant<T> {
+pub fn constant<T>(value: T) -> Constant<T> {
+    Constant(value)
+}
+
+#[derive(Clone)]
+pub struct Constant<T: 'static>(T);
+
+impl<T> RefBind for Constant<T> {
     type Item = T;
     fn bind(&self, _: &mut BindContext) -> Ref<Self::Item> {
         Ref::Native(&self.0)
+    }
+}
+
+impl<F: Fn(&BindContext) -> T + 'static, T> Bind for F {
+    type Item = T;
+    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
+        self(ctx)
+    }
+}
+
+impl<F: Fn(&BindContext) -> &'static T + 'static, T: 'static> RefBind for F {
+    type Item = T;
+    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+        Ref::Native(self(ctx))
     }
 }
