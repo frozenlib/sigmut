@@ -498,3 +498,12 @@ impl<B: RefBind, F: Fn(&B::Item) -> &U + 'static, U> RefBind for RefMapRef<B, F>
         Ref::map(self.b.bind(ctx), &self.f)
     }
 }
+
+pub struct Constant<T>(T);
+
+impl<T: 'static> RefBind for Constant<T> {
+    type Item = T;
+    fn bind(&self, _: &mut BindContext) -> Ref<Self::Item> {
+        Ref::Native(&self.0)
+    }
+}
