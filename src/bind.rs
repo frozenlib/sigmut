@@ -51,6 +51,13 @@ impl BindSinks {
     pub fn notify(&self) {
         NotifyContext::with(|ctx| self.notify_with(ctx));
     }
+    pub fn is_empty(&self) -> bool {
+        self.0
+            .borrow_mut()
+            .sinks
+            .iter()
+            .all(|x| x.strong_count() == 0)
+    }
 }
 
 struct BindSinkData {
@@ -179,9 +186,19 @@ pub trait Bind: Sized + 'static {
     fn cached(self) -> Cached<Self> {
         Cached::new(self)
     }
+    fn cached_ne(self) -> CachedNe<Self>
+    where
+        Self::Item: PartialEq,
+    {
+        CachedNe::new(self)
+    }
 
     fn for_each(self, f: impl Fn(Self::Item) + 'static) -> Unbind {
         Unbind(ForEachData::new(self, f))
+    }
+
+    fn map<F: Fn(Self::Item) -> U, U>(self, f: F) -> Map<Self, F> {
+        Map { b: self, f }
     }
 }
 
@@ -192,6 +209,13 @@ pub trait RefBind: Sized + 'static {
 
     fn for_each(self, f: impl Fn(&Self::Item) + 'static) -> Unbind {
         Unbind(RefForEachData::new(self, f))
+    }
+
+    fn map<F: Fn(&Self::Item) -> U, U>(self, f: F) -> RefMap<Self, F> {
+        RefMap { b: self, f }
+    }
+    fn map_ref<F: Fn(&Self::Item) -> &U, U>(self, f: F) -> RefMapRef<Self, F> {
+        RefMapRef { b: self, f }
     }
 }
 
@@ -279,6 +303,98 @@ impl<B: Bind> BindSink for CachedData<B> {
     }
 }
 
+#[derive(Clone)]
+pub struct CachedNe<B: Bind>(Rc<CachedNeData<B>>);
+
+struct CachedNeData<B: Bind> {
+    b: B,
+    sinks: BindSinks,
+    state: RefCell<CachedNeState<B::Item>>,
+}
+struct CachedNeState<T> {
+    value: Option<T>,
+    is_ready: bool,
+    binds: Vec<Binding>,
+}
+impl<B: Bind> CachedNe<B>
+where
+    B::Item: PartialEq,
+{
+    pub fn new(b: B) -> Self {
+        Self(Rc::new(CachedNeData {
+            b,
+            sinks: BindSinks::new(),
+            state: RefCell::new(CachedNeState {
+                value: None,
+                is_ready: false,
+                binds: Vec::new(),
+            }),
+        }))
+    }
+}
+impl<B: Bind> RefBind for CachedNe<B>
+where
+    B::Item: PartialEq,
+{
+    type Item = B::Item;
+    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+        let mut s = self.0.state.borrow();
+        if s.is_ready {
+            drop(s);
+            self.0.ready();
+            s = self.0.state.borrow();
+        }
+        ctx.bind(self.0.clone());
+        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
+    }
+}
+impl<B: Bind> BindSource for CachedNeData<B>
+where
+    B::Item: PartialEq,
+{
+    fn sinks(&self) -> &BindSinks {
+        &self.sinks
+    }
+}
+impl<B: Bind> BindSink for CachedNeData<B>
+where
+    B::Item: PartialEq,
+{
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        let mut s = self.state.borrow_mut();
+        if s.is_ready {
+            s.is_ready = false;
+            s.binds.clear();
+            if !self.sinks.is_empty() {
+                ctx.spawn(Rc::downgrade(&self));
+            }
+        }
+    }
+}
+impl<B: Bind> CachedNeData<B>
+where
+    B::Item: PartialEq,
+{
+    fn ready(self: &Rc<Self>) {
+        let mut s = self.state.borrow_mut();
+        let mut ctx = BindContext::new(&self, &mut s.binds);
+        let value = self.b.bind(&mut ctx);
+        if s.value.as_ref() != Some(&value) {
+            s.value = Some(value);
+            drop(s);
+            self.sinks.notify();
+        }
+    }
+}
+impl<B: Bind> Task for CachedNeData<B>
+where
+    B::Item: PartialEq,
+{
+    fn run(self: Rc<Self>) {
+        self.ready();
+    }
+}
+
 struct ForEachData<B, F> {
     b: B,
     f: F,
@@ -344,5 +460,41 @@ impl<B: RefBind, F: Fn(&B::Item) + 'static> BindSink for RefForEachData<B, F> {
 impl<B: RefBind, F: Fn(&B::Item) + 'static> Task for RefForEachData<B, F> {
     fn run(self: Rc<Self>) {
         self.next();
+    }
+}
+
+pub struct Map<B, F> {
+    b: B,
+    f: F,
+}
+impl<B: Bind, F: Fn(B::Item) -> U + 'static, U> Bind for Map<B, F> {
+    type Item = U;
+
+    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
+        (self.f)(self.b.bind(ctx))
+    }
+}
+
+pub struct RefMap<B, F> {
+    b: B,
+    f: F,
+}
+impl<B: RefBind, F: Fn(&B::Item) -> U + 'static, U> Bind for RefMap<B, F> {
+    type Item = U;
+
+    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
+        (self.f)(&self.b.bind(ctx))
+    }
+}
+
+pub struct RefMapRef<B, F> {
+    b: B,
+    f: F,
+}
+impl<B: RefBind, F: Fn(&B::Item) -> &U + 'static, U> RefBind for RefMapRef<B, F> {
+    type Item = U;
+
+    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+        Ref::map(self.b.bind(ctx), &self.f)
     }
 }
