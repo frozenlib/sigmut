@@ -2,7 +2,8 @@ use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use crate::*;
+use crate::bind::*;
+use crate::event::*;
 
 #[derive(Clone)]
 pub struct BCell<T: Copy>(Rc<BCellData<T>>);
