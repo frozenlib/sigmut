@@ -1,3 +1,4 @@
+use futures::task::LocalSpawn;
 use std::any::Any;
 use std::cell::RefCell;
 use std::cmp::min;
@@ -542,4 +543,24 @@ impl<F: Fn(&BindContext) -> &'static T + 'static, T: 'static> RefBind for F {
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
         Ref::Native(self(ctx))
     }
+}
+
+thread_local! {
+    pub static LOCAL_SPAWN: RefCell<Rc<dyn LocalSpawn>> = RefCell::new(Rc::new(LocalSpawnNotSet));
+}
+struct LocalSpawnNotSet;
+impl LocalSpawn for LocalSpawnNotSet {
+    fn spawn_local_obj(
+        &self,
+        _: futures::task::LocalFutureObj<'static, ()>,
+    ) -> Result<(), futures::task::SpawnError> {
+        panic!("`get_local_spawn` called before `set_local_spawn` called.");
+    }
+}
+
+pub fn set_local_spawn(sp: impl LocalSpawn + 'static) {
+    LOCAL_SPAWN.with(|value| *value.borrow_mut() = Rc::new(sp));
+}
+pub fn get_local_spawn() -> Rc<dyn LocalSpawn + 'static> {
+    LOCAL_SPAWN.with(|value| value.borrow().clone())
 }
