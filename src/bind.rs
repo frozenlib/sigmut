@@ -211,9 +211,21 @@ pub trait Bind: Sized + 'static {
         MapAsync::new(self, f)
     }
 }
+
+#[derive(Clone)]
 pub struct BindExt<B>(B);
 
+impl<B: Bind> Bind for BindExt<B> {
+    type Item = B::Item;
+    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
+        self.0.bind(ctx)
+    }
+}
+
 impl<B: Bind> BindExt<B> {
+    pub fn from(b: B) -> Self {
+        Self(b)
+    }
     pub fn cached(self) -> RefBindExt<impl RefBind<Item = B::Item>> {
         RefBindExt(Cached::new(self))
     }
@@ -238,15 +250,6 @@ impl<B: Bind> BindExt<B> {
         RefBindExt(MapAsync::new(self, f))
     }
 }
-impl<B: Bind> Bind for BindExt<B> {
-    type Item = B::Item;
-    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
-        self.0.bind(ctx)
-    }
-}
-
-pub struct RefBindExt<B>(B);
-impl<B: RefBind> RefBindExt<B> {}
 
 pub trait RefBind: Sized + 'static {
     type Item;
@@ -268,6 +271,42 @@ pub trait RefBind: Sized + 'static {
         Self::Item: Clone,
     {
         Cloned(self)
+    }
+}
+
+#[derive(Clone)]
+pub struct RefBindExt<B>(B);
+
+impl<B: RefBind> RefBind for RefBindExt<B> {
+    type Item = B::Item;
+    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+        self.0.bind(ctx)
+    }
+}
+
+impl<B: RefBind> RefBindExt<B> {
+    pub fn from(b: B) -> Self {
+        Self(b)
+    }
+
+    pub fn for_each(self, f: impl Fn(&B::Item) + 'static) -> Unbind {
+        Unbind(RefForEachData::new(self, f))
+    }
+
+    pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
+        BindExt(RefMap { b: self, f })
+    }
+    pub fn map_ref<U>(
+        self,
+        f: impl Fn(&B::Item) -> &U + 'static,
+    ) -> RefBindExt<impl RefBind<Item = U>> {
+        RefBindExt(RefMapRef { b: self, f })
+    }
+    pub fn cloned(self) -> BindExt<impl Bind<Item = B::Item>>
+    where
+        B::Item: Clone,
+    {
+        BindExt(Cloned(self))
     }
 }
 
