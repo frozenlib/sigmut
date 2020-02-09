@@ -265,7 +265,7 @@ impl<B: RefBind> RefBindExt<B> {
     where
         B::Item: Clone,
     {
-        BindExt(Cloned(self))
+        self.map(|x| x.clone())
     }
 }
 
@@ -640,17 +640,6 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
                 self.sinks.notify_with(ctx);
             }
         }
-    }
-}
-
-struct Cloned<B>(B);
-impl<B: RefBind> Bind for Cloned<B>
-where
-    B::Item: Clone,
-{
-    type Item = B::Item;
-    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
-        self.0.bind(ctx).clone()
     }
 }
 
