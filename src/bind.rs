@@ -205,11 +205,24 @@ impl<B: Bind> BindExt<B> {
     pub fn cached(self) -> RefBindExt<impl RefBind<Item = B::Item>> {
         RefBindExt(Cached::new(self))
     }
+    pub fn dedup_by(
+        self,
+        eq: impl Fn(&B::Item, &B::Item) -> bool + 'static,
+    ) -> RefBindExt<impl RefBind<Item = B::Item>> {
+        RefBindExt(DedupBy::new(self, eq))
+    }
+    pub fn dedup_by_key<K: PartialEq>(
+        self,
+        to_key: impl Fn(&B::Item) -> K + 'static,
+    ) -> RefBindExt<impl RefBind<Item = B::Item>> {
+        self.dedup_by(move |l, r| to_key(l) == to_key(r))
+    }
+
     pub fn dedup(self) -> RefBindExt<impl RefBind<Item = B::Item>>
     where
         B::Item: PartialEq,
     {
-        RefBindExt(Dedup::new(self))
+        self.dedup_by(|l, r| l == r)
     }
 
     pub fn for_each(self, f: impl Fn(B::Item) + 'static) -> Unbind {
@@ -354,27 +367,26 @@ impl<B: Bind> BindSink for CachedData<B> {
 }
 
 #[derive(Clone)]
-struct Dedup<B: Bind>(Rc<DedupData<B>>);
+struct DedupBy<B: Bind, EqFn>(Rc<DedupByData<B, EqFn>>);
 
-struct DedupData<B: Bind> {
+struct DedupByData<B: Bind, EqFn> {
     b: B,
+    eq: EqFn,
     sinks: BindSinks,
-    state: RefCell<DedupState<B::Item>>,
+    state: RefCell<DedupByState<B::Item>>,
 }
-struct DedupState<T> {
+struct DedupByState<T> {
     value: Option<T>,
     is_ready: bool,
     binds: Vec<Binding>,
 }
-impl<B: Bind> Dedup<B>
-where
-    B::Item: PartialEq,
-{
-    fn new(b: B) -> Self {
-        Self(Rc::new(DedupData {
+impl<B: Bind, EqFn> DedupBy<B, EqFn> {
+    fn new(b: B, eq: EqFn) -> Self {
+        Self(Rc::new(DedupByData {
             b,
+            eq,
             sinks: BindSinks::new(),
-            state: RefCell::new(DedupState {
+            state: RefCell::new(DedupByState {
                 value: None,
                 is_ready: false,
                 binds: Vec::new(),
@@ -382,10 +394,7 @@ where
         }))
     }
 }
-impl<B: Bind> RefBind for Dedup<B>
-where
-    B::Item: PartialEq,
-{
+impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> RefBind for DedupBy<B, EqFn> {
     type Item = B::Item;
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
         let mut s = self.0.state.borrow();
@@ -398,18 +407,12 @@ where
         return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
     }
 }
-impl<B: Bind> BindSource for DedupData<B>
-where
-    B::Item: PartialEq,
-{
+impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> BindSource for DedupByData<B, EqFn> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<B: Bind> BindSink for DedupData<B>
-where
-    B::Item: PartialEq,
-{
+impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> BindSink for DedupByData<B, EqFn> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut s = self.state.borrow_mut();
         if s.is_ready {
@@ -421,25 +424,22 @@ where
         }
     }
 }
-impl<B: Bind> DedupData<B>
-where
-    B::Item: PartialEq,
-{
+impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DedupByData<B, EqFn> {
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
         let mut ctx = BindContext::new(&self, &mut s.binds);
         let value = self.b.bind(&mut ctx);
-        if s.value.as_ref() != Some(&value) {
-            s.value = Some(value);
-            drop(s);
-            self.sinks.notify();
+        if let Some(value_old) = &s.value {
+            if (self.eq)(value_old, &value) {
+                return;
+            }
         }
+        s.value = Some(value);
+        drop(s);
+        self.sinks.notify();
     }
 }
-impl<B: Bind> Task for DedupData<B>
-where
-    B::Item: PartialEq,
-{
+impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> Task for DedupByData<B, EqFn> {
     fn run(self: Rc<Self>) {
         self.ready();
     }
