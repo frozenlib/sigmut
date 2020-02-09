@@ -211,6 +211,42 @@ pub trait Bind: Sized + 'static {
         MapAsync::new(self, f)
     }
 }
+pub struct BindExt<B>(B);
+
+impl<B: Bind> BindExt<B> {
+    pub fn cached(self) -> RefBindExt<impl RefBind<Item = B::Item>> {
+        RefBindExt(Cached::new(self))
+    }
+    pub fn dedup(self) -> RefBindExt<impl RefBind<Item = B::Item>>
+    where
+        B::Item: PartialEq,
+    {
+        RefBindExt(CachedNe::new(self))
+    }
+
+    pub fn for_each(self, f: impl Fn(B::Item) + 'static) -> Unbind {
+        Unbind(ForEachData::new(self, f))
+    }
+
+    pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
+        BindExt(Map { b: self, f })
+    }
+    pub fn map_async<Fut: Future + 'static>(
+        self,
+        f: impl Fn(B::Item) -> Fut + 'static,
+    ) -> RefBindExt<impl RefBind<Item = Poll<Fut::Output>>> {
+        RefBindExt(MapAsync::new(self, f))
+    }
+}
+impl<B: Bind> Bind for BindExt<B> {
+    type Item = B::Item;
+    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
+        self.0.bind(ctx)
+    }
+}
+
+pub struct RefBindExt<B>(B);
+impl<B: RefBind> RefBindExt<B> {}
 
 pub trait RefBind: Sized + 'static {
     type Item;
