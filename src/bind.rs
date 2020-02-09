@@ -275,14 +275,14 @@ impl<B: Bind> BindSink for CachedData<B> {
     }
 }
 
-pub(crate) struct ForEachData<B, F> {
+struct ForEachData<B, F> {
     b: B,
     f: F,
     binds: RefCell<Vec<Binding>>,
 }
 
 impl<B: Bind, F: Fn(B::Item) + 'static> ForEachData<B, F> {
-    pub fn new(b: B, f: F) -> Rc<Self> {
+    fn new(b: B, f: F) -> Rc<Self> {
         let s = Rc::new(ForEachData {
             b,
             f,
