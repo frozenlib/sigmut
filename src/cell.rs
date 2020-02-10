@@ -35,6 +35,9 @@ impl<T: Copy + 'static> Bind for BindCell<T> {
         ctx.bind(self.0.clone());
         self.0.value.get()
     }
+    fn into_rc(self) -> RcBind<T> {
+        self.0
+    }
 }
 impl<T: Copy + 'static> BindSource for BindCellData<T> {
     fn sinks(&self) -> &BindSinks {
@@ -44,6 +47,12 @@ impl<T: Copy + 'static> BindSource for BindCellData<T> {
 impl<T: Copy> Clone for BindCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
+    }
+}
+impl<T: Copy + 'static> DynBind for BindCellData<T> {
+    type Item = T;
+    fn dyn_bind(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
+        BindCell(self).bind(ctx)
     }
 }
 impl<T: Copy + std::fmt::Debug> std::fmt::Debug for BindCell<T> {
