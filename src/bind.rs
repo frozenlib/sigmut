@@ -230,20 +230,6 @@ impl<'a, T> Deref for Ref<'a, T> {
 }
 pub struct Unbind(pub Rc<dyn Any>);
 
-impl<F: Fn(&mut BindContext) -> T + 'static, T> Bind for F {
-    type Item = T;
-    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
-        self(ctx)
-    }
-}
-
-impl<F: Fn(&mut BindContext) -> &'static T + 'static, T: 'static> RefBind for F {
-    type Item = T;
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        Ref::Native(self(ctx))
-    }
-}
-
 thread_local! {
     static LOCAL_SPAWN: RefCell<Rc<dyn LocalSpawn>> = RefCell::new(Rc::new(LocalSpawnNotSet));
 }

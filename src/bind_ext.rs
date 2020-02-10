@@ -507,7 +507,14 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
 }
 
 pub fn make_bind<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
-    BindExt(f)
+    struct FnBind<F>(F);
+    impl<F: Fn(&mut BindContext) -> T + 'static, T> Bind for FnBind<F> {
+        type Item = T;
+        fn bind(&self, ctx: &mut BindContext) -> Self::Item {
+            (self.0)(ctx)
+        }
+    }
+    BindExt(FnBind(f))
 }
 
 pub fn make_ref_bind<T, F, U>(this: T, f: F) -> RefBindExt<impl RefBind<Item = U>>
