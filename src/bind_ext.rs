@@ -47,19 +47,19 @@ impl<B: Bind> BindExt<B> {
     pub fn for_each(self, f: impl Fn(B::Item) + 'static) -> Unbind {
         Unbind(ForEach::new(self, f))
     }
-    pub fn for_each_ex<T: 'static>(
+    pub fn for_each_by<T: 'static>(
         self,
         attach: impl Fn(B::Item) -> T + 'static,
         detach: impl Fn(T) + 'static,
     ) -> Unbind {
-        Unbind(ForEachEx::new(self, attach, detach))
+        Unbind(ForEachBy::new(self, attach, detach))
     }
     pub fn for_each_async<Fut: Future<Output = ()> + 'static>(
         self,
         f: impl Fn(B::Item) -> Fut + 'static,
     ) -> Unbind {
         let sp = get_current_local_spawn();
-        self.for_each_ex(
+        self.for_each_by(
             move |value| sp.spawn_local_with_handle(f(value)).unwrap(),
             move |_handle| {},
         )
@@ -291,7 +291,7 @@ impl<B: Bind, F: Fn(B::Item) + 'static> Task for ForEach<B, F> {
     }
 }
 
-struct ForEachEx<B, A, D, T>
+struct ForEachBy<B, A, D, T>
 where
     B: Bind,
     A: Fn(B::Item) -> T + 'static,
@@ -305,7 +305,7 @@ where
     binds: RefCell<Vec<Binding>>,
 }
 
-impl<B, A, D, T> ForEachEx<B, A, D, T>
+impl<B, A, D, T> ForEachBy<B, A, D, T>
 where
     B: Bind,
     A: Fn(B::Item) -> T + 'static,
@@ -313,7 +313,7 @@ where
     T: 'static,
 {
     fn new(b: B, attach: A, detach: D) -> Rc<Self> {
-        let s = Rc::new(ForEachEx {
+        let s = Rc::new(ForEachBy {
             b,
             attach,
             detach,
@@ -335,7 +335,7 @@ where
         }
     }
 }
-impl<B, A, D, T> BindSink for ForEachEx<B, A, D, T>
+impl<B, A, D, T> BindSink for ForEachBy<B, A, D, T>
 where
     B: Bind,
     A: Fn(B::Item) -> T + 'static,
@@ -348,7 +348,7 @@ where
         ctx.spawn(Rc::downgrade(&self))
     }
 }
-impl<B, A, D, T> Task for ForEachEx<B, A, D, T>
+impl<B, A, D, T> Task for ForEachBy<B, A, D, T>
 where
     B: Bind,
     A: Fn(B::Item) -> T + 'static,
@@ -359,7 +359,7 @@ where
         self.next();
     }
 }
-impl<B, A, D, T> Drop for ForEachEx<B, A, D, T>
+impl<B, A, D, T> Drop for ForEachBy<B, A, D, T>
 where
     B: Bind,
     A: Fn(B::Item) -> T + 'static,
