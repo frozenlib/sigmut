@@ -42,6 +42,7 @@ impl Drop for Binding {
     }
 }
 
+/// A collection of `BindSink`.
 pub struct BindSinks(RefCell<BindSinkData>);
 impl BindSinks {
     pub fn new() -> Self {
@@ -113,6 +114,7 @@ fn freed_sink() -> Weak<dyn BindSink> {
     Weak::<DummyBindSink>::new()
 }
 
+/// The context of `BindSink::notify`.
 pub struct NotifyContext(RefCell<NotifyContextData>);
 struct NotifyContextData {
     ref_count: usize,
@@ -164,6 +166,7 @@ impl NotifyContext {
     }
 }
 
+/// The context of `Bind::bind` and `RefBind::bind`.
 pub struct BindContext<'a> {
     sink: Weak<dyn BindSink>,
     bindings: &'a mut Vec<Binding>,
@@ -187,7 +190,7 @@ pub trait Bind: Sized + 'static {
     fn bind(&self, ctx: &mut BindContext) -> Self::Item;
 
     fn into_ext(self) -> BindExt<Self> {
-        BindExt::new(self)
+        BindExt(self)
     }
 }
 
@@ -197,10 +200,11 @@ pub trait RefBind: Sized + 'static {
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
 
     fn into_ext(self) -> RefBindExt<Self> {
-        RefBindExt::new(self)
+        RefBindExt(self)
     }
 }
 
+/// A wrapper type for an immutably borrowed value from a `RefBind`.
 pub enum Ref<'a, T> {
     Native(&'a T),
     Cell(std::cell::Ref<'a, T>),

@@ -7,8 +7,11 @@ use std::mem::drop;
 use std::rc::{Rc, Weak};
 use std::task::Poll;
 
+/// Extension methods for `Bind`.
+///
+/// Since impl trait return value is used, `BindExt` is struct instead of trait.
 #[derive(Clone)]
-pub struct BindExt<B>(B);
+pub struct BindExt<B>(pub(crate) B);
 
 impl<B: Bind> Bind for BindExt<B> {
     type Item = B::Item;
@@ -18,9 +21,6 @@ impl<B: Bind> Bind for BindExt<B> {
 }
 
 impl<B: Bind> BindExt<B> {
-    pub fn new(b: B) -> Self {
-        Self(b)
-    }
     pub fn cached(self) -> RefBindExt<impl RefBind<Item = B::Item>> {
         RefBindExt(Cached::new(self))
     }
@@ -82,8 +82,11 @@ impl<B: Bind> BindExt<B> {
     }
 }
 
+/// Extension methods for `RefBind`.
+///
+/// Since impl trait return value is used, `BindExt` is struct instead of trait.
 #[derive(Clone)]
-pub struct RefBindExt<B>(B);
+pub struct RefBindExt<B>(pub(crate) B);
 
 impl<B: RefBind> RefBind for RefBindExt<B> {
     type Item = B::Item;
@@ -93,10 +96,6 @@ impl<B: RefBind> RefBind for RefBindExt<B> {
 }
 
 impl<B: RefBind> RefBindExt<B> {
-    pub fn new(b: B) -> Self {
-        Self(b)
-    }
-
     pub fn for_each(self, f: impl Fn(&B::Item) + 'static) -> Unbind {
         Unbind(RefForEach::new(self, f))
     }

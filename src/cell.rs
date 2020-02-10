@@ -4,6 +4,7 @@ use std::rc::Rc;
 
 use crate::*;
 
+/// A `Cell` like type that implement `Bind`.
 pub struct BindCell<T: Copy>(Rc<BindCellData<T>>);
 
 struct BindCellData<T: Copy> {
@@ -51,6 +52,7 @@ impl<T: Copy + std::fmt::Debug> std::fmt::Debug for BindCell<T> {
     }
 }
 
+/// A `RefCell` like type that implement `RefBind`.
 pub struct RefBindCell<T>(Rc<RefBindCellData<T>>);
 struct RefBindCellData<T> {
     value: RefCell<T>,
@@ -92,6 +94,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for RefBindCell<T> {
     }
 }
 
+/// A wrapper type for a mutably borrowed value from a `BindRefCell<T>`.
 pub struct RefMut<'a, T> {
     b: std::cell::RefMut<'a, T>,
     sinks: &'a BindSinks,
