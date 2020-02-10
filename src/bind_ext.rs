@@ -54,6 +54,16 @@ impl<B: Bind> BindExt<B> {
     ) -> Unbind {
         Unbind(ForEachEx::new(self, attach, detach))
     }
+    pub fn for_each_async<Fut: Future<Output = ()> + 'static>(
+        self,
+        f: impl Fn(B::Item) -> Fut + 'static,
+    ) -> Unbind {
+        let sp = get_current_local_spawn();
+        self.for_each_ex(
+            move |value| sp.spawn_local_with_handle(f(value)).unwrap(),
+            move |_handle| {},
+        )
+    }
 
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
         bind_fn(move |ctx| f(self.bind(ctx)))
