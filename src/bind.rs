@@ -635,6 +635,12 @@ pub fn bind_fn<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl B
     BindExt(f)
 }
 
+pub fn ref_bind_fn<T: 'static>(
+    f: impl Fn(&mut BindContext) -> &'static T + 'static,
+) -> RefBindExt<impl RefBind<Item = T>> {
+    RefBindExt(f)
+}
+
 impl<F: Fn(&mut BindContext) -> T + 'static, T> Bind for F {
     type Item = T;
     fn bind(&self, ctx: &mut BindContext) -> Self::Item {
