@@ -97,7 +97,7 @@ impl<B: RefBind> RefBind for RefBindExt<B> {
 
 impl<B: RefBind> RefBindExt<B> {
     pub fn for_each(self, f: impl Fn(&B::Item) + 'static) -> Unbind {
-        Unbind(RefForEach::new(self, f))
+        self.map(f).for_each(|_| {})
     }
 
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
@@ -367,41 +367,6 @@ where
 {
     fn drop(&mut self) {
         self.detach_value();
-    }
-}
-
-struct RefForEach<B, F> {
-    b: B,
-    f: F,
-    binds: RefCell<Vec<Binding>>,
-}
-
-impl<B: RefBind, F: Fn(&B::Item) + 'static> RefForEach<B, F> {
-    fn new(b: B, f: F) -> Rc<Self> {
-        let s = Rc::new(RefForEach {
-            b,
-            f,
-            binds: RefCell::new(Vec::new()),
-        });
-        s.next();
-        s
-    }
-
-    fn next(self: &Rc<Self>) {
-        let mut b = self.binds.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut b);
-        (self.f)(&self.b.bind(&mut ctx));
-    }
-}
-impl<B: RefBind, F: Fn(&B::Item) + 'static> BindSink for RefForEach<B, F> {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        self.binds.borrow_mut().clear();
-        ctx.spawn(Rc::downgrade(&self))
-    }
-}
-impl<B: RefBind, F: Fn(&B::Item) + 'static> Task for RefForEach<B, F> {
-    fn run(self: Rc<Self>) {
-        self.next();
     }
 }
 
