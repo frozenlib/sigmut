@@ -13,7 +13,7 @@ pub trait DynRefBind: 'static {
     fn dyn_bind<'a>(&'a self, rc_this: &'a dyn Any, ctx: &mut BindContext) -> Ref<'a, Self::Item>;
     fn downcast(rc_this: &dyn Any) -> &Rc<Self>
     where
-        Self: Sized + 'static,
+        Self: Sized,
     {
         rc_this.downcast_ref().unwrap()
     }
