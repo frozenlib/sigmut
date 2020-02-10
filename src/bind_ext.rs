@@ -523,11 +523,11 @@ where
     for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
     U: 'static,
 {
-    struct FnRefMap<T, F> {
+    struct FnRefBind<T, F> {
         this: T,
         f: F,
     }
-    impl<T, F, U> RefBind for FnRefMap<T, F>
+    impl<T, F, U> RefBind for FnRefBind<T, F>
     where
         T: 'static,
         for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
@@ -539,5 +539,5 @@ where
         }
     }
 
-    RefBindExt(FnRefMap { this, f })
+    RefBindExt(FnRefBind { this, f })
 }
