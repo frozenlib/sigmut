@@ -272,7 +272,7 @@ impl<B: RefBind> RefBindExt<B> {
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> RefBindExt<impl RefBind<Item = U>> {
-        RefBindExt(RefMapRef { b: self, f })
+        RefBindExt(MapRef { b: self, f })
     }
     pub fn cloned(self) -> BindExt<impl Bind<Item = B::Item>>
     where
@@ -513,11 +513,11 @@ impl<B: RefBind, F: Fn(&B::Item) + 'static> Task for RefForEachData<B, F> {
     }
 }
 
-struct RefMapRef<B, F> {
+struct MapRef<B, F> {
     b: B,
     f: F,
 }
-impl<B: RefBind, F: Fn(&B::Item) -> &U + 'static, U> RefBind for RefMapRef<B, F> {
+impl<B: RefBind, F: Fn(&B::Item) -> &U + 'static, U> RefBind for MapRef<B, F> {
     type Item = U;
 
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
@@ -633,12 +633,6 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
 
 pub fn bind_fn<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
     BindExt(f)
-}
-
-pub fn ref_bind_fn<T: 'static>(
-    f: impl Fn(&mut BindContext) -> &'static T + 'static,
-) -> RefBindExt<impl RefBind<Item = T>> {
-    RefBindExt(f)
 }
 
 impl<F: Fn(&mut BindContext) -> T + 'static, T> Bind for F {
