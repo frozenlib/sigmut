@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
@@ -39,6 +40,12 @@ impl<T: Copy + 'static> Bind for BindCell<T> {
         self.0
     }
 }
+impl<T: Copy + 'static> DynBind for BindCellData<T> {
+    type Item = T;
+    fn dyn_bind(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
+        BindCell(self).bind(ctx)
+    }
+}
 impl<T: Copy + 'static> BindSource for BindCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
@@ -47,12 +54,6 @@ impl<T: Copy + 'static> BindSource for BindCellData<T> {
 impl<T: Copy> Clone for BindCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
-    }
-}
-impl<T: Copy + 'static> DynBind for BindCellData<T> {
-    type Item = T;
-    fn dyn_bind(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
-        BindCell(self).bind(ctx)
     }
 }
 impl<T: Copy + std::fmt::Debug> std::fmt::Debug for BindCell<T> {
@@ -79,12 +80,23 @@ impl<T: 'static> RefBindCell<T> {
         self.clone().into_ext()
     }
 }
+impl<T: 'static> DynRefBind for RefBindCellData<T> {
+    type Item = T;
+    fn dyn_bind<'a>(&'a self, rc_this: &'a dyn Any, ctx: &mut BindContext) -> Ref<'a, Self::Item> {
+        let this = Self::downcast(rc_this);
+        ctx.bind(this.clone());
+        Ref::Cell(this.value.borrow())
+    }
+}
 impl<T: 'static> RefBind for RefBindCell<T> {
     type Item = T;
 
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
         ctx.bind(self.0.clone());
         Ref::Cell(self.0.value.borrow())
+    }
+    fn into_rc(self) -> RcRefBind<T> {
+        self.0
     }
 }
 impl<T: 'static> BindSource for RefBindCellData<T> {

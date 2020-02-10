@@ -10,7 +10,7 @@ pub trait DynBind: 'static {
 pub trait DynRefBind: 'static {
     type Item;
 
-    fn dyn_bind(&self, rc_this: &dyn Any, ctx: &mut BindContext) -> Ref<Self::Item>;
+    fn dyn_bind<'a>(&'a self, rc_this: &'a dyn Any, ctx: &mut BindContext) -> Ref<'a, Self::Item>;
     fn downcast(rc_this: &dyn Any) -> &Rc<Self>
     where
         Self: Sized + 'static,
@@ -28,7 +28,7 @@ impl<B: Bind> DynBind for B {
 impl<B: RefBind> DynRefBind for B {
     type Item = B::Item;
 
-    fn dyn_bind(&self, _rc_this: &dyn Any, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn dyn_bind<'a>(&'a self, _rc_this: &'a dyn Any, ctx: &mut BindContext) -> Ref<'a, Self::Item> {
         self.bind(ctx)
     }
 }
