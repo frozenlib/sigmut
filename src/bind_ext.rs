@@ -99,6 +99,23 @@ impl<B: RefBind> RefBindExt<B> {
     pub fn for_each(self, f: impl Fn(&B::Item) + 'static) -> Unbind {
         self.map(f).for_each(|_| {})
     }
+    pub fn for_each_by<T: 'static>(
+        self,
+        attach: impl Fn(&B::Item) -> T + 'static,
+        detach: impl Fn(T) + 'static,
+    ) -> Unbind {
+        self.map(attach).for_each_by(|s| s, detach)
+    }
+    pub fn for_each_async<Fut: Future<Output = ()> + 'static>(
+        self,
+        f: impl Fn(&B::Item) -> Fut + 'static,
+    ) -> Unbind {
+        let sp = get_current_local_spawn();
+        self.for_each_by(
+            move |value| sp.spawn_local_with_handle(f(value)).unwrap(),
+            move |_handle| {},
+        )
+    }
 
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
         bind_fn(move |ctx| f(&self.bind(ctx)))
