@@ -29,6 +29,12 @@ impl<T: Copy + 'static> BindCell<T> {
         self.clone().into_ext()
     }
 }
+impl<T: Copy + 'static> BindCellData<T> {
+    fn rc_bind(self: &Rc<Self>, ctx: &mut BindContext) -> T {
+        ctx.bind(self.clone());
+        self.value.get()
+    }
+}
 impl<T: Copy + 'static> Bind for BindCell<T> {
     type Item = T;
 
@@ -37,12 +43,6 @@ impl<T: Copy + 'static> Bind for BindCell<T> {
     }
     fn into_rc(self) -> RcBind<T> {
         self.0
-    }
-}
-impl<T: Copy + 'static> BindCellData<T> {
-    fn rc_bind(self: &Rc<Self>, ctx: &mut BindContext) -> T {
-        ctx.bind(self.clone());
-        self.value.get()
     }
 }
 impl<T: Copy + 'static> DynBind for BindCellData<T> {
@@ -85,6 +85,12 @@ impl<T: 'static> RefBindCell<T> {
         self.clone().into_ext()
     }
 }
+impl<T: 'static> RefBindCellData<T> {
+    fn rc_bind<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, T> {
+        ctx.bind(self.clone());
+        Ref::Cell(self.value.borrow())
+    }
+}
 impl<T: 'static> RefBind for RefBindCell<T> {
     type Item = T;
 
@@ -93,12 +99,6 @@ impl<T: 'static> RefBind for RefBindCell<T> {
     }
     fn into_rc(self) -> RcRefBind<T> {
         self.0
-    }
-}
-impl<T: 'static> RefBindCellData<T> {
-    fn rc_bind<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, T> {
-        ctx.bind(self.clone());
-        Ref::Cell(self.value.borrow())
     }
 }
 impl<T: 'static> DynRefBind for RefBindCellData<T> {
