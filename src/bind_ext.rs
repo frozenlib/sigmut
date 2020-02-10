@@ -494,7 +494,6 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
 }
 
 pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
-    #[derive(Clone)]
     struct Constant<T: 'static>(T);
     impl<T> RefBind for Constant<T> {
         type Item = T;
@@ -507,4 +506,29 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
 
 pub fn bind_fn<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
     BindExt(f)
+}
+
+pub fn make_ref_bind<T, F, U>(this: T, f: F) -> RefBindExt<impl RefBind<Item = U>>
+where
+    T: 'static,
+    for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
+    U: 'static,
+{
+    struct TempRefMap<T, F> {
+        this: T,
+        f: F,
+    }
+    impl<T, F, U> RefBind for TempRefMap<T, F>
+    where
+        T: 'static,
+        for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
+        U: 'static,
+    {
+        type Item = U;
+        fn bind(&self, ctx: &mut BindContext) -> Ref<U> {
+            (self.f)(&self.this, ctx)
+        }
+    }
+
+    RefBindExt(TempRefMap { this, f })
 }
