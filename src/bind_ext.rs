@@ -45,7 +45,14 @@ impl<B: Bind> BindExt<B> {
     }
 
     pub fn for_each(self, f: impl Fn(B::Item) + 'static) -> Unbind {
-        Unbind(ForEachData::new(self, f))
+        Unbind(ForEach::new(self, f))
+    }
+    pub fn for_each_ex<T: 'static>(
+        self,
+        attach: impl Fn(B::Item) -> T + 'static,
+        detach: impl Fn(T) + 'static,
+    ) -> Unbind {
+        Unbind(ForEachEx::new(self, attach, detach))
     }
 
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
@@ -81,7 +88,7 @@ impl<B: RefBind> RefBindExt<B> {
     }
 
     pub fn for_each(self, f: impl Fn(&B::Item) + 'static) -> Unbind {
-        Unbind(RefForEachData::new(self, f))
+        Unbind(RefForEach::new(self, f))
     }
 
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
@@ -239,15 +246,15 @@ impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> Task for DedupByDa
     }
 }
 
-struct ForEachData<B, F> {
+struct ForEach<B, F> {
     b: B,
     f: F,
     binds: RefCell<Vec<Binding>>,
 }
 
-impl<B: Bind, F: Fn(B::Item) + 'static> ForEachData<B, F> {
+impl<B: Bind, F: Fn(B::Item) + 'static> ForEach<B, F> {
     fn new(b: B, f: F) -> Rc<Self> {
-        let s = Rc::new(Self {
+        let s = Rc::new(ForEach {
             b,
             f,
             binds: RefCell::new(Vec::new()),
@@ -262,26 +269,107 @@ impl<B: Bind, F: Fn(B::Item) + 'static> ForEachData<B, F> {
         (self.f)(self.b.bind(&mut ctx));
     }
 }
-impl<B: Bind, F: Fn(B::Item) + 'static> BindSink for ForEachData<B, F> {
+impl<B: Bind, F: Fn(B::Item) + 'static> BindSink for ForEach<B, F> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        self.binds.borrow_mut().clear();
         ctx.spawn(Rc::downgrade(&self))
     }
 }
-impl<B: Bind, F: Fn(B::Item) + 'static> Task for ForEachData<B, F> {
+impl<B: Bind, F: Fn(B::Item) + 'static> Task for ForEach<B, F> {
     fn run(self: Rc<Self>) {
         self.next();
     }
 }
 
-struct RefForEachData<B, F> {
+struct ForEachEx<B, A, D, T>
+where
+    B: Bind,
+    A: Fn(B::Item) -> T + 'static,
+    D: Fn(T) + 'static,
+    T: 'static,
+{
+    b: B,
+    attach: A,
+    detach: D,
+    value: RefCell<Option<T>>,
+    binds: RefCell<Vec<Binding>>,
+}
+
+impl<B, A, D, T> ForEachEx<B, A, D, T>
+where
+    B: Bind,
+    A: Fn(B::Item) -> T + 'static,
+    D: Fn(T) + 'static,
+    T: 'static,
+{
+    fn new(b: B, attach: A, detach: D) -> Rc<Self> {
+        let s = Rc::new(ForEachEx {
+            b,
+            attach,
+            detach,
+            value: RefCell::new(None),
+            binds: RefCell::new(Vec::new()),
+        });
+        s.next();
+        s
+    }
+
+    fn next(self: &Rc<Self>) {
+        let mut b = self.binds.borrow_mut();
+        let mut ctx = BindContext::new(&self, &mut b);
+        *self.value.borrow_mut() = Some((self.attach)(self.b.bind(&mut ctx)));
+    }
+    fn detach_value(&self) {
+        if let Some(value) = self.value.borrow_mut().take() {
+            (self.detach)(value);
+        }
+    }
+}
+impl<B, A, D, T> BindSink for ForEachEx<B, A, D, T>
+where
+    B: Bind,
+    A: Fn(B::Item) -> T + 'static,
+    D: Fn(T) + 'static,
+    T: 'static,
+{
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        self.binds.borrow_mut().clear();
+        self.detach_value();
+        ctx.spawn(Rc::downgrade(&self))
+    }
+}
+impl<B, A, D, T> Task for ForEachEx<B, A, D, T>
+where
+    B: Bind,
+    A: Fn(B::Item) -> T + 'static,
+    D: Fn(T) + 'static,
+    T: 'static,
+{
+    fn run(self: Rc<Self>) {
+        self.next();
+    }
+}
+impl<B, A, D, T> Drop for ForEachEx<B, A, D, T>
+where
+    B: Bind,
+    A: Fn(B::Item) -> T + 'static,
+    D: Fn(T) + 'static,
+    T: 'static,
+{
+    fn drop(&mut self) {
+        self.detach_value();
+    }
+}
+
+struct RefForEach<B, F> {
     b: B,
     f: F,
     binds: RefCell<Vec<Binding>>,
 }
 
-impl<B: RefBind, F: Fn(&B::Item) + 'static> RefForEachData<B, F> {
+impl<B: RefBind, F: Fn(&B::Item) + 'static> RefForEach<B, F> {
     fn new(b: B, f: F) -> Rc<Self> {
-        let s = Rc::new(Self {
+        let s = Rc::new(RefForEach {
             b,
             f,
             binds: RefCell::new(Vec::new()),
@@ -296,12 +384,13 @@ impl<B: RefBind, F: Fn(&B::Item) + 'static> RefForEachData<B, F> {
         (self.f)(&self.b.bind(&mut ctx));
     }
 }
-impl<B: RefBind, F: Fn(&B::Item) + 'static> BindSink for RefForEachData<B, F> {
+impl<B: RefBind, F: Fn(&B::Item) + 'static> BindSink for RefForEach<B, F> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        self.binds.borrow_mut().clear();
         ctx.spawn(Rc::downgrade(&self))
     }
 }
-impl<B: RefBind, F: Fn(&B::Item) + 'static> Task for RefForEachData<B, F> {
+impl<B: RefBind, F: Fn(&B::Item) + 'static> Task for RefForEach<B, F> {
     fn run(self: Rc<Self>) {
         self.next();
     }
