@@ -68,6 +68,12 @@ impl<B: Bind> BindExt<B> {
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
         make_bind(move |ctx| f(self.bind(ctx)))
     }
+    pub fn map_with_ctx<U>(
+        self,
+        f: impl Fn(B::Item, &mut BindContext) -> U + 'static,
+    ) -> BindExt<impl Bind<Item = U>> {
+        make_bind(move |ctx| f(self.bind(ctx), ctx))
+    }
     pub fn flat_map<O: Bind>(
         self,
         f: impl Fn(B::Item) -> O + 'static,
@@ -120,12 +126,20 @@ impl<B: RefBind> RefBindExt<B> {
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
         make_bind(move |ctx| f(&self.bind(ctx)))
     }
+    pub fn map_with_ctx<U>(
+        self,
+        f: impl Fn(&B::Item, &mut BindContext) -> U + 'static,
+    ) -> BindExt<impl Bind<Item = U>> {
+        make_bind(move |ctx| f(&self.bind(ctx), ctx))
+    }
+
     pub fn map_ref<U: 'static>(
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> RefBindExt<impl RefBind<Item = U>> {
         make_ref_bind(self, move |this, ctx| Ref::map(this.bind(ctx), &f))
     }
+
     pub fn cloned(self) -> BindExt<impl Bind<Item = B::Item>>
     where
         B::Item: Clone,
