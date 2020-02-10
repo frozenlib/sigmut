@@ -232,6 +232,12 @@ impl<B: Bind> BindExt<B> {
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
         bind_fn(move |ctx| f(self.bind(ctx)))
     }
+    pub fn flat_map<O: Bind>(
+        self,
+        f: impl Fn(B::Item) -> O + 'static,
+    ) -> BindExt<impl Bind<Item = O::Item>> {
+        bind_fn(move |ctx| f(self.bind(ctx)).bind(ctx))
+    }
     pub fn map_async<Fut: Future + 'static>(
         self,
         f: impl Fn(B::Item) -> Fut + 'static,
