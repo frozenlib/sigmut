@@ -120,11 +120,11 @@ impl<B: RefBind> RefBindExt<B> {
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
         bind_fn(move |ctx| f(&self.bind(ctx)))
     }
-    pub fn map_ref<U>(
+    pub fn map_ref<U: 'static>(
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> RefBindExt<impl RefBind<Item = U>> {
-        RefBindExt(MapRef { b: self, f })
+        make_ref_bind(self, move |this, ctx| Ref::map(this.bind(ctx), &f))
     }
     pub fn cloned(self) -> BindExt<impl Bind<Item = B::Item>>
     where
@@ -384,18 +384,6 @@ where
 {
     fn drop(&mut self) {
         self.detach_value();
-    }
-}
-
-struct MapRef<B, F> {
-    b: B,
-    f: F,
-}
-impl<B: RefBind, F: Fn(&B::Item) -> &U + 'static, U> RefBind for MapRef<B, F> {
-    type Item = U;
-
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        Ref::map(self.b.bind(ctx), &self.f)
     }
 }
 
