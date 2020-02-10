@@ -664,7 +664,7 @@ impl<F: Fn(&mut BindContext) -> &'static T + 'static, T: 'static> RefBind for F 
 }
 
 thread_local! {
-    pub static LOCAL_SPAWN: RefCell<Rc<dyn LocalSpawn>> = RefCell::new(Rc::new(LocalSpawnNotSet));
+    static LOCAL_SPAWN: RefCell<Rc<dyn LocalSpawn>> = RefCell::new(Rc::new(LocalSpawnNotSet));
 }
 struct LocalSpawnNotSet;
 impl LocalSpawn for LocalSpawnNotSet {

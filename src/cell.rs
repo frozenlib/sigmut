@@ -2,17 +2,17 @@ use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
-use crate::bind::*;
+use crate::*;
 
-pub struct BCell<T: Copy>(Rc<BCellData<T>>);
+pub struct BindCell<T: Copy>(Rc<BindCellData<T>>);
 
-struct BCellData<T: Copy> {
+struct BindCellData<T: Copy> {
     value: Cell<T>,
     sinks: BindSinks,
 }
-impl<T: Copy + 'static> BCell<T> {
+impl<T: Copy + 'static> BindCell<T> {
     pub fn new(value: T) -> Self {
-        Self(Rc::new(BCellData {
+        Self(Rc::new(BindCellData {
             value: Cell::new(value),
             sinks: BindSinks::new(),
         }))
@@ -27,7 +27,7 @@ impl<T: Copy + 'static> BCell<T> {
         self.clone().into_ext()
     }
 }
-impl<T: Copy + 'static> Bind for BCell<T> {
+impl<T: Copy + 'static> Bind for BindCell<T> {
     type Item = T;
 
     fn bind(&self, ctx: &mut BindContext) -> Self::Item {
@@ -35,28 +35,28 @@ impl<T: Copy + 'static> Bind for BCell<T> {
         self.0.value.get()
     }
 }
-impl<T: Copy + 'static> BindSource for BCellData<T> {
+impl<T: Copy + 'static> BindSource for BindCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<T: Copy> Clone for BCell<T> {
+impl<T: Copy> Clone for BindCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
-impl<T: Copy + std::fmt::Debug> std::fmt::Debug for BCell<T> {
+impl<T: Copy + std::fmt::Debug> std::fmt::Debug for BindCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.0.value, f)
     }
 }
 
-pub struct BRefCell<T>(Rc<BRefCellData<T>>);
-struct BRefCellData<T> {
+pub struct RefBindCell<T>(Rc<RefBindCellData<T>>);
+struct RefBindCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,
 }
-impl<T: 'static> BRefCell<T> {
+impl<T: 'static> RefBindCell<T> {
     pub fn borrow_mut(&self) -> RefMut<T> {
         RefMut {
             b: self.0.value.borrow_mut(),
@@ -68,7 +68,7 @@ impl<T: 'static> BRefCell<T> {
         self.clone().into_ext()
     }
 }
-impl<T: 'static> RefBind for BRefCell<T> {
+impl<T: 'static> RefBind for RefBindCell<T> {
     type Item = T;
 
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
@@ -76,17 +76,17 @@ impl<T: 'static> RefBind for BRefCell<T> {
         Ref::Cell(self.0.value.borrow())
     }
 }
-impl<T: 'static> BindSource for BRefCellData<T> {
+impl<T: 'static> BindSource for RefBindCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<T> Clone for BRefCell<T> {
+impl<T> Clone for RefBindCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
-impl<T: std::fmt::Debug> std::fmt::Debug for BRefCell<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for RefBindCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.0.value, f)
     }
