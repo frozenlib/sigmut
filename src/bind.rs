@@ -186,10 +186,14 @@ pub trait Bind: Sized + 'static {
     type Item;
 
     fn bind(&self, ctx: &mut BindContext) -> Self::Item;
+
+    fn into_ext(self) -> BindExt<Self> {
+        BindExt(self)
+    }
 }
 
 #[derive(Clone)]
-pub struct BindExt<B>(pub B);
+pub struct BindExt<B>(B);
 
 impl<B: Bind> Bind for BindExt<B> {
     type Item = B::Item;
@@ -250,10 +254,14 @@ pub trait RefBind: Sized + 'static {
     type Item;
 
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
+
+    fn into_ext(self) -> RefBindExt<Self> {
+        RefBindExt(self)
+    }
 }
 
 #[derive(Clone)]
-pub struct RefBindExt<B>(pub B);
+pub struct RefBindExt<B>(B);
 
 impl<B: RefBind> RefBind for RefBindExt<B> {
     type Item = B::Item;

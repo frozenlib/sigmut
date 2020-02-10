@@ -10,7 +10,7 @@ struct BCellData<T: Copy> {
     value: Cell<T>,
     sinks: BindSinks,
 }
-impl<T: Copy> BCell<T> {
+impl<T: Copy + 'static> BCell<T> {
     pub fn new(value: T) -> Self {
         Self(Rc::new(BCellData {
             value: Cell::new(value),
@@ -24,7 +24,7 @@ impl<T: Copy> BCell<T> {
     }
 
     pub fn ext(&self) -> BindExt<Self> {
-        BindExt(self.clone())
+        self.clone().into_ext()
     }
 }
 impl<T: Copy + 'static> Bind for BCell<T> {
@@ -56,7 +56,7 @@ struct BRefCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,
 }
-impl<T> BRefCell<T> {
+impl<T: 'static> BRefCell<T> {
     pub fn borrow_mut(&self) -> RefMut<T> {
         RefMut {
             b: self.0.value.borrow_mut(),
@@ -65,7 +65,7 @@ impl<T> BRefCell<T> {
         }
     }
     pub fn ext(&self) -> RefBindExt<Self> {
-        RefBindExt(self.clone())
+        self.clone().into_ext()
     }
 }
 impl<T: 'static> RefBind for BRefCell<T> {
