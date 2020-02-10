@@ -66,13 +66,13 @@ impl<B: Bind> BindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
-        bind_fn(move |ctx| f(self.bind(ctx)))
+        make_bind(move |ctx| f(self.bind(ctx)))
     }
     pub fn flat_map<O: Bind>(
         self,
         f: impl Fn(B::Item) -> O + 'static,
     ) -> BindExt<impl Bind<Item = O::Item>> {
-        bind_fn(move |ctx| f(self.bind(ctx)).bind(ctx))
+        make_bind(move |ctx| f(self.bind(ctx)).bind(ctx))
     }
     pub fn map_async<Fut: Future + 'static>(
         self,
@@ -118,7 +118,7 @@ impl<B: RefBind> RefBindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
-        bind_fn(move |ctx| f(&self.bind(ctx)))
+        make_bind(move |ctx| f(&self.bind(ctx)))
     }
     pub fn map_ref<U: 'static>(
         self,
@@ -492,7 +492,7 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
     RefBindExt(Constant(value))
 }
 
-pub fn bind_fn<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
+pub fn make_bind<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
     BindExt(f)
 }
 
@@ -502,11 +502,11 @@ where
     for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
     U: 'static,
 {
-    struct TempRefMap<T, F> {
+    struct FnRefMap<T, F> {
         this: T,
         f: F,
     }
-    impl<T, F, U> RefBind for TempRefMap<T, F>
+    impl<T, F, U> RefBind for FnRefMap<T, F>
     where
         T: 'static,
         for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
@@ -518,5 +518,5 @@ where
         }
     }
 
-    RefBindExt(TempRefMap { this, f })
+    RefBindExt(FnRefMap { this, f })
 }
