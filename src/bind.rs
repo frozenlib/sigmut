@@ -184,29 +184,41 @@ impl<'a> BindContext<'a> {
     }
 }
 
-pub trait Bind: Sized + 'static {
+pub trait Bind: 'static {
     type Item;
 
     fn get(&self, ctx: &mut BindContext) -> Self::Item;
 
-    fn into_ext(self) -> BindExt<Self> {
+    fn into_ext(self) -> BindExt<Self>
+    where
+        Self: Sized,
+    {
         BindExt(self)
     }
 
-    fn into_rc(self) -> RcBind<Self::Item> {
+    fn into_rc(self) -> RcBind<Self::Item>
+    where
+        Self: Sized,
+    {
         Rc::new(self)
     }
 }
 
-pub trait RefBind: Sized + 'static {
+pub trait RefBind: 'static {
     type Item;
 
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
 
-    fn into_ext(self) -> RefBindExt<Self> {
+    fn into_ext(self) -> RefBindExt<Self>
+    where
+        Self: Sized,
+    {
         RefBindExt(self)
     }
-    fn into_rc(self) -> RcRefBind<Self::Item> {
+    fn into_rc(self) -> RcRefBind<Self::Item>
+    where
+        Self: Sized,
+    {
         Rc::new(self)
     }
 }
