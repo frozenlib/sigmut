@@ -1,6 +1,7 @@
 use crate::*;
 use futures::future::RemoteHandle;
 use futures::task::{LocalSpawn, LocalSpawnExt};
+use std::any::Any;
 use std::cell::RefCell;
 use std::future::Future;
 use std::mem::drop;
@@ -171,24 +172,38 @@ impl<B: Bind> Cached<B> {
             }),
         }))
     }
-
-    fn ready(&self) {
-        let mut s = self.0.state.borrow_mut();
-        let mut ctx = BindContext::new(&self.0, &mut s.binds);
-        s.value = Some(self.0.b.bind(&mut ctx));
+}
+impl<B: Bind> CachedData<B> {
+    fn ready(self: &Rc<Self>) {
+        let mut s = self.state.borrow_mut();
+        let mut ctx = BindContext::new(&self, &mut s.binds);
+        s.value = Some(self.b.bind(&mut ctx));
+    }
+    fn rc_bind<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, B::Item> {
+        ctx.bind(self.clone());
+        let mut s = self.state.borrow();
+        if s.value.is_none() {
+            drop(s);
+            self.ready();
+            s = self.state.borrow();
+        }
+        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
     }
 }
 impl<B: Bind> RefBind for Cached<B> {
     type Item = B::Item;
     fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        ctx.bind(self.0.clone());
-        let mut s = self.0.state.borrow();
-        if s.value.is_none() {
-            drop(s);
-            self.ready();
-            s = self.0.state.borrow();
-        }
-        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
+        self.0.rc_bind(ctx)
+    }
+    fn into_rc(self) -> RcRefBind<Self::Item> {
+        self.0
+    }
+}
+impl<B: Bind> DynRefBind for CachedData<B> {
+    type Item = B::Item;
+
+    fn dyn_bind<'a>(&'a self, rc_this: &'a dyn Any, ctx: &mut BindContext) -> Ref<'a, Self::Item> {
+        Self::downcast(rc_this).rc_bind(ctx)
     }
 }
 impl<B: Bind> BindSource for CachedData<B> {
