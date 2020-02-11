@@ -478,15 +478,20 @@ where
             }),
         }))
     }
-
-    fn ready(&self) {
-        let mut s = self.0.state.borrow_mut();
-        let mut ctx = BindContext::new(&self.0, &mut s.binds);
-        let fut = self.0.b.get(&mut ctx);
-        let this = Rc::downgrade(&self.0);
+}
+impl<B> MapAsyncData<B>
+where
+    B: Bind,
+    B::Item: Future + 'static,
+    <B::Item as Future>::Output: 'static,
+{
+    fn ready(self: &Rc<Self>) {
+        let mut s = self.state.borrow_mut();
+        let mut ctx = BindContext::new(self, &mut s.binds);
+        let fut = self.b.get(&mut ctx);
+        let this = Rc::downgrade(self);
         s.handle = Some(
-            self.0
-                .sp
+            self.sp
                 .spawn_local_with_handle(async move {
                     let value = fut.await;
                     if let Some(this) = Weak::upgrade(&this) {
@@ -499,6 +504,19 @@ where
                 .unwrap(),
         );
     }
+    fn borrow<'a>(
+        self: &'a Rc<Self>,
+        ctx: &mut BindContext,
+    ) -> Ref<'a, Poll<<B::Item as Future>::Output>> {
+        let mut s = self.state.borrow();
+        if s.handle.is_none() {
+            drop(s);
+            self.ready();
+            s = self.state.borrow();
+        }
+        ctx.bind(self.clone());
+        Ref::map(Ref::Cell(s), |o| &o.value)
+    }
 }
 
 impl<B> RefBind for MapAsync<B>
@@ -510,16 +528,29 @@ where
     type Item = Poll<<B::Item as Future>::Output>;
 
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        let mut s = self.0.state.borrow();
-        if s.handle.is_none() {
-            drop(s);
-            self.ready();
-            s = self.0.state.borrow();
-        }
-        ctx.bind(self.0.clone());
-        Ref::map(Ref::Cell(s), |o| &o.value)
+        self.0.borrow(ctx)
+    }
+    fn into_rc(self) -> RcRefBind<Self::Item> {
+        self.0
     }
 }
+impl<B> DynRefBind for MapAsyncData<B>
+where
+    B: Bind,
+    B::Item: Future + 'static,
+    <B::Item as Future>::Output: 'static,
+{
+    type Item = Poll<<B::Item as Future>::Output>;
+
+    fn dyn_borrow<'a>(
+        &'a self,
+        rc_this: &'a dyn Any,
+        ctx: &mut BindContext,
+    ) -> Ref<'a, Self::Item> {
+        Self::downcast(rc_this).borrow(ctx)
+    }
+}
+
 impl<B> BindSource for MapAsyncData<B>
 where
     B: Bind,
