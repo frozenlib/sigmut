@@ -16,8 +16,8 @@ pub struct BindExt<B>(pub(crate) B);
 
 impl<B: Bind> Bind for BindExt<B> {
     type Item = B::Item;
-    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
-        self.0.bind(ctx)
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        self.0.get(ctx)
     }
 }
 
@@ -67,19 +67,19 @@ impl<B: Bind> BindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
-        make_bind(move |ctx| f(self.bind(ctx)))
+        make_bind(move |ctx| f(self.get(ctx)))
     }
     pub fn map_with_ctx<U>(
         self,
         f: impl Fn(B::Item, &mut BindContext) -> U + 'static,
     ) -> BindExt<impl Bind<Item = U>> {
-        make_bind(move |ctx| f(self.bind(ctx), ctx))
+        make_bind(move |ctx| f(self.get(ctx), ctx))
     }
     pub fn flat_map<O: Bind>(
         self,
         f: impl Fn(B::Item) -> O + 'static,
     ) -> BindExt<impl Bind<Item = O::Item>> {
-        make_bind(move |ctx| f(self.bind(ctx)).bind(ctx))
+        make_bind(move |ctx| f(self.get(ctx)).get(ctx))
     }
     pub fn map_async<Fut: Future + 'static>(
         self,
@@ -97,8 +97,8 @@ pub struct RefBindExt<B>(pub(crate) B);
 
 impl<B: RefBind> RefBind for RefBindExt<B> {
     type Item = B::Item;
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        self.0.bind(ctx)
+    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+        self.0.borrow(ctx)
     }
 }
 
@@ -125,20 +125,20 @@ impl<B: RefBind> RefBindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
-        make_bind(move |ctx| f(&self.bind(ctx)))
+        make_bind(move |ctx| f(&self.borrow(ctx)))
     }
     pub fn map_with_ctx<U>(
         self,
         f: impl Fn(&B::Item, &mut BindContext) -> U + 'static,
     ) -> BindExt<impl Bind<Item = U>> {
-        make_bind(move |ctx| f(&self.bind(ctx), ctx))
+        make_bind(move |ctx| f(&self.borrow(ctx), ctx))
     }
 
     pub fn map_ref<U: 'static>(
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> RefBindExt<impl RefBind<Item = U>> {
-        make_ref_bind(self, move |this, ctx| Ref::map(this.bind(ctx), &f))
+        make_ref_bind(self, move |this, ctx| Ref::map(this.borrow(ctx), &f))
     }
 
     pub fn cloned(self) -> BindExt<impl Bind<Item = B::Item>>
@@ -177,9 +177,9 @@ impl<B: Bind> CachedData<B> {
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
         let mut ctx = BindContext::new(&self, &mut s.binds);
-        s.value = Some(self.b.bind(&mut ctx));
+        s.value = Some(self.b.get(&mut ctx));
     }
-    fn rc_bind<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, B::Item> {
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, B::Item> {
         ctx.bind(self.clone());
         let mut s = self.state.borrow();
         if s.value.is_none() {
@@ -192,8 +192,8 @@ impl<B: Bind> CachedData<B> {
 }
 impl<B: Bind> RefBind for Cached<B> {
     type Item = B::Item;
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        self.0.rc_bind(ctx)
+    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+        self.0.borrow(ctx)
     }
     fn into_rc(self) -> RcRefBind<Self::Item> {
         self.0
@@ -202,8 +202,12 @@ impl<B: Bind> RefBind for Cached<B> {
 impl<B: Bind> DynRefBind for CachedData<B> {
     type Item = B::Item;
 
-    fn dyn_bind<'a>(&'a self, rc_this: &'a dyn Any, ctx: &mut BindContext) -> Ref<'a, Self::Item> {
-        Self::downcast(rc_this).rc_bind(ctx)
+    fn dyn_borrow<'a>(
+        &'a self,
+        rc_this: &'a dyn Any,
+        ctx: &mut BindContext,
+    ) -> Ref<'a, Self::Item> {
+        Self::downcast(rc_this).borrow(ctx)
     }
 }
 impl<B: Bind> BindSource for CachedData<B> {
@@ -252,7 +256,7 @@ impl<B: Bind, EqFn> DedupBy<B, EqFn> {
 }
 impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> RefBind for DedupBy<B, EqFn> {
     type Item = B::Item;
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
         let mut s = self.0.state.borrow();
         if s.is_ready {
             drop(s);
@@ -284,7 +288,7 @@ impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DedupByData<B, EqF
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
         let mut ctx = BindContext::new(&self, &mut s.binds);
-        let value = self.b.bind(&mut ctx);
+        let value = self.b.get(&mut ctx);
         if let Some(value_old) = &s.value {
             if (self.eq)(value_old, &value) {
                 return;
@@ -321,7 +325,7 @@ impl<B: Bind, F: Fn(B::Item) + 'static> ForEach<B, F> {
     fn next(self: &Rc<Self>) {
         let mut b = self.binds.borrow_mut();
         let mut ctx = BindContext::new(&self, &mut b);
-        (self.f)(self.b.bind(&mut ctx));
+        (self.f)(self.b.get(&mut ctx));
     }
 }
 impl<B: Bind, F: Fn(B::Item) + 'static> BindSink for ForEach<B, F> {
@@ -372,7 +376,7 @@ where
     fn next(self: &Rc<Self>) {
         let mut b = self.binds.borrow_mut();
         let mut ctx = BindContext::new(&self, &mut b);
-        *self.value.borrow_mut() = Some((self.attach)(self.b.bind(&mut ctx)));
+        *self.value.borrow_mut() = Some((self.attach)(self.b.get(&mut ctx)));
     }
     fn detach_value(&self) {
         if let Some(value) = self.value.borrow_mut().take() {
@@ -451,7 +455,7 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
     fn ready(&self) {
         let mut s = self.0.state.borrow_mut();
         let mut ctx = BindContext::new(&self.0, &mut s.binds);
-        let value = self.0.b.bind(&mut ctx);
+        let value = self.0.b.get(&mut ctx);
         let fut = (self.0.f)(value);
         let this = Rc::downgrade(&self.0);
         s.handle = Some(
@@ -476,7 +480,7 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
 {
     type Item = Poll<U>;
 
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
         let mut s = self.0.state.borrow();
         if s.handle.is_none() {
             drop(s);
@@ -514,7 +518,7 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
     struct Constant<T: 'static>(T);
     impl<T> RefBind for Constant<T> {
         type Item = T;
-        fn bind(&self, _: &mut BindContext) -> Ref<Self::Item> {
+        fn borrow(&self, _: &mut BindContext) -> Ref<Self::Item> {
             Ref::Native(&self.0)
         }
     }
@@ -525,7 +529,7 @@ pub fn make_bind<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl
     struct FnBind<F>(F);
     impl<F: Fn(&mut BindContext) -> T + 'static, T> Bind for FnBind<F> {
         type Item = T;
-        fn bind(&self, ctx: &mut BindContext) -> Self::Item {
+        fn get(&self, ctx: &mut BindContext) -> Self::Item {
             (self.0)(ctx)
         }
     }
@@ -549,7 +553,7 @@ where
         U: 'static,
     {
         type Item = U;
-        fn bind(&self, ctx: &mut BindContext) -> Ref<U> {
+        fn borrow(&self, ctx: &mut BindContext) -> Ref<U> {
             (self.f)(&self.this, ctx)
         }
     }

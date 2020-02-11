@@ -187,7 +187,7 @@ impl<'a> BindContext<'a> {
 pub trait Bind: Sized + 'static {
     type Item;
 
-    fn bind(&self, ctx: &mut BindContext) -> Self::Item;
+    fn get(&self, ctx: &mut BindContext) -> Self::Item;
 
     fn into_ext(self) -> BindExt<Self> {
         BindExt(self)
@@ -201,7 +201,7 @@ pub trait Bind: Sized + 'static {
 pub trait RefBind: Sized + 'static {
     type Item;
 
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
+    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
 
     fn into_ext(self) -> RefBindExt<Self> {
         RefBindExt(self)

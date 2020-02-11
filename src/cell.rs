@@ -30,7 +30,7 @@ impl<T: Copy + 'static> BindCell<T> {
     }
 }
 impl<T: Copy + 'static> BindCellData<T> {
-    fn rc_bind(self: &Rc<Self>, ctx: &mut BindContext) -> T {
+    fn get(self: &Rc<Self>, ctx: &mut BindContext) -> T {
         ctx.bind(self.clone());
         self.value.get()
     }
@@ -38,8 +38,8 @@ impl<T: Copy + 'static> BindCellData<T> {
 impl<T: Copy + 'static> Bind for BindCell<T> {
     type Item = T;
 
-    fn bind(&self, ctx: &mut BindContext) -> Self::Item {
-        self.0.rc_bind(ctx)
+    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        self.0.get(ctx)
     }
     fn into_rc(self) -> RcBind<T> {
         self.0
@@ -47,8 +47,8 @@ impl<T: Copy + 'static> Bind for BindCell<T> {
 }
 impl<T: Copy + 'static> DynBind for BindCellData<T> {
     type Item = T;
-    fn dyn_bind(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
-        self.rc_bind(ctx)
+    fn dyn_get(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
+        self.get(ctx)
     }
 }
 impl<T: Copy + 'static> BindSource for BindCellData<T> {
@@ -86,7 +86,7 @@ impl<T: 'static> RefBindCell<T> {
     }
 }
 impl<T: 'static> RefBindCellData<T> {
-    fn rc_bind<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, T> {
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, T> {
         ctx.bind(self.clone());
         Ref::Cell(self.value.borrow())
     }
@@ -94,8 +94,8 @@ impl<T: 'static> RefBindCellData<T> {
 impl<T: 'static> RefBind for RefBindCell<T> {
     type Item = T;
 
-    fn bind(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        self.0.rc_bind(ctx)
+    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+        self.0.borrow(ctx)
     }
     fn into_rc(self) -> RcRefBind<T> {
         self.0
@@ -103,8 +103,12 @@ impl<T: 'static> RefBind for RefBindCell<T> {
 }
 impl<T: 'static> DynRefBind for RefBindCellData<T> {
     type Item = T;
-    fn dyn_bind<'a>(&'a self, rc_this: &'a dyn Any, ctx: &mut BindContext) -> Ref<'a, Self::Item> {
-        Self::downcast(rc_this).rc_bind(ctx)
+    fn dyn_borrow<'a>(
+        &'a self,
+        rc_this: &'a dyn Any,
+        ctx: &mut BindContext,
+    ) -> Ref<'a, Self::Item> {
+        Self::downcast(rc_this).borrow(ctx)
     }
 }
 
