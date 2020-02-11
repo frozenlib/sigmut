@@ -79,7 +79,13 @@ impl<B: Bind> BindExt<B> {
         self,
         f: impl Fn(B::Item) -> O + 'static,
     ) -> BindExt<impl Bind<Item = O::Item>> {
-        make_bind(move |ctx| f(self.get(ctx)).get(ctx))
+        self.map(f).flatten()
+    }
+    pub fn flatten(self) -> BindExt<impl Bind<Item = <B::Item as Bind>::Item>>
+    where
+        B::Item: Bind,
+    {
+        make_bind(move |ctx| self.get(ctx).get(ctx))
     }
     pub fn map_async<Fut: Future + 'static>(
         self,
@@ -127,18 +133,29 @@ impl<B: RefBind> RefBindExt<B> {
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Bind<Item = U>> {
         make_bind(move |ctx| f(&self.borrow(ctx)))
     }
+    pub fn map_ref<U: 'static>(
+        self,
+        f: impl Fn(&B::Item) -> &U + 'static,
+    ) -> RefBindExt<impl RefBind<Item = U>> {
+        make_ref_bind(self, move |this, ctx| Ref::map(this.borrow(ctx), &f))
+    }
     pub fn map_with_ctx<U>(
         self,
         f: impl Fn(&B::Item, &mut BindContext) -> U + 'static,
     ) -> BindExt<impl Bind<Item = U>> {
         make_bind(move |ctx| f(&self.borrow(ctx), ctx))
     }
-
-    pub fn map_ref<U: 'static>(
+    pub fn flat_map<O: Bind>(
         self,
-        f: impl Fn(&B::Item) -> &U + 'static,
-    ) -> RefBindExt<impl RefBind<Item = U>> {
-        make_ref_bind(self, move |this, ctx| Ref::map(this.borrow(ctx), &f))
+        f: impl Fn(&B::Item) -> O + 'static,
+    ) -> BindExt<impl Bind<Item = O::Item>> {
+        self.map(f).flatten()
+    }
+    pub fn map_async<Fut: Future + 'static>(
+        self,
+        f: impl Fn(&B::Item) -> Fut + 'static,
+    ) -> RefBindExt<impl RefBind<Item = Poll<Fut::Output>>> {
+        RefBindExt(MapAsync::new(self.map(f)))
     }
 
     pub fn cloned(self) -> BindExt<impl Bind<Item = B::Item>>
