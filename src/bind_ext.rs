@@ -608,7 +608,7 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl RefBind<Item = T>> {
     RefBindExt(Constant(value))
 }
 
-pub fn make_bind<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
+pub fn make_bind<T>(get: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl Bind<Item = T>> {
     struct FnBind<F>(F);
     impl<F: Fn(&mut BindContext) -> T + 'static, T> Bind for FnBind<F> {
         type Item = T;
@@ -616,10 +616,10 @@ pub fn make_bind<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> BindExt<impl
             (self.0)(ctx)
         }
     }
-    BindExt(FnBind(f))
+    BindExt(FnBind(get))
 }
 
-pub fn make_ref_bind<T, F, U>(this: T, f: F) -> RefBindExt<impl RefBind<Item = U>>
+pub fn make_ref_bind<T, F, U>(this: T, borrow: F) -> RefBindExt<impl RefBind<Item = U>>
 where
     T: 'static,
     for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
@@ -627,7 +627,7 @@ where
 {
     struct FnRefBind<T, F> {
         this: T,
-        f: F,
+        borrow: F,
     }
     impl<T, F, U> RefBind for FnRefBind<T, F>
     where
@@ -637,9 +637,9 @@ where
     {
         type Item = U;
         fn borrow(&self, ctx: &mut BindContext) -> Ref<U> {
-            (self.f)(&self.this, ctx)
+            (self.borrow)(&self.this, ctx)
         }
     }
 
-    RefBindExt(FnRefBind { this, f })
+    RefBindExt(FnRefBind { this, borrow })
 }
