@@ -85,7 +85,7 @@ impl<B: Bind> BindExt<B> {
         self,
         f: impl Fn(B::Item) -> Fut + 'static,
     ) -> RefBindExt<impl RefBind<Item = Poll<Fut::Output>>> {
-        RefBindExt(MapAsync::new(self, f))
+        RefBindExt(MapAsync::new(self.map(f)))
     }
 }
 
@@ -437,14 +437,22 @@ where
     }
 }
 
-struct MapAsync<B: Bind, F: Fn(B::Item) -> Fut, Fut: Future>(Rc<MapAsyncData<B, F, Fut>>);
+struct MapAsync<B>(Rc<MapAsyncData<B>>)
+where
+    B: Bind,
+    B::Item: Future + 'static,
+    <B::Item as Future>::Output: 'static;
 
-struct MapAsyncData<B: Bind, F: Fn(B::Item) -> Fut, Fut: Future> {
+struct MapAsyncData<B>
+where
+    B: Bind,
+    B::Item: Future + 'static,
+    <B::Item as Future>::Output: 'static,
+{
     sp: Rc<dyn LocalSpawn>,
     b: B,
-    f: F,
     sinks: BindSinks,
-    state: RefCell<MapAsyncState<Fut::Output>>,
+    state: RefCell<MapAsyncState<<B::Item as Future>::Output>>,
 }
 struct MapAsyncState<T> {
     value: Poll<T>,
@@ -452,14 +460,16 @@ struct MapAsyncState<T> {
     binds: Vec<Binding>,
 }
 
-impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static, U>
-    MapAsync<B, F, Fut>
+impl<B> MapAsync<B>
+where
+    B: Bind,
+    B::Item: Future + 'static,
+    <B::Item as Future>::Output: 'static,
 {
-    fn new(b: B, f: F) -> Self {
+    fn new(b: B) -> Self {
         MapAsync(Rc::new(MapAsyncData {
             sp: get_current_local_spawn(),
             b,
-            f,
             sinks: BindSinks::new(),
             state: RefCell::new(MapAsyncState {
                 value: Poll::Pending,
@@ -472,8 +482,7 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
     fn ready(&self) {
         let mut s = self.0.state.borrow_mut();
         let mut ctx = BindContext::new(&self.0, &mut s.binds);
-        let value = self.0.b.get(&mut ctx);
-        let fut = (self.0.f)(value);
+        let fut = self.0.b.get(&mut ctx);
         let this = Rc::downgrade(&self.0);
         s.handle = Some(
             self.0
@@ -492,10 +501,13 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
     }
 }
 
-impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static, U> RefBind
-    for MapAsync<B, F, Fut>
+impl<B> RefBind for MapAsync<B>
+where
+    B: Bind,
+    B::Item: Future + 'static,
+    <B::Item as Future>::Output: 'static,
 {
-    type Item = Poll<U>;
+    type Item = Poll<<B::Item as Future>::Output>;
 
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
         let mut s = self.0.state.borrow();
@@ -508,15 +520,21 @@ impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static
         Ref::map(Ref::Cell(s), |o| &o.value)
     }
 }
-impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static, U> BindSource
-    for MapAsyncData<B, F, Fut>
+impl<B> BindSource for MapAsyncData<B>
+where
+    B: Bind,
+    B::Item: Future + 'static,
+    <B::Item as Future>::Output: 'static,
 {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<B: Bind, F: Fn(B::Item) -> Fut + 'static, Fut: Future<Output = U> + 'static, U> BindSink
-    for MapAsyncData<B, F, Fut>
+impl<B> BindSink for MapAsyncData<B>
+where
+    B: Bind,
+    B::Item: Future + 'static,
+    <B::Item as Future>::Output: 'static,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut s = self.state.borrow_mut();
