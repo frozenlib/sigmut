@@ -254,17 +254,49 @@ impl<B: Bind, EqFn> DedupBy<B, EqFn> {
         }))
     }
 }
+impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DedupByData<B, EqFn> {
+    fn ready(self: &Rc<Self>) {
+        let mut s = self.state.borrow_mut();
+        let mut ctx = BindContext::new(&self, &mut s.binds);
+        let value = self.b.get(&mut ctx);
+        if let Some(value_old) = &s.value {
+            if (self.eq)(value_old, &value) {
+                return;
+            }
+        }
+        s.value = Some(value);
+        drop(s);
+        self.sinks.notify();
+    }
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, B::Item> {
+        let mut s = self.state.borrow();
+        if s.is_ready {
+            drop(s);
+            self.ready();
+            s = self.state.borrow();
+        }
+        ctx.bind(self.clone());
+        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
+    }
+}
 impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> RefBind for DedupBy<B, EqFn> {
     type Item = B::Item;
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
-        let mut s = self.0.state.borrow();
-        if s.is_ready {
-            drop(s);
-            self.0.ready();
-            s = self.0.state.borrow();
-        }
-        ctx.bind(self.0.clone());
-        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
+        self.0.borrow(ctx)
+    }
+    fn into_rc(self) -> RcRefBind<Self::Item> {
+        self.0
+    }
+}
+impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DynRefBind for DedupByData<B, EqFn> {
+    type Item = B::Item;
+
+    fn dyn_borrow<'a>(
+        &'a self,
+        rc_this: &'a dyn Any,
+        ctx: &mut BindContext,
+    ) -> Ref<'a, Self::Item> {
+        Self::downcast(rc_this).borrow(ctx)
     }
 }
 impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> BindSource for DedupByData<B, EqFn> {
@@ -282,21 +314,6 @@ impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> BindSink for Dedup
                 ctx.spawn(Rc::downgrade(&self));
             }
         }
-    }
-}
-impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DedupByData<B, EqFn> {
-    fn ready(self: &Rc<Self>) {
-        let mut s = self.state.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut s.binds);
-        let value = self.b.get(&mut ctx);
-        if let Some(value_old) = &s.value {
-            if (self.eq)(value_old, &value) {
-                return;
-            }
-        }
-        s.value = Some(value);
-        drop(s);
-        self.sinks.notify();
     }
 }
 impl<B: Bind, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> Task for DedupByData<B, EqFn> {
