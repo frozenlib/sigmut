@@ -236,7 +236,7 @@ impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> InnerReactiveR
 {
     type Item = B::Item;
 
-    fn dyn_borrow<'a>(
+    fn rc_borrow<'a>(
         &'a self,
         rc_self: &'a dyn Any,
         ctx: &mut ReactiveContext,
@@ -491,7 +491,7 @@ where
 {
     type Item = Poll<<B::Item as Future>::Output>;
 
-    fn dyn_borrow<'a>(
+    fn rc_borrow<'a>(
         &'a self,
         rc_self: &'a dyn Any,
         ctx: &mut ReactiveContext,
