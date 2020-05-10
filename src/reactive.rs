@@ -73,14 +73,14 @@ impl<'a, T> Deref for Ref<'a, T> {
 }
 
 pub fn from_get<T>(get: impl Fn(&mut ReactiveContext) -> T + 'static) -> impl Reactive<Item = T> {
-    struct FnBind<F>(F);
-    impl<F: Fn(&mut ReactiveContext) -> T + 'static, T> Reactive for FnBind<F> {
+    struct FnReactive<F>(F);
+    impl<F: Fn(&mut ReactiveContext) -> T + 'static, T> Reactive for FnReactive<F> {
         type Item = T;
         fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
             (self.0)(ctx)
         }
     }
-    FnBind(get)
+    FnReactive(get)
 }
 
 pub fn from_borrow<T, F, U>(this: T, borrow: F) -> impl ReactiveRef<Item = U>
@@ -89,11 +89,11 @@ where
     for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
     U: 'static,
 {
-    struct FnRefBind<T, F> {
+    struct FnReactiveRef<T, F> {
         this: T,
         borrow: F,
     }
-    impl<T, F, U> ReactiveRef for FnRefBind<T, F>
+    impl<T, F, U> ReactiveRef for FnReactiveRef<T, F>
     where
         T: 'static,
         for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
@@ -104,6 +104,5 @@ where
             (self.borrow)(&self.this, ctx)
         }
     }
-
-    FnRefBind { this, borrow }
+    FnReactiveRef { this, borrow }
 }
