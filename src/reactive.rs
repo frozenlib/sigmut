@@ -4,11 +4,11 @@ use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 /// The context of `Reactive::bind` and `ReactiveRef::bind`.
-pub struct BindContext<'a> {
+pub struct ReactiveContext<'a> {
     sink: Weak<dyn BindSink>,
     bindings: &'a mut Vec<Binding>,
 }
-impl<'a> BindContext<'a> {
+impl<'a> ReactiveContext<'a> {
     pub fn new(sink: &Rc<impl BindSink + 'static>, bindings: &'a mut Vec<Binding>) -> Self {
         debug_assert!(bindings.is_empty());
         Self {
@@ -24,7 +24,7 @@ impl<'a> BindContext<'a> {
 pub trait Reactive: 'static {
     type Item;
 
-    fn get(&self, ctx: &mut BindContext) -> Self::Item;
+    fn get(&self, ctx: &mut ReactiveContext) -> Self::Item;
 
     fn into_ext(self) -> BindExt<Self>
     where
@@ -44,7 +44,7 @@ pub trait Reactive: 'static {
 pub trait ReactiveRef: 'static {
     type Item;
 
-    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
+    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item>;
 
     fn into_ext(self) -> RefBindExt<Self>
     where

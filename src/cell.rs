@@ -30,7 +30,7 @@ impl<T: Copy + 'static> ReCell<T> {
     }
 }
 impl<T: Copy + 'static> ReCellData<T> {
-    fn get(self: &Rc<Self>, ctx: &mut BindContext) -> T {
+    fn get(self: &Rc<Self>, ctx: &mut ReactiveContext) -> T {
         ctx.bind(self.clone());
         self.value.get()
     }
@@ -38,7 +38,7 @@ impl<T: Copy + 'static> ReCellData<T> {
 impl<T: Copy + 'static> Reactive for ReCell<T> {
     type Item = T;
 
-    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+    fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
         self.0.get(ctx)
     }
     fn into_rc(self) -> RcBind<T> {
@@ -47,7 +47,7 @@ impl<T: Copy + 'static> Reactive for ReCell<T> {
 }
 impl<T: Copy + 'static> DynBind for ReCellData<T> {
     type Item = T;
-    fn dyn_get(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
+    fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item {
         self.get(ctx)
     }
 }
@@ -86,7 +86,7 @@ impl<T: 'static> ReRefCell<T> {
     }
 }
 impl<T: 'static> ReRefCellData<T> {
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, T> {
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut ReactiveContext) -> Ref<'a, T> {
         ctx.bind(self.clone());
         Ref::Cell(self.value.borrow())
     }
@@ -94,7 +94,7 @@ impl<T: 'static> ReRefCellData<T> {
 impl<T: 'static> ReactiveRef for ReRefCell<T> {
     type Item = T;
 
-    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
     fn into_rc(self) -> RcRefBind<T> {
@@ -106,7 +106,7 @@ impl<T: 'static> DynRefBind for ReRefCellData<T> {
     fn dyn_borrow<'a>(
         &'a self,
         rc_this: &'a dyn Any,
-        ctx: &mut BindContext,
+        ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
         Self::downcast(rc_this).borrow(ctx)
     }

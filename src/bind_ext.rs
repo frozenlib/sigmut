@@ -16,7 +16,7 @@ pub struct BindExt<B>(pub(crate) B);
 
 impl<B: Reactive> Reactive for BindExt<B> {
     type Item = B::Item;
-    fn get(&self, ctx: &mut BindContext) -> Self::Item {
+    fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
         self.0.get(ctx)
     }
 }
@@ -67,13 +67,13 @@ impl<B: Reactive> BindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Reactive<Item = U>> {
-        make_bind(move |ctx| f(self.get(ctx)))
+        reactive(move |ctx| f(self.get(ctx)))
     }
     pub fn map_with_ctx<U>(
         self,
-        f: impl Fn(B::Item, &mut BindContext) -> U + 'static,
+        f: impl Fn(B::Item, &mut ReactiveContext) -> U + 'static,
     ) -> BindExt<impl Reactive<Item = U>> {
-        make_bind(move |ctx| f(self.get(ctx), ctx))
+        reactive(move |ctx| f(self.get(ctx), ctx))
     }
     pub fn flat_map<O: Reactive>(
         self,
@@ -85,7 +85,7 @@ impl<B: Reactive> BindExt<B> {
     where
         B::Item: Reactive,
     {
-        make_bind(move |ctx| self.get(ctx).get(ctx))
+        reactive(move |ctx| self.get(ctx).get(ctx))
     }
     pub fn map_async<Fut: Future + 'static>(
         self,
@@ -103,7 +103,7 @@ pub struct RefBindExt<B>(pub(crate) B);
 
 impl<B: ReactiveRef> ReactiveRef for RefBindExt<B> {
     type Item = B::Item;
-    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
 }
@@ -131,19 +131,19 @@ impl<B: ReactiveRef> RefBindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Reactive<Item = U>> {
-        make_bind(move |ctx| f(&self.borrow(ctx)))
+        reactive(move |ctx| f(&self.borrow(ctx)))
     }
     pub fn map_ref<U: 'static>(
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> RefBindExt<impl ReactiveRef<Item = U>> {
-        make_ref_bind(self, move |this, ctx| Ref::map(this.borrow(ctx), &f))
+        reactive_ref(self, move |this, ctx| Ref::map(this.borrow(ctx), &f))
     }
     pub fn map_with_ctx<U>(
         self,
-        f: impl Fn(&B::Item, &mut BindContext) -> U + 'static,
+        f: impl Fn(&B::Item, &mut ReactiveContext) -> U + 'static,
     ) -> BindExt<impl Reactive<Item = U>> {
-        make_bind(move |ctx| f(&self.borrow(ctx), ctx))
+        reactive(move |ctx| f(&self.borrow(ctx), ctx))
     }
     pub fn flat_map<O: Reactive>(
         self,
@@ -193,10 +193,10 @@ impl<B: Reactive> Cached<B> {
 impl<B: Reactive> CachedData<B> {
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut s.binds);
+        let mut ctx = ReactiveContext::new(&self, &mut s.binds);
         s.value = Some(self.b.get(&mut ctx));
     }
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, B::Item> {
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut ReactiveContext) -> Ref<'a, B::Item> {
         ctx.bind(self.clone());
         let mut s = self.state.borrow();
         if s.value.is_none() {
@@ -209,7 +209,7 @@ impl<B: Reactive> CachedData<B> {
 }
 impl<B: Reactive> ReactiveRef for Cached<B> {
     type Item = B::Item;
-    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
     fn into_rc(self) -> RcRefBind<Self::Item> {
@@ -222,7 +222,7 @@ impl<B: Reactive> DynRefBind for CachedData<B> {
     fn dyn_borrow<'a>(
         &'a self,
         rc_this: &'a dyn Any,
-        ctx: &mut BindContext,
+        ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
         Self::downcast(rc_this).borrow(ctx)
     }
@@ -274,7 +274,7 @@ impl<B: Reactive, EqFn> DedupBy<B, EqFn> {
 impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DedupByData<B, EqFn> {
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut s.binds);
+        let mut ctx = ReactiveContext::new(&self, &mut s.binds);
         let value = self.b.get(&mut ctx);
         if let Some(value_old) = &s.value {
             if (self.eq)(value_old, &value) {
@@ -285,7 +285,7 @@ impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DedupByData<B,
         drop(s);
         self.sinks.notify();
     }
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut BindContext) -> Ref<'a, B::Item> {
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut ReactiveContext) -> Ref<'a, B::Item> {
         let mut s = self.state.borrow();
         if s.is_ready {
             drop(s);
@@ -298,7 +298,7 @@ impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DedupByData<B,
 }
 impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> ReactiveRef for DedupBy<B, EqFn> {
     type Item = B::Item;
-    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
     fn into_rc(self) -> RcRefBind<Self::Item> {
@@ -313,7 +313,7 @@ impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DynRefBind
     fn dyn_borrow<'a>(
         &'a self,
         rc_this: &'a dyn Any,
-        ctx: &mut BindContext,
+        ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
         Self::downcast(rc_this).borrow(ctx)
     }
@@ -364,7 +364,7 @@ impl<B: Reactive, F: Fn(B::Item) + 'static> ForEach<B, F> {
 
     fn next(self: &Rc<Self>) {
         let mut b = self.binds.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut b);
+        let mut ctx = ReactiveContext::new(&self, &mut b);
         (self.f)(self.b.get(&mut ctx));
     }
 }
@@ -415,7 +415,7 @@ where
 
     fn next(self: &Rc<Self>) {
         let mut b = self.binds.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut b);
+        let mut ctx = ReactiveContext::new(&self, &mut b);
         *self.value.borrow_mut() = Some((self.attach)(self.b.get(&mut ctx)));
     }
     fn detach_value(&self) {
@@ -510,7 +510,7 @@ where
 {
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = BindContext::new(self, &mut s.binds);
+        let mut ctx = ReactiveContext::new(self, &mut s.binds);
         let fut = self.b.get(&mut ctx);
         let this = Rc::downgrade(self);
         s.handle = Some(
@@ -529,7 +529,7 @@ where
     }
     fn borrow<'a>(
         self: &'a Rc<Self>,
-        ctx: &mut BindContext,
+        ctx: &mut ReactiveContext,
     ) -> Ref<'a, Poll<<B::Item as Future>::Output>> {
         let mut s = self.state.borrow();
         if s.handle.is_none() {
@@ -550,7 +550,7 @@ where
 {
     type Item = Poll<<B::Item as Future>::Output>;
 
-    fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
     fn into_rc(self) -> RcRefBind<Self::Item> {
@@ -568,7 +568,7 @@ where
     fn dyn_borrow<'a>(
         &'a self,
         rc_this: &'a dyn Any,
-        ctx: &mut BindContext,
+        ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
         Self::downcast(rc_this).borrow(ctx)
     }
@@ -607,30 +607,30 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl ReactiveRef<Item = T>> 
     struct Constant<T: 'static>(T);
     impl<T> ReactiveRef for Constant<T> {
         type Item = T;
-        fn borrow(&self, _: &mut BindContext) -> Ref<Self::Item> {
+        fn borrow(&self, _: &mut ReactiveContext) -> Ref<Self::Item> {
             Ref::Native(&self.0)
         }
     }
     RefBindExt(Constant(value))
 }
 
-pub fn make_bind<T>(
-    get: impl Fn(&mut BindContext) -> T + 'static,
+pub fn reactive<T>(
+    get: impl Fn(&mut ReactiveContext) -> T + 'static,
 ) -> BindExt<impl Reactive<Item = T>> {
     struct FnBind<F>(F);
-    impl<F: Fn(&mut BindContext) -> T + 'static, T> Reactive for FnBind<F> {
+    impl<F: Fn(&mut ReactiveContext) -> T + 'static, T> Reactive for FnBind<F> {
         type Item = T;
-        fn get(&self, ctx: &mut BindContext) -> Self::Item {
+        fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
             (self.0)(ctx)
         }
     }
     BindExt(FnBind(get))
 }
 
-pub fn make_ref_bind<T, F, U>(this: T, borrow: F) -> RefBindExt<impl ReactiveRef<Item = U>>
+pub fn reactive_ref<T, F, U>(this: T, borrow: F) -> RefBindExt<impl ReactiveRef<Item = U>>
 where
     T: 'static,
-    for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
+    for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
     U: 'static,
 {
     struct FnRefBind<T, F> {
@@ -640,11 +640,11 @@ where
     impl<T, F, U> ReactiveRef for FnRefBind<T, F>
     where
         T: 'static,
-        for<'a> F: Fn(&'a T, &mut BindContext) -> Ref<'a, U> + 'static,
+        for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
         U: 'static,
     {
         type Item = U;
-        fn borrow(&self, ctx: &mut BindContext) -> Ref<U> {
+        fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<U> {
             (self.borrow)(&self.this, ctx)
         }
     }
