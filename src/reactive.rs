@@ -25,12 +25,26 @@ pub trait Reactive: 'static {
     type Item;
 
     fn get(&self, ctx: &mut ReactiveContext) -> Self::Item;
+
+    fn into_re(self) -> Re<Self::Item>
+    where
+        Self: Sized,
+    {
+        Re::from_inner(self)
+    }
 }
 
 pub trait ReactiveRef: 'static {
     type Item;
 
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item>;
+
+    fn into_re_ref(self) -> ReRef<Self::Item>
+    where
+        Self: Sized,
+    {
+        ReRef::from_inner(self)
+    }
 }
 
 /// A wrapper type for an immutably borrowed value from a `ReactiveRef`.

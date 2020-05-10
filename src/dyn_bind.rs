@@ -83,6 +83,9 @@ impl<T: 'static> Re<T> {
     pub fn from_inner(inner: impl InnerReactive<Item = T>) -> Self {
         Re::Dyn(Rc::new(inner))
     }
+    pub fn from_rc(rc: Rc<impl InnerReactive<Item = T>>) -> Self {
+        Re::Dyn(rc)
+    }
 
     pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Re<U> {
         match self {
