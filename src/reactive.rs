@@ -33,7 +33,7 @@ pub trait Reactive: 'static {
         BindExt(self)
     }
 
-    fn into_rc(self) -> RcBind<Self::Item>
+    fn into_rc(self) -> RcRe<Self::Item>
     where
         Self: Sized,
     {
@@ -52,7 +52,7 @@ pub trait ReactiveRef: 'static {
     {
         RefBindExt(self)
     }
-    fn into_rc(self) -> RcRefBind<Self::Item>
+    fn into_rc(self) -> RcReRef<Self::Item>
     where
         Self: Sized,
     {

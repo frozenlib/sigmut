@@ -2,12 +2,12 @@ use crate::*;
 use std::any::Any;
 use std::rc::Rc;
 
-pub trait DynBind: 'static {
+pub trait DynReactive: 'static {
     type Item;
 
     fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item;
 }
-pub trait DynRefBind: 'static {
+pub trait DynReactiveRef: 'static {
     type Item;
 
     fn dyn_borrow<'a>(
@@ -23,13 +23,13 @@ pub trait DynRefBind: 'static {
     }
 }
 
-impl<B: Reactive> DynBind for B {
+impl<B: Reactive> DynReactive for B {
     type Item = B::Item;
     fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item {
         self.get(ctx)
     }
 }
-impl<B: ReactiveRef> DynRefBind for B {
+impl<B: ReactiveRef> DynReactiveRef for B {
     type Item = B::Item;
 
     fn dyn_borrow<'a>(
@@ -40,17 +40,17 @@ impl<B: ReactiveRef> DynRefBind for B {
         self.borrow(ctx)
     }
 }
-pub type RcBind<T> = Rc<dyn DynBind<Item = T>>;
-pub type RcRefBind<T> = Rc<dyn DynRefBind<Item = T>>;
+pub type RcRe<T> = Rc<dyn DynReactive<Item = T>>;
+pub type RcReRef<T> = Rc<dyn DynReactiveRef<Item = T>>;
 
-impl<T: 'static> Reactive for RcBind<T> {
+impl<T: 'static> Reactive for RcRe<T> {
     type Item = T;
 
     fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
         self.clone().dyn_get(ctx)
     }
 }
-impl<T: 'static> ReactiveRef for RcRefBind<T> {
+impl<T: 'static> ReactiveRef for RcReRef<T> {
     type Item = T;
 
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {

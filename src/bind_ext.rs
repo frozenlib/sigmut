@@ -212,11 +212,11 @@ impl<B: Reactive> ReactiveRef for Cached<B> {
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
-    fn into_rc(self) -> RcRefBind<Self::Item> {
+    fn into_rc(self) -> RcReRef<Self::Item> {
         self.0
     }
 }
-impl<B: Reactive> DynRefBind for CachedData<B> {
+impl<B: Reactive> DynReactiveRef for CachedData<B> {
     type Item = B::Item;
 
     fn dyn_borrow<'a>(
@@ -301,11 +301,11 @@ impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> ReactiveRef fo
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
-    fn into_rc(self) -> RcRefBind<Self::Item> {
+    fn into_rc(self) -> RcReRef<Self::Item> {
         self.0
     }
 }
-impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DynRefBind
+impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DynReactiveRef
     for DedupByData<B, EqFn>
 {
     type Item = B::Item;
@@ -553,11 +553,11 @@ where
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
-    fn into_rc(self) -> RcRefBind<Self::Item> {
+    fn into_rc(self) -> RcReRef<Self::Item> {
         self.0
     }
 }
-impl<B> DynRefBind for MapAsyncData<B>
+impl<B> DynReactiveRef for MapAsyncData<B>
 where
     B: Reactive,
     B::Item: Future + 'static,

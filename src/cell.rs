@@ -41,11 +41,11 @@ impl<T: Copy + 'static> Reactive for ReCell<T> {
     fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
         self.0.get(ctx)
     }
-    fn into_rc(self) -> RcBind<T> {
+    fn into_rc(self) -> RcRe<T> {
         self.0
     }
 }
-impl<T: Copy + 'static> DynBind for ReCellData<T> {
+impl<T: Copy + 'static> DynReactive for ReCellData<T> {
     type Item = T;
     fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item {
         self.get(ctx)
@@ -97,11 +97,11 @@ impl<T: 'static> ReactiveRef for ReRefCell<T> {
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
-    fn into_rc(self) -> RcRefBind<T> {
+    fn into_rc(self) -> RcReRef<T> {
         self.0
     }
 }
-impl<T: 'static> DynRefBind for ReRefCellData<T> {
+impl<T: 'static> DynReactiveRef for ReRefCellData<T> {
     type Item = T;
     fn dyn_borrow<'a>(
         &'a self,
