@@ -74,17 +74,12 @@ impl<T: 'static> ReRefCell<T> {
         }
     }
 }
-impl<T: 'static> ReRefCellData<T> {
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut ReactiveContext) -> Ref<'a, T> {
-        ctx.bind(self.clone());
-        Ref::Cell(self.value.borrow())
-    }
-}
 impl<T: 'static> ReactiveRef for ReRefCell<T> {
     type Item = T;
 
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
-        self.0.borrow(ctx)
+        ctx.bind(self.0.clone());
+        Ref::Cell(self.0.value.borrow())
     }
 }
 impl<T: 'static> InnerReactiveRef for ReRefCellData<T> {
