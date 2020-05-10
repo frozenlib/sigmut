@@ -1,25 +1,27 @@
 use crate::*;
-use std::any::Any;
-use std::{cell::RefCell, rc::Rc};
+use std::{any::Any, cell::RefCell, rc::Rc};
 
 pub trait InnerReactive: 'static {
     type Item;
 
     fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item;
 }
-pub trait InnerReactiveRef: 'static {
+pub trait InnerReactiveRef: Any + 'static {
     type Item;
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &'a dyn Any,
+        rc_self: &Rc<dyn InnerReactiveRef<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item>;
-    fn downcast(rc_self: &dyn Any) -> &Rc<Self>
+
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
+
+    fn downcast(rc_self: &Rc<dyn InnerReactiveRef<Item = Self::Item>>) -> Rc<Self>
     where
         Self: Sized,
     {
-        rc_self.downcast_ref().unwrap()
+        rc_self.clone().as_rc_any().downcast::<Self>().unwrap()
     }
 }
 
@@ -34,10 +36,13 @@ impl<B: ReactiveRef> InnerReactiveRef for B {
 
     fn dyn_borrow<'a>(
         &'a self,
-        _rc_self: &'a dyn Any,
+        _rc_self: &Rc<dyn InnerReactiveRef<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
         self.borrow(ctx)
+    }
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
     }
 }
 
@@ -121,32 +126,31 @@ impl<T> Cached<T> {
         }
     }
 }
-impl<T: 'static> Cached<T> {
-    fn ready(self: &Rc<Self>) {
-        let mut s = self.state.borrow_mut();
-        let mut ctx = ReactiveContext::new(&self, &mut s.bindings);
-        s.value = Some(self.s.get(&mut ctx));
-    }
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut ReactiveContext) -> Ref<'a, T> {
-        ctx.bind(self.clone());
-        let mut s = self.state.borrow();
-        if s.value.is_none() {
-            drop(s);
-            self.ready();
-            s = self.state.borrow();
-        }
-        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
-    }
-}
 impl<T: 'static> InnerReactiveRef for Cached<T> {
     type Item = T;
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &'a dyn Any,
+        rc_self: &Rc<dyn InnerReactiveRef<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
-        Self::downcast(rc_self).borrow(ctx)
+        let rc_self = Self::downcast(rc_self);
+        ctx.bind(rc_self.clone());
+        let mut s = self.state.borrow();
+        if s.value.is_none() {
+            drop(s);
+            {
+                let mut s = self.state.borrow_mut();
+                let mut ctx = ReactiveContext::new(&rc_self, &mut s.bindings);
+                s.value = Some(self.s.get(&mut ctx));
+            }
+            s = self.state.borrow();
+        }
+        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
+    }
+
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
     }
 }
 impl<T: 'static> BindSource for Cached<T> {

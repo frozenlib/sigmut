@@ -1,7 +1,6 @@
-use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
+use std::{any::Any, rc::Rc};
 
 use crate::*;
 
@@ -90,12 +89,18 @@ impl<T: 'static> ReactiveRef for ReRefCell<T> {
 }
 impl<T: 'static> InnerReactiveRef for ReRefCellData<T> {
     type Item = T;
+
     fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &'a dyn Any,
+        rc_self: &Rc<dyn InnerReactiveRef<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
-        Self::downcast(rc_self).borrow(ctx)
+        ctx.bind(Self::downcast(rc_self));
+        Ref::Cell(self.value.borrow())
+    }
+
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
     }
 }
 
