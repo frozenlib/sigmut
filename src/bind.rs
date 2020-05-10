@@ -166,7 +166,7 @@ impl NotifyContext {
     }
 }
 
-/// The context of `Bind::bind` and `RefBind::bind`.
+/// The context of `Reactive::bind` and `ReactiveRef::bind`.
 pub struct BindContext<'a> {
     sink: Weak<dyn BindSink>,
     bindings: &'a mut Vec<Binding>,
@@ -184,7 +184,7 @@ impl<'a> BindContext<'a> {
     }
 }
 
-pub trait Bind: 'static {
+pub trait Reactive: 'static {
     type Item;
 
     fn get(&self, ctx: &mut BindContext) -> Self::Item;
@@ -204,7 +204,7 @@ pub trait Bind: 'static {
     }
 }
 
-pub trait RefBind: 'static {
+pub trait ReactiveRef: 'static {
     type Item;
 
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
@@ -223,7 +223,7 @@ pub trait RefBind: 'static {
     }
 }
 
-/// A wrapper type for an immutably borrowed value from a `RefBind`.
+/// A wrapper type for an immutably borrowed value from a `ReactiveRef`.
 pub enum Ref<'a, T> {
     Native(&'a T),
     Cell(std::cell::Ref<'a, T>),

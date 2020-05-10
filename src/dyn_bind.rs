@@ -20,13 +20,13 @@ pub trait DynRefBind: 'static {
     }
 }
 
-impl<B: Bind> DynBind for B {
+impl<B: Reactive> DynBind for B {
     type Item = B::Item;
     fn dyn_get(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
         self.get(ctx)
     }
 }
-impl<B: RefBind> DynRefBind for B {
+impl<B: ReactiveRef> DynRefBind for B {
     type Item = B::Item;
 
     fn dyn_borrow<'a>(
@@ -40,14 +40,14 @@ impl<B: RefBind> DynRefBind for B {
 pub type RcBind<T> = Rc<dyn DynBind<Item = T>>;
 pub type RcRefBind<T> = Rc<dyn DynRefBind<Item = T>>;
 
-impl<T: 'static> Bind for RcBind<T> {
+impl<T: 'static> Reactive for RcBind<T> {
     type Item = T;
 
     fn get(&self, ctx: &mut BindContext) -> Self::Item {
         self.clone().dyn_get(ctx)
     }
 }
-impl<T: 'static> RefBind for RcRefBind<T> {
+impl<T: 'static> ReactiveRef for RcRefBind<T> {
     type Item = T;
 
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {

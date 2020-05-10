@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use crate::*;
 
-/// A `Cell` like type that implement `Bind`.
+/// A `Cell` like type that implement `Reactive`.
 pub struct ReCell<T: Copy>(Rc<ReCellData<T>>);
 
 struct ReCellData<T: Copy> {
@@ -35,7 +35,7 @@ impl<T: Copy + 'static> ReCellData<T> {
         self.value.get()
     }
 }
-impl<T: Copy + 'static> Bind for ReCell<T> {
+impl<T: Copy + 'static> Reactive for ReCell<T> {
     type Item = T;
 
     fn get(&self, ctx: &mut BindContext) -> Self::Item {
@@ -67,7 +67,7 @@ impl<T: Copy + std::fmt::Debug> std::fmt::Debug for ReCell<T> {
     }
 }
 
-/// A `RefCell` like type that implement `RefBind`.
+/// A `RefCell` like type that implement `ReactiveRef`.
 pub struct ReRefCell<T>(Rc<ReRefCellData<T>>);
 struct ReRefCellData<T> {
     value: RefCell<T>,
@@ -91,7 +91,7 @@ impl<T: 'static> ReRefCellData<T> {
         Ref::Cell(self.value.borrow())
     }
 }
-impl<T: 'static> RefBind for ReRefCell<T> {
+impl<T: 'static> ReactiveRef for ReRefCell<T> {
     type Item = T;
 
     fn borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
