@@ -104,6 +104,34 @@ impl<T: 'static> ReRef<T> {
     }
 }
 
+pub trait IntoRe<T> {
+    fn into_re(self) -> Re<T>;
+}
+impl<T> IntoRe<T> for T {
+    fn into_re(self) -> Re<T> {
+        Re::Constant(self)
+    }
+}
+impl<T> IntoRe<T> for Re<T> {
+    fn into_re(self) -> Re<T> {
+        self
+    }
+}
+
+pub trait IntoReRef<T> {
+    fn into_re_ref(self) -> ReRef<T>;
+}
+impl<T> IntoReRef<T> for T {
+    fn into_re_ref(self) -> ReRef<T> {
+        ReRef::Constant(self)
+    }
+}
+impl<T> IntoReRef<T> for ReRef<T> {
+    fn into_re_ref(self) -> ReRef<T> {
+        self
+    }
+}
+
 struct Cached<T> {
     s: RcRe<T>,
     sinks: BindSinks,
@@ -166,33 +194,5 @@ impl<T: 'static> BindSink for Cached<T> {
             s.bindings.clear();
             self.sinks.notify_with(ctx);
         }
-    }
-}
-
-pub trait IntoRe<T> {
-    fn into_re(self) -> Re<T>;
-}
-impl<T> IntoRe<T> for T {
-    fn into_re(self) -> Re<T> {
-        Re::Constant(self)
-    }
-}
-impl<T> IntoRe<T> for Re<T> {
-    fn into_re(self) -> Re<T> {
-        self
-    }
-}
-
-pub trait IntoReRef<T> {
-    fn into_re_ref(self) -> ReRef<T>;
-}
-impl<T> IntoReRef<T> for T {
-    fn into_re_ref(self) -> ReRef<T> {
-        ReRef::Constant(self)
-    }
-}
-impl<T> IntoReRef<T> for ReRef<T> {
-    fn into_re_ref(self) -> ReRef<T> {
-        self
     }
 }
