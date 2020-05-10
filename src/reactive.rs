@@ -25,39 +25,12 @@ pub trait Reactive: 'static {
     type Item;
 
     fn get(&self, ctx: &mut ReactiveContext) -> Self::Item;
-
-    fn into_ext(self) -> BindExt<Self>
-    where
-        Self: Sized,
-    {
-        BindExt(self)
-    }
-
-    fn into_rc(self) -> RcRe<Self::Item>
-    where
-        Self: Sized,
-    {
-        Rc::new(self)
-    }
 }
 
 pub trait ReactiveRef: 'static {
     type Item;
 
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item>;
-
-    fn into_ext(self) -> RefBindExt<Self>
-    where
-        Self: Sized,
-    {
-        RefBindExt(self)
-    }
-    fn into_rc(self) -> RcReRef<Self::Item>
-    where
-        Self: Sized,
-    {
-        Rc::new(self)
-    }
 }
 
 /// A wrapper type for an immutably borrowed value from a `ReactiveRef`.
@@ -83,4 +56,42 @@ impl<'a, T> Deref for Ref<'a, T> {
             Ref::Cell(x) => x,
         }
     }
+}
+
+pub fn make_reactive<T>(
+    get: impl Fn(&mut ReactiveContext) -> T + 'static,
+) -> impl Reactive<Item = T> {
+    struct FnBind<F>(F);
+    impl<F: Fn(&mut ReactiveContext) -> T + 'static, T> Reactive for FnBind<F> {
+        type Item = T;
+        fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
+            (self.0)(ctx)
+        }
+    }
+    FnBind(get)
+}
+
+pub fn make_reactive_ref<T, F, U>(this: T, borrow: F) -> impl ReactiveRef<Item = U>
+where
+    T: 'static,
+    for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
+    U: 'static,
+{
+    struct FnRefBind<T, F> {
+        this: T,
+        borrow: F,
+    }
+    impl<T, F, U> ReactiveRef for FnRefBind<T, F>
+    where
+        T: 'static,
+        for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
+        U: 'static,
+    {
+        type Item = U;
+        fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<U> {
+            (self.borrow)(&self.this, ctx)
+        }
+    }
+
+    FnRefBind { this, borrow }
 }

@@ -1,13 +1,14 @@
-use crate::*;
-use futures::future::RemoteHandle;
-use futures::task::{LocalSpawn, LocalSpawnExt};
-use std::any::Any;
-use std::cell::RefCell;
-use std::future::Future;
-use std::mem::drop;
-use std::rc::{Rc, Weak};
-use std::task::Poll;
+// use crate::*;
+// use futures::future::RemoteHandle;
+// use futures::task::{LocalSpawn, LocalSpawnExt};
+// use std::any::Any;
+// use std::cell::RefCell;
+// use std::future::Future;
+// use std::mem::drop;
+// use std::rc::{Rc, Weak};
+// use std::task::Poll;
 
+/*
 /// Extension methods for `Reactive`.
 ///
 /// Since impl trait return value is used, `BindExt` is struct instead of trait.
@@ -67,7 +68,7 @@ impl<B: Reactive> BindExt<B> {
     }
 
     pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Reactive<Item = U>> {
-        reactive(move |ctx| f(self.get(ctx)))
+        make_reactive(move |ctx| f(self.get(ctx)))
     }
     pub fn map_with_ctx<U>(
         self,
@@ -166,82 +167,7 @@ impl<B: ReactiveRef> RefBindExt<B> {
     }
 }
 
-#[derive(Clone)]
-struct Cached<B: Reactive>(Rc<CachedData<B>>);
-struct CachedData<B: Reactive> {
-    b: B,
-    sinks: BindSinks,
-    state: RefCell<CachedState<B::Item>>,
-}
-struct CachedState<T> {
-    value: Option<T>,
-    binds: Vec<Binding>,
-}
 
-impl<B: Reactive> Cached<B> {
-    fn new(b: B) -> Self {
-        Self(Rc::new(CachedData {
-            b,
-            sinks: BindSinks::new(),
-            state: RefCell::new(CachedState {
-                value: None,
-                binds: Vec::new(),
-            }),
-        }))
-    }
-}
-impl<B: Reactive> CachedData<B> {
-    fn ready(self: &Rc<Self>) {
-        let mut s = self.state.borrow_mut();
-        let mut ctx = ReactiveContext::new(&self, &mut s.binds);
-        s.value = Some(self.b.get(&mut ctx));
-    }
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut ReactiveContext) -> Ref<'a, B::Item> {
-        ctx.bind(self.clone());
-        let mut s = self.state.borrow();
-        if s.value.is_none() {
-            drop(s);
-            self.ready();
-            s = self.state.borrow();
-        }
-        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
-    }
-}
-impl<B: Reactive> ReactiveRef for Cached<B> {
-    type Item = B::Item;
-    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
-        self.0.borrow(ctx)
-    }
-    fn into_rc(self) -> RcReRef<Self::Item> {
-        self.0
-    }
-}
-impl<B: Reactive> DynReactiveRef for CachedData<B> {
-    type Item = B::Item;
-
-    fn dyn_borrow<'a>(
-        &'a self,
-        rc_this: &'a dyn Any,
-        ctx: &mut ReactiveContext,
-    ) -> Ref<'a, Self::Item> {
-        Self::downcast(rc_this).borrow(ctx)
-    }
-}
-impl<B: Reactive> BindSource for CachedData<B> {
-    fn sinks(&self) -> &BindSinks {
-        &self.sinks
-    }
-}
-impl<B: Reactive> BindSink for CachedData<B> {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        let mut s = self.state.borrow_mut();
-        if s.value.is_some() {
-            s.value = None;
-            s.binds.clear();
-            self.sinks.notify_with(ctx);
-        }
-    }
-}
 
 #[derive(Clone)]
 struct DedupBy<B: Reactive, EqFn>(Rc<DedupByData<B, EqFn>>);
@@ -305,17 +231,17 @@ impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> ReactiveRef fo
         self.0
     }
 }
-impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> DynReactiveRef
+impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> InnerReRef
     for DedupByData<B, EqFn>
 {
     type Item = B::Item;
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_this: &'a dyn Any,
+        rc_self: &'a dyn Any,
         ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
-        Self::downcast(rc_this).borrow(ctx)
+        Self::downcast(rc_self).borrow(ctx)
     }
 }
 impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> BindSource
@@ -557,7 +483,7 @@ where
         self.0
     }
 }
-impl<B> DynReactiveRef for MapAsyncData<B>
+impl<B> InnerReRef for MapAsyncData<B>
 where
     B: Reactive,
     B::Item: Future + 'static,
@@ -567,10 +493,10 @@ where
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_this: &'a dyn Any,
+        rc_self: &'a dyn Any,
         ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
-        Self::downcast(rc_this).borrow(ctx)
+        Self::downcast(rc_self).borrow(ctx)
     }
 }
 
@@ -614,40 +540,4 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl ReactiveRef<Item = T>> 
     RefBindExt(Constant(value))
 }
 
-pub fn reactive<T>(
-    get: impl Fn(&mut ReactiveContext) -> T + 'static,
-) -> BindExt<impl Reactive<Item = T>> {
-    struct FnBind<F>(F);
-    impl<F: Fn(&mut ReactiveContext) -> T + 'static, T> Reactive for FnBind<F> {
-        type Item = T;
-        fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
-            (self.0)(ctx)
-        }
-    }
-    BindExt(FnBind(get))
-}
-
-pub fn reactive_ref<T, F, U>(this: T, borrow: F) -> RefBindExt<impl ReactiveRef<Item = U>>
-where
-    T: 'static,
-    for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
-    U: 'static,
-{
-    struct FnRefBind<T, F> {
-        this: T,
-        borrow: F,
-    }
-    impl<T, F, U> ReactiveRef for FnRefBind<T, F>
-    where
-        T: 'static,
-        for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
-        U: 'static,
-    {
-        type Item = U;
-        fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<U> {
-            (self.borrow)(&self.this, ctx)
-        }
-    }
-
-    RefBindExt(FnRefBind { this, borrow })
-}
+*/
