@@ -78,7 +78,7 @@ pub enum ReRef<T: 'static> {
 
 impl<T: 'static> Re<T> {
     pub fn from_get(get: impl Fn(&mut ReactiveContext) -> T + 'static) -> Self {
-        Self::from_inner(make_reactive(get))
+        Self::from_inner(from_get(get))
     }
     pub fn from_inner(inner: impl InnerReactive<Item = T>) -> Self {
         Re::Dyn(Rc::new(inner))
