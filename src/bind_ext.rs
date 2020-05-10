@@ -231,7 +231,7 @@ impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> ReactiveRef fo
         self.0
     }
 }
-impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> InnerReRef
+impl<B: Reactive, EqFn: Fn(&B::Item, &B::Item) -> bool + 'static> InnerReactiveRef
     for DedupByData<B, EqFn>
 {
     type Item = B::Item;
@@ -483,7 +483,7 @@ where
         self.0
     }
 }
-impl<B> InnerReRef for MapAsyncData<B>
+impl<B> InnerReactiveRef for MapAsyncData<B>
 where
     B: Reactive,
     B::Item: Future + 'static,

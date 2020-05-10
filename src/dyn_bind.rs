@@ -2,12 +2,12 @@ use crate::*;
 use std::any::Any;
 use std::{cell::RefCell, rc::Rc};
 
-pub trait InnerRe: 'static {
+pub trait InnerReactive: 'static {
     type Item;
 
     fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item;
 }
-pub trait InnerReRef: 'static {
+pub trait InnerReactiveRef: 'static {
     type Item;
 
     fn dyn_borrow<'a>(
@@ -23,13 +23,13 @@ pub trait InnerReRef: 'static {
     }
 }
 
-impl<B: Reactive> InnerRe for B {
+impl<B: Reactive> InnerReactive for B {
     type Item = B::Item;
     fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item {
         self.get(ctx)
     }
 }
-impl<B: ReactiveRef> InnerReRef for B {
+impl<B: ReactiveRef> InnerReactiveRef for B {
     type Item = B::Item;
 
     fn dyn_borrow<'a>(
@@ -41,8 +41,8 @@ impl<B: ReactiveRef> InnerReRef for B {
     }
 }
 
-type RcRe<T> = Rc<dyn InnerRe<Item = T>>;
-type RcReRef<T> = Rc<dyn InnerReRef<Item = T>>;
+type RcRe<T> = Rc<dyn InnerReactive<Item = T>>;
+type RcReRef<T> = Rc<dyn InnerReactiveRef<Item = T>>;
 
 impl<T: 'static> Reactive for RcRe<T> {
     type Item = T;
@@ -62,20 +62,20 @@ impl<T: 'static> ReactiveRef for RcReRef<T> {
 #[derive(Clone)]
 pub enum Re<T: 'static> {
     Constant(T),
-    Dyn(Rc<dyn InnerRe<Item = T>>),
+    Dyn(Rc<dyn InnerReactive<Item = T>>),
 }
 
 #[derive(Clone)]
 pub enum ReRef<T: 'static> {
     Constant(T),
-    Dyn(Rc<dyn InnerReRef<Item = T>>),
+    Dyn(Rc<dyn InnerReactiveRef<Item = T>>),
 }
 
 impl<T: 'static> Re<T> {
     pub fn from_get(get: impl Fn(&mut ReactiveContext) -> T + 'static) -> Self {
         Self::from_inner(make_reactive(get))
     }
-    pub fn from_inner(inner: impl InnerRe<Item = T>) -> Self {
+    pub fn from_inner(inner: impl InnerReactive<Item = T>) -> Self {
         Re::Dyn(Rc::new(inner))
     }
 
@@ -94,7 +94,7 @@ impl<T: 'static> Re<T> {
     }
 }
 impl<T: 'static> ReRef<T> {
-    pub fn from_inner(inner: impl InnerReRef<Item = T>) -> Self {
+    pub fn from_inner(inner: impl InnerReactiveRef<Item = T>) -> Self {
         ReRef::Dyn(Rc::new(inner))
     }
 }
@@ -107,7 +107,7 @@ struct Cached<T> {
 
 struct CachedState<T> {
     value: Option<T>,
-    binds: Vec<Binding>,
+    bindings: Vec<Binding>,
 }
 impl<T> Cached<T> {
     fn new(s: RcRe<T>) -> Self {
@@ -116,7 +116,7 @@ impl<T> Cached<T> {
             sinks: BindSinks::new(),
             state: RefCell::new(CachedState {
                 value: None,
-                binds: Vec::new(),
+                bindings: Vec::new(),
             }),
         }
     }
@@ -124,7 +124,7 @@ impl<T> Cached<T> {
 impl<T: 'static> Cached<T> {
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = ReactiveContext::new(&self, &mut s.binds);
+        let mut ctx = ReactiveContext::new(&self, &mut s.bindings);
         s.value = Some(self.s.get(&mut ctx));
     }
     fn borrow<'a>(self: &'a Rc<Self>, ctx: &mut ReactiveContext) -> Ref<'a, T> {
@@ -138,7 +138,7 @@ impl<T: 'static> Cached<T> {
         return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
     }
 }
-impl<T: 'static> InnerReRef for Cached<T> {
+impl<T: 'static> InnerReactiveRef for Cached<T> {
     type Item = T;
 
     fn dyn_borrow<'a>(
@@ -159,7 +159,7 @@ impl<T: 'static> BindSink for Cached<T> {
         let mut s = self.state.borrow_mut();
         if s.value.is_some() {
             s.value = None;
-            s.binds.clear();
+            s.bindings.clear();
             self.sinks.notify_with(ctx);
         }
     }

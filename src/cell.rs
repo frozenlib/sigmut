@@ -38,7 +38,7 @@ impl<T: Copy + 'static> Reactive for ReCell<T> {
         self.0.get(ctx)
     }
 }
-impl<T: Copy + 'static> InnerRe for ReCellData<T> {
+impl<T: Copy + 'static> InnerReactive for ReCellData<T> {
     type Item = T;
     fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item {
         self.get(ctx)
@@ -88,7 +88,7 @@ impl<T: 'static> ReactiveRef for ReRefCell<T> {
         self.0.borrow(ctx)
     }
 }
-impl<T: 'static> InnerReRef for ReRefCellData<T> {
+impl<T: 'static> InnerReactiveRef for ReRefCellData<T> {
     type Item = T;
     fn dyn_borrow<'a>(
         &'a self,
