@@ -164,24 +164,6 @@ impl NotifyContext {
     }
 }
 
-/// The context of `Reactive::bind` and `ReactiveRef::bind`.
-pub struct BindContext<'a> {
-    sink: Weak<dyn BindSink>,
-    bindings: &'a mut Vec<Binding>,
-}
-impl<'a> BindContext<'a> {
-    pub fn new(sink: &Rc<impl BindSink + 'static>, bindings: &'a mut Vec<Binding>) -> Self {
-        debug_assert!(bindings.is_empty());
-        Self {
-            sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
-            bindings,
-        }
-    }
-    pub fn bind(&mut self, src: Rc<impl BindSource>) {
-        self.bindings.push(src.bind(self.sink.clone()));
-    }
-}
-
 pub struct Unbind(pub Rc<dyn Any>);
 
 thread_local! {
