@@ -2,7 +2,7 @@ use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::{any::Any, rc::Rc};
 
-use crate::*;
+use super::*;
 
 /// A `Cell` like type that implement `Reactive`.
 pub struct ReCell<T: Copy>(Rc<ReCellData<T>>);
@@ -30,16 +30,9 @@ impl<T: Copy + 'static> ReCellData<T> {
         self.value.get()
     }
 }
-impl<T: Copy + 'static> Reactive for ReCell<T> {
+impl<T: Copy + 'static> DynReSource for ReCellData<T> {
     type Item = T;
-
-    fn get(&self, ctx: &mut ReactiveContext) -> Self::Item {
-        self.0.get(ctx)
-    }
-}
-impl<T: Copy + 'static> InnerRe for ReCellData<T> {
-    type Item = T;
-    fn rc_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item {
+    fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item {
         self.get(ctx)
     }
 }
@@ -74,20 +67,12 @@ impl<T: 'static> ReRefCell<T> {
         }
     }
 }
-impl<T: 'static> ReactiveRef for ReRefCell<T> {
+impl<T: 'static> DynReRefSource for ReRefCellData<T> {
     type Item = T;
 
-    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
-        ctx.bind(self.0.clone());
-        Ref::Cell(self.0.value.borrow())
-    }
-}
-impl<T: 'static> InnerReRef for ReRefCellData<T> {
-    type Item = T;
-
-    fn rc_borrow<'a>(
+    fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &Rc<dyn InnerReRef<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<'a, Self::Item> {
         ctx.bind(Self::downcast(rc_self));
