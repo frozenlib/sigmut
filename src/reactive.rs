@@ -83,6 +83,8 @@ trait DynReRefSource: Any + 'static {
     }
 }
 
+pub struct Unbind(Rc<dyn Any>);
+
 pub struct Re<T: 'static>(ReData<T>);
 
 enum ReData<T: 'static> {
@@ -144,6 +146,27 @@ impl<T: 'static> Re<T> {
     {
         self.dedup_by(|l, r| l == r)
     }
+
+    pub fn for_each(self, f: impl Fn(T) + 'static) -> Unbind {
+        Unbind(ForEach::new(self, f))
+    }
+    pub fn for_each_by<U: 'static>(
+        self,
+        attach: impl Fn(T) -> U + 'static,
+        detach: impl Fn(U) + 'static,
+    ) -> Unbind {
+        Unbind(ForEachBy::new(self, attach, detach))
+    }
+    // pub fn for_each_async<Fut: Future<Output = ()> + 'static>(
+    //     self,
+    //     f: impl Fn(B::Item) -> Fut + 'static,
+    // ) -> Unbind {
+    //     let sp = get_current_local_spawn();
+    //     self.for_each_by(
+    //         move |value| sp.spawn_local_with_handle(f(value)).unwrap(),
+    //         move |_handle| {},
+    //     )
+    // }
 }
 
 impl<T: 'static> ReRef<T> {
@@ -362,5 +385,120 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> BindSink for DedupBy<T, EqF
 impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> Task for DedupBy<T, EqFn> {
     fn run(self: Rc<Self>) {
         self.ready();
+    }
+}
+
+struct ForEach<T: 'static, F> {
+    source: Re<T>,
+    f: F,
+    binds: RefCell<Vec<Binding>>,
+}
+
+impl<T: 'static, F: Fn(T) + 'static> ForEach<T, F> {
+    fn new(source: Re<T>, f: F) -> Rc<Self> {
+        let s = Rc::new(ForEach {
+            source,
+            f,
+            binds: RefCell::new(Vec::new()),
+        });
+        s.next();
+        s
+    }
+
+    fn next(self: &Rc<Self>) {
+        let mut b = self.binds.borrow_mut();
+        let mut ctx = ReactiveContext::new(&self, &mut b);
+        (self.f)(self.source.get(&mut ctx));
+    }
+}
+impl<T: 'static, F: Fn(T) + 'static> BindSink for ForEach<T, F> {
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        self.binds.borrow_mut().clear();
+        ctx.spawn(Rc::downgrade(&self))
+    }
+}
+impl<T: 'static, F: Fn(T) + 'static> Task for ForEach<T, F> {
+    fn run(self: Rc<Self>) {
+        self.next();
+    }
+}
+
+struct ForEachBy<T, U, A, D>
+where
+    T: 'static,
+    U: 'static,
+    A: Fn(T) -> U + 'static,
+    D: Fn(U) + 'static,
+{
+    source: Re<T>,
+    attach: A,
+    detach: D,
+    value: RefCell<Option<U>>,
+    binds: RefCell<Vec<Binding>>,
+}
+
+impl<T, U, A, D> ForEachBy<T, U, A, D>
+where
+    T: 'static,
+    U: 'static,
+    A: Fn(T) -> U + 'static,
+    D: Fn(U) + 'static,
+{
+    fn new(source: Re<T>, attach: A, detach: D) -> Rc<Self> {
+        let s = Rc::new(ForEachBy {
+            source,
+            attach,
+            detach,
+            value: RefCell::new(None),
+            binds: RefCell::new(Vec::new()),
+        });
+        s.next();
+        s
+    }
+
+    fn next(self: &Rc<Self>) {
+        let mut b = self.binds.borrow_mut();
+        let mut ctx = ReactiveContext::new(&self, &mut b);
+        *self.value.borrow_mut() = Some((self.attach)(self.source.get(&mut ctx)));
+    }
+    fn detach_value(&self) {
+        if let Some(value) = self.value.borrow_mut().take() {
+            (self.detach)(value);
+        }
+    }
+}
+impl<T, U, A, D> BindSink for ForEachBy<T, U, A, D>
+where
+    T: 'static,
+    U: 'static,
+    A: Fn(T) -> U + 'static,
+    D: Fn(U) + 'static,
+{
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        self.binds.borrow_mut().clear();
+        self.detach_value();
+        ctx.spawn(Rc::downgrade(&self))
+    }
+}
+impl<T, U, A, D> Task for ForEachBy<T, U, A, D>
+where
+    T: 'static,
+    U: 'static,
+    A: Fn(T) -> U + 'static,
+    D: Fn(U) + 'static,
+{
+    fn run(self: Rc<Self>) {
+        self.next();
+    }
+}
+impl<T, U, A, D> Drop for ForEachBy<T, U, A, D>
+where
+    T: 'static,
+    U: 'static,
+    A: Fn(T) -> U + 'static,
+    D: Fn(U) + 'static,
+{
+    fn drop(&mut self) {
+        self.detach_value();
     }
 }

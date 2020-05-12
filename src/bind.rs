@@ -1,5 +1,4 @@
 use futures::task::LocalSpawn;
-use std::any::Any;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::mem::drop;
@@ -163,8 +162,6 @@ impl NotifyContext {
         self.0.borrow_mut().tasks.push(task);
     }
 }
-
-pub struct Unbind(pub Rc<dyn Any>);
 
 thread_local! {
     static LOCAL_SPAWN: RefCell<Rc<dyn LocalSpawn>> = RefCell::new(Rc::new(LocalSpawnNotSet));
