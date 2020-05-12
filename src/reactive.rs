@@ -130,6 +130,20 @@ impl<T: 'static> Re<T> {
     pub fn cached(self) -> ReRef<T> {
         ReRef::from_dyn_source(Cached::new(self))
     }
+
+    pub fn dedup_by(self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReRef<T> {
+        ReRef::from_dyn_source(DedupBy::new(self, eq))
+    }
+    pub fn dedup_by_key<K: PartialEq>(self, to_key: impl Fn(&T) -> K + 'static) -> ReRef<T> {
+        self.dedup_by(move |l, r| to_key(l) == to_key(r))
+    }
+
+    pub fn dedup(self) -> ReRef<T>
+    where
+        T: PartialEq,
+    {
+        self.dedup_by(|l, r| l == r)
+    }
 }
 
 impl<T: 'static> ReRef<T> {
@@ -144,6 +158,29 @@ impl<T: 'static> ReRef<T> {
     pub fn constant(value: T) -> Self {
         Self(ReRefData::Constant(Rc::new(value)))
     }
+    pub fn from_borrow<S, F>(this: S, borrow: F) -> Self
+    where
+        S: 'static,
+        for<'a> F: Fn(&'a S, &mut ReactiveContext) -> Ref<'a, T> + 'static,
+    {
+        struct ReRefFn<S, F> {
+            this: S,
+            borrow: F,
+        }
+        impl<T, S, F> DynReRef for ReRefFn<S, F>
+        where
+            T: 'static,
+            S: 'static,
+            for<'a> F: Fn(&'a S, &mut ReactiveContext) -> Ref<'a, T> + 'static,
+        {
+            type Item = T;
+            fn dyn_borrow(&self, ctx: &mut ReactiveContext) -> Ref<T> {
+                (self.borrow)(&self.this, ctx)
+            }
+        }
+        Self::from_dyn(ReRefFn { this, borrow })
+    }
+
     fn from_dyn(inner: impl DynReRef<Item = T>) -> Self {
         Self(ReRefData::Dyn(Rc::new(inner)))
     }
@@ -244,29 +281,86 @@ impl<T: 'static> BindSink for Cached<T> {
     }
 }
 
-/*
-
-pub fn from_borrow<T, F, U>(this: T, borrow: F) -> impl ReactiveRef<Item = U>
-where
-    T: 'static,
-    for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
-    U: 'static,
-{
-    struct FnReactiveRef<T, F> {
-        this: T,
-        borrow: F,
-    }
-    impl<T, F, U> ReactiveRef for FnReactiveRef<T, F>
-    where
-        T: 'static,
-        for<'a> F: Fn(&'a T, &mut ReactiveContext) -> Ref<'a, U> + 'static,
-        U: 'static,
-    {
-        type Item = U;
-        fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<U> {
-            (self.borrow)(&self.this, ctx)
+struct DedupBy<T: 'static, EqFn> {
+    source: Re<T>,
+    eq: EqFn,
+    sinks: BindSinks,
+    state: RefCell<DedupByState<T>>,
+}
+struct DedupByState<T> {
+    value: Option<T>,
+    is_ready: bool,
+    binds: Vec<Binding>,
+}
+impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
+    fn new(source: Re<T>, eq: EqFn) -> Self {
+        Self {
+            source,
+            eq,
+            sinks: BindSinks::new(),
+            state: RefCell::new(DedupByState {
+                value: None,
+                is_ready: false,
+                binds: Vec::new(),
+            }),
         }
     }
-    FnReactiveRef { this, borrow }
+    fn ready(self: &Rc<Self>) {
+        let mut s = self.state.borrow_mut();
+        let mut ctx = ReactiveContext::new(&self, &mut s.binds);
+        let value = self.source.get(&mut ctx);
+        if let Some(value_old) = &s.value {
+            if (self.eq)(value_old, &value) {
+                return;
+            }
+        }
+        s.value = Some(value);
+        drop(s);
+        self.sinks.notify();
+    }
 }
-*/
+impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReRefSource for DedupBy<T, EqFn> {
+    type Item = T;
+
+    fn dyn_borrow<'a>(
+        &'a self,
+        rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
+        ctx: &mut ReactiveContext,
+    ) -> Ref<'a, Self::Item> {
+        let rc_self = Self::downcast(rc_self);
+        let mut s = self.state.borrow();
+        if s.is_ready {
+            drop(s);
+            rc_self.ready();
+            s = self.state.borrow();
+        }
+        ctx.bind(rc_self);
+        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
+    }
+
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+}
+impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> BindSource for DedupBy<T, EqFn> {
+    fn sinks(&self) -> &BindSinks {
+        &self.sinks
+    }
+}
+impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> BindSink for DedupBy<T, EqFn> {
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        let mut s = self.state.borrow_mut();
+        if s.is_ready {
+            s.is_ready = false;
+            s.binds.clear();
+            if !self.sinks.is_empty() {
+                ctx.spawn(Rc::downgrade(&self));
+            }
+        }
+    }
+}
+impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> Task for DedupBy<T, EqFn> {
+    fn run(self: Rc<Self>) {
+        self.ready();
+    }
+}
