@@ -1,4 +1,3 @@
-use futures::task::LocalSpawn;
 use std::cell::RefCell;
 use std::cmp::min;
 use std::mem::drop;
@@ -161,24 +160,4 @@ impl NotifyContext {
     pub fn spawn(&self, task: Weak<impl Task>) {
         self.0.borrow_mut().tasks.push(task);
     }
-}
-
-thread_local! {
-    static LOCAL_SPAWN: RefCell<Rc<dyn LocalSpawn>> = RefCell::new(Rc::new(LocalSpawnNotSet));
-}
-struct LocalSpawnNotSet;
-impl LocalSpawn for LocalSpawnNotSet {
-    fn spawn_local_obj(
-        &self,
-        _: futures::task::LocalFutureObj<'static, ()>,
-    ) -> Result<(), futures::task::SpawnError> {
-        panic!("need to call `set_current_local_spawn`.");
-    }
-}
-
-pub fn set_current_local_spawn(sp: impl LocalSpawn + 'static) {
-    LOCAL_SPAWN.with(|value| *value.borrow_mut() = Rc::new(sp));
-}
-pub fn get_current_local_spawn() -> Rc<dyn LocalSpawn + 'static> {
-    LOCAL_SPAWN.with(|value| value.borrow().clone())
 }

@@ -3,6 +3,7 @@ mod cell;
 
 pub use self::cell::*;
 use crate::bind::*;
+use futures::Future;
 use std::{
     any::Any,
     cell::RefCell,
@@ -158,16 +159,17 @@ impl<T: 'static> Re<T> {
     ) -> Unbind {
         Unbind(ForEachBy::new(self, attach, detach))
     }
-    // pub fn for_each_async<Fut: Future<Output = ()> + 'static>(
-    //     self,
-    //     f: impl Fn(B::Item) -> Fut + 'static,
-    // ) -> Unbind {
-    //     let sp = get_current_local_spawn();
-    //     self.for_each_by(
-    //         move |value| sp.spawn_local_with_handle(f(value)).unwrap(),
-    //         move |_handle| {},
-    //     )
-    // }
+    pub fn for_each_async_with<Fut, SpawnFn, U>(
+        self,
+        f: impl Fn(T) -> Fut + 'static,
+        spawn: impl Fn(Fut) -> U + 'static,
+    ) -> Unbind
+    where
+        Fut: Future<Output = ()> + 'static,
+        U: 'static,
+    {
+        self.for_each_by(move |value| spawn(f(value)), move |_| {})
+    }
 }
 
 impl<T: 'static> ReRef<T> {
