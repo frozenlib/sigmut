@@ -1,35 +1,5 @@
 /*
 
-impl<B: Reactive> BindExt<B> {
-
-    pub fn map<U>(self, f: impl Fn(B::Item) -> U + 'static) -> BindExt<impl Reactive<Item = U>> {
-        make_reactive(move |ctx| f(self.get(ctx)))
-    }
-    pub fn map_with_ctx<U>(
-        self,
-        f: impl Fn(B::Item, &mut ReactiveContext) -> U + 'static,
-    ) -> BindExt<impl Reactive<Item = U>> {
-        reactive(move |ctx| f(self.get(ctx), ctx))
-    }
-    pub fn flat_map<O: Reactive>(
-        self,
-        f: impl Fn(B::Item) -> O + 'static,
-    ) -> BindExt<impl Reactive<Item = O::Item>> {
-        self.map(f).flatten()
-    }
-    pub fn flatten(self) -> BindExt<impl Reactive<Item = <B::Item as Reactive>::Item>>
-    where
-        B::Item: Reactive,
-    {
-        reactive(move |ctx| self.get(ctx).get(ctx))
-    }
-    pub fn map_async<Fut: Future + 'static>(
-        self,
-        f: impl Fn(B::Item) -> Fut + 'static,
-    ) -> RefBindExt<impl ReactiveRef<Item = Poll<Fut::Output>>> {
-        RefBindExt(MapAsync::new(self.map(f)))
-    }
-}
 
 /// Extension methods for `ReactiveRef`.
 ///

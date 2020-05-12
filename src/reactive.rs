@@ -130,6 +130,15 @@ impl<T: 'static> Re<T> {
     pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Re<U> {
         Re::from_get(move |ctx| f(self.get(ctx)))
     }
+    pub fn flat_map<U>(self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
+        self.map(f).flatten()
+    }
+    // pub fn map_async<Fut: Future + 'static>(
+    //     self,
+    //     f: impl Fn(B::Item) -> Fut + 'static,
+    // ) -> RefBindExt<impl ReactiveRef<Item = Poll<Fut::Output>>> {
+    //     RefBindExt(MapAsync::new(self.map(f)))
+    // }
 
     pub fn cached(self) -> ReRef<T> {
         ReRef::from_dyn_source(self::cached::Cached::new(self))
@@ -169,6 +178,11 @@ impl<T: 'static> Re<T> {
         U: 'static,
     {
         self.for_each_by(move |value| spawn(f(value)), move |_| {})
+    }
+}
+impl<T: 'static> Re<Re<T>> {
+    pub fn flatten(self) -> Re<T> {
+        Re::from_get(move |ctx| self.get(ctx).get(ctx))
     }
 }
 
