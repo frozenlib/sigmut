@@ -60,6 +60,11 @@ trait DynReBorrowfSource: Any + 'static {
     }
 }
 
+trait DynReRef: 'static {
+    type Item;
+    fn dyn_with(&self, f: &dyn Fn(&Self::Item));
+}
+
 pub struct Unbind(Rc<dyn Any>);
 
 pub struct Re<T: 'static>(ReData<T>);
@@ -74,6 +79,14 @@ pub struct ReBorrow<T: 'static>(ReBorrowData<T>);
 enum ReBorrowData<T: 'static> {
     Dyn(Rc<dyn DynReBorrow<Item = T>>),
     DynSource(Rc<dyn DynReBorrowfSource<Item = T>>),
+}
+
+pub struct ReRef<T: 'static>(ReRefData<T>);
+enum ReRefData<T: 'static> {
+    Constant(T),
+    Re(Re<T>),
+    ReBorrow(ReBorrow<T>),
+    ReRef(Rc<dyn DynReRef<Item = T>>),
 }
 
 impl<T: 'static> Re<T> {
