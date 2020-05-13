@@ -182,7 +182,7 @@ impl<T: 'static> ReBorrow<T> {
     }
 
     pub fn constant(value: T) -> Self {
-        Self::from_borrow(RefCell::new(value), |cell, ctx| cell.borrow())
+        Self::from_borrow(RefCell::new(value), |cell, _ctx| cell.borrow())
     }
     pub fn from_borrow<S, F>(this: S, borrow: F) -> Self
     where
