@@ -69,7 +69,7 @@ trait DynReRef: 'static {
 pub struct Unbind(Rc<dyn Any>);
 pub trait LocalSpawn: 'static {
     type Handle;
-    fn local_spawn<Fut: Future<Output = ()>>(&self, fut: Fut) -> Self::Handle;
+    fn spawn_local<Fut: Future<Output = ()>>(&self, fut: Fut) -> Self::Handle;
 }
 
 pub struct Re<T: 'static>(ReData<T>);
@@ -173,7 +173,7 @@ impl<T: 'static> Re<T> {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.for_each_by(move |value| sp.local_spawn(f(value)), move |_| {})
+        self.for_each_by(move |value| sp.spawn_local(f(value)), move |_| {})
     }
 }
 impl<T: 'static> Re<Re<T>> {
@@ -512,7 +512,7 @@ where
         let mut ctx = ReactiveContext::new(self, &mut s.binds);
         let fut = self.source.get(&mut ctx);
         let this = Rc::downgrade(self);
-        s.handle = Some(self.sp.local_spawn(async move {
+        s.handle = Some(self.sp.spawn_local(async move {
             let value = fut.await;
             if let Some(this) = Weak::upgrade(&this) {
                 let mut s = this.state.borrow_mut();
