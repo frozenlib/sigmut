@@ -24,12 +24,12 @@ impl<T> Cached<T> {
         }
     }
 }
-impl<T: 'static> DynReRefSource for Cached<T> {
+impl<T: 'static> DynReBorrowfSource for Cached<T> {
     type Item = T;
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);

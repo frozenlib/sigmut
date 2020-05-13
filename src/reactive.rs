@@ -11,7 +11,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-/// The context of `Re::get` and `ReRef::borrow`.
+/// The context of `Re::get` and `ReBorrow::borrow`.
 pub struct ReactiveContext<'a> {
     sink: Weak<dyn BindSink>,
     bindings: &'a mut Vec<Binding>,
@@ -29,7 +29,7 @@ impl<'a> ReactiveContext<'a> {
     }
 }
 
-/// A wrapper type for an immutably borrowed value from a `ReRef`.
+/// A wrapper type for an immutably borrowed value from a `ReBorrow`.
 pub enum Ref<'a, T> {
     Native(&'a T),
     Cell(std::cell::Ref<'a, T>),
@@ -63,21 +63,21 @@ trait DynReSource: 'static {
     fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item;
 }
 
-trait DynReRef: 'static {
+trait DynReBorrow: 'static {
     type Item;
     fn dyn_borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item>;
 }
-trait DynReRefSource: Any + 'static {
+trait DynReBorrowfSource: Any + 'static {
     type Item;
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<Self::Item>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 
-    fn downcast(rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>) -> Rc<Self>
+    fn downcast(rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>) -> Rc<Self>
     where
         Self: Sized,
     {
@@ -94,12 +94,12 @@ enum ReData<T: 'static> {
     DynSource(Rc<dyn DynReSource<Item = T>>),
 }
 
-pub struct ReRef<T: 'static>(ReRefData<T>);
+pub struct ReBorrow<T: 'static>(ReBorrowData<T>);
 
-enum ReRefData<T: 'static> {
+enum ReBorrowData<T: 'static> {
     Constant(Rc<T>),
-    Dyn(Rc<dyn DynReRef<Item = T>>),
-    DynSource(Rc<dyn DynReRefSource<Item = T>>),
+    Dyn(Rc<dyn DynReBorrow<Item = T>>),
+    DynSource(Rc<dyn DynReBorrowfSource<Item = T>>),
 }
 
 impl<T: 'static> Re<T> {
@@ -140,18 +140,18 @@ impl<T: 'static> Re<T> {
     //     RefBindExt(MapAsync::new(self.map(f)))
     // }
 
-    pub fn cached(self) -> ReRef<T> {
-        ReRef::from_dyn_source(self::cached::Cached::new(self))
+    pub fn cached(self) -> ReBorrow<T> {
+        ReBorrow::from_dyn_source(self::cached::Cached::new(self))
     }
 
-    pub fn dedup_by(self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReRef<T> {
-        ReRef::from_dyn_source(DedupBy::new(self, eq))
+    pub fn dedup_by(self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
+        ReBorrow::from_dyn_source(DedupBy::new(self, eq))
     }
-    pub fn dedup_by_key<K: PartialEq>(self, to_key: impl Fn(&T) -> K + 'static) -> ReRef<T> {
+    pub fn dedup_by_key<K: PartialEq>(self, to_key: impl Fn(&T) -> K + 'static) -> ReBorrow<T> {
         self.dedup_by(move |l, r| to_key(l) == to_key(r))
     }
 
-    pub fn dedup(self) -> ReRef<T>
+    pub fn dedup(self) -> ReBorrow<T>
     where
         T: PartialEq,
     {
@@ -186,28 +186,28 @@ impl<T: 'static> Re<Re<T>> {
     }
 }
 
-impl<T: 'static> ReRef<T> {
+impl<T: 'static> ReBorrow<T> {
     pub fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<T> {
         match &self.0 {
-            ReRefData::Constant(rc) => Ref::Native(&rc),
-            ReRefData::Dyn(rc) => rc.dyn_borrow(ctx),
-            ReRefData::DynSource(rc) => rc.dyn_borrow(&rc, ctx),
+            ReBorrowData::Constant(rc) => Ref::Native(&rc),
+            ReBorrowData::Dyn(rc) => rc.dyn_borrow(ctx),
+            ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, ctx),
         }
     }
 
     pub fn constant(value: T) -> Self {
-        Self(ReRefData::Constant(Rc::new(value)))
+        Self(ReBorrowData::Constant(Rc::new(value)))
     }
     pub fn from_borrow<S, F>(this: S, borrow: F) -> Self
     where
         S: 'static,
         for<'a> F: Fn(&'a S, &mut ReactiveContext) -> Ref<'a, T> + 'static,
     {
-        struct ReRefFn<S, F> {
+        struct ReBorrowFn<S, F> {
             this: S,
             borrow: F,
         }
-        impl<T, S, F> DynReRef for ReRefFn<S, F>
+        impl<T, S, F> DynReBorrow for ReBorrowFn<S, F>
         where
             T: 'static,
             S: 'static,
@@ -218,14 +218,14 @@ impl<T: 'static> ReRef<T> {
                 (self.borrow)(&self.this, ctx)
             }
         }
-        Self::from_dyn(ReRefFn { this, borrow })
+        Self::from_dyn(ReBorrowFn { this, borrow })
     }
 
-    fn from_dyn(inner: impl DynReRef<Item = T>) -> Self {
-        Self(ReRefData::Dyn(Rc::new(inner)))
+    fn from_dyn(inner: impl DynReBorrow<Item = T>) -> Self {
+        Self(ReBorrowData::Dyn(Rc::new(inner)))
     }
-    fn from_dyn_source(inner: impl DynReRefSource<Item = T>) -> Self {
-        Self(ReRefData::DynSource(Rc::new(inner)))
+    fn from_dyn_source(inner: impl DynReBorrowfSource<Item = T>) -> Self {
+        Self(ReBorrowData::DynSource(Rc::new(inner)))
     }
 }
 
@@ -242,16 +242,16 @@ impl<T: 'static> ReRef<T> {
 //         self
 //     }
 // }
-// pub trait IntoReRef<T> {
-//     fn into_re_ref(self) -> ReRef<T>;
+// pub trait IntoReBorrow<T> {
+//     fn into_re_ref(self) -> ReBorrow<T>;
 // }
-// impl<T> IntoReRef<T> for T {
-//     fn into_re_ref(self) -> ReRef<T> {
-//         ReRef::constant(self)
+// impl<T> IntoReBorrow<T> for T {
+//     fn into_re_ref(self) -> ReBorrow<T> {
+//         ReBorrow::constant(self)
 //     }
 // }
-// impl<T> IntoReRef<T> for ReRef<T> {
-//     fn into_re_ref(self) -> ReRef<T> {
+// impl<T> IntoReBorrow<T> for ReBorrow<T> {
+//     fn into_re_ref(self) -> ReBorrow<T> {
 //         self
 //     }
 // }
@@ -294,12 +294,12 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
         self.sinks.notify();
     }
 }
-impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReRefSource for DedupBy<T, EqFn> {
+impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReBorrowfSource for DedupBy<T, EqFn> {
     type Item = T;
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);

@@ -169,7 +169,7 @@ where
     fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
         self.0.borrow(ctx)
     }
-    fn into_rc(self) -> RcReRef<Self::Item> {
+    fn into_rc(self) -> RcReBorrow<Self::Item> {
         self.0
     }
 }

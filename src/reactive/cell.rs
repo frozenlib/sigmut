@@ -53,12 +53,12 @@ impl<T: Copy + std::fmt::Debug> std::fmt::Debug for ReCell<T> {
 }
 
 /// A `RefCell` like type that implement `ReactiveRef`.
-pub struct ReRefCell<T>(Rc<ReRefCellData<T>>);
-struct ReRefCellData<T> {
+pub struct ReBorrowCell<T>(Rc<ReBorrowCellData<T>>);
+struct ReBorrowCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,
 }
-impl<T: 'static> ReRefCell<T> {
+impl<T: 'static> ReBorrowCell<T> {
     pub fn borrow_mut(&self) -> RefMut<T> {
         RefMut {
             b: self.0.value.borrow_mut(),
@@ -67,12 +67,12 @@ impl<T: 'static> ReRefCell<T> {
         }
     }
 }
-impl<T: 'static> DynReRefSource for ReRefCellData<T> {
+impl<T: 'static> DynReBorrowfSource for ReBorrowCellData<T> {
     type Item = T;
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<Self::Item> {
         ctx.bind(Self::downcast(rc_self));
@@ -84,17 +84,17 @@ impl<T: 'static> DynReRefSource for ReRefCellData<T> {
     }
 }
 
-impl<T: 'static> BindSource for ReRefCellData<T> {
+impl<T: 'static> BindSource for ReBorrowCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<T> Clone for ReRefCell<T> {
+impl<T> Clone for ReBorrowCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
-impl<T: std::fmt::Debug> std::fmt::Debug for ReRefCell<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for ReBorrowCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.0.value, f)
     }
