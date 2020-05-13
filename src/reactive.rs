@@ -134,7 +134,7 @@ impl<T: 'static> Re<T> {
     where
         Fut: Future + 'static,
     {
-        ReBorrow::from_dyn_source(MapAsyncData::new(self.map(f), sp))
+        ReBorrow::from_dyn_source(MapAsync::new(self.map(f), sp))
     }
 
     pub fn cached(self) -> ReBorrow<T> {
@@ -464,7 +464,7 @@ where
     }
 }
 
-struct MapAsyncData<Fut, Sp>
+struct MapAsync<Fut, Sp>
 where
     Fut: Future + 'static,
     Sp: LocalSpawn,
@@ -480,7 +480,7 @@ struct MapAsyncState<T, H> {
     binds: Vec<Binding>,
 }
 
-impl<Fut, Sp> MapAsyncData<Fut, Sp>
+impl<Fut, Sp> MapAsync<Fut, Sp>
 where
     Fut: Future + 'static,
     Sp: LocalSpawn,
@@ -515,7 +515,7 @@ where
     }
 }
 
-impl<Fut, Sp> DynReBorrowSource for MapAsyncData<Fut, Sp>
+impl<Fut, Sp> DynReBorrowSource for MapAsync<Fut, Sp>
 where
     Fut: Future + 'static,
     Sp: LocalSpawn,
@@ -542,7 +542,7 @@ where
     }
 }
 
-impl<Fut, Sp> BindSource for MapAsyncData<Fut, Sp>
+impl<Fut, Sp> BindSource for MapAsync<Fut, Sp>
 where
     Fut: Future + 'static,
     Sp: LocalSpawn,
@@ -552,7 +552,7 @@ where
     }
 }
 
-impl<Fut, Sp> BindSink for MapAsyncData<Fut, Sp>
+impl<Fut, Sp> BindSink for MapAsync<Fut, Sp>
 where
     Fut: Future + 'static,
     Sp: LocalSpawn,
