@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 pub struct ForEach<T: 'static, F> {
     source: Re<T>,
     f: F,
-    binds: RefCell<Vec<Binding>>,
+    bindings: RefCell<Vec<Binding>>,
 }
 
 impl<T: 'static, F: Fn(T) + 'static> ForEach<T, F> {
@@ -13,21 +13,21 @@ impl<T: 'static, F: Fn(T) + 'static> ForEach<T, F> {
         let s = Rc::new(ForEach {
             source,
             f,
-            binds: RefCell::new(Vec::new()),
+            bindings: RefCell::new(Vec::new()),
         });
         s.next();
         s
     }
 
     fn next(self: &Rc<Self>) {
-        let mut b = self.binds.borrow_mut();
+        let mut b = self.bindings.borrow_mut();
         let mut ctx = ReactiveContext::new(&self, &mut b);
         (self.f)(self.source.get(&mut ctx));
     }
 }
 impl<T: 'static, F: Fn(T) + 'static> BindSink for ForEach<T, F> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        self.binds.borrow_mut().clear();
+        self.bindings.borrow_mut().clear();
         ctx.spawn(Rc::downgrade(&self))
     }
 }
@@ -48,7 +48,7 @@ where
     attach: A,
     detach: D,
     value: RefCell<Option<U>>,
-    binds: RefCell<Vec<Binding>>,
+    bindings: RefCell<Vec<Binding>>,
 }
 
 impl<T, U, A, D> ForEachBy<T, U, A, D>
@@ -64,14 +64,14 @@ where
             attach,
             detach,
             value: RefCell::new(None),
-            binds: RefCell::new(Vec::new()),
+            bindings: RefCell::new(Vec::new()),
         });
         s.next();
         s
     }
 
     fn next(self: &Rc<Self>) {
-        let mut b = self.binds.borrow_mut();
+        let mut b = self.bindings.borrow_mut();
         let mut ctx = ReactiveContext::new(&self, &mut b);
         *self.value.borrow_mut() = Some((self.attach)(self.source.get(&mut ctx)));
     }
@@ -89,7 +89,7 @@ where
     D: Fn(U) + 'static,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        self.binds.borrow_mut().clear();
+        self.bindings.borrow_mut().clear();
         self.detach_value();
         ctx.spawn(Rc::downgrade(&self))
     }

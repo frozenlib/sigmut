@@ -285,7 +285,7 @@ struct DedupBy<T: 'static, EqFn> {
 struct DedupByState<T> {
     value: Option<T>,
     is_ready: bool,
-    binds: Vec<Binding>,
+    bindings: Vec<Binding>,
 }
 impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
     fn new(source: Re<T>, eq: EqFn) -> Self {
@@ -296,13 +296,13 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
             state: RefCell::new(DedupByState {
                 value: None,
                 is_ready: false,
-                binds: Vec::new(),
+                bindings: Vec::new(),
             }),
         }
     }
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = ReactiveContext::new(&self, &mut s.binds);
+        let mut ctx = ReactiveContext::new(&self, &mut s.bindings);
         let value = self.source.get(&mut ctx);
         if let Some(value_old) = &s.value {
             if (self.eq)(value_old, &value) {
@@ -347,7 +347,7 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> BindSink for DedupBy<T, EqF
         let mut s = self.state.borrow_mut();
         if s.is_ready {
             s.is_ready = false;
-            s.binds.clear();
+            s.bindings.clear();
             if !self.sinks.is_empty() {
                 ctx.spawn(Rc::downgrade(&self));
             }
@@ -373,7 +373,7 @@ where
 struct MapAsyncState<T, H> {
     value: Poll<T>,
     handle: Option<H>,
-    binds: Vec<Binding>,
+    bindings: Vec<Binding>,
 }
 
 impl<Fut, Sp> MapAsync<Fut, Sp>
@@ -389,14 +389,14 @@ where
             state: RefCell::new(MapAsyncState {
                 value: Poll::Pending,
                 handle: None,
-                binds: Vec::new(),
+                bindings: Vec::new(),
             }),
         }
     }
 
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = ReactiveContext::new(self, &mut s.binds);
+        let mut ctx = ReactiveContext::new(self, &mut s.bindings);
         let fut = self.source.get(&mut ctx);
         let this = Rc::downgrade(self);
         s.handle = Some(self.sp.spawn_local(async move {
