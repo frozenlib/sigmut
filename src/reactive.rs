@@ -62,7 +62,7 @@ trait DynReBorrowfSource: Any + 'static {
 
 trait DynReRef: 'static {
     type Item;
-    fn dyn_with(&self, f: &dyn Fn(&Self::Item));
+    fn dyn_with(&self, ctx: &mut ReactiveContext, f: &mut dyn FnMut(&Self::Item));
 }
 
 pub struct Unbind(Rc<dyn Any>);
@@ -212,6 +212,20 @@ impl<T: 'static> ReBorrow<T> {
     }
     fn from_dyn_source(inner: impl DynReBorrowfSource<Item = T>) -> Self {
         Self(ReBorrowData::DynSource(Rc::new(inner)))
+    }
+}
+impl<T: 'static> ReRef<T> {
+    pub fn with<U>(&self, ctx: &mut ReactiveContext, f: impl Fn(&T) -> U) -> U {
+        match &self.0 {
+            ReRefData::Constant(value) => f(value),
+            ReRefData::Re(rc) => f(&rc.get(ctx)),
+            ReRefData::ReBorrow(rc) => f(&rc.borrow(ctx)),
+            ReRefData::ReRef(rc) => {
+                let mut output = None;
+                rc.dyn_with(ctx, &mut |value| output = Some(f(value)));
+                output.unwrap()
+            }
+        }
     }
 }
 
