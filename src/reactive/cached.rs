@@ -44,7 +44,7 @@ impl<T: 'static> DynReBorrowfSource for Cached<T> {
             }
             s = self.state.borrow();
         }
-        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
+        return Ref::map(s, |s| s.value.as_ref().unwrap());
     }
 
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {

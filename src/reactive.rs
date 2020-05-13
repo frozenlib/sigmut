@@ -6,8 +6,8 @@ use crate::bind::*;
 use futures::Future;
 use std::{
     any::Any,
+    cell::Ref,
     cell::RefCell,
-    ops::Deref,
     rc::{Rc, Weak},
 };
 
@@ -26,31 +26,6 @@ impl<'a> ReactiveContext<'a> {
     }
     pub fn bind(&mut self, src: Rc<impl BindSource>) {
         self.bindings.push(src.bind(self.sink.clone()));
-    }
-}
-
-/// A wrapper type for an immutably borrowed value from a `ReBorrow`.
-pub enum Ref<'a, T> {
-    Native(&'a T),
-    Cell(std::cell::Ref<'a, T>),
-}
-impl<'a, T> Ref<'a, T> {
-    pub fn map<U>(this: Self, f: impl FnOnce(&T) -> &U) -> Ref<'a, U> {
-        use Ref::*;
-        match this {
-            Native(x) => Native(f(x)),
-            Cell(x) => Cell(std::cell::Ref::map(x, f)),
-        }
-    }
-}
-impl<'a, T> Deref for Ref<'a, T> {
-    type Target = T;
-
-    fn deref(&self) -> &T {
-        match self {
-            Ref::Native(x) => x,
-            Ref::Cell(x) => x,
-        }
     }
 }
 
@@ -97,7 +72,6 @@ enum ReData<T: 'static> {
 pub struct ReBorrow<T: 'static>(ReBorrowData<T>);
 
 enum ReBorrowData<T: 'static> {
-    Constant(Rc<T>),
     Dyn(Rc<dyn DynReBorrow<Item = T>>),
     DynSource(Rc<dyn DynReBorrowfSource<Item = T>>),
 }
@@ -189,14 +163,13 @@ impl<T: 'static> Re<Re<T>> {
 impl<T: 'static> ReBorrow<T> {
     pub fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<T> {
         match &self.0 {
-            ReBorrowData::Constant(rc) => Ref::Native(&rc),
             ReBorrowData::Dyn(rc) => rc.dyn_borrow(ctx),
             ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, ctx),
         }
     }
 
     pub fn constant(value: T) -> Self {
-        Self(ReBorrowData::Constant(Rc::new(value)))
+        Self::from_borrow(RefCell::new(value), |cell, ctx| cell.borrow())
     }
     pub fn from_borrow<S, F>(this: S, borrow: F) -> Self
     where
@@ -310,7 +283,7 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReBorrowfSource for Dedu
             s = self.state.borrow();
         }
         ctx.bind(rc_self);
-        return Ref::map(Ref::Cell(s), |o| o.value.as_ref().unwrap());
+        return Ref::map(s, |s| s.value.as_ref().unwrap());
     }
 
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {

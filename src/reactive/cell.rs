@@ -76,7 +76,7 @@ impl<T: 'static> DynReBorrowfSource for ReBorrowCellData<T> {
         ctx: &mut ReactiveContext,
     ) -> Ref<Self::Item> {
         ctx.bind(Self::downcast(rc_self));
-        Ref::Cell(self.value.borrow())
+        self.value.borrow()
     }
 
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
