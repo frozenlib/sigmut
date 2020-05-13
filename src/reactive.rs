@@ -1,6 +1,7 @@
 mod cached;
 mod cell;
 
+use self::cached::*;
 pub use self::cell::*;
 use crate::bind::*;
 use futures::Future;
@@ -9,6 +10,7 @@ use std::{
     cell::Ref,
     cell::RefCell,
     rc::{Rc, Weak},
+    task::Poll,
 };
 
 /// The context of `Re::get` and `ReBorrow::borrow`.
@@ -66,6 +68,10 @@ trait DynReRef: 'static {
 }
 
 pub struct Unbind(Rc<dyn Any>);
+pub trait LocalSpawn: 'static {
+    type Handle;
+    fn local_spawn<Fut: Future<Output = ()>>(&self, fut: Fut) -> Self::Handle;
+}
 
 pub struct Re<T: 'static>(ReData<T>);
 
@@ -114,21 +120,25 @@ impl<T: 'static> Re<T> {
         Self(ReData::DynSource(Rc::new(inner)))
     }
 
-    pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Re<U> {
+    pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> Re<U> {
         Re::from_get(move |ctx| f(self.get(ctx)))
     }
     pub fn flat_map<U>(self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
-    // pub fn map_async<Fut: Future + 'static>(
-    //     self,
-    //     f: impl Fn(B::Item) -> Fut + 'static,
-    // ) -> RefBindExt<impl ReactiveRef<Item = Poll<Fut::Output>>> {
-    //     RefBindExt(MapAsync::new(self.map(f)))
-    // }
+    pub fn map_async_with<Fut>(
+        self,
+        f: impl Fn(T) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> ReBorrow<Poll<Fut::Output>>
+    where
+        Fut: Future + 'static,
+    {
+        ReBorrow::from_dyn_source(MapAsyncData::new(self.map(f), sp))
+    }
 
     pub fn cached(self) -> ReBorrow<T> {
-        ReBorrow::from_dyn_source(self::cached::Cached::new(self))
+        ReBorrow::from_dyn_source(Cached::new(self))
     }
 
     pub fn dedup_by(self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
@@ -155,16 +165,15 @@ impl<T: 'static> Re<T> {
     ) -> Unbind {
         Unbind(ForEachBy::new(self, attach, detach))
     }
-    pub fn for_each_async_with<Fut, SpawnFn, U>(
+    pub fn for_each_async_with<Fut>(
         self,
         f: impl Fn(T) -> Fut + 'static,
-        spawn: impl Fn(Fut) -> U + 'static,
+        sp: impl LocalSpawn,
     ) -> Unbind
     where
         Fut: Future<Output = ()> + 'static,
-        U: 'static,
     {
-        self.for_each_by(move |value| spawn(f(value)), move |_| {})
+        self.for_each_by(move |value| sp.local_spawn(f(value)), move |_| {})
     }
 }
 impl<T: 'static> Re<Re<T>> {
@@ -452,5 +461,111 @@ where
 {
     fn drop(&mut self) {
         self.detach_value();
+    }
+}
+
+struct MapAsyncData<Fut, Sp>
+where
+    Fut: Future + 'static,
+    Sp: LocalSpawn,
+{
+    sp: Sp,
+    source: Re<Fut>,
+    sinks: BindSinks,
+    state: RefCell<MapAsyncState<Fut::Output, Sp::Handle>>,
+}
+struct MapAsyncState<T, H> {
+    value: Poll<T>,
+    handle: Option<H>,
+    binds: Vec<Binding>,
+}
+
+impl<Fut, Sp> MapAsyncData<Fut, Sp>
+where
+    Fut: Future + 'static,
+    Sp: LocalSpawn,
+{
+    fn new(source: Re<Fut>, sp: Sp) -> Self {
+        Self {
+            sp,
+            source,
+            sinks: BindSinks::new(),
+            state: RefCell::new(MapAsyncState {
+                value: Poll::Pending,
+                handle: None,
+                binds: Vec::new(),
+            }),
+        }
+    }
+
+    fn ready(self: &Rc<Self>) {
+        let mut s = self.state.borrow_mut();
+        let mut ctx = ReactiveContext::new(self, &mut s.binds);
+        let fut = self.source.get(&mut ctx);
+        let this = Rc::downgrade(self);
+        s.handle = Some(self.sp.local_spawn(async move {
+            let value = fut.await;
+            if let Some(this) = Weak::upgrade(&this) {
+                let mut s = this.state.borrow_mut();
+                s.value = Poll::Ready(value);
+                drop(s);
+                this.sinks.notify();
+            }
+        }));
+    }
+}
+
+impl<Fut, Sp> DynReBorrowSource for MapAsyncData<Fut, Sp>
+where
+    Fut: Future + 'static,
+    Sp: LocalSpawn,
+{
+    type Item = Poll<Fut::Output>;
+
+    fn dyn_borrow(
+        &self,
+        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
+        ctx: &mut ReactiveContext,
+    ) -> Ref<Self::Item> {
+        let rc_self = Self::downcast(rc_self);
+        let mut s = self.state.borrow();
+        if s.handle.is_none() {
+            drop(s);
+            rc_self.ready();
+            s = self.state.borrow();
+        }
+        ctx.bind(rc_self);
+        Ref::map(s, |o| &o.value)
+    }
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+}
+
+impl<Fut, Sp> BindSource for MapAsyncData<Fut, Sp>
+where
+    Fut: Future + 'static,
+    Sp: LocalSpawn,
+{
+    fn sinks(&self) -> &BindSinks {
+        &self.sinks
+    }
+}
+
+impl<Fut, Sp> BindSink for MapAsyncData<Fut, Sp>
+where
+    Fut: Future + 'static,
+    Sp: LocalSpawn,
+{
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        let mut s = self.state.borrow_mut();
+        if s.handle.is_some() {
+            s.handle = None;
+            if let Poll::Ready(_) = &s.value {
+                s.value = Poll::Pending;
+                drop(s);
+                self.sinks.notify_with(ctx);
+            }
+        }
     }
 }
