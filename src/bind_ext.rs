@@ -1,19 +1,5 @@
 /*
 
-
-/// Extension methods for `ReactiveRef`.
-///
-/// Since impl trait return value is used, `BindExt` is struct instead of trait.
-#[derive(Clone)]
-pub struct RefBindExt<B>(pub(crate) B);
-
-impl<B: ReactiveRef> ReactiveRef for RefBindExt<B> {
-    type Item = B::Item;
-    fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item> {
-        self.0.borrow(ctx)
-    }
-}
-
 impl<B: ReactiveRef> RefBindExt<B> {
     pub fn for_each(self, f: impl Fn(&B::Item) + 'static) -> Unbind {
         self.map(f).for_each(|_| {})

@@ -13,7 +13,6 @@ use std::{
     task::Poll,
 };
 
-/// The context of `Re::get` and `ReBorrow::borrow`.
 pub struct ReactiveContext<'a> {
     sink: Weak<dyn BindSink>,
     bindings: &'a mut Vec<Binding>,
@@ -120,14 +119,15 @@ impl<T: 'static> Re<T> {
         Self(ReData::DynSource(Rc::new(inner)))
     }
 
-    pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> Re<U> {
-        Re::from_get(move |ctx| f(self.get(ctx)))
+    pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> Re<U> {
+        let this = self.clone();
+        Re::from_get(move |ctx| f(this.get(ctx)))
     }
-    pub fn flat_map<U>(self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
+    pub fn flat_map<U>(&self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
     pub fn map_async_with<Fut>(
-        self,
+        &self,
         f: impl Fn(T) -> Fut + 'static,
         sp: impl LocalSpawn,
     ) -> ReBorrow<Poll<Fut::Output>>
@@ -137,36 +137,36 @@ impl<T: 'static> Re<T> {
         ReBorrow::from_dyn_source(MapAsync::new(self.map(f), sp))
     }
 
-    pub fn cached(self) -> ReBorrow<T> {
-        ReBorrow::from_dyn_source(Cached::new(self))
+    pub fn cached(&self) -> ReBorrow<T> {
+        ReBorrow::from_dyn_source(Cached::new(self.clone()))
     }
 
-    pub fn dedup_by(self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
-        ReBorrow::from_dyn_source(DedupBy::new(self, eq))
+    pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
+        ReBorrow::from_dyn_source(DedupBy::new(self.clone(), eq))
     }
-    pub fn dedup_by_key<K: PartialEq>(self, to_key: impl Fn(&T) -> K + 'static) -> ReBorrow<T> {
+    pub fn dedup_by_key<K: PartialEq>(&self, to_key: impl Fn(&T) -> K + 'static) -> ReBorrow<T> {
         self.dedup_by(move |l, r| to_key(l) == to_key(r))
     }
 
-    pub fn dedup(self) -> ReBorrow<T>
+    pub fn dedup(&self) -> ReBorrow<T>
     where
         T: PartialEq,
     {
         self.dedup_by(|l, r| l == r)
     }
 
-    pub fn for_each(self, f: impl Fn(T) + 'static) -> Unbind {
-        Unbind(ForEach::new(self, f))
+    pub fn for_each(&self, f: impl Fn(T) + 'static) -> Unbind {
+        Unbind(ForEach::new(self.clone(), f))
     }
     pub fn for_each_by<U: 'static>(
-        self,
+        &self,
         attach: impl Fn(T) -> U + 'static,
         detach: impl Fn(U) + 'static,
     ) -> Unbind {
-        Unbind(ForEachBy::new(self, attach, detach))
+        Unbind(ForEachBy::new(self.clone(), attach, detach))
     }
     pub fn for_each_async_with<Fut>(
-        self,
+        &self,
         f: impl Fn(T) -> Fut + 'static,
         sp: impl LocalSpawn,
     ) -> Unbind
@@ -179,6 +179,14 @@ impl<T: 'static> Re<T> {
 impl<T: 'static> Re<Re<T>> {
     pub fn flatten(self) -> Re<T> {
         Re::from_get(move |ctx| self.get(ctx).get(ctx))
+    }
+}
+impl<T> Clone for Re<T> {
+    fn clone(&self) -> Self {
+        match &self.0 {
+            ReData::Dyn(rc) => Self(ReData::Dyn(rc.clone())),
+            ReData::DynSource(rc) => Self(ReData::DynSource(rc.clone())),
+        }
     }
 }
 
