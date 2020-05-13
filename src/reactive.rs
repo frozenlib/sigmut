@@ -177,8 +177,9 @@ impl<T: 'static> Re<T> {
     }
 }
 impl<T: 'static> Re<Re<T>> {
-    pub fn flatten(self) -> Re<T> {
-        Re::from_get(move |ctx| self.get(ctx).get(ctx))
+    pub fn flatten(&self) -> Re<T> {
+        let this = self.clone();
+        Re::from_get(move |ctx| this.get(ctx).get(ctx))
     }
 }
 impl<T> Clone for Re<T> {
