@@ -42,17 +42,17 @@ trait DynReBorrow: 'static {
     type Item;
     fn dyn_borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item>;
 }
-trait DynReBorrowfSource: Any + 'static {
+trait DynReBorrowSource: Any + 'static {
     type Item;
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<Self::Item>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 
-    fn downcast(rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>) -> Rc<Self>
+    fn downcast(rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>) -> Rc<Self>
     where
         Self: Sized,
     {
@@ -78,7 +78,7 @@ pub struct ReBorrow<T: 'static>(ReBorrowData<T>);
 
 enum ReBorrowData<T: 'static> {
     Dyn(Rc<dyn DynReBorrow<Item = T>>),
-    DynSource(Rc<dyn DynReBorrowfSource<Item = T>>),
+    DynSource(Rc<dyn DynReBorrowSource<Item = T>>),
 }
 
 pub struct ReRef<T: 'static>(ReRefData<T>);
@@ -210,7 +210,7 @@ impl<T: 'static> ReBorrow<T> {
     fn from_dyn(inner: impl DynReBorrow<Item = T>) -> Self {
         Self(ReBorrowData::Dyn(Rc::new(inner)))
     }
-    fn from_dyn_source(inner: impl DynReBorrowfSource<Item = T>) -> Self {
+    fn from_dyn_source(inner: impl DynReBorrowSource<Item = T>) -> Self {
         Self(ReBorrowData::DynSource(Rc::new(inner)))
     }
 }
@@ -294,12 +294,12 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
         self.sinks.notify();
     }
 }
-impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReBorrowfSource for DedupBy<T, EqFn> {
+impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReBorrowSource for DedupBy<T, EqFn> {
     type Item = T;
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);

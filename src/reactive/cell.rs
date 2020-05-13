@@ -67,12 +67,12 @@ impl<T: 'static> ReBorrowCell<T> {
         }
     }
 }
-impl<T: 'static> DynReBorrowfSource for ReBorrowCellData<T> {
+impl<T: 'static> DynReBorrowSource for ReBorrowCellData<T> {
     type Item = T;
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReBorrowfSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
     ) -> Ref<Self::Item> {
         ctx.bind(Self::downcast(rc_self));
