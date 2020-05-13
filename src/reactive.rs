@@ -90,7 +90,6 @@ enum ReBorrowData<T: 'static> {
 
 pub struct ReRef<T: 'static>(ReRefData<T>);
 enum ReRefData<T: 'static> {
-    Constant(T),
     Re(Re<T>),
     ReBorrow(ReBorrow<T>),
     ReRef(Rc<dyn DynReRef<Item = T>>),
@@ -237,7 +236,6 @@ impl<T: 'static> ReBorrow<T> {
 impl<T: 'static> ReRef<T> {
     pub fn with<U>(&self, ctx: &mut ReactiveContext, f: impl Fn(&T) -> U) -> U {
         match &self.0 {
-            ReRefData::Constant(value) => f(value),
             ReRefData::Re(rc) => f(&rc.get(ctx)),
             ReRefData::ReBorrow(rc) => f(&rc.borrow(ctx)),
             ReRefData::ReRef(rc) => {
