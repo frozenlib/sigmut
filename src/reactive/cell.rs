@@ -70,11 +70,11 @@ impl<T: 'static> ReRefCell<T> {
 impl<T: 'static> DynReRefSource for ReRefCellData<T> {
     type Item = T;
 
-    fn dyn_borrow<'a>(
-        &'a self,
+    fn dyn_borrow(
+        &self,
         rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
-    ) -> Ref<'a, Self::Item> {
+    ) -> Ref<Self::Item> {
         ctx.bind(Self::downcast(rc_self));
         Ref::Cell(self.value.borrow())
     }

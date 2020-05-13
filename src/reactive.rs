@@ -70,11 +70,11 @@ trait DynReRef: 'static {
 trait DynReRefSource: Any + 'static {
     type Item;
 
-    fn dyn_borrow<'a>(
-        &'a self,
+    fn dyn_borrow(
+        &self,
         rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
-    ) -> Ref<'a, Self::Item>;
+    ) -> Ref<Self::Item>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 
     fn downcast(rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>) -> Rc<Self>
@@ -297,11 +297,11 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
 impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReRefSource for DedupBy<T, EqFn> {
     type Item = T;
 
-    fn dyn_borrow<'a>(
-        &'a self,
+    fn dyn_borrow(
+        &self,
         rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
-    ) -> Ref<'a, Self::Item> {
+    ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut s = self.state.borrow();
         if s.is_ready {

@@ -27,11 +27,11 @@ impl<T> Cached<T> {
 impl<T: 'static> DynReRefSource for Cached<T> {
     type Item = T;
 
-    fn dyn_borrow<'a>(
-        &'a self,
+    fn dyn_borrow(
+        &self,
         rc_self: &Rc<dyn DynReRefSource<Item = Self::Item>>,
         ctx: &mut ReactiveContext,
-    ) -> Ref<'a, Self::Item> {
+    ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         ctx.bind(rc_self.clone());
         let mut s = self.state.borrow();
