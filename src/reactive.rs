@@ -15,11 +15,11 @@ use std::{
     task::Poll,
 };
 
-pub struct ReactiveContext<'a> {
+pub struct ReContext<'a> {
     sink: Weak<dyn BindSink>,
     bindings: &'a mut Vec<Binding>,
 }
-impl<'a> ReactiveContext<'a> {
+impl<'a> ReContext<'a> {
     pub fn new(sink: &Rc<impl BindSink + 'static>, bindings: &'a mut Vec<Binding>) -> Self {
         debug_assert!(bindings.is_empty());
         Self {
@@ -34,16 +34,16 @@ impl<'a> ReactiveContext<'a> {
 
 trait DynRe: 'static {
     type Item;
-    fn dyn_get(&self, ctx: &mut ReactiveContext) -> Self::Item;
+    fn dyn_get(&self, ctx: &mut ReContext) -> Self::Item;
 }
 trait DynReSource: 'static {
     type Item;
-    fn dyn_get(self: Rc<Self>, ctx: &mut ReactiveContext) -> Self::Item;
+    fn dyn_get(self: Rc<Self>, ctx: &mut ReContext) -> Self::Item;
 }
 
 trait DynReBorrow: 'static {
     type Item;
-    fn dyn_borrow(&self, ctx: &mut ReactiveContext) -> Ref<Self::Item>;
+    fn dyn_borrow(&self, ctx: &mut ReContext) -> Ref<Self::Item>;
 }
 trait DynReBorrowSource: Any + 'static {
     type Item;
@@ -51,7 +51,7 @@ trait DynReBorrowSource: Any + 'static {
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut ReactiveContext,
+        ctx: &mut ReContext,
     ) -> Ref<Self::Item>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 
@@ -65,7 +65,7 @@ trait DynReBorrowSource: Any + 'static {
 
 trait DynReRef: 'static {
     type Item;
-    fn dyn_with(&self, ctx: &mut ReactiveContext, f: &mut dyn FnOnce(&Self::Item));
+    fn dyn_with(&self, ctx: &mut ReContext, f: &mut dyn FnOnce(&Self::Item));
 }
 
 pub struct Unbind(Rc<dyn Any>);
@@ -111,18 +111,18 @@ enum ReRefData<T: 'static> {
 }
 
 impl<T: 'static> Re<T> {
-    pub fn get(&self, ctx: &mut ReactiveContext) -> T {
+    pub fn get(&self, ctx: &mut ReContext) -> T {
         match &self.0 {
             ReData::Dyn(rc) => rc.dyn_get(ctx),
             ReData::DynSource(rc) => rc.clone().dyn_get(ctx),
         }
     }
 
-    pub fn from_get(get: impl Fn(&mut ReactiveContext) -> T + 'static) -> Self {
+    pub fn from_get(get: impl Fn(&mut ReContext) -> T + 'static) -> Self {
         struct ReFn<F>(F);
-        impl<F: Fn(&mut ReactiveContext) -> T + 'static, T> DynRe for ReFn<F> {
+        impl<F: Fn(&mut ReContext) -> T + 'static, T> DynRe for ReFn<F> {
             type Item = T;
-            fn dyn_get(&self, ctx: &mut ReactiveContext) -> Self::Item {
+            fn dyn_get(&self, ctx: &mut ReContext) -> Self::Item {
                 (self.0)(ctx)
             }
         }
@@ -205,7 +205,7 @@ impl<T: 'static> Re<Re<T>> {
 }
 
 impl<T: 'static> ReBorrow<T> {
-    pub fn borrow(&self, ctx: &mut ReactiveContext) -> Ref<T> {
+    pub fn borrow(&self, ctx: &mut ReContext) -> Ref<T> {
         match &self.0 {
             ReBorrowData::Dyn(rc) => rc.dyn_borrow(ctx),
             ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, ctx),
@@ -218,7 +218,7 @@ impl<T: 'static> ReBorrow<T> {
     pub fn from_borrow<S, F>(this: S, borrow: F) -> Self
     where
         S: 'static,
-        for<'a> F: Fn(&'a S, &mut ReactiveContext) -> Ref<'a, T> + 'static,
+        for<'a> F: Fn(&'a S, &mut ReContext) -> Ref<'a, T> + 'static,
     {
         struct ReBorrowFn<S, F> {
             this: S,
@@ -228,10 +228,10 @@ impl<T: 'static> ReBorrow<T> {
         where
             T: 'static,
             S: 'static,
-            for<'a> F: Fn(&'a S, &mut ReactiveContext) -> Ref<'a, T> + 'static,
+            for<'a> F: Fn(&'a S, &mut ReContext) -> Ref<'a, T> + 'static,
         {
             type Item = T;
-            fn dyn_borrow(&self, ctx: &mut ReactiveContext) -> Ref<T> {
+            fn dyn_borrow(&self, ctx: &mut ReContext) -> Ref<T> {
                 (self.borrow)(&self.this, ctx)
             }
         }
@@ -258,7 +258,7 @@ impl<T: 'static> ReBorrow<T> {
     }
 }
 impl<T: 'static> ReRef<T> {
-    pub fn with<U>(&self, ctx: &mut ReactiveContext, f: impl FnOnce(&T) -> U) -> U {
+    pub fn with<U>(&self, ctx: &mut ReContext, f: impl FnOnce(&T) -> U) -> U {
         match &self.0 {
             ReRefData::Re(rc) => f(&rc.get(ctx)),
             ReRefData::ReBorrow(rc) => f(&rc.borrow(ctx)),
@@ -300,7 +300,7 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
     }
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = ReactiveContext::new(&self, &mut s.bindings);
+        let mut ctx = ReContext::new(&self, &mut s.bindings);
         let value = self.source.get(&mut ctx);
         if let Some(value_old) = &s.value {
             if (self.eq)(value_old, &value) {
@@ -318,7 +318,7 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReBorrowSource for Dedup
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut ReactiveContext,
+        ctx: &mut ReContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut s = self.state.borrow();

@@ -30,7 +30,7 @@ impl<T: 'static> DynReBorrowSource for Cached<T> {
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut ReactiveContext,
+        ctx: &mut ReContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         ctx.bind(rc_self.clone());
@@ -39,7 +39,7 @@ impl<T: 'static> DynReBorrowSource for Cached<T> {
             drop(s);
             {
                 let mut s = self.state.borrow_mut();
-                let mut ctx = ReactiveContext::new(&rc_self, &mut s.bindings);
+                let mut ctx = ReContext::new(&rc_self, &mut s.bindings);
                 s.value = Some(self.s.get(&mut ctx));
             }
             s = self.state.borrow();
