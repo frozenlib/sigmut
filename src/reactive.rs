@@ -176,19 +176,20 @@ impl<T: 'static> Re<T> {
     }
     pub fn for_each_by<U: 'static>(
         &self,
-        attach: impl Fn(T) -> U + 'static,
-        detach: impl Fn(U) + 'static,
+        attach: impl FnMut(T) -> U + 'static,
+        detach: impl FnMut(U) + 'static,
     ) -> Unbind {
         Unbind(ForEachBy::new(self.clone(), attach, detach))
     }
     pub fn for_each_async_with<Fut>(
         &self,
-        f: impl Fn(T) -> Fut + 'static,
+        f: impl FnMut(T) -> Fut + 'static,
         sp: impl LocalSpawn,
     ) -> Unbind
     where
         Fut: Future<Output = ()> + 'static,
     {
+        let mut f = f;
         self.for_each_by(move |value| sp.spawn_local(f(value)), move |_| {})
     }
 }

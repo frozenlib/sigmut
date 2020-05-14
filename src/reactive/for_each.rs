@@ -46,56 +46,71 @@ pub struct ForEachBy<T, U, A, D>
 where
     T: 'static,
     U: 'static,
-    A: Fn(T) -> U + 'static,
-    D: Fn(U) + 'static,
+    A: FnMut(T) -> U + 'static,
+    D: FnMut(U) + 'static,
 {
     source: Re<T>,
+    state: RefCell<ForEachByState<U, A, D>>,
+}
+
+struct ForEachByState<U, A, D> {
     attach: A,
     detach: D,
-    value: RefCell<Option<U>>,
-    bindings: RefCell<Vec<Binding>>,
+    value: Option<U>,
+    bindings: Vec<Binding>,
 }
 
 impl<T, U, A, D> ForEachBy<T, U, A, D>
 where
     T: 'static,
     U: 'static,
-    A: Fn(T) -> U + 'static,
-    D: Fn(U) + 'static,
+    A: FnMut(T) -> U + 'static,
+    D: FnMut(U) + 'static,
 {
     pub fn new(source: Re<T>, attach: A, detach: D) -> Rc<Self> {
         let s = Rc::new(ForEachBy {
             source,
-            attach,
-            detach,
-            value: RefCell::new(None),
-            bindings: RefCell::new(Vec::new()),
+            state: RefCell::new(ForEachByState {
+                attach,
+                detach,
+                value: None,
+                bindings: Vec::new(),
+            }),
         });
         s.next();
         s
     }
 
     fn next(self: &Rc<Self>) {
-        let mut b = self.bindings.borrow_mut();
-        let mut ctx = ReactiveContext::new(&self, &mut b);
-        *self.value.borrow_mut() = Some((self.attach)(self.source.get(&mut ctx)));
+        let mut b = &mut *self.state.borrow_mut();
+        let mut ctx = ReactiveContext::new(&self, &mut b.bindings);
+        b.value = Some((b.attach)(self.source.get(&mut ctx)));
     }
-    fn detach_value(&self) {
-        if let Some(value) = self.value.borrow_mut().take() {
+}
+impl<U, A, D> ForEachByState<U, A, D>
+where
+    U: 'static,
+    D: FnMut(U) + 'static,
+{
+    fn detach_value(&mut self) {
+        if let Some(value) = self.value.take() {
             (self.detach)(value);
         }
     }
 }
+
 impl<T, U, A, D> BindSink for ForEachBy<T, U, A, D>
 where
     T: 'static,
     U: 'static,
-    A: Fn(T) -> U + 'static,
-    D: Fn(U) + 'static,
+    A: FnMut(T) -> U + 'static,
+    D: FnMut(U) + 'static,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        self.bindings.borrow_mut().clear();
-        self.detach_value();
+        let b = &mut *self.state.borrow_mut();
+        b.bindings.clear();
+        b.detach_value();
+        drop(b);
         ctx.spawn(Rc::downgrade(&self))
     }
 }
@@ -103,8 +118,8 @@ impl<T, U, A, D> Task for ForEachBy<T, U, A, D>
 where
     T: 'static,
     U: 'static,
-    A: Fn(T) -> U + 'static,
-    D: Fn(U) + 'static,
+    A: FnMut(T) -> U + 'static,
+    D: FnMut(U) + 'static,
 {
     fn run(self: Rc<Self>) {
         self.next();
@@ -114,10 +129,10 @@ impl<T, U, A, D> Drop for ForEachBy<T, U, A, D>
 where
     T: 'static,
     U: 'static,
-    A: Fn(T) -> U + 'static,
-    D: Fn(U) + 'static,
+    A: FnMut(T) -> U + 'static,
+    D: FnMut(U) + 'static,
 {
     fn drop(&mut self) {
-        self.detach_value();
+        self.state.borrow_mut().detach_value();
     }
 }
