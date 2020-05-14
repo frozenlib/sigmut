@@ -65,7 +65,7 @@ trait DynReBorrowSource: Any + 'static {
 
 trait DynReRef: 'static {
     type Item;
-    fn dyn_with(&self, ctx: &mut ReactiveContext, f: &mut dyn FnMut(&Self::Item));
+    fn dyn_with(&self, ctx: &mut ReactiveContext, f: &mut dyn FnOnce(&Self::Item));
 }
 
 pub struct Unbind(Rc<dyn Any>);
@@ -192,6 +192,10 @@ impl<T: 'static> Re<T> {
         let mut f = f;
         self.for_each_by(move |value| sp.spawn_local(f(value)), move |_| {})
     }
+
+    pub fn re_ref(&self) -> ReRef<T> {
+        ReRef(ReRefData::Re(self.clone()))
+    }
 }
 impl<T: 'static> Re<Re<T>> {
     pub fn flatten(&self) -> Re<T> {
@@ -245,12 +249,16 @@ impl<T: 'static> ReBorrow<T> {
         let this = self.clone();
         Re::from_get(move |ctx| f(&this.borrow(ctx)))
     }
-    pub fn for_each(f: impl FnMut(&T)) -> Unbind {
-        todo!()
+    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
+        self.re_ref().for_each(f)
+    }
+
+    pub fn re_ref(&self) -> ReRef<T> {
+        ReRef(ReRefData::ReBorrow(self.clone()))
     }
 }
 impl<T: 'static> ReRef<T> {
-    pub fn with<U>(&self, ctx: &mut ReactiveContext, f: impl Fn(&T) -> U) -> U {
+    pub fn with<U>(&self, ctx: &mut ReactiveContext, f: impl FnOnce(&T) -> U) -> U {
         match &self.0 {
             ReRefData::Re(rc) => f(&rc.get(ctx)),
             ReRefData::ReBorrow(rc) => f(&rc.borrow(ctx)),
@@ -260,6 +268,9 @@ impl<T: 'static> ReRef<T> {
                 output.unwrap()
             }
         }
+    }
+    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
+        Unbind(Rc::new(ForEachRef::new(self.clone(), f)))
     }
 }
 
