@@ -19,9 +19,6 @@ impl<B: ReactiveRef> RefBindExt<B> {
         )
     }
 
-    pub fn map<U>(self, f: impl Fn(&B::Item) -> U + 'static) -> BindExt<impl Reactive<Item = U>> {
-        reactive(move |ctx| f(&self.borrow(ctx)))
-    }
     pub fn map_ref<U: 'static>(
         self,
         f: impl Fn(&B::Item) -> &U + 'static,

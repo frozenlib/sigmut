@@ -119,7 +119,7 @@ impl<T: 'static> Re<T> {
         }
     }
 
-    pub fn from_get(get: impl Fn(&mut ReContext) -> T + 'static) -> Self {
+    pub fn new(get: impl Fn(&mut ReContext) -> T + 'static) -> Self {
         struct ReFn<F>(F);
         impl<F: Fn(&mut ReContext) -> T + 'static, T> DynRe for ReFn<F> {
             type Item = T;
@@ -138,7 +138,7 @@ impl<T: 'static> Re<T> {
 
     pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> Re<U> {
         let this = self.clone();
-        Re::from_get(move |ctx| f(this.get(ctx)))
+        Re::new(move |ctx| f(this.get(ctx)))
     }
     pub fn flat_map<U>(&self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
@@ -201,7 +201,7 @@ impl<T: 'static> Re<T> {
 impl<T: 'static> Re<Re<T>> {
     pub fn flatten(&self) -> Re<T> {
         let this = self.clone();
-        Re::from_get(move |ctx| this.get(ctx).get(ctx))
+        Re::new(move |ctx| this.get(ctx).get(ctx))
     }
 }
 
@@ -214,9 +214,9 @@ impl<T: 'static> ReBorrow<T> {
     }
 
     pub fn constant(value: T) -> Self {
-        Self::from_borrow(RefCell::new(value), |cell, _ctx| cell.borrow())
+        Self::new(RefCell::new(value), |cell, _ctx| cell.borrow())
     }
-    pub fn from_borrow<S, F>(this: S, borrow: F) -> Self
+    pub fn new<S, F>(this: S, borrow: F) -> Self
     where
         S: 'static,
         for<'a> F: Fn(&'a S, &mut ReContext) -> Ref<'a, T> + 'static,
@@ -248,7 +248,7 @@ impl<T: 'static> ReBorrow<T> {
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
         let this = self.clone();
-        Re::from_get(move |ctx| f(&this.borrow(ctx)))
+        Re::new(move |ctx| f(&this.borrow(ctx)))
     }
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
         self.re_ref().for_each(f)
@@ -270,7 +270,7 @@ impl<T: 'static> ReRef<T> {
             }
         }
     }
-    pub fn from_with<S: 'static>(
+    pub fn new<S: 'static>(
         this: S,
         f: impl Fn(&S, &mut ReContext, &dyn FnOnce(&T)) + 'static,
     ) -> Self {
@@ -291,16 +291,20 @@ impl<T: 'static> ReRef<T> {
                 (self.f)(&self.this, ctx, f)
             }
         }
-        Self::from_inner(ReRefFn {
+        Self::from_dyn(ReRefFn {
             this,
             f,
             _phantom: PhantomData,
         })
     }
-    fn from_inner(inner: impl DynReRef<Item = T>) -> Self {
+    fn from_dyn(inner: impl DynReRef<Item = T>) -> Self {
         Self(ReRefData::ReRef(Rc::new(inner)))
     }
 
+    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
+        let this = self.clone();
+        Re::new(move |ctx| this.with(ctx, |x| f(x)))
+    }
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
         Unbind(Rc::new(ForEachRef::new(self.clone(), f)))
     }
