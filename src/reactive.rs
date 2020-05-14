@@ -11,6 +11,7 @@ use std::{
     any::Any,
     cell::Ref,
     cell::RefCell,
+    marker::PhantomData,
     rc::{Rc, Weak},
     task::Poll,
 };
@@ -269,6 +270,37 @@ impl<T: 'static> ReRef<T> {
             }
         }
     }
+    pub fn from_with<S: 'static>(
+        this: S,
+        f: impl Fn(&S, &mut ReContext, &dyn FnOnce(&T)) + 'static,
+    ) -> Self {
+        struct ReRefFn<S, T, F> {
+            this: S,
+            f: F,
+            _phantom: PhantomData<fn(&fn(&T))>,
+        }
+        impl<S, T, F> DynReRef for ReRefFn<S, T, F>
+        where
+            S: 'static,
+            T: 'static,
+            F: Fn(&S, &mut ReContext, &dyn FnOnce(&T)) + 'static,
+        {
+            type Item = T;
+
+            fn dyn_with(&self, ctx: &mut ReContext, f: &mut dyn FnOnce(&T)) {
+                (self.f)(&self.this, ctx, f)
+            }
+        }
+        Self::from_inner(ReRefFn {
+            this,
+            f,
+            _phantom: PhantomData,
+        })
+    }
+    fn from_inner(inner: impl DynReRef<Item = T>) -> Self {
+        Self(ReRefData::ReRef(Rc::new(inner)))
+    }
+
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
         Unbind(Rc::new(ForEachRef::new(self.clone(), f)))
     }
