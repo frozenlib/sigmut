@@ -240,6 +240,14 @@ impl<T: 'static> ReBorrow<T> {
     fn from_dyn_source(inner: impl DynReBorrowSource<Item = T>) -> Self {
         Self(ReBorrowData::DynSource(Rc::new(inner)))
     }
+
+    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
+        let this = self.clone();
+        Re::from_get(move |ctx| f(&this.borrow(ctx)))
+    }
+    pub fn for_each(f: impl FnMut(&T)) -> Unbind {
+        todo!()
+    }
 }
 impl<T: 'static> ReRef<T> {
     pub fn with<U>(&self, ctx: &mut ReactiveContext, f: impl Fn(&T) -> U) -> U {
