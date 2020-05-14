@@ -99,8 +99,6 @@ struct ForEachByState<U, A, D> {
 
 impl<T, U, A, D> ForEachBy<T, U, A, D>
 where
-    T: 'static,
-    U: 'static,
     A: FnMut(T) -> U + 'static,
     D: FnMut(U) + 'static,
 {
@@ -126,7 +124,6 @@ where
 }
 impl<U, A, D> ForEachByState<U, A, D>
 where
-    U: 'static,
     D: FnMut(U) + 'static,
 {
     fn detach_value(&mut self) {
@@ -138,8 +135,6 @@ where
 
 impl<T, U, A, D> BindSink for ForEachBy<T, U, A, D>
 where
-    T: 'static,
-    U: 'static,
     A: FnMut(T) -> U + 'static,
     D: FnMut(U) + 'static,
 {
@@ -153,8 +148,6 @@ where
 }
 impl<T, U, A, D> Task for ForEachBy<T, U, A, D>
 where
-    T: 'static,
-    U: 'static,
     A: FnMut(T) -> U + 'static,
     D: FnMut(U) + 'static,
 {
@@ -164,8 +157,6 @@ where
 }
 impl<T, U, A, D> Drop for ForEachBy<T, U, A, D>
 where
-    T: 'static,
-    U: 'static,
     A: FnMut(T) -> U + 'static,
     D: FnMut(U) + 'static,
 {

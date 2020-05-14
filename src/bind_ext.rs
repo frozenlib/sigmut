@@ -1,9 +1,6 @@
 /*
 
 impl<B: ReactiveRef> RefBindExt<B> {
-    pub fn for_each(self, f: impl Fn(&B::Item) + 'static) -> Unbind {
-        self.map(f).for_each(|_| {})
-    }
     pub fn for_each_by<T: 'static>(
         self,
         attach: impl Fn(&B::Item) -> T + 'static,
