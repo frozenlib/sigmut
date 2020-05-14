@@ -74,21 +74,36 @@ pub trait LocalSpawn: 'static {
     fn spawn_local<Fut: Future<Output = ()>>(&self, fut: Fut) -> Self::Handle;
 }
 
+use derivative::Derivative;
+
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 pub struct Re<T: 'static>(ReData<T>);
 
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 enum ReData<T: 'static> {
     Dyn(Rc<dyn DynRe<Item = T>>),
     DynSource(Rc<dyn DynReSource<Item = T>>),
 }
 
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 pub struct ReBorrow<T: 'static>(ReBorrowData<T>);
 
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 enum ReBorrowData<T: 'static> {
     Dyn(Rc<dyn DynReBorrow<Item = T>>),
     DynSource(Rc<dyn DynReBorrowSource<Item = T>>),
 }
 
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 pub struct ReRef<T: 'static>(ReRefData<T>);
+
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 enum ReRefData<T: 'static> {
     Re(Re<T>),
     ReBorrow(ReBorrow<T>),
@@ -181,14 +196,6 @@ impl<T: 'static> Re<Re<T>> {
     pub fn flatten(&self) -> Re<T> {
         let this = self.clone();
         Re::from_get(move |ctx| this.get(ctx).get(ctx))
-    }
-}
-impl<T> Clone for Re<T> {
-    fn clone(&self) -> Self {
-        match &self.0 {
-            ReData::Dyn(rc) => Self(ReData::Dyn(rc.clone())),
-            ReData::DynSource(rc) => Self(ReData::DynSource(rc.clone())),
-        }
     }
 }
 
