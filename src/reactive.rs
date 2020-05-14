@@ -255,33 +255,6 @@ impl<T: 'static> ReRef<T> {
     }
 }
 
-// pub trait IntoRe<T> {
-//     fn into_re(self) -> Re<T>;
-// }
-// impl<T> IntoRe<T> for T {
-//     fn into_re(self) -> Re<T> {
-//         Re::constant(self)
-//     }
-// }
-// impl<T> IntoRe<T> for Re<T> {
-//     fn into_re(self) -> Re<T> {
-//         self
-//     }
-// }
-// pub trait IntoReBorrow<T> {
-//     fn into_re_ref(self) -> ReBorrow<T>;
-// }
-// impl<T> IntoReBorrow<T> for T {
-//     fn into_re_ref(self) -> ReBorrow<T> {
-//         ReBorrow::constant(self)
-//     }
-// }
-// impl<T> IntoReBorrow<T> for ReBorrow<T> {
-//     fn into_re_ref(self) -> ReBorrow<T> {
-//         self
-//     }
-// }
-
 struct DedupBy<T: 'static, EqFn> {
     source: Re<T>,
     eq: EqFn,
