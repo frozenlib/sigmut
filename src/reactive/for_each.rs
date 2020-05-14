@@ -4,34 +4,39 @@ use std::{cell::RefCell, rc::Rc};
 
 pub struct ForEach<T: 'static, F> {
     source: Re<T>,
+    state: RefCell<ForEachState<F>>,
+}
+struct ForEachState<F> {
     f: F,
-    bindings: RefCell<Vec<Binding>>,
+    bindings: Vec<Binding>,
 }
 
-impl<T: 'static, F: Fn(T) + 'static> ForEach<T, F> {
+impl<T: 'static, F: FnMut(T) + 'static> ForEach<T, F> {
     pub fn new(source: Re<T>, f: F) -> Rc<Self> {
         let s = Rc::new(ForEach {
             source,
-            f,
-            bindings: RefCell::new(Vec::new()),
+            state: RefCell::new(ForEachState {
+                f,
+                bindings: Vec::new(),
+            }),
         });
         s.next();
         s
     }
 
     fn next(self: &Rc<Self>) {
-        let mut b = self.bindings.borrow_mut();
-        let mut ctx = ReactiveContext::new(&self, &mut b);
-        (self.f)(self.source.get(&mut ctx));
+        let b = &mut *self.state.borrow_mut();
+        let mut ctx = ReactiveContext::new(&self, &mut b.bindings);
+        (b.f)(self.source.get(&mut ctx));
     }
 }
-impl<T: 'static, F: Fn(T) + 'static> BindSink for ForEach<T, F> {
+impl<T: 'static, F: FnMut(T) + 'static> BindSink for ForEach<T, F> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        self.bindings.borrow_mut().clear();
+        self.state.borrow_mut().bindings.clear();
         ctx.spawn(Rc::downgrade(&self))
     }
 }
-impl<T: 'static, F: Fn(T) + 'static> Task for ForEach<T, F> {
+impl<T: 'static, F: FnMut(T) + 'static> Task for ForEach<T, F> {
     fn run(self: Rc<Self>) {
         self.next();
     }

@@ -171,7 +171,7 @@ impl<T: 'static> Re<T> {
         self.dedup_by(|l, r| l == r)
     }
 
-    pub fn for_each(&self, f: impl Fn(T) + 'static) -> Unbind {
+    pub fn for_each(&self, f: impl FnMut(T) + 'static) -> Unbind {
         Unbind(ForEach::new(self.clone(), f))
     }
     pub fn for_each_by<U: 'static>(
