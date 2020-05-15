@@ -25,14 +25,14 @@ impl<T: Copy + 'static> ReCell<T> {
     }
 }
 impl<T: Copy + 'static> ReCellData<T> {
-    fn get(self: &Rc<Self>, ctx: &mut ReContext) -> T {
+    fn get(self: &Rc<Self>, ctx: &mut BindContext) -> T {
         ctx.bind(self.clone());
         self.value.get()
     }
 }
 impl<T: Copy + 'static> DynReSource for ReCellData<T> {
     type Item = T;
-    fn dyn_get(self: Rc<Self>, ctx: &mut ReContext) -> Self::Item {
+    fn dyn_get(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
         self.get(ctx)
     }
 }
@@ -73,7 +73,7 @@ impl<T: 'static> DynReBorrowSource for ReBorrowCellData<T> {
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut ReContext,
+        ctx: &mut BindContext,
     ) -> Ref<Self::Item> {
         ctx.bind(Self::downcast(rc_self));
         self.value.borrow()

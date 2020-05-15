@@ -4,11 +4,11 @@ use std::mem::drop;
 use std::mem::replace;
 use std::rc::{Rc, Weak};
 
-pub struct ReContext<'a> {
+pub struct BindContext<'a> {
     sink: Weak<dyn BindSink>,
     bindings: &'a mut Vec<Binding>,
 }
-impl<'a> ReContext<'a> {
+impl<'a> BindContext<'a> {
     pub fn new(sink: &Rc<impl BindSink + 'static>, bindings: &'a mut Vec<Binding>) -> Self {
         debug_assert!(bindings.is_empty());
         Self {

@@ -31,7 +31,7 @@ impl<T: 'static, F: FnMut(T) + 'static> ForEach<T, F> {
 
     fn next(self: &Rc<Self>) {
         let b = &mut *self.state.borrow_mut();
-        let mut ctx = ReContext::new(&self, &mut b.bindings);
+        let mut ctx = BindContext::new(&self, &mut b.bindings);
         (b.f)(self.source.get(&mut ctx));
     }
 }
@@ -62,7 +62,7 @@ impl<T: 'static, F: FnMut(&T) + 'static> ForEachRef<T, F> {
 
     fn next(self: &Rc<Self>) {
         let b = &mut *self.state.borrow_mut();
-        let mut ctx = ReContext::new(&self, &mut b.bindings);
+        let mut ctx = BindContext::new(&self, &mut b.bindings);
         let f = &mut b.f;
         self.source.with(&mut ctx, |x| f(x));
     }
@@ -118,7 +118,7 @@ where
 
     fn next(self: &Rc<Self>) {
         let mut b = &mut *self.state.borrow_mut();
-        let mut ctx = ReContext::new(&self, &mut b.bindings);
+        let mut ctx = BindContext::new(&self, &mut b.bindings);
         b.value = Some((b.attach)(self.source.get(&mut ctx)));
     }
 }

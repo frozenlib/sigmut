@@ -27,7 +27,7 @@ impl<B: ReactiveRef> RefBindExt<B> {
     }
     pub fn map_with_ctx<U>(
         self,
-        f: impl Fn(&B::Item, &mut ReContext) -> U + 'static,
+        f: impl Fn(&B::Item, &mut BindContext) -> U + 'static,
     ) -> BindExt<impl Reactive<Item = U>> {
         reactive(move |ctx| f(&self.borrow(ctx), ctx))
     }
@@ -61,7 +61,7 @@ pub fn constant<T: 'static>(value: T) -> RefBindExt<impl ReactiveRef<Item = T>> 
     struct Constant<T: 'static>(T);
     impl<T> ReactiveRef for Constant<T> {
         type Item = T;
-        fn borrow(&self, _: &mut ReContext) -> Ref<Self::Item> {
+        fn borrow(&self, _: &mut BindContext) -> Ref<Self::Item> {
             Ref::Native(&self.0)
         }
     }

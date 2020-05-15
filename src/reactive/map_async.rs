@@ -45,7 +45,7 @@ where
 
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = ReContext::new(self, &mut s.bindings);
+        let mut ctx = BindContext::new(self, &mut s.bindings);
         let fut = self.source.get(&mut ctx);
         let this = Rc::downgrade(self);
         s.handle = Some(self.sp.spawn_local(async move {
@@ -70,7 +70,7 @@ where
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut ReContext,
+        ctx: &mut BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut s = self.state.borrow();
