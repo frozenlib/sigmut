@@ -9,7 +9,7 @@ pub struct BindContext<'a> {
     bindings: &'a mut Vec<Binding>,
 }
 impl<'a> BindContext<'a> {
-    pub fn new(sink: &Rc<impl BindSink + 'static>, bindings: &'a mut Vec<Binding>) -> Self {
+    pub fn new(sink: &Rc<impl BindSink>, bindings: &'a mut Vec<Binding>) -> Self {
         debug_assert!(bindings.is_empty());
         Self {
             sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
