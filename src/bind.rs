@@ -18,7 +18,7 @@ impl<'a> ReContext<'a> {
     }
     pub fn bind(&mut self, source: Rc<impl BindSource>) {
         let sink = self.sink.clone();
-        let idx = source.sinks().0.borrow_mut().insert(sink.clone());
+        let idx = source.sinks().insert(sink.clone());
         let binding = Binding { source, sink, idx };
         self.bindings.push(binding);
     }
@@ -39,33 +39,47 @@ pub struct Binding {
 }
 impl Drop for Binding {
     fn drop(&mut self) {
-        self.source
-            .sinks()
-            .0
-            .borrow_mut()
-            .remove(self.idx, &self.sink);
+        self.source.sinks().remove(self.idx, &self.sink);
     }
 }
 
 /// A collection of `BindSink`.
-pub struct BindSinks(RefCell<BindSinkData>);
+pub struct BindSinks(RefCell<Option<BindSinkData>>);
 impl BindSinks {
     pub fn new() -> Self {
-        Self(RefCell::new(BindSinkData::new()))
+        Self(RefCell::new(Some(BindSinkData::new())))
     }
     pub fn notify_with(&self, ctx: &NotifyContext) {
-        // TODO: 借用を終了してからnotifyを呼び出す必要あり
-        self.0.borrow_mut().notify(ctx);
+        let mut sinks = self
+            .0
+            .borrow_mut()
+            .take()
+            .expect("`BindSinks::notify` called duraing notify process.");
+        sinks.notify(ctx);
+        *self.0.borrow_mut() = Some(sinks);
     }
     pub fn notify(&self) {
         NotifyContext::with(|ctx| self.notify_with(ctx));
     }
     pub fn is_empty(&self) -> bool {
+        let b = self.0.borrow();
+        if let Some(sinks) = &*b {
+            sinks.is_empty()
+        } else {
+            true
+        }
+    }
+    fn insert(&self, sink: Weak<dyn BindSink>) -> usize {
         self.0
             .borrow_mut()
-            .sinks
-            .iter()
-            .all(|x| x.strong_count() == 0)
+            .as_mut()
+            .expect("`BindSinks::insert` called duraing notify process.")
+            .insert(sink)
+    }
+    fn remove(&self, idx: usize, sink: &Weak<dyn BindSink>) {
+        if let Some(sinks) = &mut *self.0.borrow_mut() {
+            sinks.remove(idx, sink);
+        }
     }
 }
 
@@ -110,6 +124,9 @@ impl BindSinkData {
         }
         self.sinks.clear();
         self.idx_next = 0;
+    }
+    fn is_empty(&self) -> bool {
+        self.sinks.iter().all(|x| x.strong_count() == 0)
     }
 }
 fn freed_sink() -> Weak<dyn BindSink> {
