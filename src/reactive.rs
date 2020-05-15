@@ -379,11 +379,11 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> Task for DedupBy<T, EqFn> {
 
 struct Cache<Source, State> {
     source: Source,
+    sinks: BindSinks,
     data: RefCell<CacheData<State>>,
 }
 struct CacheData<State> {
     bindings: Vec<Binding>,
-    sinks: BindSinks,
     state: State,
 }
 trait CacheState<Source> {
@@ -399,9 +399,9 @@ where
     pub fn new(source: Source, state: State) -> Self {
         Cache {
             source,
+            sinks: BindSinks::new(),
             data: RefCell::new(CacheData {
                 bindings: Vec::new(),
-                sinks: BindSinks::new(),
                 state,
             }),
         }
