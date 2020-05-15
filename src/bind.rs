@@ -62,8 +62,7 @@ impl BindSinks {
         NotifyContext::with(|ctx| self.notify_with(ctx));
     }
     pub fn is_empty(&self) -> bool {
-        let b = self.0.borrow();
-        if let Some(sinks) = &*b {
+        if let Some(sinks) = &*self.0.borrow() {
             sinks.is_empty()
         } else {
             true
