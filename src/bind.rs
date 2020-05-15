@@ -44,25 +44,23 @@ impl Drop for Binding {
 }
 
 /// A collection of `BindSink`.
-pub struct BindSinks(RefCell<Option<BindSinkData>>);
+pub struct BindSinks(RefCell<BindSinkData>);
 impl BindSinks {
     pub fn new() -> Self {
-        Self(RefCell::new(Some(BindSinkData::new())))
+        Self(RefCell::new(BindSinkData::new()))
     }
     pub fn notify_with(&self, ctx: &NotifyContext) {
         let mut sinks = self
             .0
-            .borrow_mut()
-            .take()
+            .try_borrow_mut()
             .expect("`BindSinks::notify` called during notify process.");
         sinks.notify(ctx);
-        *self.0.borrow_mut() = Some(sinks);
     }
     pub fn notify(&self) {
         NotifyContext::with(|ctx| self.notify_with(ctx));
     }
     pub fn is_empty(&self) -> bool {
-        if let Some(sinks) = &*self.0.borrow() {
+        if let Ok(sinks) = self.0.try_borrow() {
             sinks.is_empty()
         } else {
             true
@@ -70,13 +68,12 @@ impl BindSinks {
     }
     fn insert(&self, sink: Weak<dyn BindSink>) -> usize {
         self.0
-            .borrow_mut()
-            .as_mut()
+            .try_borrow_mut()
             .expect("`BindSinks::insert` called during notify process.")
             .insert(sink)
     }
     fn remove(&self, idx: usize, sink: &Weak<dyn BindSink>) {
-        if let Some(sinks) = &mut *self.0.borrow_mut() {
+        if let Ok(mut sinks) = self.0.try_borrow_mut() {
             sinks.remove(idx, sink);
         }
     }
