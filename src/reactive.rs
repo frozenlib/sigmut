@@ -16,23 +16,6 @@ use std::{
     task::Poll,
 };
 
-pub struct ReContext<'a> {
-    sink: Weak<dyn BindSink>,
-    bindings: &'a mut Vec<Binding>,
-}
-impl<'a> ReContext<'a> {
-    pub fn new(sink: &Rc<impl BindSink + 'static>, bindings: &'a mut Vec<Binding>) -> Self {
-        debug_assert!(bindings.is_empty());
-        Self {
-            sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
-            bindings,
-        }
-    }
-    pub fn bind(&mut self, src: Rc<impl BindSource>) {
-        self.bindings.push(src.bind(self.sink.clone()));
-    }
-}
-
 trait DynRe: 'static {
     type Item;
     fn dyn_get(&self, ctx: &mut ReContext) -> Self::Item;
@@ -391,5 +374,36 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> BindSink for DedupBy<T, EqF
 impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> Task for DedupBy<T, EqFn> {
     fn run(self: Rc<Self>) {
         self.ready();
+    }
+}
+
+struct Cache<Source, State> {
+    source: Source,
+    data: RefCell<CacheData<State>>,
+}
+struct CacheData<State> {
+    bindings: Vec<Binding>,
+    sinks: BindSinks,
+    state: State,
+}
+trait CacheState<Source> {
+    type Item;
+    fn notify(&mut self) -> bool;
+    fn get(&mut self, source: &Source) -> Self::Item;
+}
+
+impl<Source, State> Cache<Source, State>
+where
+    Source: CacheState<Source>,
+{
+    pub fn new(source: Source, state: State) -> Self {
+        Cache {
+            source,
+            data: RefCell::new(CacheData {
+                bindings: Vec::new(),
+                sinks: BindSinks::new(),
+                state,
+            }),
+        }
     }
 }

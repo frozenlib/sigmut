@@ -4,19 +4,28 @@ use std::mem::drop;
 use std::mem::replace;
 use std::rc::{Rc, Weak};
 
-pub trait BindSource: 'static {
-    fn sinks(&self) -> &BindSinks;
-    fn bind(self: Rc<Self>, sink: Weak<dyn BindSink>) -> Binding
-    where
-        Self: Sized,
-    {
-        let idx = self.sinks().0.borrow_mut().insert(sink.clone());
-        Binding {
-            source: self,
-            sink,
-            idx,
+pub struct ReContext<'a> {
+    sink: Weak<dyn BindSink>,
+    bindings: &'a mut Vec<Binding>,
+}
+impl<'a> ReContext<'a> {
+    pub fn new(sink: &Rc<impl BindSink + 'static>, bindings: &'a mut Vec<Binding>) -> Self {
+        debug_assert!(bindings.is_empty());
+        Self {
+            sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
+            bindings,
         }
     }
+    pub fn bind(&mut self, source: Rc<impl BindSource>) {
+        let sink = self.sink.clone();
+        let idx = source.sinks().0.borrow_mut().insert(sink.clone());
+        let binding = Binding { source, sink, idx };
+        self.bindings.push(binding);
+    }
+}
+
+pub trait BindSource: 'static {
+    fn sinks(&self) -> &BindSinks;
 }
 
 pub trait BindSink: 'static {
@@ -45,6 +54,7 @@ impl BindSinks {
         Self(RefCell::new(BindSinkData::new()))
     }
     pub fn notify_with(&self, ctx: &NotifyContext) {
+        // TODO: 借用を終了してからnotifyを呼び出す必要あり
         self.0.borrow_mut().notify(ctx);
     }
     pub fn notify(&self) {
