@@ -54,7 +54,7 @@ impl BindSinks {
             .0
             .borrow_mut()
             .take()
-            .expect("`BindSinks::notify` called duraing notify process.");
+            .expect("`BindSinks::notify` called during notify process.");
         sinks.notify(ctx);
         *self.0.borrow_mut() = Some(sinks);
     }
@@ -73,7 +73,7 @@ impl BindSinks {
         self.0
             .borrow_mut()
             .as_mut()
-            .expect("`BindSinks::insert` called duraing notify process.")
+            .expect("`BindSinks::insert` called during notify process.")
             .insert(sink)
     }
     fn remove(&self, idx: usize, sink: &Weak<dyn BindSink>) {
