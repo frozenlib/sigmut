@@ -177,7 +177,7 @@ impl<T: 'static> Re<T> {
         self.for_each_by(move |value| sp.spawn_local(f(value)), move |_| {})
     }
 
-    pub fn re_ref(&self) -> ReRef<T> {
+    pub fn to_re_ref(&self) -> ReRef<T> {
         ReRef(ReRefData::Re(self.clone()))
     }
 }
@@ -233,11 +233,19 @@ impl<T: 'static> ReBorrow<T> {
         let this = self.clone();
         Re::new(move |ctx| f(&this.borrow(ctx)))
     }
-    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
-        self.re_ref().for_each(f)
+
+    pub fn cloned(&self) -> Re<T>
+    where
+        T: Clone,
+    {
+        self.map(|x| x.clone())
     }
 
-    pub fn re_ref(&self) -> ReRef<T> {
+    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
+        self.to_re_ref().for_each(f)
+    }
+
+    pub fn to_re_ref(&self) -> ReRef<T> {
         ReRef(ReRefData::ReBorrow(self.clone()))
     }
 }

@@ -19,9 +19,17 @@ impl<T: Copy + 'static> ReCell<T> {
         }))
     }
 
+    pub fn get(&self, ctx: &mut BindContext) -> T {
+        self.0.get(ctx)
+    }
+
     pub fn set(&self, value: T) {
         self.0.value.set(value);
         self.0.sinks.notify();
+    }
+
+    pub fn to_re(&self) -> Re<T> {
+        Re(ReData::DynSource(self.0.clone()))
     }
 }
 impl<T: Copy + 'static> ReCellData<T> {
