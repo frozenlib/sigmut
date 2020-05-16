@@ -9,6 +9,7 @@ use crate::bind::*;
 use futures::Future;
 use std::{
     any::Any,
+    borrow::Cow,
     cell::Ref,
     cell::RefCell,
     marker::PhantomData,
@@ -20,13 +21,14 @@ trait DynRe: 'static {
     type Item;
     fn dyn_get(&self, ctx: &mut BindContext) -> Self::Item;
 }
+
 trait DynReSource: 'static {
     type Item;
     fn dyn_get(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item;
 }
 
 trait DynReBorrow: 'static {
-    type Item;
+    type Item: ?Sized;
     fn dyn_borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
 }
 trait DynReBorrowSource: Any + 'static {
@@ -62,33 +64,33 @@ use derivative::Derivative;
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct Re<T: 'static>(ReData<T>);
+pub struct Re<T: 'static + ?Sized>(ReData<T>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-enum ReData<T: 'static> {
+enum ReData<T: 'static + ?Sized> {
     Dyn(Rc<dyn DynRe<Item = T>>),
     DynSource(Rc<dyn DynReSource<Item = T>>),
 }
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ReBorrow<T: 'static>(ReBorrowData<T>);
+pub struct ReBorrow<T: 'static + ?Sized>(ReBorrowData<T>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-enum ReBorrowData<T: 'static> {
+enum ReBorrowData<T: 'static + ?Sized> {
     Dyn(Rc<dyn DynReBorrow<Item = T>>),
     DynSource(Rc<dyn DynReBorrowSource<Item = T>>),
 }
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ReRef<T: 'static>(ReRefData<T>);
+pub struct ReRef<T: 'static + ?Sized>(ReRefData<T>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-enum ReRefData<T: 'static> {
+enum ReRefData<T: 'static + ?Sized> {
     Re(Re<T>),
     ReBorrow(ReBorrow<T>),
     ReRef(Rc<dyn DynReRef<Item = T>>),
@@ -298,6 +300,43 @@ impl<T: 'static> ReRef<T> {
     }
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
         Unbind(Rc::new(ForEachRef::new(self.clone(), f)))
+    }
+}
+
+pub enum ReCow<T: 'static + ToOwned + ?Sized> {
+    Cow(Cow<'static, T>),
+    ReRef(ReRef<T>),
+    ReRefOwned(ReRef<T::Owned>),
+}
+
+pub trait IntoReCow<T: 'static + ToOwned + ?Sized> {
+    fn into_re_cow(self) -> ReCow<T>;
+}
+
+impl<T: 'static + Clone> IntoReCow<T> for &T {
+    fn into_re_cow(self) -> ReCow<T> {
+        ReCow::Cow(Cow::Owned(self.clone()))
+    }
+}
+
+impl<T: 'static + Clone> IntoReCow<T> for T {
+    fn into_re_cow(self) -> ReCow<T> {
+        ReCow::Cow(Cow::Owned(self))
+    }
+}
+impl<T: 'static + Clone> IntoReCow<T> for ReRef<T> {
+    fn into_re_cow(self) -> ReCow<T> {
+        ReCow::ReRef(self)
+    }
+}
+impl<T: 'static + Clone> IntoReCow<T> for Re<T> {
+    fn into_re_cow(self) -> ReCow<T> {
+        self.to_re_ref().into_re_cow()
+    }
+}
+impl<T: 'static + Clone> IntoReCow<T> for ReBorrow<T> {
+    fn into_re_cow(self) -> ReCow<T> {
+        self.to_re_ref().into_re_cow()
     }
 }
 
