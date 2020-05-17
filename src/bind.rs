@@ -49,15 +49,15 @@ impl BindSinks {
     pub fn new() -> Self {
         Self(RefCell::new(BindSinkData::new()))
     }
-    pub fn notify_with(&self, ctx: &NotifyContext) {
+    pub fn notify(&self, ctx: &NotifyContext) {
         let mut sinks = self
             .0
             .try_borrow_mut()
             .expect("`BindSinks::notify` called during notify process.");
         sinks.notify(ctx);
     }
-    pub fn notify(&self) {
-        NotifyContext::with(|ctx| self.notify_with(ctx));
+    pub fn notify_root(&self) {
+        NotifyContext::with(|ctx| self.notify(ctx));
     }
     pub fn is_empty(&self) -> bool {
         if let Ok(sinks) = self.0.try_borrow() {

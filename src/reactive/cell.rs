@@ -25,7 +25,7 @@ impl<T: Copy + 'static> ReCell<T> {
 
     pub fn set(&self, value: T) {
         self.0.value.set(value);
-        self.0.sinks.notify();
+        self.0.sinks.notify_root();
     }
 
     pub fn to_re(&self) -> Re<T> {
@@ -130,7 +130,7 @@ impl<'a, T> DerefMut for RefMut<'a, T> {
 impl<'a, T> Drop for RefMut<'a, T> {
     fn drop(&mut self) {
         if self.modified {
-            self.sinks.notify();
+            self.sinks.notify_root();
         }
     }
 }

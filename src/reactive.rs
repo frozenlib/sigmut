@@ -8,13 +8,7 @@ use self::{cached::*, for_each::*, map_async::*};
 use crate::bind::*;
 use futures::Future;
 use std::{
-    any::Any,
-    borrow::Cow,
-    cell::Ref,
-    cell::RefCell,
-    marker::PhantomData,
-    rc::{Rc, Weak},
-    task::Poll,
+    any::Any, borrow::Cow, cell::Ref, cell::RefCell, marker::PhantomData, rc::Rc, task::Poll,
 };
 
 trait DynRe: 'static {
@@ -410,7 +404,7 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
         }
         s.value = Some(value);
         drop(s);
-        self.sinks.notify();
+        self.sinks.notify_root();
     }
 }
 impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReBorrowSource for DedupBy<T, EqFn> {

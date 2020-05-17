@@ -62,7 +62,7 @@ impl<T: 'static> BindSink for Cached<T> {
         if s.value.is_some() {
             s.value = None;
             s.bindings.clear();
-            self.sinks.notify_with(ctx);
+            self.sinks.notify(ctx);
         }
     }
 }

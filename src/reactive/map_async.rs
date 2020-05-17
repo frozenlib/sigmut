@@ -54,7 +54,7 @@ where
                 let mut s = this.state.borrow_mut();
                 s.value = Poll::Ready(value);
                 drop(s);
-                this.sinks.notify();
+                this.sinks.notify_root();
             }
         }));
     }
@@ -109,7 +109,7 @@ where
             if let Poll::Ready(_) = &s.value {
                 s.value = Poll::Pending;
                 drop(s);
-                self.sinks.notify_with(ctx);
+                self.sinks.notify(ctx);
             }
         }
     }
