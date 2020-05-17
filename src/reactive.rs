@@ -340,6 +340,52 @@ impl<T: 'static + Clone> IntoReCow<T> for ReBorrow<T> {
     }
 }
 
+pub struct ReStr(ReCow<str>);
+
+trait IntoReStr {
+    fn into_re_str(self) -> ReStr;
+}
+impl IntoReStr for Cow<'static, str> {
+    fn into_re_str(self) -> ReStr {
+        ReStr(ReCow::Cow(self))
+    }
+}
+impl IntoReStr for &'static str {
+    fn into_re_str(self) -> ReStr {
+        ReStr(ReCow::Cow(Cow::Borrowed(self)))
+    }
+}
+impl IntoReStr for &'static String {
+    fn into_re_str(self) -> ReStr {
+        ReStr(ReCow::Cow(Cow::Borrowed(&self)))
+    }
+}
+impl IntoReStr for String {
+    fn into_re_str(self) -> ReStr {
+        ReStr(ReCow::Cow(Cow::Owned(self)))
+    }
+}
+impl IntoReStr for ReRef<str> {
+    fn into_re_str(self) -> ReStr {
+        ReStr(ReCow::ReRef(self))
+    }
+}
+impl IntoReStr for ReRef<String> {
+    fn into_re_str(self) -> ReStr {
+        ReStr(ReCow::ReRefOwned(self))
+    }
+}
+impl IntoReStr for ReBorrow<str> {
+    fn into_re_str(self) -> ReStr {
+        todo!()
+    }
+}
+impl IntoReStr for ReBorrow<String> {
+    fn into_re_str(self) -> ReStr {
+        ReStr(ReCow::ReRefOwned(self.to_re_ref()))
+    }
+}
+
 struct DedupBy<T: 'static, EqFn> {
     source: Re<T>,
     eq: EqFn,
