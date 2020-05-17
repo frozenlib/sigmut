@@ -9,19 +9,6 @@ pub struct BindContext {
     bindings: Vec<Binding>,
 }
 impl BindContext {
-    pub fn run<T>(
-        sink: &Rc<impl BindSink>,
-        bindings: &mut Vec<Binding>,
-        f: impl FnOnce(&mut BindContext) -> T,
-    ) -> T {
-        let mut ctx = Self {
-            sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
-            bindings: Vec::new(),
-        };
-        let value = f(&mut ctx);
-        *bindings = ctx.bindings;
-        value
-    }
     pub fn bind(&mut self, source: Rc<impl BindSource>) {
         let sink = self.sink.clone();
         let idx = source.sinks().insert(sink.clone());
@@ -46,6 +33,29 @@ pub struct Binding {
 impl Drop for Binding {
     fn drop(&mut self) {
         self.source.sinks().remove(self.idx, &self.sink);
+    }
+}
+pub struct Bindings(Vec<Binding>);
+
+impl Bindings {
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+    pub fn update<T>(
+        &mut self,
+        sink: &Rc<impl BindSink>,
+        f: impl FnOnce(&mut BindContext) -> T,
+    ) -> T {
+        let mut ctx = BindContext {
+            sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
+            bindings: Vec::new(),
+        };
+        let value = f(&mut ctx);
+        self.0 = ctx.bindings;
+        value
+    }
+    pub fn clear(&mut self) {
+        self.0.clear()
     }
 }
 

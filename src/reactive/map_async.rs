@@ -22,7 +22,7 @@ where
 struct MapAsyncState<T, H> {
     value: Poll<T>,
     handle: Option<H>,
-    bindings: Vec<Binding>,
+    bindings: Bindings,
 }
 
 impl<Fut, Sp> MapAsync<Fut, Sp>
@@ -38,14 +38,14 @@ where
             state: RefCell::new(MapAsyncState {
                 value: Poll::Pending,
                 handle: None,
-                bindings: Vec::new(),
+                bindings: Bindings::new(),
             }),
         }
     }
 
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let fut = BindContext::run(self, &mut s.bindings, |ctx| self.source.get(ctx));
+        let fut = s.bindings.update(self, |ctx| self.source.get(ctx));
         let this = Rc::downgrade(self);
         s.handle = Some(self.sp.spawn_local(async move {
             let value = fut.await;

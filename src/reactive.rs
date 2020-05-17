@@ -378,7 +378,7 @@ struct DedupBy<T: 'static, EqFn> {
 struct DedupByState<T> {
     value: Option<T>,
     is_ready: bool,
-    bindings: Vec<Binding>,
+    bindings: Bindings,
 }
 impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
     fn new(source: Re<T>, eq: EqFn) -> Self {
@@ -389,13 +389,13 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
             state: RefCell::new(DedupByState {
                 value: None,
                 is_ready: false,
-                bindings: Vec::new(),
+                bindings: Bindings::new(),
             }),
         }
     }
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let value = BindContext::run(self, &mut s.bindings, |ctx| self.source.get(ctx));
+        let value = s.bindings.update(self, |ctx| self.source.get(ctx));
         if let Some(value_old) = &s.value {
             if (self.eq)(value_old, &value) {
                 return;
@@ -457,7 +457,7 @@ struct Cache<S> {
     data: RefCell<CacheData<S>>,
 }
 struct CacheData<S> {
-    bindings: Vec<Binding>,
+    bindings: Bindings,
     is_ready: bool,
     state: S,
 }
@@ -474,7 +474,7 @@ impl<S> Cache<S> {
         let rc = Rc::new(Cache {
             sinks: BindSinks::new(),
             data: RefCell::new(CacheData {
-                bindings: Vec::new(),
+                bindings: Bindings::new(),
                 is_ready: false,
                 state,
             }),

@@ -13,7 +13,7 @@ pub struct ForEachRef<T: 'static + ?Sized, F> {
 
 struct ForEachState<F> {
     f: F,
-    bindings: Vec<Binding>,
+    bindings: Bindings,
 }
 
 impl<T: 'static, F: FnMut(T) + 'static> ForEach<T, F> {
@@ -22,7 +22,7 @@ impl<T: 'static, F: FnMut(T) + 'static> ForEach<T, F> {
             source,
             state: RefCell::new(ForEachState {
                 f,
-                bindings: Vec::new(),
+                bindings: Bindings::new(),
             }),
         });
         s.next();
@@ -31,7 +31,7 @@ impl<T: 'static, F: FnMut(T) + 'static> ForEach<T, F> {
 
     fn next(self: &Rc<Self>) {
         let b = &mut *self.state.borrow_mut();
-        let value = BindContext::run(&self, &mut b.bindings, |ctx| self.source.get(ctx));
+        let value = b.bindings.update(self, |ctx| self.source.get(ctx));
         (b.f)(value);
     }
 }
@@ -53,7 +53,7 @@ impl<T: 'static + ?Sized, F: FnMut(&T) + 'static> ForEachRef<T, F> {
             source,
             state: RefCell::new(ForEachState {
                 f,
-                bindings: Vec::new(),
+                bindings: Bindings::new(),
             }),
         });
         s.next();
@@ -63,9 +63,8 @@ impl<T: 'static + ?Sized, F: FnMut(&T) + 'static> ForEachRef<T, F> {
     fn next(self: &Rc<Self>) {
         let b = &mut *self.state.borrow_mut();
         let f = &mut b.f;
-        BindContext::run(&self, &mut b.bindings, |ctx| {
-            self.source.with(ctx, |x| f(x))
-        })
+        b.bindings
+            .update(self, |ctx| self.source.with(ctx, |x| f(x)))
     }
 }
 impl<T: 'static + ?Sized, F: FnMut(&T) + 'static> BindSink for ForEachRef<T, F> {
@@ -95,7 +94,7 @@ struct ForEachByState<U, A, D> {
     attach: A,
     detach: D,
     value: Option<U>,
-    bindings: Vec<Binding>,
+    bindings: Bindings,
 }
 
 impl<T, U, A, D> ForEachBy<T, U, A, D>
@@ -110,7 +109,7 @@ where
                 attach,
                 detach,
                 value: None,
-                bindings: Vec::new(),
+                bindings: Bindings::new(),
             }),
         });
         s.next();
@@ -120,9 +119,9 @@ where
     fn next(self: &Rc<Self>) {
         let mut b = &mut *self.state.borrow_mut();
         let attach = &mut b.attach;
-        b.value = BindContext::run(self, &mut b.bindings, |ctx| {
-            Some(attach(self.source.get(ctx)))
-        });
+        b.value = b
+            .bindings
+            .update(self, |ctx| Some(attach(self.source.get(ctx))));
     }
 }
 impl<U, A, D> ForEachByState<U, A, D>

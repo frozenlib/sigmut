@@ -10,7 +10,7 @@ pub struct Cached<T: 'static> {
 
 struct CachedState<T> {
     value: Option<T>,
-    bindings: Vec<Binding>,
+    bindings: Bindings,
 }
 impl<T> Cached<T> {
     pub fn new(s: Re<T>) -> Self {
@@ -19,7 +19,7 @@ impl<T> Cached<T> {
             sinks: BindSinks::new(),
             state: RefCell::new(CachedState {
                 value: None,
-                bindings: Vec::new(),
+                bindings: Bindings::new(),
             }),
         }
     }
@@ -39,7 +39,7 @@ impl<T: 'static> DynReBorrowSource for Cached<T> {
             drop(s);
             {
                 let mut s = self.state.borrow_mut();
-                s.value = BindContext::run(&rc_self, &mut s.bindings, |ctx| Some(self.s.get(ctx)));
+                s.value = s.bindings.update(&rc_self, |ctx| Some(self.s.get(ctx)));
             }
             s = self.state.borrow();
         }
