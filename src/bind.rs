@@ -10,7 +10,7 @@ pub struct BindContext {
 impl BindContext {
     pub fn bind(&mut self, source: Rc<impl BindSource>) {
         let sink = self.sink.clone();
-        let idx = source.sinks().insert(sink.clone());
+        let idx = source.attach_sink(sink.clone());
         let binding = Binding { source, sink, idx };
         self.bindings.push(binding);
     }
@@ -18,6 +18,12 @@ impl BindContext {
 
 pub trait BindSource: 'static {
     fn sinks(&self) -> &BindSinks;
+    fn attach_sink(&self, sink: Weak<dyn BindSink>) -> usize {
+        self.sinks().attach(sink)
+    }
+    fn detach_sink(&self, idx: usize, sink: &Weak<dyn BindSink>) {
+        self.sinks().detach(idx, sink)
+    }
 }
 
 pub trait BindSink: 'static {
@@ -31,7 +37,7 @@ pub struct Binding {
 }
 impl Drop for Binding {
     fn drop(&mut self) {
-        self.source.sinks().remove(self.idx, &self.sink);
+        self.source.detach_sink(self.idx, &self.sink);
     }
 }
 pub struct Bindings(Vec<Binding>);
@@ -82,13 +88,13 @@ impl BindSinks {
         NotifyContext::with(|ctx| self.notify(ctx));
     }
     pub fn is_empty(&self) -> bool {
-        self.0.borrow().is_empty()
+        self.0.borrow_mut().is_empty()
     }
-    fn insert(&self, sink: Weak<dyn BindSink>) -> usize {
-        self.0.borrow_mut().insert(sink)
+    pub fn attach(&self, sink: Weak<dyn BindSink>) -> usize {
+        self.0.borrow_mut().attach(sink)
     }
-    fn remove(&self, idx: usize, sink: &Weak<dyn BindSink>) {
-        self.0.borrow_mut().remove(idx, sink);
+    pub fn detach(&self, idx: usize, sink: &Weak<dyn BindSink>) {
+        self.0.borrow_mut().detach(idx, sink);
     }
 }
 
@@ -103,7 +109,7 @@ impl BindSinkData {
             idx_next: 0,
         }
     }
-    fn insert(&mut self, sink: Weak<dyn BindSink>) -> usize {
+    fn attach(&mut self, sink: Weak<dyn BindSink>) -> usize {
         while self.idx_next < self.sinks.len() {
             if self.sinks[self.idx_next].strong_count() == 0 {
                 let idx = self.idx_next;
@@ -116,7 +122,7 @@ impl BindSinkData {
         self.sinks.push(sink);
         idx
     }
-    fn remove(&mut self, idx: usize, sink: &Weak<dyn BindSink>) {
+    fn detach(&mut self, idx: usize, sink: &Weak<dyn BindSink>) {
         if let Some(s) = self.sinks.get_mut(idx) {
             if Weak::ptr_eq(s, sink) {
                 *s = freed_sink();
@@ -125,8 +131,16 @@ impl BindSinkData {
         }
     }
 
-    fn is_empty(&self) -> bool {
-        self.sinks.iter().all(|x| x.strong_count() == 0)
+    fn is_empty(&mut self) -> bool {
+        let remove_len = self
+            .sinks
+            .iter()
+            .rev()
+            .take_while(|sink| sink.strong_count() == 0)
+            .count();
+        let new_len = self.sinks.len() - remove_len;
+        self.sinks.resize_with(new_len, || unreachable!());
+        self.sinks.is_empty()
     }
 }
 fn freed_sink() -> Weak<dyn BindSink> {
