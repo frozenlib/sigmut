@@ -32,7 +32,7 @@ trait DynReBorrow: 'static {
     fn dyn_borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item>;
 }
 trait DynReBorrowSource: Any + 'static {
-    type Item;
+    type Item: ?Sized;
 
     fn dyn_borrow(
         &self,
@@ -50,7 +50,7 @@ trait DynReBorrowSource: Any + 'static {
 }
 
 trait DynReRef: 'static {
-    type Item;
+    type Item: ?Sized;
     fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&Self::Item));
 }
 
@@ -182,7 +182,7 @@ impl<T: 'static> Re<Re<T>> {
     }
 }
 
-impl<T: 'static> ReBorrow<T> {
+impl<T: 'static + ?Sized> ReBorrow<T> {
     pub fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
         match &self.0 {
             ReBorrowData::Dyn(rc) => rc.dyn_borrow(ctx),
@@ -190,7 +190,10 @@ impl<T: 'static> ReBorrow<T> {
         }
     }
 
-    pub fn constant(value: T) -> Self {
+    pub fn constant(value: T) -> Self
+    where
+        T: Sized,
+    {
         Self::new(RefCell::new(value), |cell, _ctx| cell.borrow())
     }
     pub fn new<S, F>(this: S, borrow: F) -> Self
@@ -204,7 +207,7 @@ impl<T: 'static> ReBorrow<T> {
         }
         impl<T, S, F> DynReBorrow for ReBorrowFn<S, F>
         where
-            T: 'static,
+            T: 'static + ?Sized,
             S: 'static,
             for<'a> F: Fn(&'a S, &mut BindContext) -> Ref<'a, T> + 'static,
         {
@@ -243,7 +246,7 @@ impl<T: 'static> ReBorrow<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(&*this.borrow(ctx)))
     }
 }
-impl<T: 'static> ReRef<T> {
+impl<T: 'static + ?Sized> ReRef<T> {
     pub fn with<U>(&self, ctx: &mut BindContext, mut f: impl FnMut(&T) -> U) -> U {
         let mut output = None;
         self.0.dyn_with(ctx, &mut |value| output = Some(f(value)));
@@ -253,7 +256,7 @@ impl<T: 'static> ReRef<T> {
         this: S,
         f: impl Fn(&S, &mut BindContext, &mut dyn FnMut(&T)) + 'static,
     ) -> Self {
-        struct ReRefFn<S, T, F> {
+        struct ReRefFn<S, T: ?Sized, F> {
             this: S,
             f: F,
             _phantom: PhantomData<fn(&fn(&T))>,
@@ -261,7 +264,7 @@ impl<T: 'static> ReRef<T> {
         impl<S, T, F> DynReRef for ReRefFn<S, T, F>
         where
             S: 'static,
-            T: 'static,
+            T: 'static + ?Sized,
             F: Fn(&S, &mut BindContext, &mut dyn FnMut(&T)) + 'static,
         {
             type Item = T;
@@ -363,7 +366,7 @@ impl IntoReStr for ReRef<String> {
 }
 impl IntoReStr for ReBorrow<str> {
     fn into_re_str(self) -> ReStr {
-        todo!()
+        ReStr(ReCow::ReRef(self.to_re_ref()))
     }
 }
 impl IntoReStr for ReBorrow<String> {
