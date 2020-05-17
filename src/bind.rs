@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::cmp::min;
 use std::mem::drop;
-use std::mem::replace;
 use std::rc::{Rc, Weak};
 
 pub struct BindContext {

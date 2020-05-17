@@ -451,39 +451,3 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> Task for DedupBy<T, EqFn> {
         self.ready();
     }
 }
-
-struct Cache<S> {
-    sinks: BindSinks,
-    data: RefCell<CacheData<S>>,
-}
-struct CacheData<S> {
-    bindings: Bindings,
-    is_ready: bool,
-    state: S,
-}
-trait CacheState: Sized {
-    type Item;
-
-    fn notify(&mut self) -> bool;
-    fn ready(&mut self, rs_self: Rc<Cache<Self>>);
-    fn value(&self) -> &Self::Item;
-}
-
-impl<S> Cache<S> {
-    pub fn new(state: S) -> Rc<Self> {
-        let rc = Rc::new(Cache {
-            sinks: BindSinks::new(),
-            data: RefCell::new(CacheData {
-                bindings: Bindings::new(),
-                is_ready: false,
-                state,
-            }),
-        });
-        rc
-    }
-}
-impl<S: 'static> BindSource for Cache<S> {
-    fn sinks(&self) -> &BindSinks {
-        &self.sinks
-    }
-}
