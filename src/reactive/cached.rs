@@ -23,15 +23,6 @@ impl<T> Cached<T> {
             }),
         }
     }
-    fn reset(&self) -> bool {
-        let mut s = self.state.borrow_mut();
-        let is_some = s.value.is_some();
-        if is_some {
-            s.value = None;
-            s.bindings.clear();
-        }
-        is_some
-    }
 }
 impl<T: 'static> DynReBorrowSource for Cached<T> {
     type Item = T;
@@ -48,6 +39,7 @@ impl<T: 'static> DynReBorrowSource for Cached<T> {
             drop(s);
             let mut b = self.state.borrow_mut();
             b.value = b.bindings.update(&rc_self, |ctx| Some(self.s.get(ctx)));
+            drop(b);
             s = self.state.borrow();
         }
         return Ref::map(s, |s| s.value.as_ref().unwrap());
@@ -64,13 +56,17 @@ impl<T: 'static> BindSource for Cached<T> {
     fn detach_sink(&self, idx: usize, sink: &std::rc::Weak<dyn BindSink>) {
         self.sinks().detach(idx, sink);
         if self.sinks().is_empty() {
-            self.reset();
+            let mut s = self.state.borrow_mut();
+            s.bindings.clear();
+            s.value = None;
         }
     }
 }
 impl<T: 'static> BindSink for Cached<T> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        if self.reset() {
+        let mut s = self.state.borrow_mut();
+        if s.value.take().is_some() {
+            drop(s);
             self.sinks.notify(ctx);
         }
     }
