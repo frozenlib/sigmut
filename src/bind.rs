@@ -66,32 +66,30 @@ impl BindSinks {
         Self(RefCell::new(BindSinkData::new()))
     }
     pub fn notify(&self, ctx: &NotifyContext) {
-        let mut sinks = self
-            .0
-            .try_borrow_mut()
-            .expect("`BindSinks::notify` called during notify process.");
-        sinks.notify(ctx);
+        let mut b = self.0.borrow();
+        for idx in 0.. {
+            if let Some(sink) = b.sinks.get(idx) {
+                if let Some(sink) = Weak::upgrade(sink) {
+                    drop(b);
+                    sink.notify(ctx);
+                    b = self.0.borrow();
+                }
+            } else {
+                break;
+            }
+        }
     }
     pub fn notify_root(&self) {
         NotifyContext::with(|ctx| self.notify(ctx));
     }
     pub fn is_empty(&self) -> bool {
-        if let Ok(sinks) = self.0.try_borrow() {
-            sinks.is_empty()
-        } else {
-            true
-        }
+        self.0.borrow().is_empty()
     }
     fn insert(&self, sink: Weak<dyn BindSink>) -> usize {
-        self.0
-            .try_borrow_mut()
-            .expect("`BindSinks::insert` called during notify process.")
-            .insert(sink)
+        self.0.borrow_mut().insert(sink)
     }
     fn remove(&self, idx: usize, sink: &Weak<dyn BindSink>) {
-        if let Ok(mut sinks) = self.0.try_borrow_mut() {
-            sinks.remove(idx, sink);
-        }
+        self.0.borrow_mut().remove(idx, sink);
     }
 }
 
@@ -128,15 +126,6 @@ impl BindSinkData {
         }
     }
 
-    fn notify(&mut self, ctx: &NotifyContext) {
-        for s in &mut self.sinks {
-            if let Some(sink) = Weak::upgrade(&replace(s, freed_sink())) {
-                sink.notify(ctx);
-            }
-        }
-        self.sinks.clear();
-        self.idx_next = 0;
-    }
     fn is_empty(&self) -> bool {
         self.sinks.iter().all(|x| x.strong_count() == 0)
     }
