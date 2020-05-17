@@ -39,8 +39,7 @@ impl<T: 'static> DynReBorrowSource for Cached<T> {
             drop(s);
             {
                 let mut s = self.state.borrow_mut();
-                let mut ctx = BindContext::new(&rc_self, &mut s.bindings);
-                s.value = Some(self.s.get(&mut ctx));
+                s.value = BindContext::run(&rc_self, &mut s.bindings, |ctx| Some(self.s.get(ctx)));
             }
             s = self.state.borrow();
         }

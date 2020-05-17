@@ -45,8 +45,7 @@ where
 
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let mut ctx = BindContext::new(self, &mut s.bindings);
-        let fut = self.source.get(&mut ctx);
+        let fut = BindContext::run(self, &mut s.bindings, |ctx| self.source.get(ctx));
         let this = Rc::downgrade(self);
         s.handle = Some(self.sp.spawn_local(async move {
             let value = fut.await;

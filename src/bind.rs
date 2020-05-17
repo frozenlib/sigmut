@@ -4,17 +4,23 @@ use std::mem::drop;
 use std::mem::replace;
 use std::rc::{Rc, Weak};
 
-pub struct BindContext<'a> {
+pub struct BindContext {
     sink: Weak<dyn BindSink>,
-    bindings: &'a mut Vec<Binding>,
+    bindings: Vec<Binding>,
 }
-impl<'a> BindContext<'a> {
-    pub fn new(sink: &Rc<impl BindSink>, bindings: &'a mut Vec<Binding>) -> Self {
-        debug_assert!(bindings.is_empty());
-        Self {
+impl BindContext {
+    pub fn run<T>(
+        sink: &Rc<impl BindSink>,
+        bindings: &mut Vec<Binding>,
+        f: impl FnOnce(&mut BindContext) -> T,
+    ) -> T {
+        let mut ctx = Self {
             sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
-            bindings,
-        }
+            bindings: Vec::new(),
+        };
+        let value = f(&mut ctx);
+        *bindings = ctx.bindings;
+        value
     }
     pub fn bind(&mut self, source: Rc<impl BindSource>) {
         let sink = self.sink.clone();

@@ -31,8 +31,8 @@ impl<T: 'static, F: FnMut(T) + 'static> ForEach<T, F> {
 
     fn next(self: &Rc<Self>) {
         let b = &mut *self.state.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut b.bindings);
-        (b.f)(self.source.get(&mut ctx));
+        let value = BindContext::run(&self, &mut b.bindings, |ctx| self.source.get(ctx));
+        (b.f)(value);
     }
 }
 impl<T: 'static, F: FnMut(T) + 'static> BindSink for ForEach<T, F> {
@@ -62,9 +62,10 @@ impl<T: 'static + ?Sized, F: FnMut(&T) + 'static> ForEachRef<T, F> {
 
     fn next(self: &Rc<Self>) {
         let b = &mut *self.state.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut b.bindings);
         let f = &mut b.f;
-        self.source.with(&mut ctx, |x| f(x));
+        BindContext::run(&self, &mut b.bindings, |ctx| {
+            self.source.with(ctx, |x| f(x))
+        })
     }
 }
 impl<T: 'static + ?Sized, F: FnMut(&T) + 'static> BindSink for ForEachRef<T, F> {
@@ -118,8 +119,10 @@ where
 
     fn next(self: &Rc<Self>) {
         let mut b = &mut *self.state.borrow_mut();
-        let mut ctx = BindContext::new(&self, &mut b.bindings);
-        b.value = Some((b.attach)(self.source.get(&mut ctx)));
+        let attach = &mut b.attach;
+        b.value = BindContext::run(self, &mut b.bindings, |ctx| {
+            Some(attach(self.source.get(ctx)))
+        });
     }
 }
 impl<U, A, D> ForEachByState<U, A, D>
