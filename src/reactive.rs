@@ -51,7 +51,7 @@ trait DynReBorrowSource: Any + 'static {
 
 trait DynReRef: 'static {
     type Item;
-    fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnOnce(&Self::Item));
+    fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&Self::Item));
 }
 
 pub struct Unbind(Rc<dyn Any>);
@@ -86,15 +86,7 @@ enum ReBorrowData<T: 'static + ?Sized> {
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ReRef<T: 'static + ?Sized>(ReRefData<T>);
-
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
-enum ReRefData<T: 'static + ?Sized> {
-    Re(Re<T>),
-    ReBorrow(ReBorrow<T>),
-    ReRef(Rc<dyn DynReRef<Item = T>>),
-}
+pub struct ReRef<T: 'static + ?Sized>(Rc<dyn DynReRef<Item = T>>);
 
 impl<T: 'static> Re<T> {
     pub fn get(&self, ctx: &mut BindContext) -> T {
@@ -180,7 +172,7 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
-        ReRef(ReRefData::Re(self.clone()))
+        ReRef::new(self.clone(), |this, ctx, f| f(&this.get(ctx)))
     }
 }
 impl<T: 'static> Re<Re<T>> {
@@ -248,24 +240,18 @@ impl<T: 'static> ReBorrow<T> {
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
-        ReRef(ReRefData::ReBorrow(self.clone()))
+        ReRef::new(self.clone(), |this, ctx, f| f(&*this.borrow(ctx)))
     }
 }
 impl<T: 'static> ReRef<T> {
-    pub fn with<U>(&self, ctx: &mut BindContext, f: impl FnOnce(&T) -> U) -> U {
-        match &self.0 {
-            ReRefData::Re(rc) => f(&rc.get(ctx)),
-            ReRefData::ReBorrow(rc) => f(&rc.borrow(ctx)),
-            ReRefData::ReRef(rc) => {
-                let mut output = None;
-                rc.dyn_with(ctx, &mut |value| output = Some(f(value)));
-                output.unwrap()
-            }
-        }
+    pub fn with<U>(&self, ctx: &mut BindContext, mut f: impl FnMut(&T) -> U) -> U {
+        let mut output = None;
+        self.0.dyn_with(ctx, &mut |value| output = Some(f(value)));
+        output.unwrap()
     }
     pub fn new<S: 'static>(
         this: S,
-        f: impl Fn(&S, &mut BindContext, &dyn FnOnce(&T)) + 'static,
+        f: impl Fn(&S, &mut BindContext, &mut dyn FnMut(&T)) + 'static,
     ) -> Self {
         struct ReRefFn<S, T, F> {
             this: S,
@@ -276,11 +262,11 @@ impl<T: 'static> ReRef<T> {
         where
             S: 'static,
             T: 'static,
-            F: Fn(&S, &mut BindContext, &dyn FnOnce(&T)) + 'static,
+            F: Fn(&S, &mut BindContext, &mut dyn FnMut(&T)) + 'static,
         {
             type Item = T;
 
-            fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnOnce(&T)) {
+            fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&T)) {
                 (self.f)(&self.this, ctx, f)
             }
         }
@@ -291,7 +277,7 @@ impl<T: 'static> ReRef<T> {
         })
     }
     fn from_dyn(inner: impl DynReRef<Item = T>) -> Self {
-        Self(ReRefData::ReRef(Rc::new(inner)))
+        Self(Rc::new(inner))
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
