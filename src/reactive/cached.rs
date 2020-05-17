@@ -25,13 +25,12 @@ impl<T> Cached<T> {
     }
     fn reset(&self) -> bool {
         let mut s = self.state.borrow_mut();
-        if s.value.is_some() {
+        let is_some = s.value.is_some();
+        if is_some {
             s.value = None;
             s.bindings.clear();
-            true
-        } else {
-            false
         }
+        is_some
     }
 }
 impl<T: 'static> DynReBorrowSource for Cached<T> {
@@ -47,10 +46,8 @@ impl<T: 'static> DynReBorrowSource for Cached<T> {
         let mut s = self.state.borrow();
         if s.value.is_none() {
             drop(s);
-            {
-                let mut s = self.state.borrow_mut();
-                s.value = s.bindings.update(&rc_self, |ctx| Some(self.s.get(ctx)));
-            }
+            let mut b = self.state.borrow_mut();
+            b.value = b.bindings.update(&rc_self, |ctx| Some(self.s.get(ctx)));
             s = self.state.borrow();
         }
         return Ref::map(s, |s| s.value.as_ref().unwrap());
