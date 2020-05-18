@@ -43,9 +43,9 @@ where
         }
     }
 
-    fn ready(self: &Rc<Self>) {
+    fn ready(self: &Rc<Self>, rc: &ReactiveContext) {
         let mut s = self.state.borrow_mut();
-        let fut = s.bindings.update(self, |ctx| self.source.get(ctx));
+        let fut = s.bindings.update(rc, self, |ctx| self.source.get(ctx));
         let this = Rc::downgrade(self);
         s.handle = Some(self.sp.spawn_local(async move {
             let value = fut.await;
