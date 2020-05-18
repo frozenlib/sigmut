@@ -274,8 +274,10 @@ impl ReactiveContext {
     fn end_notify(&self, lazy_notify_sinks: Option<Vec<Weak<dyn BindSink>>>) {
         let mut b = self.borrow_mut();
         if let Some(s) = lazy_notify_sinks {
+            debug_assert!(s.is_empty());
             b.lazy_notify_sinks = s;
         }
+        b.state = ReactiveState::None;
         while let Some(task) = b.lazy_tasks.pop() {
             if let Some(task) = Weak::upgrade(&task) {
                 drop(b);
@@ -283,7 +285,6 @@ impl ReactiveContext {
                 b = self.borrow_mut();
             }
         }
-        b.state = ReactiveState::None;
     }
     fn end_bind(&self) {
         let mut b = self.borrow_mut();
