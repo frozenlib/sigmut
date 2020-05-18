@@ -395,7 +395,7 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
     }
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
-        let value = s.bindings.update(self, |ctx| self.source.get(ctx));
+        let value = s.bindings.update_root(self, |ctx| self.source.get(ctx));
         if let Some(value_old) = &s.value {
             if (self.eq)(value_old, &value) {
                 return;

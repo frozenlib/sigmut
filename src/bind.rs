@@ -52,9 +52,18 @@ impl Bindings {
         sink: &Rc<impl BindSink>,
         f: impl FnOnce(&mut BindContext) -> T,
     ) -> T {
-        ReactiveContext::update_root(|scope| self.update(scope, sink, f))
+        ReactiveContext::update_root(|scope| self.update_with(scope, sink, f))
     }
     pub fn update<T>(
+        &mut self,
+        ctx: &BindContext,
+        sink: &Rc<impl BindSink>,
+        f: impl FnOnce(&mut BindContext) -> T,
+    ) -> T {
+        self.update_with(ctx.scope, sink, f)
+    }
+
+    fn update_with<T>(
         &mut self,
         scope: &BindContextScope,
         sink: &Rc<impl BindSink>,
@@ -236,7 +245,7 @@ impl ReactiveContext {
         });
     }
     fn update_root<T>(f: impl FnOnce(&BindContextScope) -> T) -> T {
-        Self::with(|this| {
+        Self::with(move |this| {
             let mut b = this.borrow_mut();
             let value;
             match b.state {
@@ -296,7 +305,7 @@ impl ReactiveContext {
         }
     }
 
-    fn with<T>(f: impl Fn(&Self) -> T) -> T {
+    fn with<T>(f: impl FnOnce(&Self) -> T) -> T {
         thread_local!(static CTX: ReactiveContext = ReactiveContext::new());
         CTX.with(|data| f(data))
     }

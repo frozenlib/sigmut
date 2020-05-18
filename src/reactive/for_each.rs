@@ -31,7 +31,7 @@ impl<T: 'static, F: FnMut(T) + 'static> ForEach<T, F> {
 
     fn next(self: &Rc<Self>) {
         let b = &mut *self.state.borrow_mut();
-        let value = b.bindings.update(self, |ctx| self.source.get(ctx));
+        let value = b.bindings.update_root(self, |ctx| self.source.get(ctx));
         (b.f)(value);
     }
 }
@@ -64,7 +64,7 @@ impl<T: 'static + ?Sized, F: FnMut(&T) + 'static> ForEachRef<T, F> {
         let b = &mut *self.state.borrow_mut();
         let f = &mut b.f;
         b.bindings
-            .update(self, |ctx| self.source.with(ctx, |x| f(x)))
+            .update_root(self, |ctx| self.source.with(ctx, |x| f(x)))
     }
 }
 impl<T: 'static + ?Sized, F: FnMut(&T) + 'static> BindSink for ForEachRef<T, F> {
@@ -121,7 +121,7 @@ where
         let attach = &mut b.attach;
         b.value = b
             .bindings
-            .update(self, |ctx| Some(attach(self.source.get(ctx))));
+            .update_root(self, |ctx| Some(attach(self.source.get(ctx))));
     }
 }
 impl<U, A, D> ForEachByState<U, A, D>

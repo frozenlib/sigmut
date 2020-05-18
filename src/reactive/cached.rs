@@ -38,7 +38,9 @@ impl<T: 'static> DynReBorrowSource for Cached<T> {
         if s.value.is_none() {
             drop(s);
             let mut b = self.state.borrow_mut();
-            b.value = b.bindings.update(&rc_self, |ctx| Some(self.s.get(ctx)));
+            b.value = b
+                .bindings
+                .update(ctx, &rc_self, |ctx| Some(self.s.get(ctx)));
             drop(b);
             s = self.state.borrow();
         }
