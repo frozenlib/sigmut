@@ -300,7 +300,6 @@ impl ReactiveContext {
                 }
             }
             sinks.clear();
-            b = self.borrow_mut();
             self.end_notify(Some(sinks));
         }
     }
