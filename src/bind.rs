@@ -141,6 +141,7 @@ impl BindSinkData {
                 self.idx_next += 1;
                 return idx;
             }
+            self.idx_next += 1;
         }
         let idx = self.sinks.len();
         self.sinks.push(sink);

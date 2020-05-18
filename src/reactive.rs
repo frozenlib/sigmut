@@ -395,7 +395,11 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
     }
     fn ready(self: &Rc<Self>) {
         let mut s = self.state.borrow_mut();
+        if s.is_ready {
+            return;
+        }
         let value = s.bindings.update_root(self, |ctx| self.source.get(ctx));
+        s.is_ready = true;
         if let Some(value_old) = &s.value {
             if (self.eq)(value_old, &value) {
                 return;
@@ -416,7 +420,7 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReBorrowSource for Dedup
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut s = self.state.borrow();
-        if s.is_ready {
+        if !s.is_ready {
             drop(s);
             rc_self.ready();
             s = self.state.borrow();
@@ -433,13 +437,21 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> BindSource for DedupBy<T, E
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
+    fn detach_sink(&self, idx: usize, sink: &std::rc::Weak<dyn BindSink>) {
+        self.sinks.detach(idx, sink);
+        if self.sinks.is_empty() {
+            let mut b = self.state.borrow_mut();
+            b.is_ready = false;
+            b.value = None;
+            b.bindings.clear();
+        }
+    }
 }
 impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> BindSink for DedupBy<T, EqFn> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        let mut s = self.state.borrow_mut();
-        if s.is_ready {
-            s.is_ready = false;
-            s.bindings.clear();
+        let mut b = self.state.borrow_mut();
+        if b.is_ready {
+            b.is_ready = false;
             if !self.sinks.is_empty() {
                 ctx.spawn(Rc::downgrade(&self));
             }
