@@ -17,8 +17,8 @@ fn re_cell() {
 fn re_ref_cell() {
     let cell = ReRefCell::new(1);
     let r = record(&cell.to_re_borrow().cloned());
-    *cell.borrow_mut() = 5;
-    *cell.borrow_mut() = 10;
+    cell.set_and_update(5);
+    cell.set_and_update(10);
 
     assert_eq!(r.finish(), vec![1, 5, 10]);
 }
