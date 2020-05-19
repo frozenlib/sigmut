@@ -9,9 +9,9 @@ fn main() {
         //
     });
 
-    cell.set(5);
-    cell.set(5);
-    cell.set(6);
-    cell.set(6);
-    cell.set(5);
+    cell.set_and_update(5);
+    cell.set_and_update(5);
+    cell.set_and_update(6);
+    cell.set_and_update(6);
+    cell.set_and_update(5);
 }

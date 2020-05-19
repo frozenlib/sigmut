@@ -1,5 +1,7 @@
+mod test_utils;
+
+use self::test_utils::*;
 use reactive_fn::*;
-use std::{cell::RefCell, rc::Rc};
 
 #[test]
 fn test_for_each() {
@@ -7,8 +9,8 @@ fn test_for_each() {
     let re = cell.to_re();
     let r = record(&re);
 
-    cell.set(5);
-    cell.set(10);
+    cell.set_and_update(5);
+    cell.set_and_update(10);
 
     assert_eq!(r.finish(), vec![0, 5, 10]);
 }
@@ -19,8 +21,8 @@ fn test_map() {
     let re = cell.to_re().map(|x| x + 1);
     let r = record(&re);
 
-    cell.set(5);
-    cell.set(10);
+    cell.set_and_update(5);
+    cell.set_and_update(10);
 
     assert_eq!(r.finish(), vec![1, 6, 11]);
 }
@@ -36,8 +38,8 @@ fn test_cell2() {
     };
     let r = record(&re);
 
-    cell1.set(5);
-    cell2.set(10);
+    cell1.set_and_update(5);
+    cell2.set_and_update(10);
 
     assert_eq!(r.finish(), vec![1 + 2, 5 + 2, 5 + 10]);
 }
@@ -47,8 +49,8 @@ fn test_cahced() {
     let re = cell.to_re().map(|x| x + 1).cached().cloned();
     let r = record(&re);
 
-    cell.set(5);
-    cell.set(10);
+    cell.set_and_update(5);
+    cell.set_and_update(10);
 
     assert_eq!(r.finish(), vec![1, 6, 11]);
 }
@@ -59,8 +61,8 @@ fn test_same_value() {
     let re = cell.to_re();
     let r = record(&re);
 
-    cell.set(5);
-    cell.set(5);
+    cell.set_and_update(5);
+    cell.set_and_update(5);
 
     assert_eq!(r.finish(), vec![5, 5, 5]);
 }
@@ -70,35 +72,11 @@ fn test_dedup() {
     let re = cell.to_re().dedup().cloned();
     let r = record(&re);
 
-    cell.set(5);
-    cell.set(5);
-    cell.set(6);
-    cell.set(6);
-    cell.set(5);
+    cell.set_and_update(5);
+    cell.set_and_update(5);
+    cell.set_and_update(6);
+    cell.set_and_update(6);
+    cell.set_and_update(5);
 
     assert_eq!(r.finish(), vec![5, 6, 5]);
-}
-
-struct Recorder<T> {
-    rc: Rc<RefCell<Vec<T>>>,
-    unbind: Unbind,
-}
-fn record<T>(s: &Re<T>) -> Recorder<T> {
-    let rc = Rc::new(RefCell::new(Vec::new()));
-    let r = rc.clone();
-    let unbind = s.for_each(move |x| {
-        r.borrow_mut().push(x);
-    });
-    Recorder { rc, unbind }
-}
-impl<T> Recorder<T> {
-    fn finish(self) -> Vec<T> {
-        let Recorder { rc, unbind } = self;
-        drop(unbind);
-        if let Ok(cell) = Rc::try_unwrap(rc) {
-            cell.into_inner()
-        } else {
-            panic!("for_each not complated.");
-        }
-    }
 }

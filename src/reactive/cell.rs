@@ -23,7 +23,12 @@ impl<T: Copy + 'static> ReCell<T> {
         self.0.get(ctx)
     }
 
-    pub fn set(&self, value: T) {
+    pub fn set(&self, value: T, ctx: &NotifyContext) {
+        self.0.value.set(value);
+        self.0.sinks.notify(ctx);
+    }
+
+    pub fn set_and_update(&self, value: T) {
         self.0.value.set(value);
         self.0.sinks.notify_root();
     }
@@ -61,21 +66,34 @@ impl<T: Copy + std::fmt::Debug> std::fmt::Debug for ReCell<T> {
 }
 
 /// A `RefCell` like type that implement `ReactiveRef`.
-pub struct ReBorrowCell<T>(Rc<ReBorrowCellData<T>>);
-struct ReBorrowCellData<T> {
+pub struct ReRefCell<T>(Rc<ReRefCellData<T>>);
+struct ReRefCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,
 }
-impl<T: 'static> ReBorrowCell<T> {
-    pub fn borrow_mut(&self) -> RefMut<T> {
+impl<T: 'static> ReRefCell<T> {
+    pub fn new(value: T) -> Self {
+        Self(Rc::new(ReRefCellData {
+            value: RefCell::new(value),
+            sinks: BindSinks::new(),
+        }))
+    }
+    pub fn borrow_mut<'a>(&'a self, ctx: &'a NotifyContext) -> RefMut<'a, T> {
         RefMut {
+            ctx,
             b: self.0.value.borrow_mut(),
             sinks: &self.0.sinks,
             modified: false,
         }
     }
+    pub fn to_re_ref(&self) -> ReRef<T> {
+        self.to_re_borrow().to_re_ref()
+    }
+    pub fn to_re_borrow(&self) -> ReBorrow<T> {
+        ReBorrow(ReBorrowData::DynSource(self.0.clone()))
+    }
 }
-impl<T: 'static> DynReBorrowSource for ReBorrowCellData<T> {
+impl<T: 'static> DynReBorrowSource for ReRefCellData<T> {
     type Item = T;
 
     fn dyn_borrow(
@@ -92,17 +110,17 @@ impl<T: 'static> DynReBorrowSource for ReBorrowCellData<T> {
     }
 }
 
-impl<T: 'static> BindSource for ReBorrowCellData<T> {
+impl<T: 'static> BindSource for ReRefCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<T> Clone for ReBorrowCell<T> {
+impl<T> Clone for ReRefCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
-impl<T: std::fmt::Debug> std::fmt::Debug for ReBorrowCell<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for ReRefCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.0.value, f)
     }
@@ -110,6 +128,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for ReBorrowCell<T> {
 
 /// A wrapper type for a mutably borrowed value from a `BindRefCell<T>`.
 pub struct RefMut<'a, T> {
+    ctx: &'a NotifyContext,
     b: std::cell::RefMut<'a, T>,
     sinks: &'a BindSinks,
     modified: bool,
@@ -130,7 +149,7 @@ impl<'a, T> DerefMut for RefMut<'a, T> {
 impl<'a, T> Drop for RefMut<'a, T> {
     fn drop(&mut self) {
         if self.modified {
-            self.sinks.notify_root();
+            self.sinks.notify(self.ctx);
         }
     }
 }
