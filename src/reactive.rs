@@ -141,6 +141,19 @@ impl<T: 'static> Re<T> {
             |x| x,
         ))
     }
+    pub fn scan<St: 'static>(
+        &self,
+        initial_state: St,
+        f: impl Fn(St, T) -> St + 'static,
+    ) -> ReBorrow<St> {
+        let this = self.clone();
+        ReBorrow::from_dyn_source(Scan::new(
+            ScanState::Unloaded(initial_state),
+            move |st, ctx| f(st, this.get(ctx)),
+            |st| st,
+            |st| st,
+        ))
+    }
 
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
         ReBorrow::from_dyn_source(DedupBy::new(self.clone(), eq))

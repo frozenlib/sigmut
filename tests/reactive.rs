@@ -71,6 +71,19 @@ fn re_cahced() {
     assert_eq!(r.finish(), vec![1, 6, 11]);
 }
 
+#[test]
+fn re_scan() {
+    let cell = ReCell::new(2);
+    let re = cell.to_re().scan(10, |s, x| s + x).cloned();
+    let r = record(&re);
+
+    cell.set_and_update(3);
+    cell.set_and_update(4);
+    cell.set_and_update(5);
+
+    assert_eq!(r.finish(), vec![12, 15, 19, 24]);
+}
+
 // =========================================
 
 #[test]
