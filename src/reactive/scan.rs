@@ -90,11 +90,11 @@ where
         let mut s = self.data.borrow();
         if let Some(ScanState::Unloaded(_)) = s.state {
             drop(s);
-            let mut b = self.data.borrow_mut();
-            let d = &mut *b;
-            let load = &mut d.load;
-            ScanState::load(&mut d.state, |state| load(state, ctx));
-            drop(b);
+            {
+                let d = &mut *self.data.borrow_mut();
+                let load = &mut d.load;
+                ScanState::load(&mut d.state, |state| load(state, ctx));
+            }
             s = self.data.borrow();
         }
         return Ref::map(s, |s| {
@@ -143,11 +143,12 @@ where
     Get: Fn(&Loaded) -> &T + 'static,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        let mut b = self.data.borrow_mut();
-        let d = &mut *b;
-        if ScanState::unload(&mut d.state, &mut d.unload) {
-            drop(b);
-            self.sinks.notify(ctx);
+        {
+            let d = &mut *self.data.borrow_mut();
+            if !ScanState::unload(&mut d.state, &mut d.unload) {
+                return;
+            }
         }
+        self.sinks.notify(ctx);
     }
 }
