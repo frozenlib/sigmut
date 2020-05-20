@@ -140,7 +140,6 @@ impl<T: 'static> Re<T> {
             |_| (),
             |x| x,
         ))
-        // ReBorrow::from_dyn_source(Cached::new(self.clone()))
     }
 
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
