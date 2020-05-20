@@ -16,6 +16,13 @@ fn re_new() {
     assert_eq!(r.finish(), vec![2, 5, 7]);
 }
 #[test]
+fn re_constant() {
+    let a = Re::constant(2);
+    let r = record(&a);
+    assert_eq!(r.finish(), vec![2]);
+}
+
+#[test]
 fn re_map() {
     let a = ReCell::new(2);
     let b = a.to_re().map(|x| x * 2);

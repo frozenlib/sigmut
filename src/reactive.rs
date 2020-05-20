@@ -100,6 +100,13 @@ impl<T: 'static> Re<T> {
         }
         Self::from_dyn(ReFn(get))
     }
+    pub fn constant(value: T) -> Self
+    where
+        T: Clone,
+    {
+        Self::new(move |_| value.clone())
+    }
+
     fn from_dyn(inner: impl DynRe<Item = T>) -> Self {
         Self(ReData::Dyn(Rc::new(inner)))
     }
