@@ -111,7 +111,7 @@ fn re_dedup() {
 }
 
 #[test]
-fn re_dedup_by_key() {
+fn re_dedup_by_key_1() {
     let cell = ReCell::new((5, 1));
     let re = cell.to_re().dedup_by_key(|&(x, _)| x).cloned();
     let r = record(&re);
@@ -123,6 +123,21 @@ fn re_dedup_by_key() {
     cell.set_and_update((5, 2));
 
     assert_eq!(r.finish(), vec![(5, 1), (6, 2), (5, 2)]);
+}
+
+#[test]
+fn re_dedup_by_key_2() {
+    let cell = ReCell::new((5, 1));
+    let re = cell.to_re().dedup_by_key(|&(x, _)| x).cloned();
+
+    cell.set_and_update((5, 2));
+    let r = record(&re);
+    cell.set_and_update((6, 2));
+    cell.set_and_update((6, 2));
+    cell.set_and_update((6, 1));
+    cell.set_and_update((5, 2));
+
+    assert_eq!(r.finish(), vec![(5, 2), (6, 2), (5, 2)]);
 }
 
 // =========================================
