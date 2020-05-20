@@ -34,11 +34,16 @@ pub struct FilterScanResult<Loaded> {
 }
 
 impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
-    fn load(&mut self, load: impl FnMut(Unloaded) -> Loaded) -> bool {
+    fn load(
+        &mut self,
+        bindings: &mut Bindings,
+        scope: &BindContextScope,
+        sink: &Rc<impl BindSink>,
+        load: impl FnOnce(Unloaded, &mut BindContext) -> Loaded,
+    ) -> bool {
         if let Self::Unloaded(_) = self {
-            if let Self::Unloaded(value) = take(self) {
-                let mut load = load;
-                *self = Self::Loaded(load(value));
+            if let Self::Unloaded(state) = take(self) {
+                *self = Self::Loaded(bindings.update(scope, sink, |ctx| load(state, ctx)));
                 return true;
             } else {
                 unreachable!()
@@ -46,6 +51,7 @@ impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
         }
         false
     }
+
     fn unload(&mut self, unload: impl FnMut(Loaded) -> Unloaded) -> bool {
         if let Self::Loaded(_) = self {
             if let Self::Loaded(value) = take(self) {
@@ -129,12 +135,8 @@ where
             drop(d);
             {
                 let d = &mut *self.data.borrow_mut();
-                let load = &mut d.load;
-                let bindings = &mut d.bindings;
-                let sink = &rc_self;
-                let scope = ctx.scope();
                 d.state
-                    .load(move |state| bindings.update(scope, sink, |ctx| load(state, ctx)));
+                    .load(&mut d.bindings, ctx.scope(), &rc_self, &mut d.load);
             }
             d = self.data.borrow();
         }
@@ -220,13 +222,13 @@ where
                 return;
             }
             let load = &mut d.load;
-            let bindings = &mut d.bindings;
             let is_notify = &mut is_notify;
-            d.state.load(move |state| {
-                let r = bindings.update(scope, self, |ctx| load(state, ctx));
-                *is_notify = r.is_notify;
-                r.state
-            });
+            d.state
+                .load(&mut d.bindings, scope, self, move |state, ctx| {
+                    let r = load(state, ctx);
+                    *is_notify = r.is_notify;
+                    r.state
+                });
         }
         if is_notify {
             self.sinks.notify_and_update();
