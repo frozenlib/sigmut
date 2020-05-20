@@ -30,7 +30,7 @@ impl<T: Copy + 'static> ReCell<T> {
 
     pub fn set_and_update(&self, value: T) {
         self.0.value.set(value);
-        self.0.sinks.notify_root();
+        self.0.sinks.notify_and_update();
     }
 
     pub fn to_re(&self) -> Re<T> {
@@ -84,7 +84,7 @@ impl<T: 'static> ReRefCell<T> {
     }
     pub fn set_and_update(&self, value: T) {
         *self.0.value.borrow_mut() = value;
-        self.0.sinks.notify_root();
+        self.0.sinks.notify_and_update();
     }
     pub fn borrow_mut<'a>(&'a self, ctx: &'a NotifyContext) -> RefMut<'a, T> {
         RefMut {

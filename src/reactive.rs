@@ -407,7 +407,7 @@ impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DedupBy<T, EqFn> {
         }
         s.value = Some(value);
         drop(s);
-        self.sinks.notify_root();
+        self.sinks.notify_and_update();
     }
 }
 impl<T: 'static, EqFn: Fn(&T, &T) -> bool + 'static> DynReBorrowSource for DedupBy<T, EqFn> {

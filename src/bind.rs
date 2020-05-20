@@ -52,7 +52,7 @@ impl Bindings {
         sink: &Rc<impl BindSink>,
         f: impl FnOnce(&mut BindContext) -> T,
     ) -> T {
-        ReactiveContext::update_root(|scope| self.update_with(scope, sink, f))
+        ReactiveContext::update(|scope| self.update_with(scope, sink, f))
     }
     pub fn update<T>(
         &mut self,
@@ -108,8 +108,8 @@ impl BindSinks {
             sinks.push(sink.clone());
         }
     }
-    pub fn notify_root(&self) {
-        ReactiveContext::notify_root(self);
+    pub fn notify_and_update(&self) {
+        NotifyContext::notify_and_update(self);
     }
     pub fn is_empty(&self) -> bool {
         self.0.borrow_mut().is_empty()
@@ -200,6 +200,12 @@ impl NotifyContext {
     pub fn spawn(&self, task: Weak<impl Task>) {
         self.0.borrow_mut().lazy_tasks.push(task);
     }
+    pub fn with<T>(f: impl Fn(&NotifyContext) -> T) -> T {
+        ReactiveContext::with(|this| this.notify_enter(f))
+    }
+    pub fn notify_and_update(sinks: &BindSinks) {
+        ReactiveContext::with(|this| this.notify_and_update(sinks));
+    }
 }
 impl BindContextScope {
     fn lazy_drop_bindings(&self, bindings: impl IntoIterator<Item = Binding>) {
@@ -221,7 +227,7 @@ impl ReactiveContext {
         ))))
     }
 
-    fn notify_root(sinks: &BindSinks) {
+    fn notify_and_update(&self, sinks: &BindSinks) {
         Self::with(|this| {
             let mut b = this.borrow_mut();
             match b.state {
@@ -229,15 +235,14 @@ impl ReactiveContext {
                     b.state = ReactiveState::Notify(0);
                     drop(b);
                     sinks.notify(this.notify_ctx());
-                    this.end_notify(None);
+                    this.notify_end(None);
                 }
                 ReactiveState::Notify(depth) => {
                     assert_ne!(depth, usize::MAX);
                     b.state = ReactiveState::Notify(depth + 1);
                     drop(b);
                     sinks.notify(this.notify_ctx());
-                    b = this.borrow_mut();
-                    b.state = ReactiveState::Notify(depth);
+                    this.borrow_mut().state = ReactiveState::Notify(depth);
                 }
                 ReactiveState::Bind(_) => {
                     sinks.extend_to(&mut b.lazy_notify_sinks);
@@ -245,7 +250,45 @@ impl ReactiveContext {
             }
         });
     }
-    fn update_root<T>(f: impl FnOnce(&BindContextScope) -> T) -> T {
+    fn notify_enter<T>(&self, f: impl Fn(&NotifyContext) -> T) -> T {
+        let value;
+        let mut b = self.borrow_mut();
+        match b.state {
+            ReactiveState::None => {
+                b.state = ReactiveState::Notify(0);
+                drop(b);
+                value = f(self.notify_ctx());
+                self.notify_end(None);
+            }
+            ReactiveState::Notify(depth) => {
+                assert_ne!(depth, usize::MAX);
+                b.state = ReactiveState::Notify(depth + 1);
+                drop(b);
+                value = f(self.notify_ctx());
+                self.borrow_mut().state = ReactiveState::Notify(depth);
+            }
+            ReactiveState::Bind(_) => {
+                panic!("Cannot create NotifyContext duraing binding process.");
+            }
+        }
+        value
+    }
+    fn notify_end(&self, lazy_notify_sinks: Option<Vec<Weak<dyn BindSink>>>) {
+        let mut b = self.borrow_mut();
+        if let Some(s) = lazy_notify_sinks {
+            debug_assert!(s.is_empty());
+            b.lazy_notify_sinks = s;
+        }
+        b.state = ReactiveState::None;
+        while let Some(task) = b.lazy_tasks.pop() {
+            if let Some(task) = Weak::upgrade(&task) {
+                drop(b);
+                task.run();
+                b = self.borrow_mut();
+            }
+        }
+    }
+    fn update<T>(f: impl FnOnce(&BindContextScope) -> T) -> T {
         Self::with(move |this| {
             let mut b = this.borrow_mut();
             let value;
@@ -254,7 +297,7 @@ impl ReactiveContext {
                     b.state = ReactiveState::Bind(0);
                     drop(b);
                     value = f(this.bind_ctx_scope());
-                    this.end_bind();
+                    this.update_end();
                 }
                 ReactiveState::Bind(depth) => {
                     assert_ne!(depth, usize::MAX);
@@ -272,22 +315,7 @@ impl ReactiveContext {
         })
     }
 
-    fn end_notify(&self, lazy_notify_sinks: Option<Vec<Weak<dyn BindSink>>>) {
-        let mut b = self.borrow_mut();
-        if let Some(s) = lazy_notify_sinks {
-            debug_assert!(s.is_empty());
-            b.lazy_notify_sinks = s;
-        }
-        b.state = ReactiveState::None;
-        while let Some(task) = b.lazy_tasks.pop() {
-            if let Some(task) = Weak::upgrade(&task) {
-                drop(b);
-                task.run();
-                b = self.borrow_mut();
-            }
-        }
-    }
-    fn end_bind(&self) {
+    fn update_end(&self) {
         let mut b = self.borrow_mut();
         b.state = ReactiveState::None;
         b.lazy_drop_bindings.clear();
@@ -302,7 +330,7 @@ impl ReactiveContext {
                 }
             }
             sinks.clear();
-            self.end_notify(Some(sinks));
+            self.notify_end(Some(sinks));
         }
     }
 

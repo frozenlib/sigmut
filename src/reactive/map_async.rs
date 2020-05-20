@@ -53,7 +53,7 @@ where
                 let mut s = this.state.borrow_mut();
                 s.value = Poll::Ready(value);
                 drop(s);
-                this.sinks.notify_root();
+                this.sinks.notify_and_update();
             }
         }));
     }
