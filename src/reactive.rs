@@ -155,10 +155,14 @@ impl<T: 'static> Re<T> {
         ReBorrow::from_dyn_source(FilterScan::new(
             None,
             move |state, ctx| {
-                let value = this.get(ctx);
+                let mut value = this.get(ctx);
                 let mut is_notify = false;
                 if let Some(old) = state {
-                    is_notify = !eq(&old, &value)
+                    if eq(&value, &old) {
+                        value = old;
+                    } else {
+                        is_notify = true;
+                    }
                 }
                 FilterScanResult {
                     state: value,
