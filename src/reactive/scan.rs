@@ -54,10 +54,10 @@ where
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
-    pub fn new(state: ScanState<Loaded, Unloaded>, load: Load, unload: Unload, get: Get) -> Self {
+    pub fn new(initial_state: Unloaded, load: Load, unload: Unload, get: Get) -> Self {
         Self {
             data: RefCell::new(ScanData {
-                state: Some(state),
+                state: Some(ScanState::Unloaded(initial_state)),
                 load,
                 unload,
                 get,

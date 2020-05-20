@@ -134,12 +134,7 @@ impl<T: 'static> Re<T> {
 
     pub fn cached(&self) -> ReBorrow<T> {
         let this = self.clone();
-        ReBorrow::from_dyn_source(Scan::new(
-            ScanState::Unloaded(()),
-            move |_, ctx| this.get(ctx),
-            |_| (),
-            |x| x,
-        ))
+        ReBorrow::from_dyn_source(Scan::new((), move |_, ctx| this.get(ctx), |_| (), |x| x))
     }
     pub fn scan<St: 'static>(
         &self,
@@ -148,7 +143,7 @@ impl<T: 'static> Re<T> {
     ) -> ReBorrow<St> {
         let this = self.clone();
         ReBorrow::from_dyn_source(Scan::new(
-            ScanState::Unloaded(initial_state),
+            initial_state,
             move |st, ctx| f(st, this.get(ctx)),
             |st| st,
             |st| st,
