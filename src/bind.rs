@@ -201,10 +201,19 @@ impl NotifyContext {
         self.0.borrow_mut().lazy_tasks.push(task);
     }
     pub fn with<T>(f: impl FnOnce(&NotifyContext) -> T) -> T {
-        ReactiveContext::with(|this| this.notify_enter(f))
+        ReactiveContext::with(|this| {
+            this.notify(f, |_| {
+                panic!("Cannot create NotifyContext when BindContext exists.")
+            })
+        })
     }
     pub fn notify_and_update(sinks: &BindSinks) {
-        ReactiveContext::with(|this| this.notify_and_update(sinks));
+        ReactiveContext::with(|this| {
+            this.notify(
+                |ctx| sinks.notify(ctx),
+                |this| sinks.extend_to(&mut this.lazy_notify_sinks),
+            )
+        });
     }
 }
 impl BindContextScope {
@@ -226,49 +235,29 @@ impl ReactiveContext {
             },
         ))))
     }
-
-    fn notify_and_update(&self, sinks: &BindSinks) {
-        Self::with(|this| {
-            let mut b = this.borrow_mut();
-            match b.state {
-                ReactiveState::None => {
-                    b.state = ReactiveState::Notify(0);
-                    drop(b);
-                    sinks.notify(this.notify_ctx());
-                    this.notify_end(None);
-                }
-                ReactiveState::Notify(depth) => {
-                    assert_ne!(depth, usize::MAX);
-                    b.state = ReactiveState::Notify(depth + 1);
-                    drop(b);
-                    sinks.notify(this.notify_ctx());
-                    this.borrow_mut().state = ReactiveState::Notify(depth);
-                }
-                ReactiveState::Bind(_) => {
-                    sinks.extend_to(&mut b.lazy_notify_sinks);
-                }
-            }
-        });
-    }
-    fn notify_enter<T>(&self, f: impl FnOnce(&NotifyContext) -> T) -> T {
+    fn notify<T>(
+        &self,
+        on_ctx: impl FnOnce(&NotifyContext) -> T,
+        on_failed: impl FnOnce(&mut ReactiveContextData) -> T,
+    ) -> T {
         let value;
         let mut b = self.borrow_mut();
         match b.state {
             ReactiveState::None => {
                 b.state = ReactiveState::Notify(0);
                 drop(b);
-                value = f(self.notify_ctx());
+                value = on_ctx(self.notify_ctx());
                 self.notify_end(None);
             }
             ReactiveState::Notify(depth) => {
                 assert_ne!(depth, usize::MAX);
                 b.state = ReactiveState::Notify(depth + 1);
                 drop(b);
-                value = f(self.notify_ctx());
+                value = on_ctx(self.notify_ctx());
                 self.borrow_mut().state = ReactiveState::Notify(depth);
             }
             ReactiveState::Bind(_) => {
-                panic!("Cannot create NotifyContext when BindContext exists.");
+                value = on_failed(&mut b);
             }
         }
         value
