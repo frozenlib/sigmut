@@ -180,13 +180,11 @@ where
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         {
-            println!("notify");
             let d = &mut *self.data.borrow_mut();
             if !d.state.unload(&mut d.unload) {
                 return;
             }
         }
-        println!("notify do");
         self.sinks.notify(ctx);
     }
 }
