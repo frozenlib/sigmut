@@ -1,29 +1,44 @@
 use crate::bind::*;
 use crate::reactive::*;
-use std::{any::Any, cell::Ref, cell::RefCell, rc::Rc};
+use derivative::Derivative;
+use std::{any::Any, cell::Ref, cell::RefCell, mem::take, rc::Rc};
 
 pub struct Scan<Loaded, Unloaded, Load, Unload, Get> {
     data: RefCell<ScanData<Loaded, Unloaded, Load, Unload, Get>>,
     sinks: BindSinks,
 }
+pub struct FilterScan<Loaded, Unloaded, Load, Unload, Get> {
+    data: RefCell<ScanData<Loaded, Unloaded, Load, Unload, Get>>,
+    sinks: BindSinks,
+}
+
 struct ScanData<Loaded, Unloaded, Load, Unload, Get> {
     load: Load,
     unload: Unload,
     get: Get,
-    state: Option<ScanState<Loaded, Unloaded>>,
+    state: ScanState<Loaded, Unloaded>,
     bindings: Bindings,
 }
 
-pub enum ScanState<Loaded, Unloaded> {
+#[derive(Derivative)]
+#[derivative(Default(bound = ""))]
+enum ScanState<Loaded, Unloaded> {
+    #[derivative(Default)]
+    NoData,
     Loaded(Loaded),
     Unloaded(Unloaded),
 }
+pub struct FilterScanResult<Loaded> {
+    state: Loaded,
+    is_notify: bool,
+}
+
 impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
-    fn load(this: &mut Option<Self>, load: impl FnMut(Unloaded) -> Loaded) -> bool {
-        if let Some(ScanState::Unloaded(_)) = this {
-            if let Some(Self::Unloaded(value)) = this.take() {
+    fn load(&mut self, load: impl FnMut(Unloaded) -> Loaded) -> bool {
+        if let Self::Unloaded(_) = self {
+            if let Self::Unloaded(value) = take(self) {
                 let mut load = load;
-                *this = Some(Self::Loaded(load(value)));
+                *self = Self::Loaded(load(value));
                 return true;
             } else {
                 unreachable!()
@@ -31,17 +46,39 @@ impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
         }
         false
     }
-    fn unload(this: &mut Option<Self>, unload: impl FnMut(Loaded) -> Unloaded) -> bool {
-        if let Some(ScanState::Loaded(_)) = this {
-            if let Some(Self::Loaded(value)) = this.take() {
+    fn unload(&mut self, unload: impl FnMut(Loaded) -> Unloaded) -> bool {
+        if let Self::Loaded(_) = self {
+            if let Self::Loaded(value) = take(self) {
                 let mut unload = unload;
-                *this = Some(Self::Unloaded(unload(value)));
+                *self = Self::Unloaded(unload(value));
                 return true;
             } else {
                 unreachable!()
             }
         }
         false
+    }
+    fn is_loaded(&self) -> bool {
+        match self {
+            Self::Loaded(_) => true,
+            Self::Unloaded(_) => false,
+            Self::NoData => panic!("ScanState invalid state."),
+        }
+    }
+}
+impl<T, Loaded, Unloaded, Load, Unload, Get> ScanData<Loaded, Unloaded, Load, Unload, Get>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    fn get(&self) -> &T {
+        if let ScanState::Loaded(state) = &self.state {
+            (self.get)(state)
+        } else {
+            panic!("value not loaded.")
+        }
     }
 }
 
@@ -57,7 +94,7 @@ where
     pub fn new(initial_state: Unloaded, load: Load, unload: Unload, get: Get) -> Self {
         Self {
             data: RefCell::new(ScanData {
-                state: Some(ScanState::Unloaded(initial_state)),
+                state: ScanState::Unloaded(initial_state),
                 load,
                 unload,
                 get,
@@ -87,23 +124,17 @@ where
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         ctx.bind(rc_self.clone());
-        let mut s = self.data.borrow();
-        if let Some(ScanState::Unloaded(_)) = s.state {
-            drop(s);
+        let mut d = self.data.borrow();
+        if !d.state.is_loaded() {
+            drop(d);
             {
                 let d = &mut *self.data.borrow_mut();
                 let load = &mut d.load;
-                ScanState::load(&mut d.state, |state| load(state, ctx));
+                d.state.load(|state| load(state, ctx));
             }
-            s = self.data.borrow();
+            d = self.data.borrow();
         }
-        return Ref::map(s, |s| {
-            if let Some(ScanState::Loaded(loaded)) = &s.state {
-                (s.get)(loaded)
-            } else {
-                unreachable!()
-            }
-        });
+        Ref::map(d, |d| d.get())
     }
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
@@ -128,7 +159,7 @@ where
         if self.sinks().is_empty() {
             let d = &mut *self.data.borrow_mut();
             d.bindings.clear();
-            ScanState::unload(&mut d.state, &mut d.unload);
+            d.state.unload(&mut d.unload);
         }
     }
 }
@@ -145,10 +176,143 @@ where
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         {
             let d = &mut *self.data.borrow_mut();
-            if !ScanState::unload(&mut d.state, &mut d.unload) {
+            if !d.state.unload(&mut d.unload) {
                 return;
             }
         }
         self.sinks.notify(ctx);
+    }
+}
+
+impl<T, Loaded, Unloaded, Load, Unload, Get> FilterScan<Loaded, Unloaded, Load, Unload, Get>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    pub fn new(initial_state: Unloaded, load: Load, unload: Unload, get: Get) -> Self {
+        Self {
+            data: RefCell::new(ScanData {
+                state: ScanState::Unloaded(initial_state),
+                load,
+                unload,
+                get,
+                bindings: Bindings::new(),
+            }),
+            sinks: BindSinks::new(),
+        }
+    }
+
+    fn ready(self: &Rc<Self>) {
+        let mut is_notify = false;
+        {
+            let d = &mut *self.data.borrow_mut();
+            if d.state.is_loaded() {
+                return;
+            }
+            let load = &mut d.load;
+            let bindings = &mut d.bindings;
+            let is_notify = &mut is_notify;
+            d.state.load(move |state| {
+                let r = bindings.update_root(self, |ctx| load(state, ctx));
+                *is_notify = r.is_notify;
+                r.state
+            });
+        }
+        if is_notify {
+            self.sinks.notify_and_update();
+        }
+    }
+}
+
+impl<T, Loaded, Unloaded, Load, Unload, Get> DynReBorrowSource
+    for FilterScan<Loaded, Unloaded, Load, Unload, Get>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    type Item = T;
+
+    fn dyn_borrow(
+        &self,
+        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
+        ctx: &mut BindContext,
+    ) -> Ref<Self::Item> {
+        let rc_self = Self::downcast(rc_self);
+        let mut d = self.data.borrow();
+        if !d.state.is_loaded() {
+            drop(d);
+            rc_self.ready();
+            d = self.data.borrow();
+        }
+        ctx.bind(rc_self);
+        Ref::map(d, |d| d.get())
+    }
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+}
+
+impl<T, Loaded, Unloaded, Load, Unload, Get> BindSource
+    for FilterScan<Loaded, Unloaded, Load, Unload, Get>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    fn sinks(&self) -> &BindSinks {
+        &self.sinks
+    }
+    fn detach_sink(&self, idx: usize, sink: &std::rc::Weak<dyn BindSink>) {
+        self.sinks.detach(idx, sink);
+        if self.sinks.is_empty() {
+            let d = &mut *self.data.borrow_mut();
+            d.bindings.clear();
+            d.state.unload(&mut d.unload);
+        }
+    }
+}
+
+impl<T, Loaded, Unloaded, Load, Unload, Get> BindSink
+    for FilterScan<Loaded, Unloaded, Load, Unload, Get>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        let d = &mut *self.data.borrow_mut();
+        if d.state.unload(&mut d.unload) {
+            if !self.sinks.is_empty() {
+                ctx.spawn(Rc::downgrade(&self));
+            }
+        }
+    }
+}
+impl<T, Loaded, Unloaded, Load, Unload, Get> Task
+    for FilterScan<Loaded, Unloaded, Load, Unload, Get>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    fn run(self: Rc<Self>) {
+        self.ready();
     }
 }
