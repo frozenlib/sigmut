@@ -175,11 +175,13 @@ where
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         {
+            println!("notify");
             let d = &mut *self.data.borrow_mut();
             if !d.state.unload(&mut d.unload) {
                 return;
             }
         }
+        println!("notify do");
         self.sinks.notify(ctx);
     }
 }
@@ -206,7 +208,7 @@ where
         }
     }
 
-    fn ready(self: &Rc<Self>) {
+    fn ready(self: &Rc<Self>, scope: &BindContextScope) {
         let mut is_notify = false;
         {
             let d = &mut *self.data.borrow_mut();
@@ -217,7 +219,7 @@ where
             let bindings = &mut d.bindings;
             let is_notify = &mut is_notify;
             d.state.load(move |state| {
-                let r = bindings.update_root(self, |ctx| load(state, ctx));
+                let r = bindings.update(scope, self, |ctx| load(state, ctx));
                 *is_notify = r.is_notify;
                 r.state
             });
@@ -249,7 +251,7 @@ where
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
             drop(d);
-            rc_self.ready();
+            rc_self.ready(ctx.scope());
             d = self.data.borrow();
         }
         ctx.bind(rc_self);
@@ -313,6 +315,6 @@ where
     Get: Fn(&Loaded) -> &T + 'static,
 {
     fn run(self: Rc<Self>) {
-        self.ready();
+        BindContextScope::with(|scope| self.ready(scope));
     }
 }

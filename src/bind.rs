@@ -15,6 +15,9 @@ impl<'a> BindContext<'a> {
         let binding = Binding { source, sink, idx };
         self.bindings.push(binding);
     }
+    pub fn scope(&self) -> &BindContextScope {
+        &self.scope
+    }
 }
 
 pub trait BindSource: 'static {
@@ -52,18 +55,9 @@ impl Bindings {
         sink: &Rc<impl BindSink>,
         f: impl FnOnce(&mut BindContext) -> T,
     ) -> T {
-        ReactiveContext::update(|scope| self.update_with(scope, sink, f))
+        BindContextScope::with(|scope| self.update(scope, sink, f))
     }
     pub fn update<T>(
-        &mut self,
-        ctx: &BindContext,
-        sink: &Rc<impl BindSink>,
-        f: impl FnOnce(&mut BindContext) -> T,
-    ) -> T {
-        self.update_with(ctx.scope, sink, f)
-    }
-
-    fn update_with<T>(
         &mut self,
         scope: &BindContextScope,
         sink: &Rc<impl BindSink>,
@@ -78,6 +72,7 @@ impl Bindings {
         scope.lazy_drop_bindings(replace(&mut self.0, ctx.bindings));
         value
     }
+
     pub fn clear(&mut self) {
         self.0.clear()
     }
@@ -222,6 +217,10 @@ impl BindContextScope {
         assert!(matches!(b.state, ReactiveState::Bind(_)));
         b.lazy_drop_bindings.extend(bindings);
     }
+
+    pub fn with<T>(f: impl FnOnce(&BindContextScope) -> T) -> T {
+        ReactiveContext::with(|this| this.bind(f))
+    }
 }
 
 impl ReactiveContext {
@@ -277,33 +276,31 @@ impl ReactiveContext {
             }
         }
     }
-    fn update<T>(f: impl FnOnce(&BindContextScope) -> T) -> T {
-        Self::with(move |this| {
-            let mut b = this.borrow_mut();
-            let value;
-            match b.state {
-                ReactiveState::None => {
-                    b.state = ReactiveState::Bind(0);
-                    drop(b);
-                    value = f(this.bind_ctx_scope());
-                    this.update_end();
-                }
-                ReactiveState::Bind(depth) => {
-                    assert_ne!(depth, usize::MAX);
-                    b.state = ReactiveState::Bind(depth + 1);
-                    drop(b);
-                    value = f(this.bind_ctx_scope());
-                    this.borrow_mut().state = ReactiveState::Bind(depth);
-                }
-                ReactiveState::Notify(_) => {
-                    panic!("Cannot update when NotifyContext exists.");
-                }
+    fn bind<T>(&self, f: impl FnOnce(&BindContextScope) -> T) -> T {
+        let mut b = self.borrow_mut();
+        let value;
+        match b.state {
+            ReactiveState::None => {
+                b.state = ReactiveState::Bind(0);
+                drop(b);
+                value = f(self.bind_ctx_scope());
+                self.bind_end();
             }
-            value
-        })
+            ReactiveState::Bind(depth) => {
+                assert_ne!(depth, usize::MAX);
+                b.state = ReactiveState::Bind(depth + 1);
+                drop(b);
+                value = f(self.bind_ctx_scope());
+                self.borrow_mut().state = ReactiveState::Bind(depth);
+            }
+            ReactiveState::Notify(_) => {
+                panic!("Cannot create BindContext when NotifyContext exists.");
+            }
+        }
+        value
     }
 
-    fn update_end(&self) {
+    fn bind_end(&self) {
         let mut b = self.borrow_mut();
         b.state = ReactiveState::None;
         b.lazy_drop_bindings.clear();

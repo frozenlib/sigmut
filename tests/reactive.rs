@@ -101,6 +101,22 @@ fn re_scan() {
 
     assert_eq!(r.finish(), vec![12, 15, 19, 24]);
 }
+#[test]
+fn re_filter_scan() {
+    let cell = ReCell::new(2);
+    let re = cell
+        .to_re()
+        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
+        .cloned();
+    let r = record(&re);
+
+    cell.set_and_update(3);
+    cell.set_and_update(4);
+    cell.set_and_update(5);
+    cell.set_and_update(6);
+
+    assert_eq!(r.finish(), vec![10, 13, 18]);
+}
 
 #[test]
 fn re_same_value() {

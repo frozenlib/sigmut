@@ -43,9 +43,9 @@ where
         }
     }
 
-    fn ready(self: &Rc<Self>, ctx: &BindContext) {
+    fn ready(self: &Rc<Self>, scope: &BindContextScope) {
         let mut s = self.state.borrow_mut();
-        let fut = s.bindings.update(ctx, self, |ctx| self.source.get(ctx));
+        let fut = s.bindings.update(scope, self, |ctx| self.source.get(ctx));
         let this = Rc::downgrade(self);
         s.handle = Some(self.sp.spawn_local(async move {
             let value = fut.await;
@@ -75,7 +75,7 @@ where
         let mut s = self.state.borrow();
         if s.handle.is_none() {
             drop(s);
-            rc_self.ready(ctx);
+            rc_self.ready(ctx.scope());
             s = self.state.borrow();
         }
         ctx.bind(rc_self);

@@ -37,7 +37,6 @@ impl<T: 'static, F: FnMut(T) + 'static> ForEach<T, F> {
 }
 impl<T: 'static, F: FnMut(T) + 'static> BindSink for ForEach<T, F> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        self.state.borrow_mut().bindings.clear();
         ctx.spawn(Rc::downgrade(&self))
     }
 }
