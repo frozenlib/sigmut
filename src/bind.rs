@@ -200,7 +200,7 @@ impl NotifyContext {
     pub fn spawn(&self, task: Weak<impl Task>) {
         self.0.borrow_mut().lazy_tasks.push(task);
     }
-    pub fn with<T>(f: impl Fn(&NotifyContext) -> T) -> T {
+    pub fn with<T>(f: impl FnOnce(&NotifyContext) -> T) -> T {
         ReactiveContext::with(|this| this.notify_enter(f))
     }
     pub fn notify_and_update(sinks: &BindSinks) {
@@ -250,7 +250,7 @@ impl ReactiveContext {
             }
         });
     }
-    fn notify_enter<T>(&self, f: impl Fn(&NotifyContext) -> T) -> T {
+    fn notify_enter<T>(&self, f: impl FnOnce(&NotifyContext) -> T) -> T {
         let value;
         let mut b = self.borrow_mut();
         match b.state {
