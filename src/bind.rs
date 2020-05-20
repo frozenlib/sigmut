@@ -304,8 +304,7 @@ impl ReactiveContext {
                     b.state = ReactiveState::Bind(depth + 1);
                     drop(b);
                     value = f(this.bind_ctx_scope());
-                    b = this.borrow_mut();
-                    b.state = ReactiveState::Bind(depth);
+                    this.borrow_mut().state = ReactiveState::Bind(depth);
                 }
                 ReactiveState::Notify(_) => {
                     panic!("Cannot call `Bindings::update` in `NotifySinks::notify`.");
