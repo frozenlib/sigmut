@@ -83,8 +83,7 @@ impl<T: 'static> ReRefCell<T> {
         self.0.sinks.notify(ctx);
     }
     pub fn set_and_update(&self, value: T) {
-        *self.0.value.borrow_mut() = value;
-        self.0.sinks.notify_and_update();
+        NotifyContext::with(|ctx| self.set(value, ctx));
     }
     pub fn borrow_mut<'a>(&'a self, ctx: &'a NotifyContext) -> RefMut<'a, T> {
         RefMut {
