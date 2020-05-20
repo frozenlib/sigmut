@@ -4,6 +4,20 @@ use self::test_utils::*;
 use reactive_fn::*;
 
 #[test]
+fn re_new() {
+    let x = ReCell::new(2);
+    let x2 = x.clone();
+    let r = record(&Re::new(move |ctx| x2.get(ctx)));
+
+    x.set_and_update(5);
+    x.set_and_update(7);
+
+    assert_eq!(r.finish(), vec![2, 5, 7]);
+}
+
+// =========================================
+
+#[test]
 fn test_for_each() {
     let cell = ReCell::new(0);
     let re = cell.to_re();
