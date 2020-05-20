@@ -564,9 +564,10 @@ where
         let mut s = self.data.borrow();
         if let ScanState::Unloaded(_) = s.state {
             drop(s);
-            let b = &mut *self.data.borrow_mut();
-            let load = &mut b.load;
-            b.state.load(|state| load(state, ctx));
+            let mut b = self.data.borrow_mut();
+            let d = &mut *b;
+            let load = &mut d.load;
+            d.state.load(|state| load(state, ctx));
             drop(b);
             s = self.data.borrow();
         }
