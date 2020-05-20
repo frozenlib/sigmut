@@ -130,7 +130,11 @@ where
             {
                 let d = &mut *self.data.borrow_mut();
                 let load = &mut d.load;
-                d.state.load(|state| load(state, ctx));
+                let bindings = &mut d.bindings;
+                let sink = &rc_self;
+                let scope = ctx.scope();
+                d.state
+                    .load(move |state| bindings.update(scope, sink, |ctx| load(state, ctx)));
             }
             d = self.data.borrow();
         }
