@@ -11,31 +11,32 @@ struct ScanData<Loaded, Unloaded, Load, Unload, Get> {
     load: Load,
     unload: Unload,
     get: Get,
-    state: ScanState<Loaded, Unloaded>,
+    state: Option<ScanState<Loaded, Unloaded>>,
     bindings: Bindings,
 }
 
 pub enum ScanState<Loaded, Unloaded> {
-    NoData,
     Loaded(Loaded),
     Unloaded(Unloaded),
 }
 impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
-    fn load(&mut self, load: impl FnMut(Unloaded) -> Loaded) -> bool {
+    fn load(this: &mut Option<Self>, load: impl FnMut(Unloaded) -> Loaded) -> bool {
         let mut load = load;
-        if let ScanState::Unloaded(_) = self {
-            if let Self::Unloaded(value) = replace(self, Self::NoData) {
-                *self = Self::Loaded(load(value));
+        if let Some(ScanState::Unloaded(_)) = this {
+            if let Some(Self::Unloaded(value)) = this.take() {
+                *this = Some(Self::Loaded(load(value)));
                 return true;
+            } else {
+                unreachable!()
             }
         }
         false
     }
-    fn unload(&mut self, unload: impl FnMut(Loaded) -> Unloaded) -> bool {
+    fn unload(this: &mut Option<Self>, unload: impl FnMut(Loaded) -> Unloaded) -> bool {
         let mut unload = unload;
-        if let ScanState::Loaded(_) = self {
-            if let Self::Loaded(value) = replace(self, Self::NoData) {
-                *self = Self::Unloaded(unload(value));
+        if let Some(ScanState::Loaded(_)) = this {
+            if let Some(Self::Loaded(value)) = this.take() {
+                *this = Some(Self::Unloaded(unload(value)));
                 return true;
             }
         }
@@ -55,7 +56,7 @@ where
     pub fn new(state: ScanState<Loaded, Unloaded>, load: Load, unload: Unload, get: Get) -> Self {
         Self {
             data: RefCell::new(ScanData {
-                state,
+                state: Some(state),
                 load,
                 unload,
                 get,
@@ -86,17 +87,17 @@ where
         let rc_self = Self::downcast(rc_self);
         ctx.bind(rc_self.clone());
         let mut s = self.data.borrow();
-        if let ScanState::Unloaded(_) = s.state {
+        if let Some(ScanState::Unloaded(_)) = s.state {
             drop(s);
             let mut b = self.data.borrow_mut();
             let d = &mut *b;
             let load = &mut d.load;
-            d.state.load(|state| load(state, ctx));
+            ScanState::load(&mut d.state, |state| load(state, ctx));
             drop(b);
             s = self.data.borrow();
         }
         return Ref::map(s, |s| {
-            if let ScanState::Loaded(loaded) = &s.state {
+            if let Some(ScanState::Loaded(loaded)) = &s.state {
                 (s.get)(loaded)
             } else {
                 unreachable!()
@@ -126,7 +127,7 @@ where
         if self.sinks().is_empty() {
             let d = &mut *self.data.borrow_mut();
             d.bindings.clear();
-            d.state.unload(&mut d.unload);
+            ScanState::unload(&mut d.state, &mut d.unload);
         }
     }
 }
@@ -143,7 +144,7 @@ where
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut b = self.data.borrow_mut();
         let d = &mut *b;
-        if d.state.unload(&mut d.unload) {
+        if ScanState::unload(&mut d.state, &mut d.unload) {
             drop(b);
             self.sinks.notify(ctx);
         }
