@@ -52,10 +52,9 @@ impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
         false
     }
 
-    fn unload(&mut self, unload: impl FnMut(Loaded) -> Unloaded) -> bool {
+    fn unload(&mut self, unload: impl FnOnce(Loaded) -> Unloaded) -> bool {
         if let Self::Loaded(_) = self {
             if let Self::Loaded(value) = take(self) {
-                let mut unload = unload;
                 *self = Self::Unloaded(unload(value));
                 return true;
             } else {

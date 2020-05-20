@@ -6,7 +6,6 @@ fn main() {
 
     let _u = re.for_each(|x| {
         println!("{}", x);
-        let x = 0;
     });
 
     cell.set_and_update(7);
