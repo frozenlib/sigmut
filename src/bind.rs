@@ -268,7 +268,7 @@ impl ReactiveContext {
                 self.borrow_mut().state = ReactiveState::Notify(depth);
             }
             ReactiveState::Bind(_) => {
-                panic!("Cannot create NotifyContext duraing binding process.");
+                panic!("Cannot create NotifyContext when BindContext exists.");
             }
         }
         value
@@ -307,7 +307,7 @@ impl ReactiveContext {
                     this.borrow_mut().state = ReactiveState::Bind(depth);
                 }
                 ReactiveState::Notify(_) => {
-                    panic!("Cannot call `Bindings::update` in `NotifySinks::notify`.");
+                    panic!("Cannot update when NotifyContext exists.");
                 }
             }
             value
