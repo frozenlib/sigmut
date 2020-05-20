@@ -24,6 +24,24 @@ fn re_new() {
 }
 
 #[test]
+fn re_new_cell2() {
+    let cell1 = ReCell::new(1);
+    let cell2 = ReCell::new(2);
+
+    let re = {
+        let cell1 = cell1.clone();
+        let cell2 = cell2.clone();
+        Re::new(move |ctx| cell1.get(ctx) + cell2.get(ctx))
+    };
+    let r = record(&re);
+
+    cell1.set_and_update(5);
+    cell2.set_and_update(10);
+
+    assert_eq!(r.finish(), vec![1 + 2, 5 + 2, 5 + 10]);
+}
+
+#[test]
 fn re_map() {
     let a = ReCell::new(2);
     let b = a.to_re().map(|x| x * 2);
@@ -158,10 +176,8 @@ fn re_dedup_by() {
     assert_eq!(r.finish(), vec![(5, 1), (6, 2), (5, 2)]);
 }
 
-// =========================================
-
 #[test]
-fn test_for_each() {
+fn re_for_each() {
     let cell = ReCell::new(0);
     let re = cell.to_re();
     let r = record(&re);
@@ -170,33 +186,4 @@ fn test_for_each() {
     cell.set_and_update(10);
 
     assert_eq!(r.finish(), vec![0, 5, 10]);
-}
-
-#[test]
-fn test_map() {
-    let cell = ReCell::new(0);
-    let re = cell.to_re().map(|x| x + 1);
-    let r = record(&re);
-
-    cell.set_and_update(5);
-    cell.set_and_update(10);
-
-    assert_eq!(r.finish(), vec![1, 6, 11]);
-}
-#[test]
-fn test_cell2() {
-    let cell1 = ReCell::new(1);
-    let cell2 = ReCell::new(2);
-
-    let re = {
-        let cell1 = cell1.clone();
-        let cell2 = cell2.clone();
-        Re::new(move |ctx| cell1.get(ctx) + cell2.get(ctx))
-    };
-    let r = record(&re);
-
-    cell1.set_and_update(5);
-    cell2.set_and_update(10);
-
-    assert_eq!(r.finish(), vec![1 + 2, 5 + 2, 5 + 10]);
 }
