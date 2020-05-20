@@ -131,7 +131,7 @@ fn re_dedup_by_key_2() {
     let re = cell.to_re().dedup_by_key(|&(x, _)| x).cloned();
 
     cell.set_and_update((5, 2));
-    let r = record(&re);
+    let r = record(&re); // current value is (5, 2), not (5, 1).
     cell.set_and_update((6, 2));
     cell.set_and_update((6, 2));
     cell.set_and_update((6, 1));
