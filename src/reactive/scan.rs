@@ -1,6 +1,5 @@
 use crate::bind::*;
 use crate::reactive::*;
-use std::mem::replace;
 use std::{any::Any, cell::Ref, cell::RefCell, rc::Rc};
 
 pub struct Scan<Loaded, Unloaded, Load, Unload, Get> {
@@ -21,9 +20,9 @@ pub enum ScanState<Loaded, Unloaded> {
 }
 impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
     fn load(this: &mut Option<Self>, load: impl FnMut(Unloaded) -> Loaded) -> bool {
-        let mut load = load;
         if let Some(ScanState::Unloaded(_)) = this {
             if let Some(Self::Unloaded(value)) = this.take() {
+                let mut load = load;
                 *this = Some(Self::Loaded(load(value)));
                 return true;
             } else {
@@ -33,11 +32,13 @@ impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
         false
     }
     fn unload(this: &mut Option<Self>, unload: impl FnMut(Loaded) -> Unloaded) -> bool {
-        let mut unload = unload;
         if let Some(ScanState::Loaded(_)) = this {
             if let Some(Self::Loaded(value)) = this.take() {
+                let mut unload = unload;
                 *this = Some(Self::Unloaded(unload(value)));
                 return true;
+            } else {
+                unreachable!()
             }
         }
         false
