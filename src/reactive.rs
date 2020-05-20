@@ -134,7 +134,14 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn cached(&self) -> ReBorrow<T> {
-        ReBorrow::from_dyn_source(Cached::new(self.clone()))
+        let this = self.clone();
+        ReBorrow::from_dyn_source(Scan::new(
+            ScanState::Unloaded(()),
+            move |_, ctx| this.get(ctx),
+            |_| (),
+            |x| x,
+        ))
+        // ReBorrow::from_dyn_source(Cached::new(self.clone()))
     }
 
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
@@ -517,7 +524,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> Loaded + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -541,7 +548,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> Loaded + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -582,7 +589,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> Loaded + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -604,13 +611,14 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
+    Load: FnMut(Unloaded, &mut BindContext) -> Loaded + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        let b = &mut *self.data.borrow_mut();
-        if b.state.unload(&mut b.unload) {
+        let mut b = self.data.borrow_mut();
+        let d = &mut *b;
+        if d.state.unload(&mut d.unload) {
             drop(b);
             self.sinks.notify(ctx);
         }

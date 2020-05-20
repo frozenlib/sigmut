@@ -59,6 +59,18 @@ fn re_flat_map() {
     assert_eq!(r.finish(), vec![5, 6, 7, 13, 14]);
 }
 
+#[test]
+fn re_cahced() {
+    let cell = ReCell::new(0);
+    let re = cell.to_re().map(|x| x + 1).cached().cloned();
+    let r = record(&re);
+
+    cell.set_and_update(5);
+    cell.set_and_update(10);
+
+    assert_eq!(r.finish(), vec![1, 6, 11]);
+}
+
 // =========================================
 
 #[test]
@@ -101,18 +113,6 @@ fn test_cell2() {
 
     assert_eq!(r.finish(), vec![1 + 2, 5 + 2, 5 + 10]);
 }
-#[test]
-fn test_cahced() {
-    let cell = ReCell::new(0);
-    let re = cell.to_re().map(|x| x + 1).cached().cloned();
-    let r = record(&re);
-
-    cell.set_and_update(5);
-    cell.set_and_update(10);
-
-    assert_eq!(r.finish(), vec![1, 6, 11]);
-}
-
 #[test]
 fn test_same_value() {
     let cell = ReCell::new(5);
