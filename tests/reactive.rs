@@ -5,14 +5,26 @@ use reactive_fn::*;
 
 #[test]
 fn re_new() {
-    let x = ReCell::new(2);
-    let x2 = x.clone();
-    let r = record(&Re::new(move |ctx| x2.get(ctx)));
+    let a = ReCell::new(2);
+    let a2 = a.clone();
+    let b = Re::new(move |ctx| a2.get(ctx));
+    let r = record(&b);
 
-    x.set_and_update(5);
-    x.set_and_update(7);
+    a.set_and_update(5);
+    a.set_and_update(7);
 
     assert_eq!(r.finish(), vec![2, 5, 7]);
+}
+#[test]
+fn re_map() {
+    let a = ReCell::new(2);
+    let b = a.to_re().map(|x| x * 2);
+    let r = record(&b);
+
+    a.set_and_update(5);
+    a.set_and_update(7);
+
+    assert_eq!(r.finish(), vec![4, 10, 14]);
 }
 
 // =========================================
