@@ -29,8 +29,8 @@ enum ScanState<Loaded, Unloaded> {
     Unloaded(Unloaded),
 }
 pub struct FilterScanResult<Loaded> {
-    state: Loaded,
-    is_notify: bool,
+    pub state: Loaded,
+    pub is_notify: bool,
 }
 
 impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {

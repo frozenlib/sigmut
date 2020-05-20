@@ -151,7 +151,23 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
-        ReBorrow::from_dyn_source(DedupBy::new(self.clone(), eq))
+        let this = self.clone();
+        ReBorrow::from_dyn_source(FilterScan::new(
+            None,
+            move |state, ctx| {
+                let value = this.get(ctx);
+                let mut is_notify = false;
+                if let Some(old) = state {
+                    is_notify = !eq(&old, &value)
+                }
+                FilterScanResult {
+                    state: value,
+                    is_notify,
+                }
+            },
+            |value| Some(value),
+            |value| value,
+        ))
     }
     pub fn dedup_by_key<K: PartialEq>(&self, to_key: impl Fn(&T) -> K + 'static) -> ReBorrow<T> {
         self.dedup_by(move |l, r| to_key(l) == to_key(r))
