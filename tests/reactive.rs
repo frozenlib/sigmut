@@ -13,8 +13,8 @@ fn re_constant() {
 #[test]
 fn re_new() {
     let a = ReCell::new(2);
-    let a2 = a.clone();
-    let b = Re::new(move |ctx| a2.get(ctx));
+    let a_ = a.clone();
+    let b = Re::new(move |ctx| a_.get(ctx));
     let r = record(&b);
 
     a.set_and_update(5);
@@ -33,6 +33,30 @@ fn re_map() {
     a.set_and_update(7);
 
     assert_eq!(r.finish(), vec![4, 10, 14]);
+}
+
+#[test]
+fn re_flat_map() {
+    let a = [ReCell::new(5), ReCell::new(10)];
+    let a_ = a.clone();
+
+    let b = ReCell::new(0);
+
+    let c = b.to_re().flat_map(move |x| a_[x].to_re());
+    let r = record(&c);
+
+    a[0].set_and_update(6);
+    a[1].set_and_update(12);
+
+    a[0].set_and_update(7);
+    a[1].set_and_update(13);
+
+    b.set_and_update(1);
+
+    a[0].set_and_update(8);
+    a[1].set_and_update(14);
+
+    assert_eq!(r.finish(), vec![5, 6, 7, 13, 14]);
 }
 
 // =========================================
