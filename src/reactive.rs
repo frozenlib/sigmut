@@ -149,6 +149,25 @@ impl<T: 'static> Re<T> {
             |st| st,
         ))
     }
+    pub fn filter_scan<St: 'static>(
+        &self,
+        initial_state: St,
+        predicate: impl Fn(&St, &T) -> bool + 'static,
+        f: impl Fn(St, T) -> St + 'static,
+    ) -> ReBorrow<St> {
+        let this = self.clone();
+        ReBorrow::from_dyn_source(FilterScan::new(
+            initial_state,
+            move |state, ctx| {
+                let value = this.get(ctx);
+                let is_notify = predicate(&state, &value);
+                let state = if is_notify { f(state, value) } else { state };
+                FilterScanResult { is_notify, state }
+            },
+            |state| state,
+            |state| state,
+        ))
+    }
 
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
         let this = self.clone();
