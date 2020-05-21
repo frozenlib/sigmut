@@ -66,6 +66,18 @@ fn re_ref_map() {
 
     assert_eq!(r.stop(), vec![4, 10, 14]);
 }
+
+#[test]
+fn re_ref_map_ref() {
+    let a = ReRefCell::new((2, 3));
+    let r = a.to_re_ref().map_ref(|x| &x.0).to_vec();
+
+    a.set_and_update((5, 8));
+    a.set_and_update((7, 1));
+
+    assert_eq!(r.stop(), vec![2, 5, 7]);
+}
+
 #[test]
 fn re_ref_flat_map() {
     let a = [ReCell::new(5), ReCell::new(10)];

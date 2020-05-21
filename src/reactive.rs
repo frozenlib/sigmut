@@ -423,6 +423,10 @@ impl<T: 'static + ?Sized> ReRef<T> {
         let this = self.clone();
         Re::new(move |ctx| this.with(ctx, |x| f(x)))
     }
+    pub fn map_ref<U>(&self, f: impl Fn(&T) -> &U + 'static) -> ReRef<U> {
+        let this = self.clone();
+        ReRef::new((), move |_, ctx, f_inner| this.with(ctx, |x| f_inner(f(x))))
+    }
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
