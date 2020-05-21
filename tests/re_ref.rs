@@ -34,29 +34,6 @@ fn re_ref_new_cell2() {
 }
 
 #[test]
-fn re_ref_fold() {
-    let cell = ReRefCell::new(1);
-    let fold = cell.to_re_ref().fold(2, |s, x| s + x);
-
-    cell.set_and_update(5);
-    cell.set_and_update(10);
-
-    assert_eq!(fold.stop(), 18);
-}
-
-#[test]
-fn re_ref_to_vec() {
-    let cell = ReRefCell::new(1);
-    let fold = cell.to_re_ref().to_vec();
-
-    cell.set_and_update(2);
-    cell.set_and_update(1);
-    cell.set_and_update(3);
-
-    assert_eq!(fold.stop(), vec![1, 2, 1, 3]);
-}
-
-#[test]
 fn re_ref_map() {
     let a = ReRefCell::new(2);
     let r = a.to_re_ref().map(|x| x * 2).to_vec();
@@ -76,6 +53,17 @@ fn re_ref_map_ref() {
     a.set_and_update((7, 1));
 
     assert_eq!(r.stop(), vec![2, 5, 7]);
+}
+#[test]
+fn re_ref_cloned() {
+    let cell = ReRefCell::new(2);
+    let r = cell.to_re_ref().cloned().to_vec();
+
+    cell.set_and_update(3);
+    cell.set_and_update(4);
+    cell.set_and_update(5);
+
+    assert_eq!(r.stop(), vec![2, 3, 4, 5]);
 }
 
 #[test]
@@ -127,17 +115,27 @@ fn re_ref_filter_scan() {
 
     assert_eq!(r.stop(), vec![10, 13, 18]);
 }
+#[test]
+fn re_ref_fold() {
+    let cell = ReRefCell::new(1);
+    let fold = cell.to_re_ref().fold(2, |s, x| s + x);
+
+    cell.set_and_update(5);
+    cell.set_and_update(10);
+
+    assert_eq!(fold.stop(), 18);
+}
 
 #[test]
-fn re_ref_cloned() {
-    let cell = ReRefCell::new(2);
-    let r = cell.to_re_ref().cloned().to_vec();
+fn re_ref_to_vec() {
+    let cell = ReRefCell::new(1);
+    let fold = cell.to_re_ref().to_vec();
 
+    cell.set_and_update(2);
+    cell.set_and_update(1);
     cell.set_and_update(3);
-    cell.set_and_update(4);
-    cell.set_and_update(5);
 
-    assert_eq!(r.stop(), vec![2, 3, 4, 5]);
+    assert_eq!(fold.stop(), vec![1, 2, 1, 3]);
 }
 
 #[test]
