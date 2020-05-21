@@ -38,3 +38,26 @@ fn re_ref_new_cell2() {
 
     assert_eq!(r.finish(), vec![1 + 2, 5 + 2, 5 + 10]);
 }
+
+#[test]
+fn re_ref_fold() {
+    let cell = ReRefCell::new(1);
+    let fold = cell.to_re_ref().fold(2, |s, x| s + x);
+
+    cell.set_and_update(5);
+    cell.set_and_update(10);
+
+    assert_eq!(fold.stop(), 18);
+}
+
+#[test]
+fn re_ref_to_vec() {
+    let cell = ReRefCell::new(1);
+    let fold = cell.to_re_ref().to_vec();
+
+    cell.set_and_update(2);
+    cell.set_and_update(1);
+    cell.set_and_update(3);
+
+    assert_eq!(fold.stop(), vec![1, 2, 1, 3]);
+}
