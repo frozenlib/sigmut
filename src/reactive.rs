@@ -1,10 +1,9 @@
 mod cell;
-mod for_each;
 mod map_async;
 mod scan;
 
 pub use self::cell::*;
-use self::{for_each::*, map_async::*, scan::*};
+use self::{map_async::*, scan::*};
 use crate::bind::*;
 use futures::Future;
 use std::{
