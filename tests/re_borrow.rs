@@ -60,3 +60,15 @@ fn re_borrow_flat_map() {
 
     assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
 }
+
+#[test]
+fn re_borrow_cloned() {
+    let cell = ReRefCell::new(2);
+    let r = cell.to_re_borrow().cloned().to_vec();
+
+    cell.set_and_update(3);
+    cell.set_and_update(4);
+    cell.set_and_update(5);
+
+    assert_eq!(r.stop(), vec![2, 3, 4, 5]);
+}
