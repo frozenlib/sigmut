@@ -85,6 +85,11 @@ impl<T: 'static> ReRefCell<T> {
     pub fn set_and_update(&self, value: T) {
         NotifyContext::with(|ctx| self.set(value, ctx));
     }
+
+    pub fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
+        ctx.bind(self.0.clone());
+        self.0.value.borrow()
+    }
     pub fn borrow_mut<'a>(&'a self, ctx: &'a NotifyContext) -> RefMut<'a, T> {
         RefMut {
             ctx,
