@@ -472,7 +472,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
     pub fn fold<St: 'static>(
         &self,
         initial_state: St,
-        f: impl Fn(St, &T) -> St + 'static,
+        f: impl FnMut(St, &T) -> St + 'static,
     ) -> Fold<St> {
         let this = self.clone();
         let mut f = f;
@@ -501,9 +501,28 @@ impl<T: 'static + ?Sized> ReRef<T> {
     {
         self.collect()
     }
-    // pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
-    //     Subscription(Fold::new() Rc::new(ForEachRef::new(self.clone(), f)))
-    // }
+    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
+        let mut f = f;
+        Subscription(self.fold((), move |_, x| {
+            f(x);
+            ()
+        }))
+    }
+    pub fn for_each_by<U: 'static>(
+        &self,
+        attach: impl FnMut(&T) -> U + 'static,
+        detach: impl FnMut(U) + 'static,
+    ) -> Subscription {
+        let this = self.clone();
+        let mut attach = attach;
+        let mut detach = detach;
+        Subscription(Fold(FoldBy::new(
+            (),
+            move |_, ctx| ((), this.with(ctx, |x| attach(x))),
+            move |(_, x)| detach(x),
+            |_| (),
+        )))
+    }
 }
 
 pub enum ReCow<T: 'static + ToOwned + ?Sized> {
