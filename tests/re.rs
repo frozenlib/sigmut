@@ -26,12 +26,11 @@ fn re_new_cell2() {
     let cell1 = ReCell::new(1);
     let cell2 = ReCell::new(2);
 
-    let re = {
+    let r = {
         let cell1 = cell1.clone();
         let cell2 = cell2.clone();
-        Re::new(move |ctx| cell1.get(ctx) + cell2.get(ctx))
+        Re::new(move |ctx| cell1.get(ctx) + cell2.get(ctx)).to_vec()
     };
-    let r = re.to_vec();
 
     cell1.set_and_update(5);
     cell2.set_and_update(10);
