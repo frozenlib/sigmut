@@ -325,6 +325,28 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         self.map(|x| x.clone())
     }
 
+    pub fn fold<St: 'static>(
+        &self,
+        initial_state: St,
+        f: impl Fn(St, &T) -> St + 'static,
+    ) -> Fold<St> {
+        self.to_re_ref().fold(initial_state, f)
+    }
+    pub fn collect_to<E: for<'a> Extend<&'a T> + 'static>(&self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: for<'a> Extend<&'a T> + Default + 'static>(&self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(&self) -> Fold<Vec<T>>
+    where
+        T: Copy,
+    {
+        self.collect()
+    }
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
         self.to_re_ref().for_each(f)
     }
@@ -334,9 +356,11 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     }
 }
 impl<T: 'static + ?Sized> ReRef<T> {
-    pub fn with<U>(&self, ctx: &mut BindContext, mut f: impl FnMut(&T) -> U) -> U {
+    pub fn with<U>(&self, ctx: &mut BindContext, f: impl FnOnce(&T) -> U) -> U {
         let mut output = None;
-        self.0.dyn_with(ctx, &mut |value| output = Some(f(value)));
+        let mut f = Some(f);
+        self.0
+            .dyn_with(ctx, &mut |value| output = Some((f.take().unwrap())(value)));
         output.unwrap()
     }
     pub fn new<S: 'static>(
@@ -386,6 +410,38 @@ impl<T: 'static + ?Sized> ReRef<T> {
         T: Clone,
     {
         self.map(|x| x.clone())
+    }
+    pub fn fold<St: 'static>(
+        &self,
+        initial_state: St,
+        f: impl Fn(St, &T) -> St + 'static,
+    ) -> Fold<St> {
+        let this = self.clone();
+        let mut f = f;
+        Fold(FoldBy::new(
+            initial_state,
+            move |st, ctx| {
+                let f = &mut f;
+                (this.with(ctx, move |x| f(st, x)), ())
+            },
+            |(st, _)| st,
+            |st| st,
+        ))
+    }
+    pub fn collect_to<E: for<'a> Extend<&'a T> + 'static>(&self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: for<'a> Extend<&'a T> + Default + 'static>(&self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(&self) -> Fold<Vec<T>>
+    where
+        T: Copy,
+    {
+        self.collect()
     }
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
         Unbind(Rc::new(ForEachRef::new(self.clone(), f)))
