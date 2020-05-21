@@ -340,12 +340,27 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
-
     pub fn cloned(&self) -> Re<T>
     where
         T: Clone,
     {
         self.map(|x| x.clone())
+    }
+
+    pub fn scan<St: 'static>(
+        &self,
+        initial_state: St,
+        f: impl Fn(St, &T) -> St + 'static,
+    ) -> ReBorrow<St> {
+        self.to_re_ref().scan(initial_state, f)
+    }
+    pub fn filter_scan<St: 'static>(
+        &self,
+        initial_state: St,
+        predicate: impl Fn(&St, &T) -> bool + 'static,
+        f: impl Fn(St, &T) -> St + 'static,
+    ) -> ReBorrow<St> {
+        self.to_re_ref().filter_scan(initial_state, predicate, f)
     }
 
     pub fn fold<St: 'static>(
@@ -370,9 +385,17 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     {
         self.collect()
     }
-    // pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
-    //     self.to_re_ref().for_each(f)
-    // }
+
+    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
+        self.to_re_ref().for_each(f)
+    }
+    pub fn for_each_by<U: 'static>(
+        &self,
+        attach: impl FnMut(&T) -> U + 'static,
+        detach: impl FnMut(U) + 'static,
+    ) -> Subscription {
+        self.to_re_ref().for_each_by(attach, detach)
+    }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(&*this.borrow(ctx)))
