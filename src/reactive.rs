@@ -117,9 +117,6 @@ impl<T: 'static> Re<T> {
     fn from_dyn(inner: impl DynRe<Item = T>) -> Self {
         Self(ReData::Dyn(Rc::new(inner)))
     }
-    fn from_dyn_source(inner: impl DynReSource<Item = T>) -> Self {
-        Self(ReData::DynSource(Rc::new(inner)))
-    }
 
     pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> Re<U> {
         let this = self.clone();
