@@ -193,6 +193,17 @@ fn re_dedup_by() {
 }
 
 #[test]
+fn re_fold() {
+    let cell = ReCell::new(1);
+    let fold = cell.to_re().fold(2, |s, x| s + x);
+
+    cell.set_and_update(5);
+    cell.set_and_update(10);
+
+    assert_eq!(fold.stop(), 18);
+}
+
+#[test]
 fn re_for_each() {
     use std::cell::RefCell;
     use std::rc::Rc;

@@ -209,6 +209,20 @@ impl<T: 'static> Re<T> {
         self.dedup_by(|l, r| l == r)
     }
 
+    pub fn fold<St: 'static>(
+        &self,
+        initial_state: St,
+        f: impl Fn(St, T) -> St + 'static,
+    ) -> Fold<St> {
+        let this = self.clone();
+        Fold(FoldBy::new(
+            initial_state,
+            move |st, ctx| (f(st, this.get(ctx)), ()),
+            |(st, _)| st,
+            |st| st,
+        ))
+    }
+
     pub fn for_each(&self, f: impl FnMut(T) + 'static) -> Unbind {
         Unbind(ForEach::new(self.clone(), f))
     }
@@ -369,6 +383,19 @@ pub enum ReCow<T: 'static + ToOwned + ?Sized> {
     Cow(Cow<'static, T>),
     ReRef(ReRef<T>),
     ReRefOwned(ReRef<T::Owned>),
+}
+
+trait DynFold {
+    type Output;
+
+    fn stop(&self) -> Self::Output;
+}
+pub struct Fold<T>(Rc<dyn DynFold<Output = T>>);
+
+impl<T> Fold<T> {
+    pub fn stop(self) -> T {
+        self.0.stop()
+    }
 }
 
 pub trait IntoReCow<T: 'static + ToOwned + ?Sized> {

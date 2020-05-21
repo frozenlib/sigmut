@@ -321,3 +321,83 @@ where
         BindContextScope::with(|scope| self.ready(scope));
     }
 }
+
+pub struct FoldBy<St, Loaded, Load, Unload, Get>(
+    RefCell<ScanData<(St, Loaded), St, Load, Unload, Get>>,
+);
+
+impl<T, St, Loaded, Load, Unload, Get> FoldBy<St, Loaded, Load, Unload, Get>
+where
+    St: 'static,
+    Loaded: 'static,
+    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Unload: FnMut((St, Loaded)) -> St + 'static,
+    Get: FnMut(St) -> T + 'static,
+{
+    pub fn new(initial_state: St, load: Load, unload: Unload, get: Get) -> Rc<Self> {
+        let this = Rc::new(FoldBy(RefCell::new(ScanData {
+            state: ScanState::Unloaded(initial_state),
+            load,
+            unload,
+            get,
+            bindings: Bindings::new(),
+        })));
+        Self::next(&this);
+        this
+    }
+    fn next(this: &Rc<Self>) {
+        BindContextScope::with(|scope| {
+            let d = &mut *this.0.borrow_mut();
+            d.state.load(&mut d.bindings, scope, this, &mut d.load);
+        });
+    }
+}
+impl<T, St, Loaded, Load, Unload, Get> DynFold for FoldBy<St, Loaded, Load, Unload, Get>
+where
+    St: 'static,
+    Loaded: 'static,
+    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Unload: FnMut((St, Loaded)) -> St + 'static,
+    Get: FnMut(St) -> T + 'static,
+{
+    type Output = T;
+
+    fn stop(&self) -> Self::Output {
+        let b = &mut *(self.0).borrow_mut();
+        let s = match take(&mut b.state) {
+            ScanState::Loaded((s, _loaded)) => s,
+            ScanState::Unloaded(s) => s,
+            ScanState::NoData => panic!("invalid state."),
+        };
+        (b.get)(s)
+    }
+}
+
+impl<T, St, Loaded, Load, Unload, Get> BindSink for FoldBy<St, Loaded, Load, Unload, Get>
+where
+    St: 'static,
+    Loaded: 'static,
+    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Unload: FnMut((St, Loaded)) -> St + 'static,
+    Get: FnMut(St) -> T + 'static,
+{
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        let d = &mut *self.0.borrow_mut();
+        if d.state.unload(&mut d.unload) {
+            ctx.spawn(Rc::downgrade(&self));
+        }
+    }
+}
+
+impl<T, St, Loaded, Load, Unload, Get> Task for FoldBy<St, Loaded, Load, Unload, Get>
+where
+    St: 'static,
+    Loaded: 'static,
+    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Unload: FnMut((St, Loaded)) -> St + 'static,
+    Get: FnMut(St) -> T + 'static,
+{
+    fn run(self: Rc<Self>) {
+        Self::next(&self);
+    }
+}
