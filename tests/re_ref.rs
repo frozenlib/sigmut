@@ -57,3 +57,15 @@ fn re_ref_to_vec() {
 
     assert_eq!(fold.stop(), vec![1, 2, 1, 3]);
 }
+
+#[test]
+fn re_map() {
+    let a = ReRefCell::new(2);
+    let b = a.to_re_ref().map(|x| x * 2);
+    let r = b.to_vec();
+
+    a.set_and_update(5);
+    a.set_and_update(7);
+
+    assert_eq!(r.stop(), vec![4, 10, 14]);
+}
