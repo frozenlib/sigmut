@@ -118,6 +118,12 @@ impl<T: 'static> Re<T> {
         let this = self.clone();
         Re::new(move |ctx| f(this.get(ctx)))
     }
+    pub fn cloned(&self) -> Re<T>
+    where
+        T: Clone,
+    {
+        self.map(|x| x.clone())
+    }
     pub fn flat_map<U>(&self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
@@ -333,6 +339,13 @@ impl<T: 'static + ?Sized> ReRef<T> {
             _phantom: PhantomData,
         })
     }
+    pub fn constant(value: T) -> Self
+    where
+        T: Sized,
+    {
+        Self::new(value, |value, _ctx, f| f(value))
+    }
+
     fn from_dyn(inner: impl DynReRef<Item = T>) -> Self {
         Self(Rc::new(inner))
     }
@@ -340,6 +353,12 @@ impl<T: 'static + ?Sized> ReRef<T> {
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
         let this = self.clone();
         Re::new(move |ctx| this.with(ctx, |x| f(x)))
+    }
+    pub fn cloned(&self) -> Re<T>
+    where
+        T: Clone,
+    {
+        self.map(|x| x.clone())
     }
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
         Unbind(Rc::new(ForEachRef::new(self.clone(), f)))
