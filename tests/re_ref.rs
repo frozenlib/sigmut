@@ -92,3 +92,31 @@ fn re_flat_map() {
 
     assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
 }
+
+#[test]
+fn re_scan() {
+    let cell = ReRefCell::new(2);
+    let re = cell.to_re_ref().scan(10, |s, x| s + x);
+    let r = re.to_vec();
+
+    cell.set_and_update(3);
+    cell.set_and_update(4);
+    cell.set_and_update(5);
+
+    assert_eq!(r.stop(), vec![12, 15, 19, 24]);
+}
+#[test]
+fn re_filter_scan() {
+    let cell = ReRefCell::new(2);
+    let re = cell
+        .to_re_ref()
+        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x);
+    let r = re.to_vec();
+
+    cell.set_and_update(3);
+    cell.set_and_update(4);
+    cell.set_and_update(5);
+    cell.set_and_update(6);
+
+    assert_eq!(r.stop(), vec![10, 13, 18]);
+}

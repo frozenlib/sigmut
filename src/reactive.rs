@@ -426,6 +426,42 @@ impl<T: 'static + ?Sized> ReRef<T> {
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
+    pub fn scan<St: 'static>(
+        &self,
+        initial_state: St,
+        f: impl Fn(St, &T) -> St + 'static,
+    ) -> ReBorrow<St> {
+        let this = self.clone();
+        ReBorrow::from_dyn_source(Scan::new(
+            initial_state,
+            move |st, ctx| {
+                let f = &f;
+                this.with(ctx, move |x| f(st, x))
+            },
+            |st| st,
+            |st| st,
+        ))
+    }
+    pub fn filter_scan<St: 'static>(
+        &self,
+        initial_state: St,
+        predicate: impl Fn(&St, &T) -> bool + 'static,
+        f: impl Fn(St, &T) -> St + 'static,
+    ) -> ReBorrow<St> {
+        let this = self.clone();
+        ReBorrow::from_dyn_source(FilterScan::new(
+            initial_state,
+            move |state, ctx| {
+                this.with(ctx, |value| {
+                    let is_notify = predicate(&state, &value);
+                    let state = if is_notify { f(state, value) } else { state };
+                    FilterScanResult { is_notify, state }
+                })
+            },
+            |state| state,
+            |state| state,
+        ))
+    }
 
     pub fn cloned(&self) -> Re<T>
     where
