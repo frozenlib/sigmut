@@ -138,7 +138,7 @@ fn re_ref_to_vec() {
 }
 
 #[test]
-fn re_for_each() {
+fn re_ref_for_each() {
     use std::cell::RefCell;
     use std::rc::Rc;
     let cell = ReRefCell::new(0);
@@ -161,7 +161,7 @@ fn re_for_each() {
 }
 
 #[test]
-fn re_for_each_by() {
+fn re_ref_for_each_by() {
     use std::cell::RefCell;
     use std::rc::Rc;
     let cell = ReRefCell::new(0);
