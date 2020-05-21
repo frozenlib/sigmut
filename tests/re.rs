@@ -203,3 +203,14 @@ fn re_for_each() {
 
     assert_eq!(r.finish(), vec![0, 5, 10]);
 }
+
+// #[test]
+// fn re_for_each_by() {
+//     let cell = ReCell::new(0);
+//     let vs = Vec::new();
+
+//     let r = cell.to_re().for_each_by(|x| {}, |x| {});
+
+//     drop(r);
+//     //
+// }
