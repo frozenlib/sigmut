@@ -5,6 +5,7 @@ mod scan;
 pub use self::cell::*;
 use self::{map_async::*, scan::*};
 use crate::bind::*;
+use derivative::Derivative;
 use futures::Future;
 use std::{
     any::Any, borrow::Cow, cell::Ref, cell::RefCell, iter::once, marker::PhantomData, rc::Rc,
@@ -60,8 +61,6 @@ pub trait LocalSpawn: 'static {
     type Handle;
     fn spawn_local<Fut: Future<Output = ()>>(&self, fut: Fut) -> Self::Handle;
 }
-
-use derivative::Derivative;
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
