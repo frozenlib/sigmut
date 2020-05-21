@@ -69,3 +69,26 @@ fn re_map() {
 
     assert_eq!(r.stop(), vec![4, 10, 14]);
 }
+#[test]
+fn re_flat_map() {
+    let a = [ReCell::new(5), ReCell::new(10)];
+    let a_ = a.clone();
+
+    let b = ReRefCell::new(0);
+
+    let c = b.to_re_ref().flat_map(move |&x| a_[x].to_re());
+    let r = c.to_vec();
+
+    a[0].set_and_update(6);
+    a[1].set_and_update(12);
+
+    a[0].set_and_update(7);
+    a[1].set_and_update(13);
+
+    b.set_and_update(1);
+
+    a[0].set_and_update(8);
+    a[1].set_and_update(14);
+
+    assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
+}

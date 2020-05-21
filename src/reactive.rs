@@ -333,6 +333,9 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         let this = self.clone();
         Re::new(move |ctx| f(&this.borrow(ctx)))
     }
+    pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
+        self.map(f).flatten()
+    }
 
     pub fn cloned(&self) -> Re<T>
     where
@@ -421,6 +424,10 @@ impl<T: 'static + ?Sized> ReRef<T> {
         let this = self.clone();
         Re::new(move |ctx| this.with(ctx, |x| f(x)))
     }
+    pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
+        self.map(f).flatten()
+    }
+
     pub fn cloned(&self) -> Re<T>
     where
         T: Clone,
