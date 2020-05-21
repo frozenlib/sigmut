@@ -78,7 +78,7 @@ fn re_flat_map() {
 #[test]
 fn re_cahced() {
     let cell = ReCell::new(0);
-    let re = cell.to_re().map(|x| x + 1).cached().cloned();
+    let re = cell.to_re().map(|x| x + 1).cached();
     let r = re.to_vec();
 
     cell.set_and_update(5);
@@ -90,7 +90,7 @@ fn re_cahced() {
 #[test]
 fn re_scan() {
     let cell = ReCell::new(2);
-    let re = cell.to_re().scan(10, |s, x| s + x).cloned();
+    let re = cell.to_re().scan(10, |s, x| s + x);
     let r = re.to_vec();
 
     cell.set_and_update(3);
@@ -104,8 +104,7 @@ fn re_filter_scan() {
     let cell = ReCell::new(2);
     let re = cell
         .to_re()
-        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
-        .cloned();
+        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x);
     let r = re.to_vec();
 
     cell.set_and_update(3);
@@ -130,7 +129,7 @@ fn re_same_value() {
 #[test]
 fn re_dedup() {
     let cell = ReCell::new(5);
-    let re = cell.to_re().dedup().cloned();
+    let re = cell.to_re().dedup();
     let r = re.to_vec();
 
     cell.set_and_update(5);
@@ -145,7 +144,7 @@ fn re_dedup() {
 #[test]
 fn re_dedup_by_key_1() {
     let cell = ReCell::new((5, 1));
-    let re = cell.to_re().dedup_by_key(|&(x, _)| x).cloned();
+    let re = cell.to_re().dedup_by_key(|&(x, _)| x);
     let r = re.to_vec();
 
     cell.set_and_update((5, 2));
@@ -160,7 +159,7 @@ fn re_dedup_by_key_1() {
 #[test]
 fn re_dedup_by_key_2() {
     let cell = ReCell::new((5, 1));
-    let re = cell.to_re().dedup_by_key(|&(x, _)| x).cloned();
+    let re = cell.to_re().dedup_by_key(|&(x, _)| x);
 
     cell.set_and_update((5, 2));
     let r = re.to_vec(); // current value is (5, 2), not (5, 1).
@@ -175,10 +174,7 @@ fn re_dedup_by_key_2() {
 #[test]
 fn re_dedup_by() {
     let cell = ReCell::new((5, 1));
-    let re = cell
-        .to_re()
-        .dedup_by(|&(x1, _), &(x2, _)| x1 == x2)
-        .cloned();
+    let re = cell.to_re().dedup_by(|&(x1, _), &(x2, _)| x1 == x2);
     let r = re.to_vec();
 
     cell.set_and_update((5, 2));

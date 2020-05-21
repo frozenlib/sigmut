@@ -3,14 +3,14 @@ use reactive_fn::*;
 #[test]
 fn re_ref_constant() {
     let a = ReRef::constant(2);
-    let r = a.cloned().to_vec();
+    let r = a.to_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
 fn re_ref_new() {
     let a = ReCell::new(2);
     let b = ReRef::new(a.clone(), move |a, ctx, f| f(&a.get(ctx)));
-    let r = b.cloned().to_vec();
+    let r = b.to_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -26,8 +26,7 @@ fn re_ref_new_cell2() {
     let re = ReRef::new(
         (cell1.clone(), cell2.clone()),
         move |(cell1, cell2), ctx, f| f(&(cell1.get(ctx) + cell2.get(ctx))),
-    )
-    .cloned();
+    );
     let r = re.to_vec();
 
     cell1.set_and_update(5);
