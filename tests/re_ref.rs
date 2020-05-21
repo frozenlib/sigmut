@@ -59,7 +59,7 @@ fn re_ref_to_vec() {
 }
 
 #[test]
-fn re_map() {
+fn re_ref_map() {
     let a = ReRefCell::new(2);
     let b = a.to_re_ref().map(|x| x * 2);
     let r = b.to_vec();
@@ -70,7 +70,7 @@ fn re_map() {
     assert_eq!(r.stop(), vec![4, 10, 14]);
 }
 #[test]
-fn re_flat_map() {
+fn re_ref_flat_map() {
     let a = [ReCell::new(5), ReCell::new(10)];
     let a_ = a.clone();
 
@@ -94,7 +94,7 @@ fn re_flat_map() {
 }
 
 #[test]
-fn re_scan() {
+fn re_ref_scan() {
     let cell = ReRefCell::new(2);
     let re = cell.to_re_ref().scan(10, |s, x| s + x);
     let r = re.to_vec();
@@ -106,7 +106,7 @@ fn re_scan() {
     assert_eq!(r.stop(), vec![12, 15, 19, 24]);
 }
 #[test]
-fn re_filter_scan() {
+fn re_ref_filter_scan() {
     let cell = ReRefCell::new(2);
     let re = cell
         .to_re_ref()
@@ -119,4 +119,16 @@ fn re_filter_scan() {
     cell.set_and_update(6);
 
     assert_eq!(r.stop(), vec![10, 13, 18]);
+}
+
+#[test]
+fn re_ref_cloned() {
+    let cell = ReRefCell::new(2);
+    let r = cell.to_re_ref().cloned().to_vec();
+
+    cell.set_and_update(3);
+    cell.set_and_update(4);
+    cell.set_and_update(5);
+
+    assert_eq!(r.stop(), vec![2, 3, 4, 5]);
 }
