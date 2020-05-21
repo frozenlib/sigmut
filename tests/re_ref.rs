@@ -21,11 +21,11 @@ fn re_ref_new_cell2() {
     let cell1 = ReCell::new(1);
     let cell2 = ReCell::new(2);
 
-    let re = ReRef::new(
+    let r = ReRef::new(
         (cell1.clone(), cell2.clone()),
         move |(cell1, cell2), ctx, f| f(&(cell1.get(ctx) + cell2.get(ctx))),
-    );
-    let r = re.to_vec();
+    )
+    .to_vec();
 
     cell1.set_and_update(5);
     cell2.set_and_update(10);
@@ -103,10 +103,10 @@ fn re_ref_scan() {
 #[test]
 fn re_ref_filter_scan() {
     let cell = ReRefCell::new(2);
-    let re = cell
+    let r = cell
         .to_re_ref()
-        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x);
-    let r = re.to_vec();
+        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
+        .to_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);

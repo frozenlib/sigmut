@@ -95,10 +95,10 @@ fn re_scan() {
 #[test]
 fn re_filter_scan() {
     let cell = ReCell::new(2);
-    let re = cell
+    let r = cell
         .to_re()
-        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x);
-    let r = re.to_vec();
+        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
+        .to_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
