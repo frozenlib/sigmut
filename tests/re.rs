@@ -1,14 +1,11 @@
-mod test_utils;
-
-use self::test_utils::*;
 use reactive_fn::*;
 use std::collections::HashSet;
 
 #[test]
 fn re_constant() {
     let a = Re::constant(2);
-    let r = record(&a);
-    assert_eq!(r.finish(), vec![2]);
+    let r = a.to_vec();
+    assert_eq!(r.stop(), vec![2]);
 }
 
 #[test]
@@ -16,12 +13,12 @@ fn re_new() {
     let a = ReCell::new(2);
     let a_ = a.clone();
     let b = Re::new(move |ctx| a_.get(ctx));
-    let r = record(&b);
+    let r = b.to_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
 
-    assert_eq!(r.finish(), vec![2, 5, 7]);
+    assert_eq!(r.stop(), vec![2, 5, 7]);
 }
 
 #[test]
@@ -34,24 +31,24 @@ fn re_new_cell2() {
         let cell2 = cell2.clone();
         Re::new(move |ctx| cell1.get(ctx) + cell2.get(ctx))
     };
-    let r = record(&re);
+    let r = re.to_vec();
 
     cell1.set_and_update(5);
     cell2.set_and_update(10);
 
-    assert_eq!(r.finish(), vec![1 + 2, 5 + 2, 5 + 10]);
+    assert_eq!(r.stop(), vec![1 + 2, 5 + 2, 5 + 10]);
 }
 
 #[test]
 fn re_map() {
     let a = ReCell::new(2);
     let b = a.to_re().map(|x| x * 2);
-    let r = record(&b);
+    let r = b.to_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
 
-    assert_eq!(r.finish(), vec![4, 10, 14]);
+    assert_eq!(r.stop(), vec![4, 10, 14]);
 }
 
 #[test]
@@ -62,7 +59,7 @@ fn re_flat_map() {
     let b = ReCell::new(0);
 
     let c = b.to_re().flat_map(move |x| a_[x].to_re());
-    let r = record(&c);
+    let r = c.to_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -75,32 +72,32 @@ fn re_flat_map() {
     a[0].set_and_update(8);
     a[1].set_and_update(14);
 
-    assert_eq!(r.finish(), vec![5, 6, 7, 13, 14]);
+    assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
 }
 
 #[test]
 fn re_cahced() {
     let cell = ReCell::new(0);
     let re = cell.to_re().map(|x| x + 1).cached().cloned();
-    let r = record(&re);
+    let r = re.to_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(10);
 
-    assert_eq!(r.finish(), vec![1, 6, 11]);
+    assert_eq!(r.stop(), vec![1, 6, 11]);
 }
 
 #[test]
 fn re_scan() {
     let cell = ReCell::new(2);
     let re = cell.to_re().scan(10, |s, x| s + x).cloned();
-    let r = record(&re);
+    let r = re.to_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
     cell.set_and_update(5);
 
-    assert_eq!(r.finish(), vec![12, 15, 19, 24]);
+    assert_eq!(r.stop(), vec![12, 15, 19, 24]);
 }
 #[test]
 fn re_filter_scan() {
@@ -109,32 +106,32 @@ fn re_filter_scan() {
         .to_re()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
         .cloned();
-    let r = record(&re);
+    let r = re.to_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
     cell.set_and_update(5);
     cell.set_and_update(6);
 
-    assert_eq!(r.finish(), vec![10, 13, 18]);
+    assert_eq!(r.stop(), vec![10, 13, 18]);
 }
 
 #[test]
 fn re_same_value() {
     let cell = ReCell::new(5);
     let re = cell.to_re();
-    let r = record(&re);
+    let r = re.to_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(5);
 
-    assert_eq!(r.finish(), vec![5, 5, 5]);
+    assert_eq!(r.stop(), vec![5, 5, 5]);
 }
 #[test]
 fn re_dedup() {
     let cell = ReCell::new(5);
     let re = cell.to_re().dedup().cloned();
-    let r = record(&re);
+    let r = re.to_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(5);
@@ -142,14 +139,14 @@ fn re_dedup() {
     cell.set_and_update(6);
     cell.set_and_update(5);
 
-    assert_eq!(r.finish(), vec![5, 6, 5]);
+    assert_eq!(r.stop(), vec![5, 6, 5]);
 }
 
 #[test]
 fn re_dedup_by_key_1() {
     let cell = ReCell::new((5, 1));
     let re = cell.to_re().dedup_by_key(|&(x, _)| x).cloned();
-    let r = record(&re);
+    let r = re.to_vec();
 
     cell.set_and_update((5, 2));
     cell.set_and_update((6, 2));
@@ -157,7 +154,7 @@ fn re_dedup_by_key_1() {
     cell.set_and_update((6, 1));
     cell.set_and_update((5, 2));
 
-    assert_eq!(r.finish(), vec![(5, 1), (6, 2), (5, 2)]);
+    assert_eq!(r.stop(), vec![(5, 1), (6, 2), (5, 2)]);
 }
 
 #[test]
@@ -166,13 +163,13 @@ fn re_dedup_by_key_2() {
     let re = cell.to_re().dedup_by_key(|&(x, _)| x).cloned();
 
     cell.set_and_update((5, 2));
-    let r = record(&re); // current value is (5, 2), not (5, 1).
+    let r = re.to_vec(); // current value is (5, 2), not (5, 1).
     cell.set_and_update((6, 2));
     cell.set_and_update((6, 2));
     cell.set_and_update((6, 1));
     cell.set_and_update((5, 2));
 
-    assert_eq!(r.finish(), vec![(5, 2), (6, 2), (5, 2)]);
+    assert_eq!(r.stop(), vec![(5, 2), (6, 2), (5, 2)]);
 }
 
 #[test]
@@ -182,7 +179,7 @@ fn re_dedup_by() {
         .to_re()
         .dedup_by(|&(x1, _), &(x2, _)| x1 == x2)
         .cloned();
-    let r = record(&re);
+    let r = re.to_vec();
 
     cell.set_and_update((5, 2));
     cell.set_and_update((6, 2));
@@ -190,7 +187,7 @@ fn re_dedup_by() {
     cell.set_and_update((6, 1));
     cell.set_and_update((5, 2));
 
-    assert_eq!(r.finish(), vec![(5, 1), (6, 2), (5, 2)]);
+    assert_eq!(r.stop(), vec![(5, 1), (6, 2), (5, 2)]);
 }
 
 #[test]
