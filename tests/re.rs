@@ -3,8 +3,7 @@ use std::collections::HashSet;
 
 #[test]
 fn re_constant() {
-    let a = Re::constant(2);
-    let r = a.to_vec();
+    let r = Re::constant(2).to_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 
@@ -12,8 +11,7 @@ fn re_constant() {
 fn re_new() {
     let a = ReCell::new(2);
     let a_ = a.clone();
-    let b = Re::new(move |ctx| a_.get(ctx));
-    let r = b.to_vec();
+    let r = Re::new(move |ctx| a_.get(ctx)).to_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -41,8 +39,7 @@ fn re_new_cell2() {
 #[test]
 fn re_map() {
     let a = ReCell::new(2);
-    let b = a.to_re().map(|x| x * 2);
-    let r = b.to_vec();
+    let r = a.to_re().map(|x| x * 2).to_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -57,8 +54,7 @@ fn re_flat_map() {
 
     let b = ReCell::new(0);
 
-    let c = b.to_re().flat_map(move |x| a_[x].to_re());
-    let r = c.to_vec();
+    let r = b.to_re().flat_map(move |x| a_[x].to_re()).to_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -77,8 +73,7 @@ fn re_flat_map() {
 #[test]
 fn re_cahced() {
     let cell = ReCell::new(0);
-    let re = cell.to_re().map(|x| x + 1).cached();
-    let r = re.to_vec();
+    let r = cell.to_re().map(|x| x + 1).cached().to_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(10);
@@ -89,8 +84,7 @@ fn re_cahced() {
 #[test]
 fn re_scan() {
     let cell = ReCell::new(2);
-    let re = cell.to_re().scan(10, |s, x| s + x);
-    let r = re.to_vec();
+    let r = cell.to_re().scan(10, |s, x| s + x).to_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -117,8 +111,7 @@ fn re_filter_scan() {
 #[test]
 fn re_same_value() {
     let cell = ReCell::new(5);
-    let re = cell.to_re();
-    let r = re.to_vec();
+    let r = cell.to_re().to_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(5);
@@ -128,8 +121,7 @@ fn re_same_value() {
 #[test]
 fn re_dedup() {
     let cell = ReCell::new(5);
-    let re = cell.to_re().dedup();
-    let r = re.to_vec();
+    let r = cell.to_re().dedup().to_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(5);
@@ -143,8 +135,7 @@ fn re_dedup() {
 #[test]
 fn re_dedup_by_key_1() {
     let cell = ReCell::new((5, 1));
-    let re = cell.to_re().dedup_by_key(|&(x, _)| x);
-    let r = re.to_vec();
+    let r = cell.to_re().dedup_by_key(|&(x, _)| x).to_vec();
 
     cell.set_and_update((5, 2));
     cell.set_and_update((6, 2));
@@ -173,8 +164,10 @@ fn re_dedup_by_key_2() {
 #[test]
 fn re_dedup_by() {
     let cell = ReCell::new((5, 1));
-    let re = cell.to_re().dedup_by(|&(x1, _), &(x2, _)| x1 == x2);
-    let r = re.to_vec();
+    let r = cell
+        .to_re()
+        .dedup_by(|&(x1, _), &(x2, _)| x1 == x2)
+        .to_vec();
 
     cell.set_and_update((5, 2));
     cell.set_and_update((6, 2));

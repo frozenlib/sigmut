@@ -2,15 +2,13 @@ use reactive_fn::*;
 
 #[test]
 fn re_ref_constant() {
-    let a = ReRef::constant(2);
-    let r = a.to_vec();
+    let r = ReRef::constant(2).to_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
 fn re_ref_new() {
     let a = ReCell::new(2);
-    let b = ReRef::new(a.clone(), move |a, ctx, f| f(&a.get(ctx)));
-    let r = b.to_vec();
+    let r = ReRef::new(a.clone(), move |a, ctx, f| f(&a.get(ctx))).to_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -61,8 +59,7 @@ fn re_ref_to_vec() {
 #[test]
 fn re_ref_map() {
     let a = ReRefCell::new(2);
-    let b = a.to_re_ref().map(|x| x * 2);
-    let r = b.to_vec();
+    let r = a.to_re_ref().map(|x| x * 2).to_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -76,8 +73,7 @@ fn re_ref_flat_map() {
 
     let b = ReRefCell::new(0);
 
-    let c = b.to_re_ref().flat_map(move |&x| a_[x].to_re());
-    let r = c.to_vec();
+    let r = b.to_re_ref().flat_map(move |&x| a_[x].to_re()).to_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -96,8 +92,7 @@ fn re_ref_flat_map() {
 #[test]
 fn re_ref_scan() {
     let cell = ReRefCell::new(2);
-    let re = cell.to_re_ref().scan(10, |s, x| s + x);
-    let r = re.to_vec();
+    let r = cell.to_re_ref().scan(10, |s, x| s + x).to_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
