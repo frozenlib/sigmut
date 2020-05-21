@@ -8,7 +8,8 @@ use self::{for_each::*, map_async::*, scan::*};
 use crate::bind::*;
 use futures::Future;
 use std::{
-    any::Any, borrow::Cow, cell::Ref, cell::RefCell, marker::PhantomData, rc::Rc, task::Poll,
+    any::Any, borrow::Cow, cell::Ref, cell::RefCell, iter::once, marker::PhantomData, rc::Rc,
+    task::Poll,
 };
 
 trait DynRe: 'static {
@@ -221,6 +222,18 @@ impl<T: 'static> Re<T> {
             |(st, _)| st,
             |st| st,
         ))
+    }
+    pub fn collect_to<E: Extend<T> + 'static>(&self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: Extend<T> + Default + 'static>(&self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(&self) -> Fold<Vec<T>> {
+        self.collect()
     }
 
     pub fn for_each(&self, f: impl FnMut(T) + 'static) -> Unbind {

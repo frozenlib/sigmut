@@ -2,6 +2,7 @@ mod test_utils;
 
 use self::test_utils::*;
 use reactive_fn::*;
+use std::collections::HashSet;
 
 #[test]
 fn re_constant() {
@@ -201,6 +202,43 @@ fn re_fold() {
     cell.set_and_update(10);
 
     assert_eq!(fold.stop(), 18);
+}
+#[test]
+fn re_collect_to() {
+    let cell = ReCell::new(1);
+    let fold = cell.to_re().collect_to(HashSet::new());
+
+    cell.set_and_update(2);
+    cell.set_and_update(1);
+    cell.set_and_update(3);
+
+    let e: HashSet<_> = vec![1, 2, 3].into_iter().collect();
+    assert_eq!(fold.stop(), e);
+}
+#[test]
+fn re_collect() {
+    let cell = ReCell::new(1);
+    let fold = cell.to_re().collect_to(HashSet::new());
+
+    cell.set_and_update(2);
+    cell.set_and_update(1);
+    cell.set_and_update(3);
+
+    let e: HashSet<_> = vec![1, 2, 3].into_iter().collect();
+    let a: HashSet<_> = fold.stop();
+    assert_eq!(a, e);
+}
+
+#[test]
+fn re_to_vec() {
+    let cell = ReCell::new(1);
+    let fold = cell.to_re().to_vec();
+
+    cell.set_and_update(2);
+    cell.set_and_update(1);
+    cell.set_and_update(3);
+
+    assert_eq!(fold.stop(), vec![1, 2, 1, 3]);
 }
 
 #[test]
