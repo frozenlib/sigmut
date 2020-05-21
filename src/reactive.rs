@@ -49,7 +49,14 @@ trait DynReRef: 'static {
     fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&Self::Item));
 }
 
-pub struct Unbind(Rc<dyn Any>);
+pub struct Subscription(Fold<()>);
+
+impl Clone for Subscription {
+    fn clone(&self) -> Self {
+        Self(Fold((self.0).0.clone()))
+    }
+}
+
 pub trait LocalSpawn: 'static {
     type Handle;
     fn spawn_local<Fut: Future<Output = ()>>(&self, fut: Fut) -> Self::Handle;
@@ -213,9 +220,10 @@ impl<T: 'static> Re<T> {
     pub fn fold<St: 'static>(
         &self,
         initial_state: St,
-        f: impl Fn(St, T) -> St + 'static,
+        f: impl FnMut(St, T) -> St + 'static,
     ) -> Fold<St> {
         let this = self.clone();
+        let mut f = f;
         Fold(FoldBy::new(
             initial_state,
             move |st, ctx| (f(st, this.get(ctx)), ()),
@@ -236,21 +244,33 @@ impl<T: 'static> Re<T> {
         self.collect()
     }
 
-    pub fn for_each(&self, f: impl FnMut(T) + 'static) -> Unbind {
-        Unbind(ForEach::new(self.clone(), f))
+    pub fn for_each(&self, f: impl FnMut(T) + 'static) -> Subscription {
+        let mut f = f;
+        Subscription(self.fold((), move |_, x| {
+            f(x);
+            ()
+        }))
     }
     pub fn for_each_by<U: 'static>(
         &self,
         attach: impl FnMut(T) -> U + 'static,
         detach: impl FnMut(U) + 'static,
-    ) -> Unbind {
-        Unbind(ForEachBy::new(self.clone(), attach, detach))
+    ) -> Subscription {
+        let this = self.clone();
+        let mut attach = attach;
+        let mut detach = detach;
+        Subscription(Fold(FoldBy::new(
+            (),
+            move |_, ctx| ((), attach(this.get(ctx))),
+            move |(_, x)| detach(x),
+            |_| (),
+        )))
     }
     pub fn for_each_async_with<Fut>(
         &self,
         f: impl FnMut(T) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> Unbind
+    ) -> Subscription
     where
         Fut: Future<Output = ()> + 'static,
     {
@@ -347,9 +367,9 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     {
         self.collect()
     }
-    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
-        self.to_re_ref().for_each(f)
-    }
+    // pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
+    //     self.to_re_ref().for_each(f)
+    // }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(&*this.borrow(ctx)))
@@ -443,9 +463,9 @@ impl<T: 'static + ?Sized> ReRef<T> {
     {
         self.collect()
     }
-    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Unbind {
-        Unbind(Rc::new(ForEachRef::new(self.clone(), f)))
-    }
+    // pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
+    //     Subscription(Fold::new() Rc::new(ForEachRef::new(self.clone(), f)))
+    // }
 }
 
 pub enum ReCow<T: 'static + ToOwned + ?Sized> {

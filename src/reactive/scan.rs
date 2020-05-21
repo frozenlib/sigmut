@@ -324,7 +324,10 @@ where
 
 pub struct FoldBy<St, Loaded, Load, Unload, Get>(
     RefCell<ScanData<(St, Loaded), St, Load, Unload, Get>>,
-);
+)
+where
+    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Unload: FnMut((St, Loaded)) -> St + 'static;
 
 impl<T, St, Loaded, Load, Unload, Get> FoldBy<St, Loaded, Load, Unload, Get>
 where
@@ -363,13 +366,14 @@ where
     type Output = T;
 
     fn stop(&self) -> Self::Output {
-        let b = &mut *(self.0).borrow_mut();
-        let s = match take(&mut b.state) {
+        let d = &mut *(self.0).borrow_mut();
+        d.state.unload(&mut d.unload);
+        let s = match take(&mut d.state) {
             ScanState::Loaded((s, _loaded)) => s,
             ScanState::Unloaded(s) => s,
             ScanState::NoData => panic!("invalid state."),
         };
-        (b.get)(s)
+        (d.get)(s)
     }
 }
 
@@ -399,5 +403,15 @@ where
 {
     fn run(self: Rc<Self>) {
         Self::next(&self);
+    }
+}
+impl<St, Loaded, Load, Unload, Get> Drop for FoldBy<St, Loaded, Load, Unload, Get>
+where
+    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Unload: FnMut((St, Loaded)) -> St + 'static,
+{
+    fn drop(&mut self) {
+        let d = &mut *self.0.borrow_mut();
+        d.state.unload(&mut d.unload);
     }
 }
