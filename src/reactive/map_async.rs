@@ -92,6 +92,15 @@ where
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
+    fn detach_sink(&self, idx: usize, sink: &Weak<dyn BindSink>) {
+        self.sinks().detach(idx, sink);
+        if self.sinks.is_empty() {
+            let mut s = self.state.borrow_mut();
+            s.handle = None;
+            s.value = Poll::Pending;
+            s.bindings.clear();
+        }
+    }
 }
 
 impl<Fut, Sp> BindSink for MapAsync<Fut, Sp>
