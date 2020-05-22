@@ -1,9 +1,10 @@
 mod cell;
 mod map_async;
 mod scan;
+mod to_stream;
 
 pub use self::cell::*;
-use self::{map_async::*, scan::*};
+use self::{map_async::*, scan::*, to_stream::*};
 use crate::bind::*;
 use derivative::Derivative;
 use futures::Future;
@@ -54,7 +55,7 @@ pub struct Subscription(Rc<dyn Any>);
 
 pub trait LocalSpawn: 'static {
     type Handle;
-    fn spawn_local<Fut: Future<Output = ()>>(&self, fut: Fut) -> Self::Handle;
+    fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle;
 }
 
 #[derive(Derivative)]
@@ -266,6 +267,10 @@ impl<T: 'static> Re<T> {
     {
         let mut f = f;
         self.for_each_by(move |value| sp.spawn_local(f(value)), move |_| {})
+    }
+
+    pub fn to_stream(&self) -> impl futures::Stream<Item = T> {
+        ToStream::new(self.clone())
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {

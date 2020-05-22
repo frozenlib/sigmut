@@ -9,3 +9,4 @@ edition = "2018"
 [dependencies]
 futures = "0.3"
 derivative = "2.1"
+smol = "0.1"
