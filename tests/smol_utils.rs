@@ -61,13 +61,10 @@ fn re_map_async() {
         let cell = ReCell::new(1);
         let r = cell
             .to_re()
-            .map_async_with(
-                |x| async move {
-                    Timer::after(NEXT_DURATION / 2).await;
-                    x + 2
-                },
-                LocalSpawner,
-            )
+            .map_async(|x| async move {
+                Timer::after(NEXT_DURATION / 2).await;
+                x + 2
+            })
             .cloned();
         let _task = send_values(&cell, vec![5, 10]);
         let values = vec![
