@@ -47,6 +47,7 @@ impl<T: 'static> Stream for ToStream<T> {
         let this = &self.as_ref().0;
         let b = &mut *this.state.borrow_mut();
         if b.is_ready {
+            b.is_ready = false;
             let value = b.bindings.update_root(this, |ctx| this.source.get(ctx));
             Poll::Ready(Some(value))
         } else {
