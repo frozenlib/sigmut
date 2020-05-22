@@ -18,7 +18,6 @@ async fn assert_timeout(fut: impl Future + Unpin) {
 fn re_to_stream() {
     smol::run(async {
         let cell = ReCell::new(1u64);
-
         let mut s = cell.to_re().to_stream();
         let dur = Duration::from_millis(300);
         let _task = Task::local(async move {
