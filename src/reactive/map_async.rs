@@ -50,9 +50,7 @@ where
         s.handle = Some(self.sp.spawn_local(async move {
             let value = fut.await;
             if let Some(this) = Weak::upgrade(&this) {
-                let mut s = this.state.borrow_mut();
-                s.value = Poll::Ready(value);
-                drop(s);
+                this.state.borrow_mut().value = Poll::Ready(value);
                 this.sinks.notify_and_update();
             }
         }));
@@ -103,8 +101,7 @@ where
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut s = self.state.borrow_mut();
-        if s.handle.is_some() {
-            s.handle = None;
+        if s.handle.take().is_some() {
             if let Poll::Ready(_) = &s.value {
                 s.value = Poll::Pending;
                 drop(s);
