@@ -210,10 +210,9 @@ impl<T: 'static> Re<T> {
     pub fn fold<St: 'static>(
         &self,
         initial_state: St,
-        f: impl FnMut(St, T) -> St + 'static,
+        f: impl Fn(St, T) -> St + 'static,
     ) -> Fold<St> {
         let this = self.clone();
-        let mut f = f;
         Fold(FoldBy::new(
             initial_state,
             move |st, ctx| (f(st, this.get(ctx)), ()),
@@ -235,10 +234,9 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn for_each(&self, f: impl FnMut(T) + 'static) -> Subscription {
-        let mut f = f;
-        self.fold((), move |_, x| {
+        self.fold(f, move |mut f, x| {
             f(x);
-            ()
+            f
         })
         .into()
     }
@@ -501,7 +499,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
     pub fn fold<St: 'static>(
         &self,
         initial_state: St,
-        f: impl FnMut(St, &T) -> St + 'static,
+        f: impl Fn(St, &T) -> St + 'static,
     ) -> Fold<St> {
         let this = self.clone();
         let mut f = f;
@@ -531,10 +529,9 @@ impl<T: 'static + ?Sized> ReRef<T> {
         self.collect()
     }
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
-        let mut f = f;
-        self.fold((), move |_, x| {
+        self.fold(f, move |mut f, x| {
             f(x);
-            ()
+            f
         })
         .into()
     }
