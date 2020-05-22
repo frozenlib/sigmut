@@ -49,13 +49,8 @@ trait DynReRef: 'static {
     fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&Self::Item));
 }
 
-pub struct Subscription(Fold<()>);
-
-impl Clone for Subscription {
-    fn clone(&self) -> Self {
-        Self(Fold((self.0).0.clone()))
-    }
-}
+#[derive(Clone)]
+pub struct Subscription(Rc<dyn Any>);
 
 pub trait LocalSpawn: 'static {
     type Handle;
@@ -241,10 +236,11 @@ impl<T: 'static> Re<T> {
 
     pub fn for_each(&self, f: impl FnMut(T) + 'static) -> Subscription {
         let mut f = f;
-        Subscription(self.fold((), move |_, x| {
+        self.fold((), move |_, x| {
             f(x);
             ()
-        }))
+        })
+        .into()
     }
     pub fn for_each_by<U: 'static>(
         &self,
@@ -254,12 +250,13 @@ impl<T: 'static> Re<T> {
         let this = self.clone();
         let mut attach = attach;
         let mut detach = detach;
-        Subscription(Fold(FoldBy::new(
+        Fold(FoldBy::new(
             (),
             move |_, ctx| ((), attach(this.get(ctx))),
             move |(_, x)| detach(x),
             |_| (),
-        )))
+        ))
+        .into()
     }
     pub fn for_each_async_with<Fut>(
         &self,
@@ -535,10 +532,11 @@ impl<T: 'static + ?Sized> ReRef<T> {
     }
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
         let mut f = f;
-        Subscription(self.fold((), move |_, x| {
+        self.fold((), move |_, x| {
             f(x);
             ()
-        }))
+        })
+        .into()
     }
     pub fn for_each_by<U: 'static>(
         &self,
@@ -548,12 +546,13 @@ impl<T: 'static + ?Sized> ReRef<T> {
         let this = self.clone();
         let mut attach = attach;
         let mut detach = detach;
-        Subscription(Fold(FoldBy::new(
+        Fold(FoldBy::new(
             (),
             move |_, ctx| ((), this.with(ctx, |x| attach(x))),
             move |(_, x)| detach(x),
             |_| (),
-        )))
+        ))
+        .into()
     }
 }
 
@@ -567,12 +566,18 @@ trait DynFold {
     type Output;
 
     fn stop(&self) -> Self::Output;
+    fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any>;
 }
 pub struct Fold<T>(Rc<dyn DynFold<Output = T>>);
 
 impl<T> Fold<T> {
     pub fn stop(self) -> T {
         self.0.stop()
+    }
+}
+impl<T> From<Fold<T>> for Subscription {
+    fn from(x: Fold<T>) -> Self {
+        Subscription(x.0.as_dyn_any())
     }
 }
 

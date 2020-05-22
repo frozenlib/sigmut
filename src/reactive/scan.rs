@@ -375,6 +375,9 @@ where
         };
         (d.get)(s)
     }
+    fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
 }
 
 impl<T, St, Loaded, Load, Unload, Get> BindSink for FoldBy<St, Loaded, Load, Unload, Get>
