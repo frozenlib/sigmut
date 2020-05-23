@@ -47,11 +47,8 @@ where
         let mut s = self.state.borrow_mut();
         let fut = s.bindings.update(scope, self, |ctx| self.source.get(ctx));
         let this = Rc::downgrade(self);
-        println!("ready");
         s.handle = Some(self.sp.spawn_local(async move {
-            println!("execute local task");
             let value = fut.await;
-            println!("await completed");
             if let Some(this) = Weak::upgrade(&this) {
                 this.state.borrow_mut().value = Poll::Ready(value);
                 this.sinks.notify_and_update();
@@ -98,7 +95,6 @@ where
     fn detach_sink(&self, idx: usize, sink: &Weak<dyn BindSink>) {
         self.sinks().detach(idx, sink);
         if self.sinks.is_empty() {
-            println!("sync detached.");
             let mut s = self.state.borrow_mut();
             s.handle = None;
             s.value = Poll::Pending;
@@ -113,7 +109,6 @@ where
     Sp: LocalSpawn,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        println!("notify.");
         let mut s = self.state.borrow_mut();
         if s.handle.take().is_some() {
             if let Poll::Ready(_) = &s.value {
