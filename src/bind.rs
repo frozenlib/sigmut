@@ -246,7 +246,7 @@ impl ReactiveContext {
                 b.state = ReactiveState::Notify(0);
                 drop(b);
                 value = on_ctx(self.notify_ctx());
-                self.notify_end(None);
+                self.notify_end(self.borrow_mut());
             }
             ReactiveState::Notify(depth) => {
                 assert_ne!(depth, usize::MAX);
@@ -261,12 +261,8 @@ impl ReactiveContext {
         }
         value
     }
-    fn notify_end(&self, lazy_notify_sinks: Option<Vec<Weak<dyn BindSink>>>) {
-        let mut b = self.borrow_mut();
-        if let Some(s) = lazy_notify_sinks {
-            debug_assert!(s.is_empty());
-            b.lazy_notify_sinks = s;
-        }
+    fn notify_end(&self, b: RefMut<ReactiveContextData>) {
+        let mut b = b;
         if b.lazy_tasks.is_empty() {
             b.state = ReactiveState::None;
             return;
@@ -305,7 +301,8 @@ impl ReactiveContext {
         value
     }
 
-    fn bind_end(&self, mut b: RefMut<ReactiveContextData>) {
+    fn bind_end(&self, b: RefMut<ReactiveContextData>) {
+        let mut b = b;
         b.state = ReactiveState::None;
         b.lazy_drop_bindings.clear();
         if b.lazy_notify_sinks.is_empty() {
@@ -321,7 +318,9 @@ impl ReactiveContext {
             }
         }
         sinks.clear();
-        self.notify_end(Some(sinks));
+        b = self.borrow_mut();
+        b.lazy_notify_sinks = sinks;
+        self.notify_end(b);
     }
 
     fn with<T>(f: impl FnOnce(&Self) -> T) -> T {
