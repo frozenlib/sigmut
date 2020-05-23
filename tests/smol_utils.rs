@@ -9,23 +9,22 @@ use smol::{Task, Timer};
 use std::{fmt::Debug, task::Poll, time::Duration};
 use thiserror::Error;
 
-const NEXT_DURATION: Duration = Duration::from_millis(300);
+const DUR: Duration = Duration::from_millis(300);
 
-fn send_values<T: 'static + Copy>(cell: &ReCell<T>, values: Vec<T>) -> Task<()> {
+fn send_values<T: 'static + Copy>(cell: &ReCell<T>, values: Vec<T>, dur: Duration) -> Task<()> {
     let cell = cell.clone();
     Task::local(async move {
         for value in values {
-            Timer::after(NEXT_DURATION).await;
+            Timer::after(dur).await;
             cell.set_and_update(value);
         }
     })
 }
-async fn assert_values<T>(source: Re<T>, values: Vec<T>)
+async fn assert_values<T>(source: Re<T>, values: Vec<T>, dur: Duration)
 where
     T: 'static + PartialEq + Debug,
 {
     let mut s = source.to_stream();
-    let dur = NEXT_DURATION * 2;
     for value in values {
         assert_eq!(timeout(s.next(), dur).await, Ok(Some(value)));
     }
@@ -50,8 +49,8 @@ async fn timeout<T>(
 fn re_to_stream() {
     smol::run(async {
         let cell = ReCell::new(1);
-        let _task = send_values(&cell, vec![5, 6]);
-        assert_values(cell.to_re(), vec![1, 5, 6]).await;
+        let _task = send_values(&cell, vec![5, 6], DUR);
+        assert_values(cell.to_re(), vec![1, 5, 6], DUR * 2).await;
     });
 }
 
@@ -62,11 +61,11 @@ fn re_map_async() {
         let r = cell
             .to_re()
             .map_async(|x| async move {
-                Timer::after(NEXT_DURATION / 2).await;
+                Timer::after(DUR / 2).await;
                 x + 2
             })
             .cloned();
-        let _task = send_values(&cell, vec![5, 10]);
+        let _task = send_values(&cell, vec![5, 10], DUR);
         let values = vec![
             Poll::Pending,
             Poll::Ready(3),
@@ -75,6 +74,23 @@ fn re_map_async() {
             Poll::Pending,
             Poll::Ready(12),
         ];
-        assert_values(r, values).await;
+        assert_values(r, values, DUR * 2).await;
+    });
+}
+
+#[test]
+fn re_map_async_cancel() {
+    smol::run(async {
+        let cell = ReCell::new(1);
+        let r = cell
+            .to_re()
+            .map_async(|x| async move {
+                Timer::after(DUR).await;
+                x + 2
+            })
+            .cloned();
+        let _task = send_values(&cell, vec![10, 20, 30, 40], DUR / 2);
+        let values = vec![Poll::Pending, Poll::Ready(42)];
+        assert_values(r, values, DUR * 5).await;
     });
 }
