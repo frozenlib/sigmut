@@ -126,7 +126,7 @@ where
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
-    fn run(self: Rc<Self>) {
-        BindContextScope::with(|scope| self.ready(scope));
+    fn run(self: Rc<Self>, scope: &BindContextScope) {
+        self.ready(scope);
     }
 }

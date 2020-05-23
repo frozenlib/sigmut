@@ -188,7 +188,7 @@ enum ReactiveState {
 }
 
 pub trait Task: 'static {
-    fn run(self: Rc<Self>);
+    fn run(self: Rc<Self>, scope: &BindContextScope);
 }
 
 impl NotifyContext {
@@ -267,14 +267,19 @@ impl ReactiveContext {
             debug_assert!(s.is_empty());
             b.lazy_notify_sinks = s;
         }
-        b.state = ReactiveState::None;
+        if b.lazy_tasks.is_empty() {
+            b.state = ReactiveState::None;
+            return;
+        }
+        b.state = ReactiveState::Bind(0);
         while let Some(task) = b.lazy_tasks.pop() {
             if let Some(task) = Weak::upgrade(&task) {
                 drop(b);
-                task.run();
+                task.run(self.bind_ctx_scope());
                 b = self.borrow_mut();
             }
         }
+        self.bind_end(b);
     }
     fn bind<T>(&self, f: impl FnOnce(&BindContextScope) -> T) -> T {
         let mut b = self.borrow_mut();
@@ -284,7 +289,7 @@ impl ReactiveContext {
                 b.state = ReactiveState::Bind(0);
                 drop(b);
                 value = f(self.bind_ctx_scope());
-                self.bind_end();
+                self.bind_end(self.borrow_mut());
             }
             ReactiveState::Bind(depth) => {
                 assert_ne!(depth, usize::MAX);
@@ -300,23 +305,23 @@ impl ReactiveContext {
         value
     }
 
-    fn bind_end(&self) {
-        let mut b = self.borrow_mut();
+    fn bind_end(&self, mut b: RefMut<ReactiveContextData>) {
         b.state = ReactiveState::None;
         b.lazy_drop_bindings.clear();
-        if !b.lazy_notify_sinks.is_empty() {
-            b.state = ReactiveState::Notify(0);
-            let mut sinks = Vec::new();
-            swap(&mut b.lazy_notify_sinks, &mut sinks);
-            drop(b);
-            for sink in &sinks {
-                if let Some(sink) = Weak::upgrade(sink) {
-                    sink.notify(self.notify_ctx());
-                }
-            }
-            sinks.clear();
-            self.notify_end(Some(sinks));
+        if b.lazy_notify_sinks.is_empty() {
+            return;
         }
+        b.state = ReactiveState::Notify(0);
+        let mut sinks = Vec::new();
+        swap(&mut b.lazy_notify_sinks, &mut sinks);
+        drop(b);
+        for sink in &sinks {
+            if let Some(sink) = Weak::upgrade(sink) {
+                sink.notify(self.notify_ctx());
+            }
+        }
+        sinks.clear();
+        self.notify_end(Some(sinks));
     }
 
     fn with<T>(f: impl FnOnce(&Self) -> T) -> T {

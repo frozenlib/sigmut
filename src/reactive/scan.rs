@@ -317,8 +317,8 @@ where
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
-    fn run(self: Rc<Self>) {
-        BindContextScope::with(|scope| self.ready(scope));
+    fn run(self: Rc<Self>, scope: &BindContextScope) {
+        self.ready(scope);
     }
 }
 
@@ -345,14 +345,12 @@ where
             get,
             bindings: Bindings::new(),
         })));
-        Self::next(&this);
+        BindContextScope::with(|scope| Self::next(&this, scope));
         this
     }
-    fn next(this: &Rc<Self>) {
-        BindContextScope::with(|scope| {
-            let d = &mut *this.0.borrow_mut();
-            d.state.load(&mut d.bindings, scope, this, &mut d.load);
-        });
+    fn next(this: &Rc<Self>, scope: &BindContextScope) {
+        let d = &mut *this.0.borrow_mut();
+        d.state.load(&mut d.bindings, scope, this, &mut d.load);
     }
 }
 impl<T, St, Loaded, Load, Unload, Get> DynFold for FoldBy<St, Loaded, Load, Unload, Get>
@@ -404,8 +402,8 @@ where
     Unload: FnMut((St, Loaded)) -> St + 'static,
     Get: FnMut(St) -> T + 'static,
 {
-    fn run(self: Rc<Self>) {
-        Self::next(&self);
+    fn run(self: Rc<Self>, scope: &BindContextScope) {
+        Self::next(&self, scope);
     }
 }
 impl<St, Loaded, Load, Unload, Get> Drop for FoldBy<St, Loaded, Load, Unload, Get>
