@@ -1,4 +1,13 @@
 #![cfg(feature = "smol")]
+fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
+    smol::Task::local(fut)
+}
+fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
+    smol::Task::spawn(fut)
+}
+fn sleep(dur: Duration) -> impl Future {
+    smol::Timer::after(dur)
+}
 
 use futures::{
     future::{select, Either},
@@ -7,7 +16,6 @@ use futures::{
 };
 use reactive_fn::smol_utils::*;
 use reactive_fn::*;
-use smol::{Task, Timer};
 use std::{
     fmt::Debug,
     sync::mpsc::{channel, Receiver, RecvTimeoutError},
@@ -18,21 +26,21 @@ use thiserror::Error;
 
 const DUR: Duration = Duration::from_millis(300);
 
-fn send_values<T: 'static + Copy>(cell: &ReCell<T>, values: Vec<T>, dur: Duration) -> Task<()> {
+fn send_values<T: 'static + Copy>(cell: &ReCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
     let cell = cell.clone();
-    Task::local(async move {
+    local(async move {
         for value in values {
-            Timer::after(dur).await;
+            sleep(dur).await;
             cell.set_and_update(value);
         }
     })
 }
 
-fn send_values_ref<T: 'static>(cell: &ReRefCell<T>, values: Vec<T>, dur: Duration) -> Task<()> {
+fn send_values_ref<T: 'static>(cell: &ReRefCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
     let cell = cell.clone();
-    Task::local(async move {
+    local(async move {
         for value in values {
-            Timer::after(dur).await;
+            sleep(dur).await;
             cell.set_and_update(value);
         }
     })
@@ -46,7 +54,7 @@ where
         let a = if let Ok(a) = r.try_recv() {
             a
         } else {
-            Timer::after(dur).await;
+            sleep(dur).await;
             if let Ok(a) = r.try_recv() {
                 a
             } else {
@@ -76,7 +84,7 @@ async fn timeout<T>(
     fut: impl Future<Output = T> + Unpin,
     dur: Duration,
 ) -> std::result::Result<T, TimeoutError> {
-    match select(fut, Timer::after(dur)).await {
+    match select(fut, sleep(dur)).await {
         Either::Left(x) => Ok(x.0),
         Either::Right(_) => Err(TimeoutError),
     }
@@ -102,7 +110,7 @@ fn re_map_async() {
         let r = cell
             .to_re()
             .map_async(|x| async move {
-                Timer::after(DUR / 2).await;
+                sleep(DUR / 2).await;
                 x + 2
             })
             .cloned();
@@ -126,7 +134,7 @@ fn re_map_async_cancel() {
         let r = cell
             .to_re()
             .map_async(|x| async move {
-                Timer::after(DUR).await;
+                sleep(DUR).await;
                 x + 2
             })
             .cloned();
@@ -144,7 +152,7 @@ fn re_for_each() {
 
         let _s = cell.to_re().for_each_async(move |x| {
             let s = s.clone();
-            Task::spawn(async move {
+            spawn(async move {
                 s.send(x).unwrap();
             })
         });
@@ -160,7 +168,7 @@ fn re_ref_map_async() {
         let r = cell
             .to_re_ref()
             .map_async(|&x| async move {
-                Timer::after(DUR / 2).await;
+                sleep(DUR / 2).await;
                 x + 2
             })
             .cloned();
@@ -185,7 +193,7 @@ fn re_ref_for_each() {
 
         let _s = cell.to_re_ref().for_each_async(move |&x| {
             let s = s.clone();
-            Task::spawn(async move {
+            spawn(async move {
                 s.send(x).unwrap();
             })
         });
