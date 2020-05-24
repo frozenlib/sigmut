@@ -16,6 +16,10 @@ pub trait ReExt<T> {
     fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static;
+
+    fn for_each_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static;
 }
 impl<T: 'static> ReExt<T> for Re<T> {
     fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
@@ -23,5 +27,12 @@ impl<T: 'static> ReExt<T> for Re<T> {
         Fut: Future + 'static,
     {
         self.map_async_with(f, LocalSpawner)
+    }
+
+    fn for_each_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        self.for_each_async_with(f, LocalSpawner)
     }
 }

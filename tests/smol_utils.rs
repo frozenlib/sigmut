@@ -6,7 +6,12 @@ use futures::{
 use reactive_fn::smol_utils::*;
 use reactive_fn::*;
 use smol::{Task, Timer};
-use std::{fmt::Debug, task::Poll, time::Duration};
+use std::{
+    fmt::Debug,
+    sync::mpsc::{channel, Receiver, RecvTimeoutError},
+    task::Poll,
+    time::Duration,
+};
 use thiserror::Error;
 
 const DUR: Duration = Duration::from_millis(300);
@@ -19,6 +24,25 @@ fn send_values<T: 'static + Copy>(cell: &ReCell<T>, values: Vec<T>, dur: Duratio
             cell.set_and_update(value);
         }
     })
+}
+async fn assert_recv<T>(r: Receiver<T>, values: Vec<T>, dur: Duration)
+where
+    T: 'static + PartialEq + Debug,
+{
+    for value in values {
+        let a = if let Ok(a) = r.try_recv() {
+            a
+        } else {
+            Timer::after(dur).await;
+            if let Ok(a) = r.try_recv() {
+                a
+            } else {
+                panic!("value {:?} : timeout.", value);
+            }
+        };
+        assert_eq!(a, value);
+    }
+    assert_eq!(r.recv_timeout(dur), Err(RecvTimeoutError::Timeout));
 }
 async fn assert_values<T>(source: Re<T>, values: Vec<T>, dur: Duration)
 where
@@ -92,5 +116,22 @@ fn re_map_async_cancel() {
         let _task = send_values(&cell, vec![10, 20, 30, 40], DUR / 2);
         let values = vec![Poll::Pending, Poll::Ready(42)];
         assert_values(r, values, DUR * 5).await;
+    });
+}
+
+#[test]
+fn re_for_each() {
+    smol::run(async {
+        let cell = ReCell::new(1);
+        let (s, r) = channel();
+
+        let _s = cell.to_re().for_each_async(move |x| {
+            let s = s.clone();
+            Task::spawn(async move {
+                s.send(x).unwrap();
+            })
+        });
+        let _task = send_values(&cell, vec![10, 20, 30], DUR);
+        assert_recv(r, vec![1, 10, 20, 30], DUR).await;
     });
 }
