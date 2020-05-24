@@ -45,6 +45,10 @@ jobs:
       - name: Build
         run: cargo build --verbose ${{ matrix.features }}
 
+      - name: Run tests no run
+        if: ${{ matrix.features != '--all-features' }}
+        run: cargo test --verbose ${{ matrix.features }} --no-run
+
       - name: Run tests
         if: ${{ matrix.features == '--all-features' }}
-        run: cargo test --verbose --all-features
+        run: cargo test --verbose ${{ matrix.features }}
