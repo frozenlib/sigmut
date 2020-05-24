@@ -21,6 +21,27 @@ pub trait ReExt<T> {
     where
         Fut: Future<Output = ()> + 'static;
 }
+
+pub trait ReRefExt<T> {
+    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
+    where
+        Fut: Future + 'static;
+
+    fn for_each_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static;
+}
+
+pub trait ReBorrowExt<T> {
+    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
+    where
+        Fut: Future + 'static;
+
+    fn for_each_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static;
+}
+
 impl<T: 'static> ReExt<T> for Re<T> {
     fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
     where
@@ -30,6 +51,37 @@ impl<T: 'static> ReExt<T> for Re<T> {
     }
 
     fn for_each_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        self.for_each_async_with(f, LocalSpawner)
+    }
+}
+impl<T: 'static> ReRefExt<T> for ReRef<T> {
+    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
+    where
+        Fut: Future + 'static,
+    {
+        self.map_async_with(f, LocalSpawner)
+    }
+
+    fn for_each_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        self.for_each_async_with(f, LocalSpawner)
+    }
+}
+
+impl<T: 'static> ReBorrowExt<T> for ReBorrow<T> {
+    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
+    where
+        Fut: Future + 'static,
+    {
+        self.map_async_with(f, LocalSpawner)
+    }
+
+    fn for_each_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
     where
         Fut: Future<Output = ()> + 'static,
     {

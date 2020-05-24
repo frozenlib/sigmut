@@ -340,6 +340,17 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
+    pub fn map_async_with<Fut>(
+        &self,
+        f: impl Fn(&T) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> ReBorrow<Poll<Fut::Output>>
+    where
+        Fut: Future + 'static,
+    {
+        self.to_re_ref().map_async_with(f, sp)
+    }
+
     pub fn cloned(&self) -> Re<T>
     where
         T: Clone,
@@ -395,6 +406,16 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         detach: impl FnMut(U) + 'static,
     ) -> Subscription {
         self.to_re_ref().for_each_by(attach, detach)
+    }
+    pub fn for_each_async_with<Fut>(
+        &self,
+        f: impl FnMut(&T) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        self.to_re_ref().for_each_async_with(f, sp)
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
@@ -457,6 +478,16 @@ impl<T: 'static + ?Sized> ReRef<T> {
     }
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
+    }
+    pub fn map_async_with<Fut>(
+        &self,
+        f: impl Fn(&T) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> ReBorrow<Poll<Fut::Output>>
+    where
+        Fut: Future + 'static,
+    {
+        ReBorrow::from_dyn_source(MapAsync::new(self.map(f), sp))
     }
     pub fn scan<St: 'static>(
         &self,
@@ -555,6 +586,17 @@ impl<T: 'static + ?Sized> ReRef<T> {
             |_| (),
         ))
         .into()
+    }
+    pub fn for_each_async_with<Fut>(
+        &self,
+        f: impl FnMut(&T) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        let mut f = f;
+        self.for_each_by(move |value| sp.spawn_local(f(value)), move |_| {})
     }
 }
 
