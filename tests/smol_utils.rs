@@ -156,7 +156,7 @@ fn re_for_each() {
             })
         });
         let _task = send_values(&cell, vec![10, 20, 30], DUR);
-        assert_recv(r, vec![1, 10, 20, 30], DUR).await;
+        assert_recv(r, vec![1, 10, 20, 30], DUR * 2).await;
     });
 }
 
