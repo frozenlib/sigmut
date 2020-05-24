@@ -1,11 +1,10 @@
 #![cfg(feature = "tokio")]
+use futures::future::FutureExt;
 use reactive_fn::tokio_utils::*;
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
-    use futures::future::FutureExt;
     tokio::task::spawn_local(fut).map(|_| ())
 }
 fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
-    use futures::future::FutureExt;
     tokio::task::spawn(fut).map(|_| ())
 }
 fn sleep(dur: Duration) -> impl Future {

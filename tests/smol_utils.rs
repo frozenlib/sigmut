@@ -1,4 +1,5 @@
 #![cfg(feature = "smol")]
+use reactive_fn::smol_utils::*;
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
     smol::Task::local(fut)
 }
@@ -8,13 +9,15 @@ fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output =
 fn sleep(dur: Duration) -> impl Future {
     smol::Timer::after(dur)
 }
+fn run(f: impl Future<Output = ()>) {
+    smol::run(f);
+}
 
 use futures::{
     future::{select, Either},
     stream::StreamExt,
     Future,
 };
-use reactive_fn::smol_utils::*;
 use reactive_fn::*;
 use std::{
     fmt::Debug,
@@ -88,10 +91,6 @@ async fn timeout<T>(
         Either::Left(x) => Ok(x.0),
         Either::Right(_) => Err(TimeoutError),
     }
-}
-
-fn run(f: impl Future<Output = ()>) {
-    smol::run(f);
 }
 
 #[test]
