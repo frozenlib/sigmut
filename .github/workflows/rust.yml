@@ -7,52 +7,39 @@ on:
     branches: [master]
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Cache cargo registry
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo index
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-      - name: Cache cargo build
-        uses: actions/cache@v1
-        with:
-          path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-
-      - uses: actions/checkout@v2
-      - name: Build
-        run: cargo build --verbose --all-features
-      - name: Run tests
-        run: cargo test --verbose --all-features
   build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        feature: [smol, tokio]
+        features:
+          - --features-all
+          - --features smol
+          - --features tokio
+          -
     steps:
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-registry
+
       - name: Cache cargo index
         uses: actions/cache@v1
         with:
           path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-index
+
       - name: Cache cargo build
         uses: actions/cache@v1
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-build-target
 
       - uses: actions/checkout@v2
+
       - name: Build
-        run: cargo build --verbose --features ${{ matrix.feature }}
+        run: cargo build --verbose ${{ matrix.feature }}
+
+      - name: Run tests
+        if: ${{ matrix.feature }} == --all-features
+        run: cargo test --verbose --all-features
