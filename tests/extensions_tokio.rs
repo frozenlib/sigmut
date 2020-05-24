@@ -1,6 +1,6 @@
 #![cfg(feature = "tokio")]
 use futures::future::FutureExt;
-use reactive_fn::tokio_utils::*;
+use reactive_fn::extensions::tokio::*;
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
     tokio::task::spawn_local(fut).map(|_| ())
 }
@@ -10,17 +10,21 @@ fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output =
 fn sleep(dur: Duration) -> impl Future {
     tokio::time::delay_for(dur)
 }
+async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Option<T> {
+    use futures::future::{select, Either};
+    match select(fut, sleep(dur)).await {
+        Either::Left(x) => Some(x.0),
+        Either::Right(_) => None,
+    }
+}
+
 fn run(f: impl Future<Output = ()>) {
     let mut rt = tokio::runtime::Runtime::new().unwrap();
     let local = tokio::task::LocalSet::new();
     local.block_on(&mut rt, f);
 }
 
-use futures::{
-    future::{select, Either},
-    stream::StreamExt,
-    Future,
-};
+use futures::{stream::StreamExt, Future};
 use reactive_fn::*;
 use std::{
     fmt::Debug,
@@ -28,7 +32,6 @@ use std::{
     task::Poll,
     time::Duration,
 };
-use thiserror::Error;
 
 const DUR: Duration = Duration::from_millis(300);
 
@@ -77,23 +80,9 @@ where
 {
     let mut s = source.to_stream();
     for value in values {
-        assert_eq!(timeout(s.next(), dur).await, Ok(Some(value)));
+        assert_eq!(timeout(dur, s.next()).await, Some(Some(value)));
     }
-    assert_eq!(timeout(s.next(), dur).await, Err(TimeoutError));
-}
-
-#[derive(Error, Debug, Eq, PartialEq)]
-#[error("timeout")]
-struct TimeoutError;
-
-async fn timeout<T>(
-    fut: impl Future<Output = T> + Unpin,
-    dur: Duration,
-) -> std::result::Result<T, TimeoutError> {
-    match select(fut, sleep(dur)).await {
-        Either::Left(x) => Ok(x.0),
-        Either::Right(_) => Err(TimeoutError),
-    }
+    assert_eq!(timeout(dur, s.next()).await, None);
 }
 
 #[test]

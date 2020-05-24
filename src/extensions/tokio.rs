@@ -1,18 +1,28 @@
-#![cfg(feature = "smol")]
-
 use crate::reactive::*;
-use futures::Future;
+use extend::ext;
+use futures::{
+    future::{abortable, AbortHandle},
+    Future,
+};
 use std::task::Poll;
 
-use extend::ext;
+pub struct AutoAbortHandle(AbortHandle);
+
+impl Drop for AutoAbortHandle {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
 
 #[derive(Default, Clone, Copy)]
 pub struct LocalSpawner;
 
 impl LocalSpawn for LocalSpawner {
-    type Handle = smol::Task<()>;
+    type Handle = AutoAbortHandle;
     fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle {
-        smol::Task::local(fut)
+        let (fut, handle) = abortable(fut);
+        tokio::task::spawn_local(fut);
+        AutoAbortHandle(handle)
     }
 }
 

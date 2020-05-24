@@ -1,30 +1,15 @@
-#![cfg(feature = "tokio")]
-
 use crate::reactive::*;
 use extend::ext;
-use futures::{
-    future::{abortable, AbortHandle},
-    Future,
-};
+use futures::Future;
 use std::task::Poll;
-
-pub struct AutoAbortHandle(AbortHandle);
-
-impl Drop for AutoAbortHandle {
-    fn drop(&mut self) {
-        self.0.abort();
-    }
-}
 
 #[derive(Default, Clone, Copy)]
 pub struct LocalSpawner;
 
 impl LocalSpawn for LocalSpawner {
-    type Handle = AutoAbortHandle;
+    type Handle = smol::Task<()>;
     fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle {
-        let (fut, handle) = abortable(fut);
-        tokio::task::spawn_local(fut);
-        AutoAbortHandle(handle)
+        smol::Task::local(fut)
     }
 }
 

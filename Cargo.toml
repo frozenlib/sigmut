@@ -12,7 +12,7 @@ derivative = "2.1"
 extend = "0.1"
 smol = { version = "0.1", optional = true }
 tokio = { version = "0.2", optional = true, features = ["rt-core", "rt-util" ] }
-async-std = { version = "1.6", optional = true }
+async-std = { version = "1.6", optional = true, features = ["unstable"] }
 
 [dev-dependencies]
 thiserror = "1.0"

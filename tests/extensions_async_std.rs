@@ -1,23 +1,26 @@
-#![cfg(feature = "smol")]
-use reactive_fn::smol_utils::*;
+#![cfg(feature = "async-std")]
+use reactive_fn::extensions::async_std::*;
+
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
-    smol::Task::local(fut)
+    use futures::future::FutureExt;
+    async_std::task::spawn_local(fut).map(|_| ())
 }
 fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
-    smol::Task::spawn(fut)
+    use futures::future::FutureExt;
+    async_std::task::spawn(fut).map(|_| ())
 }
 fn sleep(dur: Duration) -> impl Future {
-    smol::Timer::after(dur)
+    async_std::task::sleep(dur)
 }
-fn run(f: impl Future<Output = ()>) {
-    smol::run(f);
+async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Option<T> {
+    async_std::future::timeout(dur, fut).await.ok()
 }
 
-use futures::{
-    future::{select, Either},
-    stream::StreamExt,
-    Future,
-};
+fn run(f: impl Future<Output = ()>) {
+    async_std::task::block_on(f);
+}
+
+use futures::{stream::StreamExt, Future};
 use reactive_fn::*;
 use std::{
     fmt::Debug,
@@ -25,7 +28,6 @@ use std::{
     task::Poll,
     time::Duration,
 };
-use thiserror::Error;
 
 const DUR: Duration = Duration::from_millis(300);
 
@@ -74,23 +76,9 @@ where
 {
     let mut s = source.to_stream();
     for value in values {
-        assert_eq!(timeout(s.next(), dur).await, Ok(Some(value)));
+        assert_eq!(timeout(dur, s.next()).await, Some(Some(value)));
     }
-    assert_eq!(timeout(s.next(), dur).await, Err(TimeoutError));
-}
-
-#[derive(Error, Debug, Eq, PartialEq)]
-#[error("timeout")]
-struct TimeoutError;
-
-async fn timeout<T>(
-    fut: impl Future<Output = T> + Unpin,
-    dur: Duration,
-) -> std::result::Result<T, TimeoutError> {
-    match select(fut, sleep(dur)).await {
-        Either::Left(x) => Ok(x.0),
-        Either::Right(_) => Err(TimeoutError),
-    }
+    assert_eq!(timeout(dur, s.next()).await, None);
 }
 
 #[test]
