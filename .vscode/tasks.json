@@ -7,7 +7,7 @@
       "type": "shell",
       "label": "cargo test",
       "command": "cargo",
-      "args": ["test"],
+      "args": ["test", "--features", "smol"],
       "problemMatcher": ["$rustc"],
       "group": {
         "kind": "build",

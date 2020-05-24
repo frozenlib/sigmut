@@ -1,3 +1,5 @@
+#![cfg(feature = "smol")]
+
 use crate::reactive::*;
 use futures::Future;
 use std::task::Poll;

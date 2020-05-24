@@ -9,8 +9,8 @@ edition = "2018"
 [dependencies]
 futures = "0.3"
 derivative = "2.1"
-smol = "0.1"
 extend = "0.1"
+smol = { version = "0.1", optional = true }
 
 [dev-dependencies]
 thiserror = "1.0"

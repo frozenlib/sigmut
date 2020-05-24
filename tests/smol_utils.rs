@@ -1,3 +1,5 @@
+#![cfg(feature = "smol")]
+
 use futures::{
     future::{select, Either},
     stream::StreamExt,
