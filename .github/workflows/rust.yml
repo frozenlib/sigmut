@@ -41,5 +41,5 @@ jobs:
         run: cargo build --verbose ${{ matrix.feature }}
 
       - name: Run tests
-        if: ${{ matrix.features == "--all-features" }}
+        if: ${{ matrix.features == '--all-features' }}
         run: cargo test --verbose --all-features
