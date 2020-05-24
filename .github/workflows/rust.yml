@@ -16,6 +16,7 @@ jobs:
           - --all-features
           - --features smol
           - --features tokio
+          - --features async-std
           -
     steps:
       - uses: actions/checkout@v2
