@@ -248,33 +248,3 @@ fn re_for_each() {
     cell.set_and_update(15);
     assert_eq!(*vs.borrow(), vec![0, 5, 10]);
 }
-
-#[test]
-fn re_for_each_by() {
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    let cell = ReCell::new(0);
-    let vs = Rc::new(RefCell::new(Vec::new()));
-
-    let vs_send1 = vs.clone();
-    let vs_send2 = vs.clone();
-
-    let r = cell.to_re().for_each_by(
-        move |x| {
-            vs_send1.borrow_mut().push(x);
-            x + 1
-        },
-        move |x| {
-            vs_send2.borrow_mut().push(x);
-        },
-    );
-
-    cell.set_and_update(5);
-    cell.set_and_update(10);
-
-    drop(r);
-    assert_eq!(*vs.borrow(), vec![0, 1, 5, 6, 10, 11]);
-
-    cell.set_and_update(15);
-    assert_eq!(*vs.borrow(), vec![0, 1, 5, 6, 10, 11]);
-}

@@ -241,22 +241,6 @@ impl<T: 'static> Re<T> {
         })
         .into()
     }
-    pub fn for_each_by<U: 'static>(
-        &self,
-        attach: impl FnMut(T) -> U + 'static,
-        detach: impl FnMut(U) + 'static,
-    ) -> Subscription {
-        let this = self.clone();
-        let mut attach = attach;
-        let mut detach = detach;
-        Fold(FoldBy::new(
-            (),
-            move |_, ctx| ((), attach(this.get(ctx))),
-            move |(_, x)| detach(x),
-            |_| (),
-        ))
-        .into()
-    }
     pub fn for_each_async_with<Fut>(
         &self,
         f: impl FnMut(T) -> Fut + 'static,
@@ -265,8 +249,15 @@ impl<T: 'static> Re<T> {
     where
         Fut: Future<Output = ()> + 'static,
     {
+        let this = self.clone();
         let mut f = f;
-        self.for_each_by(move |value| sp.spawn_local(f(value)), move |_| {})
+        Fold(FoldBy::new(
+            (),
+            move |_, ctx| ((), sp.spawn_local(f(this.get(ctx)))),
+            |_| (),
+            |_| (),
+        ))
+        .into()
     }
 
     pub fn to_stream(&self) -> impl futures::Stream<Item = T> {
@@ -399,13 +390,6 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
 
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
         self.to_re_ref().for_each(f)
-    }
-    pub fn for_each_by<U: 'static>(
-        &self,
-        attach: impl FnMut(&T) -> U + 'static,
-        detach: impl FnMut(U) + 'static,
-    ) -> Subscription {
-        self.to_re_ref().for_each_by(attach, detach)
     }
     pub fn for_each_async_with<Fut>(
         &self,
@@ -571,22 +555,6 @@ impl<T: 'static + ?Sized> ReRef<T> {
         })
         .into()
     }
-    pub fn for_each_by<U: 'static>(
-        &self,
-        attach: impl FnMut(&T) -> U + 'static,
-        detach: impl FnMut(U) + 'static,
-    ) -> Subscription {
-        let this = self.clone();
-        let mut attach = attach;
-        let mut detach = detach;
-        Fold(FoldBy::new(
-            (),
-            move |_, ctx| ((), this.with(ctx, |x| attach(x))),
-            move |(_, x)| detach(x),
-            |_| (),
-        ))
-        .into()
-    }
     pub fn for_each_async_with<Fut>(
         &self,
         f: impl FnMut(&T) -> Fut + 'static,
@@ -595,8 +563,15 @@ impl<T: 'static + ?Sized> ReRef<T> {
     where
         Fut: Future<Output = ()> + 'static,
     {
+        let this = self.clone();
         let mut f = f;
-        self.for_each_by(move |value| sp.spawn_local(f(value)), move |_| {})
+        Fold(FoldBy::new(
+            (),
+            move |_, ctx| ((), this.with(ctx, |x| sp.spawn_local(f(x)))),
+            |_| (),
+            |_| (),
+        ))
+        .into()
     }
 }
 
