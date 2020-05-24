@@ -1,12 +1,11 @@
 #![cfg(feature = "async-std")]
+use futures::future::FutureExt;
 use reactive_fn::extensions::async_std::*;
 
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
-    use futures::future::FutureExt;
     async_std::task::spawn_local(fut).map(|_| ())
 }
 fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
-    use futures::future::FutureExt;
     async_std::task::spawn(fut).map(|_| ())
 }
 fn sleep(dur: Duration) -> impl Future {
