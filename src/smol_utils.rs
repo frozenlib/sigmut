@@ -2,6 +2,8 @@ use crate::reactive::*;
 use futures::Future;
 use std::task::Poll;
 
+use extend::ext;
+
 #[derive(Default, Clone, Copy)]
 pub struct LocalSpawner;
 
@@ -12,37 +14,8 @@ impl LocalSpawn for LocalSpawner {
     }
 }
 
-pub trait ReExt<T> {
-    fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static;
-
-    fn for_each_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static;
-}
-
-pub trait ReRefExt<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static;
-
-    fn for_each_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static;
-}
-
-pub trait ReBorrowExt<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static;
-
-    fn for_each_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static;
-}
-
-impl<T: 'static> ReExt<T> for Re<T> {
+#[ext(pub)]
+impl<T: 'static> Re<T> {
     fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,
@@ -57,7 +30,9 @@ impl<T: 'static> ReExt<T> for Re<T> {
         self.for_each_async_with(f, LocalSpawner)
     }
 }
-impl<T: 'static> ReRefExt<T> for ReRef<T> {
+
+#[ext(pub)]
+impl<T: 'static> ReRef<T> {
     fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,
@@ -73,7 +48,8 @@ impl<T: 'static> ReRefExt<T> for ReRef<T> {
     }
 }
 
-impl<T: 'static> ReBorrowExt<T> for ReBorrow<T> {
+#[ext(pub)]
+impl<T: 'static> ReBorrow<T> {
     fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,

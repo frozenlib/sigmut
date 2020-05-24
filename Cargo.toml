@@ -10,6 +10,7 @@ edition = "2018"
 futures = "0.3"
 derivative = "2.1"
 smol = "0.1"
+extend = "0.1"
 
 [dev-dependencies]
 thiserror = "1.0"
