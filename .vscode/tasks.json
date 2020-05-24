@@ -7,7 +7,7 @@
       "type": "shell",
       "label": "cargo test",
       "command": "cargo",
-      "args": ["test", "--features", "smol"],
+      "args": ["test", "--all-features"],
       "problemMatcher": ["$rustc"],
       "group": {
         "kind": "build",
@@ -16,12 +16,12 @@
       "presentation": {
         "panel": "dedicated",
         "clear": true
+      },
+      "options": {
+        "env": {
+          "RUST_BACKTRACE": "1"
+        }
       }
-      // "options": {
-      //   "env": {
-      //     "RUST_BACKTRACE": "1"
-      //   }
-      // }
     },
     {
       "type": "shell",

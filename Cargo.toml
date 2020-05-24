@@ -11,6 +11,11 @@ futures = "0.3"
 derivative = "2.1"
 extend = "0.1"
 smol = { version = "0.1", optional = true }
+tokio = { version = "0.2", optional = true, features = ["rt-util", "time" ] }
 
 [dev-dependencies]
 thiserror = "1.0"
+
+[features]
+tokio-util = ["tokio/full"]
+
