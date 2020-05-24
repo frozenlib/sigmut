@@ -17,6 +17,8 @@ jobs:
           - --features tokio
           -
     steps:
+      - uses: actions/checkout@v2
+
       - name: Cache cargo registry
         uses: actions/cache@v1
         with:
@@ -34,8 +36,6 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
-
-      - uses: actions/checkout@v2
 
       - name: Build
         run: cargo build --verbose ${{ matrix.features }}
