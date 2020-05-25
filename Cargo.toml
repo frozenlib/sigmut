@@ -20,9 +20,3 @@ tokio = { version = "0.2", features = [ "time" ] }
 criterion = "0.3"
 
 
-[[bench]]
-name = "my_benchmark"
-harness = false
-
-
-
