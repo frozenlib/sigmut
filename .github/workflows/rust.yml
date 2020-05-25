@@ -8,12 +8,46 @@ on:
 
 jobs:
   build:
+    name : Build and run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+            - uses: actions/checkout@v2
+
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}-3
+          restore-keys: ${{ runner.os }}-cargo-registry
+
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-3
+          restore-keys: ${{ runner.os }}-cargo-index
+
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-build-target-build
+
+      - name: Build
+        run: cargo build --verbose --all-features
+
+      - name: Run tests
+        run: cargo test --verbose --all-features
+
+  build-features:
+    name : Build each features
+    needs: build
     runs-on: ubuntu-latest
     strategy:
-      max-parallel: 1
       matrix:
         features:
-          - --all-features
           - --features smol
           - --features tokio
           - --features async-std
@@ -25,30 +59,70 @@ jobs:
         uses: actions/cache@v1
         with:
           path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}-2
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}-3
           restore-keys: ${{ runner.os }}-cargo-registry
 
       - name: Cache cargo index
         uses: actions/cache@v1
         with:
           path: ~/.cargo/git
-          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-2
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-3
           restore-keys: ${{ runner.os }}-cargo-index
 
       - name: Cache cargo build
         uses: actions/cache@v1
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.features }}-2
-          restore-keys: ${{ runner.os }}-cargo-build-target
+          key: ${{ runner.os }}-cargo-build-target-bf-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.features }}-3
+          restore-keys: 
+            - ${{ runner.os }}-cargo-build-target-bf-${{ hashFiles('**/Cargo.lock') }}
+            - ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
+            - ${{ runner.os }}-cargo-build-target-build
 
       - name: Build lib
         run: cargo build --verbose ${{ matrix.features }}
 
       - name: Build tests
-        if: ${{ matrix.features != '--all-features' }}
         run: cargo test --verbose ${{ matrix.features }} --no-run
 
-      - name: Run tests
-        if: ${{ matrix.features == '--all-features' }}
-        run: cargo test --verbose ${{ matrix.features }}
+
+  benchmark:
+    name: Performance regression check
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Cache cargo registry
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}-3
+          restore-keys: ${{ runner.os }}-cargo-registry
+
+      - name: Cache cargo index
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}-3
+          restore-keys: ${{ runner.os }}-cargo-index
+
+      - name: Cache cargo build
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-benchmark-${{ hashFiles('**/Cargo.lock') }}-3
+          restore-keys: 
+            - ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
+            - ${{ runner.os }}-cargo-build-target-build
+
+      - name: Run benchmark
+        run: cargo +nightly bench | tee output.txt
+
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          tool: 'cargo'
+          output-file-path: output.txt
+          github-token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
+          auto-push: true
