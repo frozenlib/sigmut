@@ -144,3 +144,27 @@ fn re_borrow_for_each() {
     cell.set_and_update(15);
     assert_eq!(*vs.borrow(), vec![0, 5, 10]);
 }
+
+#[test]
+fn re_borrow_hot() {
+    let cell = ReRefCell::new(1);
+    let re = cell.to_re_borrow().scan(0, |s, x| s + x);
+
+    let hot = re.hot();
+
+    cell.set_and_update(2);
+    cell.set_and_update(10);
+
+    assert_eq!(hot.to_vec().stop(), vec![13]);
+}
+
+#[test]
+fn re_borrow_hot_no() {
+    let cell = ReRefCell::new(1);
+    let re = cell.to_re_borrow().scan(0, |s, x| s + x);
+
+    cell.set_and_update(2);
+    cell.set_and_update(10);
+
+    assert_eq!(re.to_vec().stop(), vec![10]);
+}
