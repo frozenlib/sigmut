@@ -75,17 +75,20 @@ jobs:
       - name: Run benchmark
         run: cargo +nightly bench | tee output.txt
 
-      # - name: Fetch benchmark result
-      #   run: git fetch 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
-      # - name: Store benchmark result
-      #   uses: rhysd/github-action-benchmark@v1
-      #   with:
-      #     name: My Project Rust Benchmark
-      #     tool: "cargo"
-      #     auto-push: false
-      #     output-file-path: output.txt
-      # - name: Push benchmark result
-      #   run: git push 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
+      - name: Update benchmark result
+        run: git fetch 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
+
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          name: My Project Rust Benchmark
+          tool: "cargo"
+          auto-push: false
+          skip-fetch-gh-pages: false
+          output-file-path: output.txt
+
+      - name: Push benchmark result
+        run: git push 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
 
   build-features:
     name: Build each features
