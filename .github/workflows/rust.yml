@@ -46,11 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
-      - name: Install latest nightly
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: nightly
+      - run: rustup toolchain update nightly && rustup default nightly
 
       - name: Cache cargo registry
         uses: actions/cache@v1
@@ -70,22 +66,26 @@ jobs:
         uses: actions/cache@v1
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-target-benchmark-${{ hashFiles('**/Cargo.lock') }}-3
+          key: ${{ runner.os }}-cargo-build-target-benchmark-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.features }}-3
           restore-keys: |
+            ${{ runner.os }}-cargo-build-target-benchmark-${{ hashFiles('**/Cargo.lock') }}
             ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
             ${{ runner.os }}-cargo-build-target-build
 
       - name: Run benchmark
         run: cargo +nightly bench | tee output.txt
 
-      - name: Store benchmark result
-        uses: rhysd/github-action-benchmark@v1
-        with:
-          tool: "cargo"
-          output-file-path: output.txt
-          auto-push: false
-      - name: Push benchmark result
-        run: git push 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
+      # - name: Fetch benchmark result
+      #   run: git fetch 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
+      # - name: Store benchmark result
+      #   uses: rhysd/github-action-benchmark@v1
+      #   with:
+      #     name: My Project Rust Benchmark
+      #     tool: "cargo"
+      #     auto-push: false
+      #     output-file-path: output.txt
+      # - name: Push benchmark result
+      #   run: git push 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
 
   build-features:
     name: Build each features
