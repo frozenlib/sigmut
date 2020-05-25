@@ -42,10 +42,10 @@ jobs:
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}-2
           restore-keys: ${{ runner.os }}-cargo-build-target
 
-      - name: Build
+      - name: Build lib
         run: cargo build --verbose ${{ matrix.features }}
 
-      - name: Run tests no run
+      - name: Build tests
         if: ${{ matrix.features != '--all-features' }}
         run: cargo test --verbose ${{ matrix.features }} --no-run
 
