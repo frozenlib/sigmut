@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    name: Build and run tests
+    name: Build and tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
