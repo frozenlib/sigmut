@@ -83,6 +83,10 @@ jobs:
         with:
           name: reactive-fn Benchmark
           tool: "cargo"
+          fail-on-alert: true
+          comment-on-alert: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          comment-on-alert: true
           auto-push: false
           skip-fetch-gh-pages: true
           output-file-path: output.txt
