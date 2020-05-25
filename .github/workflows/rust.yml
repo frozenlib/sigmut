@@ -81,7 +81,7 @@ jobs:
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
-          name: My Project Rust Benchmark
+          name: reactive-fn Benchmark
           tool: "cargo"
           auto-push: false
           skip-fetch-gh-pages: true
