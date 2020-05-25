@@ -83,8 +83,9 @@ jobs:
         with:
           tool: "cargo"
           output-file-path: output.txt
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
+          auto-push: false
+      - name: Push benchmark result
+        run: git push 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
 
   build-features:
     name: Build each features
