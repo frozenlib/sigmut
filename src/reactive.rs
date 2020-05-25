@@ -1,10 +1,11 @@
 mod cell;
+mod hot;
 mod map_async;
 mod scan;
 mod to_stream;
 
 pub use self::cell::*;
-use self::{map_async::*, scan::*, to_stream::*};
+use self::{hot::*, map_async::*, scan::*, to_stream::*};
 use crate::bind::*;
 use derivative::Derivative;
 use futures::Future;
@@ -259,6 +260,9 @@ impl<T: 'static> Re<T> {
         ))
         .into()
     }
+    pub fn hot(&self) -> Self {
+        Self(ReData::Dyn(Hot::new(self.clone())))
+    }
 
     pub fn to_stream(&self) -> impl futures::Stream<Item = T> {
         ToStream::new(self.clone())
@@ -400,6 +404,11 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         Fut: Future<Output = ()> + 'static,
     {
         self.to_re_ref().for_each_async_with(f, sp)
+    }
+
+    pub fn hot(&self) -> Self {
+        let source = self.clone();
+        Self(ReBorrowData::Dyn(Hot::new(source)))
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
@@ -572,6 +581,11 @@ impl<T: 'static + ?Sized> ReRef<T> {
             |_| (),
         ))
         .into()
+    }
+
+    pub fn hot(&self) -> Self {
+        let source = self.clone();
+        Self(Hot::new(source))
     }
 }
 
