@@ -8,11 +8,10 @@ on:
 
 jobs:
   build:
-    name : Build and run tests
+    name: Build and run tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-            - uses: actions/checkout@v2
 
       - name: Cache cargo registry
         uses: actions/cache@v1
@@ -42,7 +41,7 @@ jobs:
         run: cargo test --verbose --all-features
 
   build-features:
-    name : Build each features
+    name: Build each features
     needs: build
     runs-on: ubuntu-latest
     strategy:
@@ -74,17 +73,16 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-bf-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.features }}-3
-          restore-keys: 
-            - ${{ runner.os }}-cargo-build-target-bf-${{ hashFiles('**/Cargo.lock') }}
-            - ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
-            - ${{ runner.os }}-cargo-build-target-build
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-target-bf-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-build-target-build
 
       - name: Build lib
         run: cargo build --verbose ${{ matrix.features }}
 
       - name: Build tests
         run: cargo test --verbose ${{ matrix.features }} --no-run
-
 
   benchmark:
     name: Performance regression check
@@ -112,9 +110,9 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-benchmark-${{ hashFiles('**/Cargo.lock') }}-3
-          restore-keys: 
-            - ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
-            - ${{ runner.os }}-cargo-build-target-build
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
+            ${{ runner.os }}-cargo-build-target-build
 
       - name: Run benchmark
         run: cargo +nightly bench | tee output.txt
@@ -122,7 +120,7 @@ jobs:
       - name: Store benchmark result
         uses: rhysd/github-action-benchmark@v1
         with:
-          tool: 'cargo'
+          tool: "cargo"
           output-file-path: output.txt
           github-token: ${{ secrets.PERSONAL_GITHUB_TOKEN }}
           auto-push: true
