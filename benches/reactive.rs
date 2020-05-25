@@ -12,6 +12,7 @@ fn re_cell_fold_n(n: usize) {
         cell.set_and_update(i);
     }
     assert_eq!(fold.stop(), (0 + n - 1) * n / 2);
+    std::thread::sleep(std::time::Duration::from_nanos(200000));
 }
 
 #[bench]
