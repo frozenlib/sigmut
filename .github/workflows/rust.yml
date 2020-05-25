@@ -88,6 +88,7 @@ jobs:
           output-file-path: output.txt
 
       - name: Push benchmark result
+        if: github.event_name != 'pull_request'
         run: git push 'https://frozenlib:${{ secrets.GITHUB_TOKEN }}@github.com/frozenlib/reactive-fn.git' gh-pages:gh-pages
 
   build-features:
