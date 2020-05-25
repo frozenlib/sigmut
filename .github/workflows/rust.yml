@@ -84,7 +84,7 @@ jobs:
           name: My Project Rust Benchmark
           tool: "cargo"
           auto-push: false
-          skip-fetch-gh-pages: false
+          skip-fetch-gh-pages: true
           output-file-path: output.txt
 
       - name: Push benchmark result
