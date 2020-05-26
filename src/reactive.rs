@@ -466,7 +466,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         let this = self.clone();
         Re::new(move |ctx| this.with(ctx, |_ctx, x| f(x)))
     }
-    pub fn map_ref<U>(&self, f: impl Fn(&T) -> &U + 'static) -> ReRef<U> {
+    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReRef<U> {
         let this = self.clone();
         ReRef::new((), move |_, ctx, f_inner| {
             this.with(ctx, |ctx, x| f_inner(ctx, f(x)))
@@ -615,6 +615,84 @@ pub enum ReCow<T: 'static + ToOwned + ?Sized> {
     Cow(Cow<'static, T>),
     ReRef(ReRef<T>),
     ReRefOwned(ReRef<T::Owned>),
+}
+
+impl<T: 'static + Clone> From<T> for ReCow<T> {
+    fn from(value: T) -> Self {
+        ReCow::Cow(Cow::Owned(value))
+    }
+}
+impl<T: 'static + ToOwned + ?Sized> From<&'static T> for ReCow<T> {
+    fn from(value: &'static T) -> Self {
+        ReCow::Cow(Cow::Borrowed(value))
+    }
+}
+impl<T: 'static + ToOwned> From<Re<T>> for ReCow<T> {
+    fn from(value: Re<T>) -> Self {
+        ReCow::ReRef(value.to_re_ref())
+    }
+}
+impl<T: 'static + ToOwned> From<&Re<T>> for ReCow<T> {
+    fn from(value: &Re<T>) -> Self {
+        ReCow::ReRef(value.to_re_ref())
+    }
+}
+
+impl<T: 'static + ToOwned + ?Sized> From<ReBorrow<T>> for ReCow<T> {
+    fn from(value: ReBorrow<T>) -> Self {
+        ReCow::ReRef(value.to_re_ref())
+    }
+}
+impl<T: 'static + ToOwned + ?Sized> From<&ReBorrow<T>> for ReCow<T> {
+    fn from(value: &ReBorrow<T>) -> Self {
+        ReCow::ReRef(value.to_re_ref())
+    }
+}
+
+impl<T: 'static + ToOwned + ?Sized> From<ReRef<T>> for ReCow<T> {
+    fn from(value: ReRef<T>) -> Self {
+        ReCow::ReRef(value)
+    }
+}
+impl<T: 'static + ToOwned + ?Sized> From<&ReRef<T>> for ReCow<T> {
+    fn from(value: &ReRef<T>) -> Self {
+        ReCow::ReRef(value.clone())
+    }
+}
+impl From<String> for ReCow<str> {
+    fn from(value: String) -> Self {
+        ReCow::Cow(Cow::Owned(value))
+    }
+}
+impl From<Re<String>> for ReCow<str> {
+    fn from(value: Re<String>) -> Self {
+        value.to_re_ref().into()
+    }
+}
+impl From<&Re<String>> for ReCow<str> {
+    fn from(value: &Re<String>) -> Self {
+        value.to_re_ref().into()
+    }
+}
+impl From<ReRef<String>> for ReCow<str> {
+    fn from(value: ReRef<String>) -> Self {
+        (&value).into()
+    }
+}
+impl From<&ReRef<String>> for ReCow<str> {
+    fn from(value: &ReRef<String>) -> Self {
+        value.map_ref(|s| s.as_str()).into()
+    }
+}
+impl From<ReBorrow<String>> for ReCow<str> {
+    fn from(value: ReBorrow<String>) -> Self {
+        value.to_re_ref().into()
+    }
+}
+impl From<&ReBorrow<String>> for ReCow<str> {
+    fn from(value: &ReBorrow<String>) -> Self {
+        value.to_re_ref().into()
+    }
 }
 
 trait DynFold {
