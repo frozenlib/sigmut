@@ -272,3 +272,17 @@ fn re_hot_no() {
 
     assert_eq!(re.to_vec().stop(), vec![10]);
 }
+
+#[test]
+fn re_flatten() {
+    let cell = ReRefCell::new(Re::constant(1));
+
+    let vs = cell.to_re_borrow().cloned().flatten().to_vec();
+
+    cell.set_and_update(Re::constant(2));
+    cell.set_and_update(Re::constant(3));
+    cell.set_and_update(Re::constant(4));
+    cell.set_and_update(Re::constant(5));
+
+    assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
+}
