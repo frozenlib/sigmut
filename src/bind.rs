@@ -34,7 +34,7 @@ pub trait BindSink: 'static {
     fn notify(self: Rc<Self>, ctx: &NotifyContext);
 }
 
-pub struct Binding {
+struct Binding {
     source: Rc<dyn BindSource>,
     sink: Weak<dyn BindSink>,
     idx: usize,
