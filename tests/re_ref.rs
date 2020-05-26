@@ -8,7 +8,11 @@ fn re_ref_constant() {
 #[test]
 fn re_ref_new() {
     let a = ReCell::new(2);
-    let r = ReRef::new(a.clone(), move |a, ctx, f| f(&a.get(ctx))).to_vec();
+    let r = ReRef::new(a.clone(), move |a, ctx, f| {
+        let value = a.get(ctx);
+        f(ctx, &value)
+    })
+    .to_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -23,7 +27,10 @@ fn re_ref_new_cell2() {
 
     let r = ReRef::new(
         (cell1.clone(), cell2.clone()),
-        move |(cell1, cell2), ctx, f| f(&(cell1.get(ctx) + cell2.get(ctx))),
+        move |(cell1, cell2), ctx, f| {
+            let value = cell1.get(ctx) + cell2.get(ctx);
+            f(ctx, &value)
+        },
     )
     .to_vec();
 

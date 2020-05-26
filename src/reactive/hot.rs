@@ -62,7 +62,7 @@ impl<T: 'static + ?Sized> HotReady for Hot<ReRef<T>> {
         let this = self.clone();
         self.bindings
             .borrow_mut()
-            .update(scope, &this, |ctx| self.source.with(ctx, |_| {}));
+            .update(scope, &this, |ctx| self.source.with(ctx, |_, _| {}));
     }
 }
 
@@ -81,7 +81,7 @@ impl<T: 'static + ?Sized> DynReBorrow for Hot<ReBorrow<T>> {
 
 impl<T: 'static + ?Sized> DynReRef for Hot<ReRef<T>> {
     type Item = T;
-    fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&Self::Item)) {
+    fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&mut BindContext, &Self::Item)) {
         self.source.with(ctx, f)
     }
 }

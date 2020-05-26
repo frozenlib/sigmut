@@ -48,7 +48,7 @@ trait DynReBorrowSource: Any + 'static {
 
 trait DynReRef: 'static {
     type Item: ?Sized;
-    fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&Self::Item));
+    fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&mut BindContext, &Self::Item));
 }
 
 #[derive(Clone)]
@@ -269,13 +269,10 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
-        ReRef::new(self.clone(), |this, ctx, f| f(&this.get(ctx)))
-    }
-}
-impl<T: 'static> Re<Re<T>> {
-    pub fn flatten(&self) -> Re<T> {
-        let this = self.clone();
-        Re::new(move |ctx| this.get(ctx).get(ctx))
+        ReRef::new(self.clone(), |this, ctx, f| {
+            let value = this.get(ctx);
+            f(ctx, &value)
+        })
     }
 }
 
@@ -412,20 +409,24 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
-        ReRef::new(self.clone(), |this, ctx, f| f(&*this.borrow(ctx)))
+        ReRef::new(self.clone(), |this, ctx, f| {
+            let b = this.borrow(ctx);
+            f(ctx, &*b)
+        })
     }
 }
 impl<T: 'static + ?Sized> ReRef<T> {
-    pub fn with<U>(&self, ctx: &mut BindContext, f: impl FnOnce(&T) -> U) -> U {
+    pub fn with<U>(&self, ctx: &mut BindContext, f: impl FnOnce(&mut BindContext, &T) -> U) -> U {
         let mut output = None;
         let mut f = Some(f);
-        self.0
-            .dyn_with(ctx, &mut |value| output = Some((f.take().unwrap())(value)));
+        self.0.dyn_with(ctx, &mut |ctx, value| {
+            output = Some((f.take().unwrap())(ctx, value))
+        });
         output.unwrap()
     }
     pub fn new<S: 'static>(
         this: S,
-        f: impl Fn(&S, &mut BindContext, &mut dyn FnMut(&T)) + 'static,
+        f: impl Fn(&S, &mut BindContext, &mut dyn FnMut(&mut BindContext, &T)) + 'static,
     ) -> Self {
         struct ReRefFn<S, T: ?Sized, F> {
             this: S,
@@ -436,11 +437,11 @@ impl<T: 'static + ?Sized> ReRef<T> {
         where
             S: 'static,
             T: 'static + ?Sized,
-            F: Fn(&S, &mut BindContext, &mut dyn FnMut(&T)) + 'static,
+            F: Fn(&S, &mut BindContext, &mut dyn FnMut(&mut BindContext, &T)) + 'static,
         {
             type Item = T;
 
-            fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&T)) {
+            fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&mut BindContext, &T)) {
                 (self.f)(&self.this, ctx, f)
             }
         }
@@ -454,7 +455,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
     where
         T: Sized,
     {
-        Self::new(value, |value, _ctx, f| f(value))
+        Self::new(value, |value, ctx, f| f(ctx, value))
     }
 
     fn from_dyn(inner: impl DynReRef<Item = T>) -> Self {
@@ -463,11 +464,13 @@ impl<T: 'static + ?Sized> ReRef<T> {
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
         let this = self.clone();
-        Re::new(move |ctx| this.with(ctx, |x| f(x)))
+        Re::new(move |ctx| this.with(ctx, |_ctx, x| f(x)))
     }
     pub fn map_ref<U>(&self, f: impl Fn(&T) -> &U + 'static) -> ReRef<U> {
         let this = self.clone();
-        ReRef::new((), move |_, ctx, f_inner| this.with(ctx, |x| f_inner(f(x))))
+        ReRef::new((), move |_, ctx, f_inner| {
+            this.with(ctx, |ctx, x| f_inner(ctx, f(x)))
+        })
     }
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
@@ -492,7 +495,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
             initial_state,
             move |st, ctx| {
                 let f = &f;
-                this.with(ctx, move |x| f(st, x))
+                this.with(ctx, move |_ctx, x| f(st, x))
             },
             |st| st,
             |st| st,
@@ -508,7 +511,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         ReBorrow::from_dyn_source(FilterScan::new(
             initial_state,
             move |state, ctx| {
-                this.with(ctx, |value| {
+                this.with(ctx, |_ctx, value| {
                     let is_notify = predicate(&state, &value);
                     let state = if is_notify { f(state, value) } else { state };
                     FilterScanResult { is_notify, state }
@@ -536,7 +539,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
             initial_state,
             move |st, ctx| {
                 let f = &mut f;
-                (this.with(ctx, move |x| f(st, x)), ())
+                (this.with(ctx, move |_ctx, x| f(st, x)), ())
             },
             |(st, _)| st,
             |st| st,
@@ -576,7 +579,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         let mut f = f;
         Fold(FoldBy::new(
             (),
-            move |_, ctx| ((), this.with(ctx, |x| sp.spawn_local(f(x)))),
+            move |_, ctx| ((), this.with(ctx, |_ctx, x| sp.spawn_local(f(x)))),
             |_| (),
             |_| (),
         ))
@@ -586,6 +589,25 @@ impl<T: 'static + ?Sized> ReRef<T> {
     pub fn hot(&self) -> Self {
         let source = self.clone();
         Self(Hot::new(source))
+    }
+}
+impl<T: 'static> Re<Re<T>> {
+    pub fn flatten(&self) -> Re<T> {
+        let this = self.clone();
+        Re::new(move |ctx| this.get(ctx).get(ctx))
+    }
+}
+impl<T: 'static> ReBorrow<Re<T>> {
+    pub fn flatten(&self) -> Re<T> {
+        let this = self.clone();
+        Re::new(move |ctx| this.borrow(ctx).get(ctx))
+    }
+}
+
+impl<T: 'static> ReRef<Re<T>> {
+    pub fn flatten(&self) -> Re<T> {
+        let this = self.clone();
+        Re::new(move |ctx| this.with(ctx, |ctx, x| x.get(ctx)))
     }
 }
 
