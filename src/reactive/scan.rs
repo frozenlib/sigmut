@@ -160,8 +160,8 @@ where
         &self.sinks
     }
     fn detach_sink(&self, idx: usize, sink: &std::rc::Weak<dyn BindSink>) {
-        self.sinks().detach(idx, sink);
-        if self.sinks().is_empty() {
+        self.sinks.detach(idx, sink);
+        if self.sinks.is_empty() {
             let d = &mut *self.data.borrow_mut();
             d.bindings.clear();
             d.state.unload(&mut d.unload);

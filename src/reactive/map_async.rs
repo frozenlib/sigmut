@@ -93,7 +93,7 @@ where
         &self.sinks
     }
     fn detach_sink(&self, idx: usize, sink: &Weak<dyn BindSink>) {
-        self.sinks().detach(idx, sink);
+        self.sinks.detach(idx, sink);
         if self.sinks.is_empty() {
             let mut s = self.state.borrow_mut();
             s.handle = None;

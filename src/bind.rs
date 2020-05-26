@@ -50,13 +50,6 @@ impl Bindings {
     pub fn new() -> Self {
         Self(Vec::new())
     }
-    pub fn update_root<T>(
-        &mut self,
-        sink: &Rc<impl BindSink>,
-        f: impl FnOnce(&mut BindContext) -> T,
-    ) -> T {
-        BindContextScope::with(|scope| self.update(scope, sink, f))
-    }
     pub fn update<T>(
         &mut self,
         scope: &BindContextScope,
