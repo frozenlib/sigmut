@@ -65,7 +65,7 @@ jobs:
         uses: actions/cache@v1
         with:
           path: target
-          key: ${{ runner.os }}-cargo-build-target-benchmark-${{ hashFiles('**/Cargo.lock') }}-${{ matrix.features }}-3
+          key: ${{ runner.os }}-cargo-build-target-benchmark-${{ hashFiles('**/Cargo.lock') }}-4
           restore-keys: |
             ${{ runner.os }}-cargo-build-target-benchmark-${{ hashFiles('**/Cargo.lock') }}
             ${{ runner.os }}-cargo-build-target-build-${{ hashFiles('**/Cargo.lock') }}
