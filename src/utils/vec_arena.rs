@@ -1,4 +1,7 @@
-use std::mem::replace;
+use std::{
+    mem::replace,
+    ops::{Index, IndexMut},
+};
 pub struct VecArena<T> {
     entries: Vec<Entry<T>>,
     len: usize,
@@ -79,5 +82,17 @@ impl<T> VecArena<T> {
         } else {
             None
         }
+    }
+}
+
+impl<T> Index<usize> for VecArena<T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &T {
+        self.get(index).expect("index out of bounds.")
+    }
+}
+impl<T> IndexMut<usize> for VecArena<T> {
+    fn index_mut(&mut self, index: usize) -> &mut T {
+        self.get_mut(index).expect("index out of bounds.")
     }
 }
