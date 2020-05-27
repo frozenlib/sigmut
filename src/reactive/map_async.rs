@@ -67,7 +67,7 @@ where
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut BindContext,
+        ctx: &BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut s = self.state.borrow();

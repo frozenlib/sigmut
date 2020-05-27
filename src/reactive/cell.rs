@@ -19,7 +19,7 @@ impl<T: Copy + 'static> ReCell<T> {
         }))
     }
 
-    pub fn get(&self, ctx: &mut BindContext) -> T {
+    pub fn get(&self, ctx: &BindContext) -> T {
         self.0.get(ctx)
     }
 
@@ -38,14 +38,14 @@ impl<T: Copy + 'static> ReCell<T> {
     }
 }
 impl<T: Copy + 'static> ReCellData<T> {
-    fn get(self: &Rc<Self>, ctx: &mut BindContext) -> T {
+    fn get(self: &Rc<Self>, ctx: &BindContext) -> T {
         ctx.bind(self.clone());
         self.value.get()
     }
 }
 impl<T: Copy + 'static> DynReSource for ReCellData<T> {
     type Item = T;
-    fn dyn_get(self: Rc<Self>, ctx: &mut BindContext) -> Self::Item {
+    fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item {
         self.get(ctx)
     }
 }
@@ -86,7 +86,7 @@ impl<T: 'static> ReRefCell<T> {
         NotifyContext::with(|ctx| self.set(value, ctx));
     }
 
-    pub fn borrow(&self, ctx: &mut BindContext) -> Ref<T> {
+    pub fn borrow(&self, ctx: &BindContext) -> Ref<T> {
         ctx.bind(self.0.clone());
         self.0.value.borrow()
     }
@@ -111,7 +111,7 @@ impl<T: 'static> DynReBorrowSource for ReRefCellData<T> {
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut BindContext,
+        ctx: &BindContext,
     ) -> Ref<Self::Item> {
         ctx.bind(Self::downcast(rc_self));
         self.value.borrow()

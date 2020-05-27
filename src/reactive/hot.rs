@@ -68,20 +68,20 @@ impl<T: 'static + ?Sized> HotReady for Hot<ReRef<T>> {
 
 impl<T: 'static> DynRe for Hot<Re<T>> {
     type Item = T;
-    fn dyn_get(&self, ctx: &mut BindContext) -> Self::Item {
+    fn dyn_get(&self, ctx: &BindContext) -> Self::Item {
         self.source.get(ctx)
     }
 }
 impl<T: 'static + ?Sized> DynReBorrow for Hot<ReBorrow<T>> {
     type Item = T;
-    fn dyn_borrow(&self, ctx: &mut BindContext) -> Ref<Self::Item> {
+    fn dyn_borrow(&self, ctx: &BindContext) -> Ref<Self::Item> {
         self.source.borrow(ctx)
     }
 }
 
 impl<T: 'static + ?Sized> DynReRef for Hot<ReRef<T>> {
     type Item = T;
-    fn dyn_with(&self, ctx: &mut BindContext, f: &mut dyn FnMut(&mut BindContext, &Self::Item)) {
+    fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
         self.source.with(ctx, f)
     }
 }

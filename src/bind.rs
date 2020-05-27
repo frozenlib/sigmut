@@ -6,14 +6,14 @@ use std::rc::{Rc, Weak};
 pub struct BindContext<'a> {
     scope: &'a BindContextScope,
     sink: Weak<dyn BindSink>,
-    bindings: Vec<Binding>,
+    bindings: RefCell<Vec<Binding>>,
 }
 impl<'a> BindContext<'a> {
-    pub fn bind(&mut self, source: Rc<impl BindSource>) {
+    pub fn bind(&self, source: Rc<impl BindSource>) {
         let sink = self.sink.clone();
         let idx = source.attach_sink(sink.clone());
         let binding = Binding { source, sink, idx };
-        self.bindings.push(binding);
+        self.bindings.borrow_mut().push(binding);
     }
     pub fn scope(&self) -> &BindContextScope {
         &self.scope
@@ -54,15 +54,15 @@ impl Bindings {
         &mut self,
         scope: &BindContextScope,
         sink: &Rc<impl BindSink>,
-        f: impl FnOnce(&mut BindContext) -> T,
+        f: impl FnOnce(&BindContext) -> T,
     ) -> T {
-        let mut ctx = BindContext {
+        let ctx = BindContext {
             scope,
             sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
-            bindings: Vec::new(),
+            bindings: RefCell::new(Vec::new()),
         };
-        let value = f(&mut ctx);
-        scope.lazy_drop_bindings(replace(&mut self.0, ctx.bindings));
+        let value = f(&ctx);
+        scope.lazy_drop_bindings(replace(&mut self.0, ctx.bindings.into_inner()));
         value
     }
 

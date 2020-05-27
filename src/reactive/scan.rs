@@ -39,7 +39,7 @@ impl<Loaded, Unloaded> ScanState<Loaded, Unloaded> {
         bindings: &mut Bindings,
         scope: &BindContextScope,
         sink: &Rc<impl BindSink>,
-        load: impl FnOnce(Unloaded, &mut BindContext) -> Loaded,
+        load: impl FnOnce(Unloaded, &BindContext) -> Loaded,
     ) -> bool {
         if let Self::Unloaded(_) = self {
             if let Self::Unloaded(state) = take(self) {
@@ -92,7 +92,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> Loaded + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -116,7 +116,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> Loaded + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -125,7 +125,7 @@ where
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut BindContext,
+        ctx: &BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         ctx.bind(rc_self.clone());
@@ -152,7 +152,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> Loaded + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -174,7 +174,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> Loaded + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -194,7 +194,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> FilterScanResult<Loaded> + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -239,7 +239,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> FilterScanResult<Loaded> + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -248,7 +248,7 @@ where
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &mut BindContext,
+        ctx: &BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut d = self.data.borrow();
@@ -271,7 +271,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> FilterScanResult<Loaded> + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -294,7 +294,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> FilterScanResult<Loaded> + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -313,7 +313,7 @@ where
     T: 'static,
     Loaded: 'static,
     Unloaded: 'static,
-    Load: FnMut(Unloaded, &mut BindContext) -> FilterScanResult<Loaded> + 'static,
+    Load: FnMut(Unloaded, &BindContext) -> FilterScanResult<Loaded> + 'static,
     Unload: FnMut(Loaded) -> Unloaded + 'static,
     Get: Fn(&Loaded) -> &T + 'static,
 {
@@ -326,14 +326,14 @@ pub struct FoldBy<St, Loaded, Load, Unload, Get>(
     RefCell<ScanData<(St, Loaded), St, Load, Unload, Get>>,
 )
 where
-    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Load: FnMut(St, &BindContext) -> (St, Loaded) + 'static,
     Unload: FnMut((St, Loaded)) -> St + 'static;
 
 impl<T, St, Loaded, Load, Unload, Get> FoldBy<St, Loaded, Load, Unload, Get>
 where
     St: 'static,
     Loaded: 'static,
-    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Load: FnMut(St, &BindContext) -> (St, Loaded) + 'static,
     Unload: FnMut((St, Loaded)) -> St + 'static,
     Get: FnMut(St) -> T + 'static,
 {
@@ -357,7 +357,7 @@ impl<T, St, Loaded, Load, Unload, Get> DynFold for FoldBy<St, Loaded, Load, Unlo
 where
     St: 'static,
     Loaded: 'static,
-    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Load: FnMut(St, &BindContext) -> (St, Loaded) + 'static,
     Unload: FnMut((St, Loaded)) -> St + 'static,
     Get: FnMut(St) -> T + 'static,
 {
@@ -382,7 +382,7 @@ impl<T, St, Loaded, Load, Unload, Get> BindSink for FoldBy<St, Loaded, Load, Unl
 where
     St: 'static,
     Loaded: 'static,
-    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Load: FnMut(St, &BindContext) -> (St, Loaded) + 'static,
     Unload: FnMut((St, Loaded)) -> St + 'static,
     Get: FnMut(St) -> T + 'static,
 {
@@ -398,7 +398,7 @@ impl<T, St, Loaded, Load, Unload, Get> Task for FoldBy<St, Loaded, Load, Unload,
 where
     St: 'static,
     Loaded: 'static,
-    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Load: FnMut(St, &BindContext) -> (St, Loaded) + 'static,
     Unload: FnMut((St, Loaded)) -> St + 'static,
     Get: FnMut(St) -> T + 'static,
 {
@@ -408,7 +408,7 @@ where
 }
 impl<St, Loaded, Load, Unload, Get> Drop for FoldBy<St, Loaded, Load, Unload, Get>
 where
-    Load: FnMut(St, &mut BindContext) -> (St, Loaded) + 'static,
+    Load: FnMut(St, &BindContext) -> (St, Loaded) + 'static,
     Unload: FnMut((St, Loaded)) -> St + 'static,
 {
     fn drop(&mut self) {
