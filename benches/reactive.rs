@@ -64,3 +64,63 @@ fn many_source_n(source_count: usize, repeat: usize) -> usize {
 fn many_source_100_100(b: &mut Bencher) {
     b.iter(|| many_source_n(100, 100));
 }
+
+fn many_sink_n(sink_count: usize, repeat: usize) -> usize {
+    let s = ReCell::new(0);
+    let mut fs = Vec::new();
+
+    for _ in 0..sink_count {
+        let s = s.to_re();
+        fs.push(s.fold(0, move |s, x| s + x));
+    }
+    for i in 0..repeat {
+        s.set_and_update(i);
+    }
+
+    let mut sum = 0;
+    for f in fs {
+        sum += f.stop();
+    }
+    sum
+}
+#[bench]
+fn many_sink_100_100(b: &mut Bencher) {
+    b.iter(|| many_sink_n(100, 100));
+}
+
+fn many_source_sink_n(count: usize, repeat: usize) -> usize {
+    let mut ss = Vec::new();
+    for _ in 0..count {
+        ss.push(ReCell::new(0));
+    }
+
+    let mut fs = Vec::new();
+    for _ in 0..count {
+        let f = {
+            let ss = ss.clone();
+            Re::new(move |ctx| {
+                let mut sum = 0;
+                for s in &ss {
+                    sum += s.get(ctx)
+                }
+                sum
+            })
+            .fold(0, |s, x| s + x)
+        };
+        fs.push(f);
+    }
+
+    for i in 0..repeat {
+        ss[i % count].set_and_update(i);
+    }
+    let mut sum = 0;
+    for f in fs {
+        sum += f.stop();
+    }
+    sum
+}
+
+#[bench]
+fn many_source_sink_30_30(b: &mut Bencher) {
+    b.iter(|| many_source_sink_n(30, 30));
+}

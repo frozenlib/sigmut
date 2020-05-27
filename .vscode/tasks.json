@@ -45,6 +45,10 @@
       "command": "cargo",
       "args": ["+nightly", "bench", "--target-dir=target/bench"],
       "problemMatcher": ["$rustc"],
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
       "presentation": {
         "panel": "dedicated",
         "clear": true
