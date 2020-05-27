@@ -269,10 +269,7 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
-        ReRef::new(self.clone(), |this, ctx, f| {
-            let value = this.get(ctx);
-            f(ctx, &value)
-        })
+        ReRef::new(self.clone(), |this, ctx, f| f(ctx, &this.get(ctx)))
     }
 }
 
@@ -409,10 +406,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {
-        ReRef::new(self.clone(), |this, ctx, f| {
-            let b = this.borrow(ctx);
-            f(ctx, &*b)
-        })
+        ReRef::new(self.clone(), |this, ctx, f| f(ctx, &*this.borrow(ctx)))
     }
 }
 impl<T: 'static + ?Sized> ReRef<T> {
