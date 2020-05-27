@@ -1,6 +1,6 @@
 use std::cell::{RefCell, RefMut};
 use std::cmp::min;
-use std::mem::{drop, replace, swap};
+use std::mem::{drop, swap};
 use std::rc::{Rc, Weak};
 
 pub struct BindContext<'a> {
@@ -62,7 +62,7 @@ impl Bindings {
             bindings: RefCell::new(Vec::new()),
         };
         let value = f(&ctx);
-        scope.lazy_drop_bindings(replace(&mut self.0, ctx.bindings.into_inner()));
+        self.0 = ctx.bindings.into_inner();
         value
     }
 
@@ -172,7 +172,6 @@ struct ReactiveContextData {
     state: ReactiveState,
     lazy_tasks: Vec<Weak<dyn Task>>,
     lazy_notify_sinks: Vec<Weak<dyn BindSink>>,
-    lazy_drop_bindings: Vec<Binding>,
 }
 enum ReactiveState {
     None,
@@ -205,12 +204,6 @@ impl NotifyContext {
     }
 }
 impl BindContextScope {
-    fn lazy_drop_bindings(&self, bindings: impl IntoIterator<Item = Binding>) {
-        let mut b = ((self.0).0).borrow_mut();
-        assert!(matches!(b.state, ReactiveState::Bind(_)));
-        b.lazy_drop_bindings.extend(bindings);
-    }
-
     pub fn with<T>(f: impl FnOnce(&BindContextScope) -> T) -> T {
         ReactiveContext::with(|this| this.bind(f))
     }
@@ -223,7 +216,6 @@ impl ReactiveContext {
                 state: ReactiveState::None,
                 lazy_tasks: Vec::new(),
                 lazy_notify_sinks: Vec::new(),
-                lazy_drop_bindings: Vec::new(),
             },
         ))))
     }
@@ -297,7 +289,6 @@ impl ReactiveContext {
     fn bind_end(&self, b: RefMut<ReactiveContextData>) {
         let mut b = b;
         b.state = ReactiveState::None;
-        b.lazy_drop_bindings.clear();
         if b.lazy_notify_sinks.is_empty() {
             return;
         }
