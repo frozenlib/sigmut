@@ -52,9 +52,9 @@ impl<T: 'static> HotReady for Hot<Re<T>> {
 impl<T: 'static + ?Sized> HotReady for Hot<ReBorrow<T>> {
     fn ready(self: Rc<Self>, scope: &BindContextScope) {
         let this = self.clone();
-        self.bindings
-            .borrow_mut()
-            .update(scope, &this, |ctx| self.source.borrow(ctx));
+        self.bindings.borrow_mut().update(scope, &this, |ctx| {
+            self.source.borrow(ctx);
+        });
     }
 }
 impl<T: 'static + ?Sized> HotReady for Hot<ReRef<T>> {
@@ -74,7 +74,7 @@ impl<T: 'static> DynRe for Hot<Re<T>> {
 }
 impl<T: 'static + ?Sized> DynReBorrow for Hot<ReBorrow<T>> {
     type Item = T;
-    fn dyn_borrow(&self, ctx: &BindContext) -> Ref<Self::Item> {
+    fn dyn_borrow<'a>(&'a self, ctx: &'a BindContext) -> Ref<'a, Self::Item> {
         self.source.borrow(ctx)
     }
 }
