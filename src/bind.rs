@@ -134,14 +134,6 @@ impl BindSinks {
         }
         detach_idxs.clear();
     }
-    fn extend_to(&self, sinks: &mut Vec<Weak<dyn BindSink>>) {
-        for (_, sink) in &*self.sinks.borrow() {
-            sinks.push(sink.clone());
-        }
-    }
-    pub fn notify_and_update(&self) {
-        NotifyContext::notify_and_update(self);
-    }
     pub fn is_empty(&self) -> bool {
         self.sinks.borrow().is_empty()
     }
@@ -164,7 +156,7 @@ pub struct NotifyContext(RefCell<ReactiveContextData>);
 struct ReactiveContextData {
     state: ReactiveState,
     lazy_tasks: Vec<Weak<dyn Task>>,
-    lazy_notify_sinks: Vec<Weak<dyn BindSink>>,
+    lazy_notify_sources: Vec<Rc<dyn BindSource>>,
 }
 enum ReactiveState {
     None,
@@ -187,11 +179,11 @@ impl NotifyContext {
             })
         })
     }
-    pub fn notify_and_update(sinks: &BindSinks) {
+    pub fn notify_and_update(s: &Rc<impl BindSource>) {
         ReactiveContext::with(|this| {
             this.notify(
-                |ctx| sinks.notify(ctx),
-                |this| sinks.extend_to(&mut this.lazy_notify_sinks),
+                |ctx| s.sinks().notify(ctx),
+                |this| this.lazy_notify_sources.push(s.clone()),
             )
         });
     }
@@ -208,7 +200,7 @@ impl ReactiveContext {
             ReactiveContextData {
                 state: ReactiveState::None,
                 lazy_tasks: Vec::new(),
-                lazy_notify_sinks: Vec::new(),
+                lazy_notify_sources: Vec::new(),
             },
         ))))
     }
@@ -282,21 +274,19 @@ impl ReactiveContext {
     fn bind_end(&self, b: RefMut<ReactiveContextData>) {
         let mut b = b;
         b.state = ReactiveState::None;
-        if b.lazy_notify_sinks.is_empty() {
+        if b.lazy_notify_sources.is_empty() {
             return;
         }
         b.state = ReactiveState::Notify(0);
-        let mut sinks = Vec::new();
-        swap(&mut b.lazy_notify_sinks, &mut sinks);
+        let mut sources = Vec::new();
+        swap(&mut b.lazy_notify_sources, &mut sources);
         drop(b);
-        for sink in &sinks {
-            if let Some(sink) = Weak::upgrade(sink) {
-                sink.notify(self.notify_ctx());
-            }
+        for s in &sources {
+            s.sinks().notify(self.notify_ctx());
         }
-        sinks.clear();
+        sources.clear();
         b = self.borrow_mut();
-        b.lazy_notify_sinks = sinks;
+        b.lazy_notify_sources = sources;
         self.notify_end(b);
     }
 
