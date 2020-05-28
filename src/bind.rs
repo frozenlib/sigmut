@@ -179,7 +179,7 @@ impl NotifyContext {
             })
         })
     }
-    pub fn notify_and_update(s: &Rc<impl BindSource>) {
+    pub fn update(s: &Rc<impl BindSource>) {
         ReactiveContext::with(|this| {
             this.notify(
                 |ctx| s.sinks().notify(ctx),

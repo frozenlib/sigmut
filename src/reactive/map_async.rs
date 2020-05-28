@@ -51,7 +51,7 @@ where
             let value = fut.await;
             if let Some(this) = Weak::upgrade(&this) {
                 this.state.borrow_mut().value = Poll::Ready(value);
-                NotifyContext::notify_and_update(&this);
+                NotifyContext::update(&this);
             }
         }));
     }

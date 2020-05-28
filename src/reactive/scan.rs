@@ -228,7 +228,7 @@ where
                 });
         }
         if is_notify {
-            NotifyContext::notify_and_update(self);
+            NotifyContext::update(self);
         }
     }
 }

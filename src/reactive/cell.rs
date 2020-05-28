@@ -30,7 +30,7 @@ impl<T: Copy + 'static> ReCell<T> {
 
     pub fn set_and_update(&self, value: T) {
         self.0.value.set(value);
-        NotifyContext::notify_and_update(&self.0);
+        NotifyContext::update(&self.0);
     }
 
     pub fn to_re(&self) -> Re<T> {
