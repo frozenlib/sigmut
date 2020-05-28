@@ -707,34 +707,3 @@ impl<T> From<Fold<T>> for Subscription {
         Subscription(x.0.as_dyn_any())
     }
 }
-
-pub trait IntoReCow<T: 'static + ToOwned + ?Sized> {
-    fn into_re_cow(self) -> ReCow<T>;
-}
-
-impl<T: 'static + Clone> IntoReCow<T> for &T {
-    fn into_re_cow(self) -> ReCow<T> {
-        ReCow::Cow(Cow::Owned(self.clone()))
-    }
-}
-
-impl<T: 'static + Clone> IntoReCow<T> for T {
-    fn into_re_cow(self) -> ReCow<T> {
-        ReCow::Cow(Cow::Owned(self))
-    }
-}
-impl<T: 'static + Clone> IntoReCow<T> for ReRef<T> {
-    fn into_re_cow(self) -> ReCow<T> {
-        ReCow::ReRef(self)
-    }
-}
-impl<T: 'static + Clone> IntoReCow<T> for Re<T> {
-    fn into_re_cow(self) -> ReCow<T> {
-        self.to_re_ref().into_re_cow()
-    }
-}
-impl<T: 'static + Clone> IntoReCow<T> for ReBorrow<T> {
-    fn into_re_cow(self) -> ReCow<T> {
-        self.to_re_ref().into_re_cow()
-    }
-}
