@@ -1,3 +1,4 @@
+use slab::Slab;
 use std::cell::{RefCell, RefMut};
 use std::cmp::min;
 use std::mem::{drop, replace, swap};
@@ -110,27 +111,33 @@ impl Bindings {
 }
 
 /// A collection of `BindSink`.
-pub struct BindSinks(RefCell<BindSinkData>);
+pub struct BindSinks {
+    sinks: RefCell<Slab<Weak<dyn BindSink>>>,
+    detach_idxs: RefCell<Vec<usize>>,
+}
+
 impl BindSinks {
     pub fn new() -> Self {
-        Self(RefCell::new(BindSinkData::new()))
-    }
-    pub fn notify(&self, ctx: &NotifyContext) {
-        let mut b = self.0.borrow();
-        for idx in 0.. {
-            if let Some(sink) = b.sinks.get(idx) {
-                if let Some(sink) = Weak::upgrade(sink) {
-                    drop(b);
-                    sink.notify(ctx);
-                    b = self.0.borrow();
-                }
-            } else {
-                break;
-            }
+        Self {
+            sinks: RefCell::new(Slab::new()),
+            detach_idxs: RefCell::new(Vec::new()),
         }
     }
+    pub fn notify(&self, ctx: &NotifyContext) {
+        let mut sinks = self.sinks.borrow_mut();
+        for (_, sink) in sinks.iter() {
+            if let Some(sink) = Weak::upgrade(sink) {
+                sink.notify(ctx);
+            }
+        }
+        let mut detach_idxs = self.detach_idxs.borrow_mut();
+        for &idx in detach_idxs.iter() {
+            sinks.remove(idx);
+        }
+        detach_idxs.clear();
+    }
     fn extend_to(&self, sinks: &mut Vec<Weak<dyn BindSink>>) {
-        for sink in &self.0.borrow().sinks {
+        for (_, sink) in &*self.sinks.borrow() {
             sinks.push(sink.clone());
         }
     }
@@ -138,62 +145,20 @@ impl BindSinks {
         NotifyContext::notify_and_update(self);
     }
     pub fn is_empty(&self) -> bool {
-        self.0.borrow_mut().is_empty()
+        self.sinks.borrow().is_empty()
     }
     pub fn attach(&self, sink: Weak<dyn BindSink>) -> usize {
-        self.0.borrow_mut().attach(sink)
+        self.sinks.borrow_mut().insert(sink)
     }
     pub fn detach(&self, idx: usize, sink: &Weak<dyn BindSink>) {
-        self.0.borrow_mut().detach(idx, sink);
+        if let Ok(mut b) = self.sinks.try_borrow_mut() {
+            b.remove(idx);
+        } else {
+            self.detach_idxs.borrow_mut().push(idx);
+        }
     }
 }
 
-struct BindSinkData {
-    sinks: Vec<Weak<dyn BindSink>>,
-    idx_next: usize,
-}
-impl BindSinkData {
-    fn new() -> Self {
-        Self {
-            sinks: Vec::new(),
-            idx_next: 0,
-        }
-    }
-    fn attach(&mut self, sink: Weak<dyn BindSink>) -> usize {
-        while self.idx_next < self.sinks.len() {
-            if self.sinks[self.idx_next].strong_count() == 0 {
-                let idx = self.idx_next;
-                self.sinks[idx] = sink;
-                self.idx_next += 1;
-                return idx;
-            }
-            self.idx_next += 1;
-        }
-        let idx = self.sinks.len();
-        self.sinks.push(sink);
-        idx
-    }
-    fn detach(&mut self, idx: usize, sink: &Weak<dyn BindSink>) {
-        if let Some(s) = self.sinks.get_mut(idx) {
-            if Weak::ptr_eq(s, sink) {
-                *s = freed_sink();
-                self.idx_next = min(self.idx_next, idx);
-            }
-        }
-    }
-
-    fn is_empty(&mut self) -> bool {
-        let remove_len = self
-            .sinks
-            .iter()
-            .rev()
-            .take_while(|sink| sink.strong_count() == 0)
-            .count();
-        let new_len = self.sinks.len() - remove_len;
-        self.sinks.resize_with(new_len, || unreachable!());
-        self.sinks.is_empty()
-    }
-}
 fn freed_sink() -> Weak<dyn BindSink> {
     struct DummyBindSink;
     impl BindSink for DummyBindSink {
