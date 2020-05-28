@@ -159,8 +159,8 @@ where
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
-    fn detach_sink(&self, idx: usize, sink: &std::rc::Weak<dyn BindSink>) {
-        self.sinks.detach(idx, sink);
+    fn detach_sink(&self, idx: usize) {
+        self.sinks.detach(idx);
         if self.sinks.is_empty() {
             let d = &mut *self.data.borrow_mut();
             d.bindings.clear();
@@ -278,8 +278,8 @@ where
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
-    fn detach_sink(&self, idx: usize, sink: &std::rc::Weak<dyn BindSink>) {
-        self.sinks.detach(idx, sink);
+    fn detach_sink(&self, idx: usize) {
+        self.sinks.detach(idx);
         if self.sinks.is_empty() {
             let d = &mut *self.data.borrow_mut();
             d.bindings.clear();

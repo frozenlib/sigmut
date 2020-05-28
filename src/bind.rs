@@ -1,6 +1,5 @@
 use slab::Slab;
 use std::cell::{RefCell, RefMut};
-use std::cmp::min;
 use std::mem::{drop, replace, swap};
 use std::rc::{Rc, Weak};
 
@@ -45,8 +44,8 @@ impl BindingsBuilder {
     }
     fn bind_new(&mut self, source: Rc<dyn BindSource>) {
         let sink = self.sink.clone();
-        let idx = source.attach_sink(sink.clone());
-        let binding = Binding { source, sink, idx };
+        let idx = source.attach_sink(sink);
+        let binding = Binding { source, idx };
         self.bindings.push(binding);
     }
 
@@ -61,8 +60,8 @@ pub trait BindSource: 'static {
     fn attach_sink(&self, sink: Weak<dyn BindSink>) -> usize {
         self.sinks().attach(sink)
     }
-    fn detach_sink(&self, idx: usize, sink: &Weak<dyn BindSink>) {
-        self.sinks().detach(idx, sink)
+    fn detach_sink(&self, idx: usize) {
+        self.sinks().detach(idx)
     }
 }
 
@@ -72,12 +71,11 @@ pub trait BindSink: 'static {
 
 struct Binding {
     source: Rc<dyn BindSource>,
-    sink: Weak<dyn BindSink>,
     idx: usize,
 }
 impl Drop for Binding {
     fn drop(&mut self) {
-        self.source.detach_sink(self.idx, &self.sink);
+        self.source.detach_sink(self.idx);
     }
 }
 pub struct Bindings(Vec<Binding>);
@@ -150,21 +148,13 @@ impl BindSinks {
     pub fn attach(&self, sink: Weak<dyn BindSink>) -> usize {
         self.sinks.borrow_mut().insert(sink)
     }
-    pub fn detach(&self, idx: usize, sink: &Weak<dyn BindSink>) {
+    pub fn detach(&self, idx: usize) {
         if let Ok(mut b) = self.sinks.try_borrow_mut() {
             b.remove(idx);
         } else {
             self.detach_idxs.borrow_mut().push(idx);
         }
     }
-}
-
-fn freed_sink() -> Weak<dyn BindSink> {
-    struct DummyBindSink;
-    impl BindSink for DummyBindSink {
-        fn notify(self: Rc<Self>, _ctx: &NotifyContext) {}
-    }
-    Weak::<DummyBindSink>::new()
 }
 
 struct ReactiveContext(BindContextScope);
