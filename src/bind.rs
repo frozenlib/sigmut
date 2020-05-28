@@ -1,22 +1,57 @@
 use std::cell::{RefCell, RefMut};
 use std::cmp::min;
-use std::mem::{drop, swap};
+use std::mem::{drop, replace, swap};
 use std::rc::{Rc, Weak};
 
 pub struct BindContext<'a> {
     scope: &'a BindContextScope,
-    sink: Weak<dyn BindSink>,
-    bindings: RefCell<Vec<Binding>>,
+    bb: RefCell<BindingsBuilder>,
 }
+
 impl<'a> BindContext<'a> {
     pub fn bind(&self, source: Rc<impl BindSource>) {
-        let sink = self.sink.clone();
-        let idx = source.attach_sink(sink.clone());
-        let binding = Binding { source, sink, idx };
-        self.bindings.borrow_mut().push(binding);
+        self.bb.borrow_mut().bind(source)
     }
     pub fn scope(&self) -> &BindContextScope {
         &self.scope
+    }
+}
+struct BindingsBuilder {
+    sink: Weak<dyn BindSink>,
+    bindings: Vec<Binding>,
+    len: usize,
+}
+impl BindingsBuilder {
+    fn new(sink: Weak<dyn BindSink>, bindings: Vec<Binding>) -> Self {
+        Self {
+            sink,
+            bindings,
+            len: 0,
+        }
+    }
+    pub fn bind(&mut self, source: Rc<dyn BindSource>) {
+        if self.bindings.len() == self.len {
+            self.bind_new(source)
+        } else {
+            if !Rc::ptr_eq(&self.bindings[self.len].source, &source) {
+                let idx_old = self.len;
+                let idx_new = self.bindings.len();
+                self.bind_new(source);
+                self.bindings.swap(idx_old, idx_new);
+            }
+        }
+        self.len += 1;
+    }
+    fn bind_new(&mut self, source: Rc<dyn BindSource>) {
+        let sink = self.sink.clone();
+        let idx = source.attach_sink(sink.clone());
+        let binding = Binding { source, sink, idx };
+        self.bindings.push(binding);
+    }
+
+    fn build(mut self) -> Vec<Binding> {
+        self.bindings.drain(self.len..);
+        self.bindings
     }
 }
 
@@ -56,13 +91,16 @@ impl Bindings {
         sink: &Rc<impl BindSink>,
         f: impl FnOnce(&BindContext) -> T,
     ) -> T {
+        let bindings = replace(&mut self.0, Vec::new());
         let ctx = BindContext {
             scope,
-            sink: Rc::downgrade(sink) as Weak<dyn BindSink>,
-            bindings: RefCell::new(Vec::new()),
+            bb: RefCell::new(BindingsBuilder::new(
+                Rc::downgrade(sink) as Weak<dyn BindSink>,
+                bindings,
+            )),
         };
         let value = f(&ctx);
-        self.0 = ctx.bindings.into_inner();
+        self.0 = ctx.bb.into_inner().build();
         value
     }
 
