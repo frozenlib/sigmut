@@ -1,1 +1,1 @@
-mod vec_arena;
+pub mod vec_arena;
