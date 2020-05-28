@@ -29,7 +29,7 @@ where
     Self: HotReady,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        ctx.spawn(Rc::downgrade(&self));
+        ctx.spawn(self);
     }
 }
 impl<S> BindTask for Hot<S>

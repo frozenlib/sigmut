@@ -116,7 +116,8 @@ where
                 drop(s);
                 self.sinks.notify(ctx);
             } else {
-                ctx.spawn(Rc::downgrade(&self));
+                drop(s);
+                ctx.spawn(self);
             }
         }
     }

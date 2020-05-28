@@ -299,12 +299,13 @@ where
     Get: Fn(&Loaded) -> &T + 'static,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        let d = &mut *self.data.borrow_mut();
-        if d.state.unload(&mut d.unload) {
-            if !self.sinks.is_empty() {
-                ctx.spawn(Rc::downgrade(&self));
+        {
+            let d = &mut *self.data.borrow_mut();
+            if !d.state.unload(&mut d.unload) || self.sinks.is_empty() {
+                return;
             }
         }
+        ctx.spawn(self);
     }
 }
 impl<T, Loaded, Unloaded, Load, Unload, Get> BindTask
@@ -387,10 +388,13 @@ where
     Get: FnMut(St) -> T + 'static,
 {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        let d = &mut *self.0.borrow_mut();
-        if d.state.unload(&mut d.unload) {
-            ctx.spawn(Rc::downgrade(&self));
+        {
+            let d = &mut *self.0.borrow_mut();
+            if !d.state.unload(&mut d.unload) {
+                return;
+            }
         }
+        ctx.spawn(self);
     }
 }
 
