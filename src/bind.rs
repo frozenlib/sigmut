@@ -30,15 +30,15 @@ impl BindingsBuilder {
         }
     }
     pub fn bind(&mut self, source: Rc<dyn BindSource>) {
-        if self.bindings.len() == self.len {
-            self.bind_new(source)
-        } else {
+        if self.len < self.bindings.len() {
             if !Rc::ptr_eq(&self.bindings[self.len].source, &source) {
                 let idx_old = self.len;
                 let idx_new = self.bindings.len();
                 self.bind_new(source);
                 self.bindings.swap(idx_old, idx_new);
             }
+        } else {
+            self.bind_new(source)
         }
         self.len += 1;
     }
