@@ -155,7 +155,7 @@ pub struct NotifyContext(RefCell<ReactiveContextData>);
 
 struct ReactiveContextData {
     state: ReactiveState,
-    lazy_tasks: Vec<Weak<dyn Task>>,
+    lazy_bind_tasks: Vec<Weak<dyn BindTask>>,
     lazy_notify_sources: Vec<Rc<dyn BindSource>>,
 }
 enum ReactiveState {
@@ -164,13 +164,13 @@ enum ReactiveState {
     Bind(usize),
 }
 
-pub trait Task: 'static {
+pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindContextScope);
 }
 
 impl NotifyContext {
-    pub fn spawn(&self, task: Weak<impl Task>) {
-        self.0.borrow_mut().lazy_tasks.push(task);
+    pub fn spawn(&self, task: Weak<impl BindTask>) {
+        self.0.borrow_mut().lazy_bind_tasks.push(task);
     }
     pub fn with<T>(f: impl FnOnce(&NotifyContext) -> T) -> T {
         ReactiveContext::with(|this| {
@@ -199,7 +199,7 @@ impl ReactiveContext {
         Self(BindContextScope(NotifyContext(RefCell::new(
             ReactiveContextData {
                 state: ReactiveState::None,
-                lazy_tasks: Vec::new(),
+                lazy_bind_tasks: Vec::new(),
                 lazy_notify_sources: Vec::new(),
             },
         ))))
@@ -233,12 +233,12 @@ impl ReactiveContext {
     }
     fn notify_end(&self, b: RefMut<ReactiveContextData>) {
         let mut b = b;
-        if b.lazy_tasks.is_empty() {
+        if b.lazy_bind_tasks.is_empty() {
             b.state = ReactiveState::None;
             return;
         }
         b.state = ReactiveState::Bind(0);
-        while let Some(task) = b.lazy_tasks.pop() {
+        while let Some(task) = b.lazy_bind_tasks.pop() {
             if let Some(task) = Weak::upgrade(&task) {
                 drop(b);
                 task.run(self.bind_ctx_scope());

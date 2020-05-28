@@ -32,7 +32,7 @@ where
         ctx.spawn(Rc::downgrade(&self));
     }
 }
-impl<S> Task for Hot<S>
+impl<S> BindTask for Hot<S>
 where
     Self: HotReady,
 {

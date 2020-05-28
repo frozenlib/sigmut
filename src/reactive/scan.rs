@@ -307,7 +307,7 @@ where
         }
     }
 }
-impl<T, Loaded, Unloaded, Load, Unload, Get> Task
+impl<T, Loaded, Unloaded, Load, Unload, Get> BindTask
     for FilterScan<Loaded, Unloaded, Load, Unload, Get>
 where
     T: 'static,
@@ -394,7 +394,7 @@ where
     }
 }
 
-impl<T, St, Loaded, Load, Unload, Get> Task for FoldBy<St, Loaded, Load, Unload, Get>
+impl<T, St, Loaded, Load, Unload, Get> BindTask for FoldBy<St, Loaded, Load, Unload, Get>
 where
     St: 'static,
     Loaded: 'static,

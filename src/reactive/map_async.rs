@@ -121,7 +121,7 @@ where
         }
     }
 }
-impl<Fut, Sp> Task for MapAsync<Fut, Sp>
+impl<Fut, Sp> BindTask for MapAsync<Fut, Sp>
 where
     Fut: Future + 'static,
     Sp: LocalSpawn,
