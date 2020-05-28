@@ -50,8 +50,7 @@
         "isDefault": true
       },
       "presentation": {
-        "panel": "dedicated",
-        "clear": true
+        "panel": "new"
       },
       "options": {
         "env": {
