@@ -51,6 +51,7 @@ trait DynReRef: 'static {
     fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item));
 }
 
+#[must_use]
 #[derive(Clone)]
 pub struct Subscription(Rc<dyn Any>);
 
