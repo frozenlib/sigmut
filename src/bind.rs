@@ -50,7 +50,7 @@ impl BindingsBuilder {
     }
 
     fn build(mut self) -> Vec<Binding> {
-        self.bindings.drain(self.len..);
+        self.bindings.truncate(self.len);
         self.bindings
     }
 }
