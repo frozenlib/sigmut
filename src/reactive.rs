@@ -788,7 +788,9 @@ impl TailState {
         }))
     }
     fn set_sink(&mut self, sink: &Rc<impl BindSink>) {
+        println!("set_sink");
         if !self.is_ready {
+            println!("set_sink Some");
             self.sink = Some(sink.clone());
         }
     }
@@ -797,9 +799,8 @@ impl TailState {
 impl BindSink for RefCell<TailState> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut b = self.borrow_mut();
-        if b.is_ready {
-            return;
-        }
+        println!("notify");
+        b.is_ready = true;
         if let Some(sink) = b.sink.take() {
             sink.notify(ctx);
         }

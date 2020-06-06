@@ -252,16 +252,14 @@ fn re_for_each() {
 #[test]
 fn re_head_tail() {
     let a = ReCell::new(2);
-    let r = a.to_re();
+    let (head, tail) = a.to_re().head_tail();
+    let r = tail.to_vec();
 
-    let (head, tail) = r.head_tail();
+    a.set_and_update(5);
+    a.set_and_update(7);
 
-    // let r = a.to_re().map(|x| x * 2).to_vec();
-
-    // a.set_and_update(5);
-    // a.set_and_update(7);
-
-    // assert_eq!(r.stop(), vec![4, 10, 14]);
+    assert_eq!(head, 2);
+    assert_eq!(r.stop(), vec![5, 7]);
 }
 
 #[test]
