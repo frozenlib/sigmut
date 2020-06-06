@@ -339,14 +339,26 @@ where
     Get: FnMut(St) -> T + 'static,
 {
     pub fn new(initial_state: St, load: Load, unload: Unload, get: Get) -> Rc<Self> {
+        Self::new_with(initial_state, load, unload, get, Bindings::new(), true)
+    }
+    pub fn new_with(
+        initial_state: St,
+        load: Load,
+        unload: Unload,
+        get: Get,
+        bindings: Bindings,
+        start: bool,
+    ) -> Rc<Self> {
         let this = Rc::new(FoldBy(RefCell::new(ScanData {
             state: ScanState::Unloaded(initial_state),
             load,
             unload,
             get,
-            bindings: Bindings::new(),
+            bindings,
         })));
-        BindContextScope::with(|scope| Self::next(&this, scope));
+        if start {
+            BindContextScope::with(|scope| Self::next(&this, scope));
+        }
         this
     }
     fn next(this: &Rc<Self>, scope: &BindContextScope) {

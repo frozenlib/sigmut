@@ -261,6 +261,10 @@ impl<T: 'static> Re<T> {
         ))
         .into()
     }
+    pub fn prepare(&self) -> (T, Prepare<T>) {
+        Prepare::new(self.clone())
+    }
+
     pub fn hot(&self) -> Self {
         Self(ReData::Dyn(Hot::new(self.clone())))
     }
@@ -706,5 +710,72 @@ impl<T> Fold<T> {
 impl<T> From<Fold<T>> for Subscription {
     fn from(x: Fold<T>) -> Self {
         Subscription(x.0.as_dyn_any())
+    }
+}
+
+pub struct Prepare<T: 'static> {
+    bindings: Bindings,
+    source: Re<T>,
+    state: Rc<RefCell<PrepareState>>,
+}
+struct PrepareState {
+    is_modified: bool,
+    sink: Option<Rc<dyn BindSink>>,
+}
+
+impl<T> Prepare<T> {
+    fn new(source: Re<T>) -> (T, Self) {
+        let state = Rc::new(RefCell::new(PrepareState {
+            is_modified: false,
+            sink: None,
+        }));
+        let s = state.clone();
+        let mut bindings = Bindings::new();
+        let value =
+            BindContextScope::with(|scope| bindings.update(scope, &s, |ctx| source.get(ctx)));
+        let this = Self {
+            bindings,
+            source,
+            state,
+        };
+        (value, this)
+    }
+    pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
+        self.fold(f, move |mut f, x| {
+            f(x);
+            f
+        })
+        .into()
+    }
+    pub fn fold<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, T) -> St + 'static,
+    ) -> Fold<St> {
+        let mut b = self.state.borrow_mut();
+        let source = self.source;
+        let fold = FoldBy::new_with(
+            initial_state,
+            move |st, ctx| (f(st, source.get(ctx)), ()),
+            |(st, _)| st,
+            |st| st,
+            self.bindings,
+            b.is_modified,
+        );
+        if !b.is_modified {
+            b.sink = Some(fold.clone());
+        }
+        Fold(fold)
+    }
+}
+impl BindSink for RefCell<PrepareState> {
+    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+        let mut b = self.borrow_mut();
+        if b.is_modified {
+            return;
+        }
+        if let Some(sink) = b.sink.take() {
+            sink.notify(ctx);
+        }
     }
 }
