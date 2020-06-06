@@ -719,20 +719,16 @@ pub struct Tail<T: 'static> {
     state: Rc<RefCell<TailState>>,
 }
 struct TailState {
-    is_modified: bool,
+    is_ready: bool,
     sink: Option<Rc<dyn BindSink>>,
 }
 
 impl<T> Tail<T> {
     fn new(source: Re<T>) -> (T, Self) {
-        let state = Rc::new(RefCell::new(TailState {
-            is_modified: false,
-            sink: None,
-        }));
-        let s = state.clone();
+        let state = TailState::new();
         let mut bindings = Bindings::new();
         let value =
-            BindContextScope::with(|scope| bindings.update(scope, &s, |ctx| source.get(ctx)));
+            BindContextScope::with(|scope| bindings.update(scope, &state, |ctx| source.get(ctx)));
         let this = Self {
             bindings,
             source,
@@ -759,19 +755,37 @@ impl<T> Tail<T> {
             move |st, ctx| (f(st, source.get(ctx)), ()),
             |(st, _)| st,
             |st| st,
+            b.is_ready,
             self.bindings,
-            b.is_modified,
         );
-        if !b.is_modified {
-            b.sink = Some(fold.clone());
-        }
+        b.set_sink(&fold);
         Fold(fold)
     }
+    pub fn to_stream(self) -> impl futures::Stream<Item = T> {
+        let mut b = self.state.borrow_mut();
+        let s = ToStreamData::new(self.source, b.is_ready, self.bindings);
+        b.set_sink(&s);
+        ToStream(s)
+    }
 }
+impl TailState {
+    fn new() -> Rc<RefCell<Self>> {
+        Rc::new(RefCell::new(Self {
+            is_ready: false,
+            sink: None,
+        }))
+    }
+    fn set_sink(&mut self, sink: &Rc<impl BindSink>) {
+        if !self.is_ready {
+            self.sink = Some(sink.clone());
+        }
+    }
+}
+
 impl BindSink for RefCell<TailState> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut b = self.borrow_mut();
-        if b.is_modified {
+        if b.is_ready {
             return;
         }
         if let Some(sink) = b.sink.take() {

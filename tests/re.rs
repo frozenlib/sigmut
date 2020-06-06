@@ -250,6 +250,17 @@ fn re_for_each() {
 }
 
 #[test]
+fn re_head_tail() {
+    let a = ReCell::new(2);
+    // let r = a.to_re().map(|x| x * 2).to_vec();
+
+    // a.set_and_update(5);
+    // a.set_and_update(7);
+
+    // assert_eq!(r.stop(), vec![4, 10, 14]);
+}
+
+#[test]
 fn re_hot() {
     let cell = ReCell::new(1);
     let re = cell.to_re().scan(0, |s, x| s + x);
