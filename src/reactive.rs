@@ -261,8 +261,8 @@ impl<T: 'static> Re<T> {
         ))
         .into()
     }
-    pub fn prepare(&self) -> (T, Prepare<T>) {
-        Prepare::new(self.clone())
+    pub fn head_tail(&self) -> (T, Tail<T>) {
+        Tail::new(self.clone())
     }
 
     pub fn hot(&self) -> Self {
@@ -713,19 +713,19 @@ impl<T> From<Fold<T>> for Subscription {
     }
 }
 
-pub struct Prepare<T: 'static> {
+pub struct Tail<T: 'static> {
     bindings: Bindings,
     source: Re<T>,
-    state: Rc<RefCell<PrepareState>>,
+    state: Rc<RefCell<TailState>>,
 }
-struct PrepareState {
+struct TailState {
     is_modified: bool,
     sink: Option<Rc<dyn BindSink>>,
 }
 
-impl<T> Prepare<T> {
+impl<T> Tail<T> {
     fn new(source: Re<T>) -> (T, Self) {
-        let state = Rc::new(RefCell::new(PrepareState {
+        let state = Rc::new(RefCell::new(TailState {
             is_modified: false,
             sink: None,
         }));
@@ -768,7 +768,7 @@ impl<T> Prepare<T> {
         Fold(fold)
     }
 }
-impl BindSink for RefCell<PrepareState> {
+impl BindSink for RefCell<TailState> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut b = self.borrow_mut();
         if b.is_modified {
