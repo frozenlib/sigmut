@@ -761,6 +761,18 @@ impl<T> Tail<T> {
         b.set_sink(&fold);
         Fold(fold)
     }
+    pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(self) -> Fold<Vec<T>> {
+        self.collect()
+    }
     pub fn to_stream(self) -> impl futures::Stream<Item = T> {
         let mut b = self.state.borrow_mut();
         let s = ToStreamData::new(self.source, b.is_ready, self.bindings);
