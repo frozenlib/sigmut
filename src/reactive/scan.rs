@@ -22,7 +22,7 @@ struct ScanData<Loaded, Unloaded, Load, Unload, Get> {
 
 #[derive(Derivative)]
 #[derivative(Default(bound = ""))]
-enum ScanState<Loaded, Unloaded> {
+pub enum ScanState<Loaded, Unloaded> {
     #[derivative(Default)]
     NoData,
     Loaded(Loaded),
@@ -339,24 +339,23 @@ where
     Get: FnMut(St) -> T + 'static,
 {
     pub fn new(initial_state: St, load: Load, unload: Unload, get: Get) -> Rc<Self> {
-        Self::new_with(initial_state, load, unload, get, true, Bindings::new())
+        Self::new_with_state(ScanState::Unloaded(initial_state), load, unload, get)
     }
-    pub fn new_with(
-        initial_state: St,
+    pub fn new_with_state(
+        state: ScanState<(St, Loaded), St>,
         load: Load,
         unload: Unload,
         get: Get,
-        is_ready: bool,
-        bindings: Bindings,
     ) -> Rc<Self> {
+        let is_loaded = state.is_loaded();
         let this = Rc::new(FoldBy(RefCell::new(ScanData {
-            state: ScanState::Unloaded(initial_state),
+            state,
             load,
             unload,
             get,
-            bindings,
+            bindings: Bindings::new(),
         })));
-        if is_ready {
+        if !is_loaded {
             BindContextScope::with(|scope| Self::next(&this, scope));
         }
         this

@@ -714,26 +714,26 @@ impl<T> From<Fold<T>> for Subscription {
 }
 
 pub struct Tail<T: 'static> {
-    bindings: Bindings,
     source: Re<T>,
     state: Rc<RefCell<TailState>>,
 }
+
 struct TailState {
     is_ready: bool,
+    bindings: Bindings,
     sink: Option<Rc<dyn BindSink>>,
 }
 
 impl<T> Tail<T> {
     fn new(source: Re<T>) -> (T, Self) {
         let state = TailState::new();
-        let mut bindings = Bindings::new();
-        let value =
-            BindContextScope::with(|scope| bindings.update(scope, &state, |ctx| source.get(ctx)));
-        let this = Self {
-            bindings,
-            source,
-            state,
-        };
+        let value = BindContextScope::with(|scope| {
+            state
+                .borrow_mut()
+                .bindings
+                .update(scope, &state, |ctx| source.get(ctx))
+        });
+        let this = Self { source, state };
         (value, this)
     }
     pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
@@ -748,17 +748,19 @@ impl<T> Tail<T> {
         initial_state: St,
         f: impl Fn(St, T) -> St + 'static,
     ) -> Fold<St> {
-        let mut b = self.state.borrow_mut();
-        let source = self.source;
-        let fold = FoldBy::new_with(
-            initial_state,
-            move |st, ctx| (f(st, source.get(ctx)), ()),
-            |(st, _)| st,
-            |st| st,
-            b.is_ready,
-            self.bindings,
-        );
-        b.set_sink(&fold);
+        let fold = self.chain(|source, s| {
+            let s = if let Some(s) = s {
+                ScanState::Loaded((initial_state, Some(s)))
+            } else {
+                ScanState::Unloaded(initial_state)
+            };
+            FoldBy::new_with_state(
+                s,
+                move |st, ctx| (f(st, source.get(ctx)), None),
+                |(st, _)| st,
+                |st| st,
+            )
+        });
         Fold(fold)
     }
     pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
@@ -773,33 +775,37 @@ impl<T> Tail<T> {
     pub fn to_vec(self) -> Fold<Vec<T>> {
         self.collect()
     }
-    pub fn to_stream(self) -> impl futures::Stream<Item = T> {
+    fn chain<U: BindSink>(
+        self,
+        f: impl FnOnce(Re<T>, Option<Rc<RefCell<TailState>>>) -> Rc<U>,
+    ) -> Rc<U> {
         let mut b = self.state.borrow_mut();
-        let s = ToStreamData::new(self.source, b.is_ready, self.bindings);
-        b.set_sink(&s);
-        ToStream(s)
+        let source = self.source;
+        let s = if b.is_ready {
+            None
+        } else {
+            Some(self.state.clone())
+        };
+        let tail = f(source, s);
+        if !b.is_ready {
+            b.sink = Some(tail.clone());
+        }
+        tail
     }
 }
 impl TailState {
     fn new() -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self {
+        Rc::new(RefCell::new(TailState {
             is_ready: false,
             sink: None,
+            bindings: Bindings::new(),
         }))
-    }
-    fn set_sink(&mut self, sink: &Rc<impl BindSink>) {
-        println!("set_sink");
-        if !self.is_ready {
-            println!("set_sink Some");
-            self.sink = Some(sink.clone());
-        }
     }
 }
 
 impl BindSink for RefCell<TailState> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut b = self.borrow_mut();
-        println!("notify");
         b.is_ready = true;
         if let Some(sink) = b.sink.take() {
             sink.notify(ctx);

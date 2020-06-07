@@ -5,8 +5,8 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-pub struct ToStream<T: 'static>(pub Rc<ToStreamData<T>>);
-pub struct ToStreamData<T: 'static> {
+pub struct ToStream<T: 'static>(Rc<ToStreamData<T>>);
+struct ToStreamData<T: 'static> {
     source: Re<T>,
     state: RefCell<ToStreamState>,
 }
@@ -19,19 +19,14 @@ struct ToStreamState {
 
 impl<T: 'static> ToStream<T> {
     pub fn new(source: Re<T>) -> Self {
-        Self(ToStreamData::new(source, true, Bindings::new()))
-    }
-}
-impl<T> ToStreamData<T> {
-    pub fn new(source: Re<T>, is_ready: bool, bindings: Bindings) -> Rc<Self> {
-        Rc::new(Self {
+        Self(Rc::new(ToStreamData {
             source,
             state: RefCell::new(ToStreamState {
-                is_ready,
-                bindings,
+                is_ready: true,
+                bindings: Bindings::new(),
                 waker: None,
             }),
-        })
+        }))
     }
 }
 
