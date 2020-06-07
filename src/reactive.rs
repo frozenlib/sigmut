@@ -719,7 +719,7 @@ pub struct Tail<T: 'static> {
 }
 
 struct TailState {
-    is_ready: bool,
+    is_modified: bool,
     bindings: Bindings,
     sink: Option<Rc<dyn BindSink>>,
 }
@@ -748,12 +748,8 @@ impl<T> Tail<T> {
         initial_state: St,
         f: impl Fn(St, T) -> St + 'static,
     ) -> Fold<St> {
-        let fold = self.chain(|source, s| {
-            let s = if let Some(s) = s {
-                ScanState::Loaded((initial_state, Some(s)))
-            } else {
-                ScanState::Unloaded(initial_state)
-            };
+        let source = self.source;
+        let fold = TailState::connect(self.state, initial_state, |s| {
             FoldBy::new_with_state(
                 s,
                 move |st, ctx| (f(st, source.get(ctx)), None),
@@ -775,38 +771,38 @@ impl<T> Tail<T> {
     pub fn to_vec(self) -> Fold<Vec<T>> {
         self.collect()
     }
-    fn chain<U: BindSink>(
-        self,
-        f: impl FnOnce(Re<T>, Option<Rc<RefCell<TailState>>>) -> Rc<U>,
-    ) -> Rc<U> {
-        let mut b = self.state.borrow_mut();
-        let source = self.source;
-        let s = if b.is_ready {
-            None
-        } else {
-            Some(self.state.clone())
-        };
-        let tail = f(source, s);
-        if !b.is_ready {
-            b.sink = Some(tail.clone());
-        }
-        tail
-    }
 }
 impl TailState {
     fn new() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(TailState {
-            is_ready: false,
+            is_modified: false,
             sink: None,
             bindings: Bindings::new(),
         }))
+    }
+    fn connect<U: BindSink, St>(
+        this: Rc<RefCell<Self>>,
+        initial_state: St,
+        f: impl FnOnce(ScanState<(St, Option<Rc<RefCell<TailState>>>), St>) -> Rc<U>,
+    ) -> Rc<U> {
+        let mut b = this.borrow_mut();
+        let s = if b.is_modified {
+            ScanState::Unloaded(initial_state)
+        } else {
+            ScanState::Loaded((initial_state, Some(this.clone())))
+        };
+        let tail = f(s);
+        if !b.is_modified {
+            b.sink = Some(tail.clone());
+        }
+        tail
     }
 }
 
 impl BindSink for RefCell<TailState> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         let mut b = self.borrow_mut();
-        b.is_ready = true;
+        b.is_modified = true;
         if let Some(sink) = b.sink.take() {
             sink.notify(ctx);
         }
