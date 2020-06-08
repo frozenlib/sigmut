@@ -788,13 +788,12 @@ impl<T: Copy + 'static> From<ReBorrow<T>> for MayRe<T> {
     }
 }
 
-impl<T, B> From<&'static B> for MayReRef<T>
+impl<T> From<&'static T> for MayReRef<T>
 where
     T: ?Sized + 'static,
-    B: Borrow<T>,
 {
-    fn from(r: &'static B) -> Self {
-        MayReRef::Ref(r.borrow())
+    fn from(r: &'static T) -> Self {
+        MayReRef::Ref(r)
     }
 }
 
@@ -807,6 +806,15 @@ where
         source.to_re_ref().into()
     }
 }
+impl<T> From<&Re<T>> for MayReRef<T>
+where
+    T: 'static,
+{
+    fn from(source: &Re<T>) -> Self {
+        source.to_re_ref().into()
+    }
+}
+
 impl<T, B> From<ReRef<B>> for MayReRef<T>
 where
     T: ?Sized + 'static,
@@ -816,12 +824,28 @@ where
         MayReRef::Re(source.map_borrow())
     }
 }
+impl<T> From<&ReRef<T>> for MayReRef<T>
+where
+    T: ?Sized + 'static,
+{
+    fn from(source: &ReRef<T>) -> Self {
+        MayReRef::Re(source.map_borrow())
+    }
+}
 impl<T, B> From<ReBorrow<B>> for MayReRef<T>
 where
     T: ?Sized + 'static,
     B: ?Sized + Borrow<T>,
 {
     fn from(source: ReBorrow<B>) -> Self {
+        source.to_re_ref().into()
+    }
+}
+impl<T> From<&ReBorrow<T>> for MayReRef<T>
+where
+    T: ?Sized + 'static,
+{
+    fn from(source: &ReBorrow<T>) -> Self {
         source.to_re_ref().into()
     }
 }
