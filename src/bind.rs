@@ -84,11 +84,11 @@ impl Bindings {
     pub fn new() -> Self {
         Self(Vec::new())
     }
-    pub fn update<T>(
+    pub fn update<'a, T: 'a>(
         &mut self,
-        scope: &BindContextScope,
+        scope: &'a BindContextScope,
         sink: &Rc<impl BindSink>,
-        f: impl FnOnce(&BindContext) -> T,
+        f: impl FnOnce(&BindContext<'a>) -> T,
     ) -> T {
         let bindings = replace(&mut self.0, Vec::new());
         let ctx = BindContext {

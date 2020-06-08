@@ -74,7 +74,7 @@ impl<T: 'static> DynRe for Hot<Re<T>> {
 }
 impl<T: 'static + ?Sized> DynReBorrow for Hot<ReBorrow<T>> {
     type Item = T;
-    fn dyn_borrow<'a>(&'a self, ctx: &'a BindContext) -> Ref<'a, Self::Item> {
+    fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.source.borrow(ctx)
     }
 }

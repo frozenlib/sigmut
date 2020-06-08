@@ -72,6 +72,22 @@ impl<T: ?Sized + 'static> TailRef<T> {
             .update(scope, &state, |ctx| source.with(ctx, |_, value| f(value)));
         Self { source, state }
     }
+    pub(crate) fn new_borrow<'a>(
+        source: &'a ReBorrow<T>,
+        scope: &'a BindContextScope,
+    ) -> (Ref<'a, T>, Self) {
+        let state = TailState::new();
+        let b = state
+            .borrow_mut()
+            .bindings
+            .update(scope, &state, |ctx| source.borrow(ctx));
+        let this = Self {
+            source: source.to_re_ref(),
+            state,
+        };
+        (b, this)
+    }
+
     pub fn for_each(self, f: impl FnMut(&T) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
             f(x);

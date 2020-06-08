@@ -27,7 +27,7 @@ trait DynReSource: 'static {
 
 trait DynReBorrow: 'static {
     type Item: ?Sized;
-    fn dyn_borrow<'a>(&'a self, ctx: &'a BindContext) -> Ref<'a, Self::Item>;
+    fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
 }
 trait DynReBorrowSource: Any + 'static {
     type Item: ?Sized;
@@ -35,7 +35,7 @@ trait DynReBorrowSource: Any + 'static {
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
-        ctx: &'a BindContext,
+        ctx: &BindContext<'a>,
     ) -> Ref<'a, Self::Item>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 
@@ -280,7 +280,7 @@ impl<T: 'static> Re<T> {
 }
 
 impl<T: 'static + ?Sized> ReBorrow<T> {
-    pub fn borrow<'a>(&'a self, ctx: &'a BindContext) -> Ref<'a, T> {
+    pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
         match &self.0 {
             ReBorrowData::Dyn(rc) => rc.dyn_borrow(ctx),
             ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, ctx),
@@ -296,7 +296,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     pub fn new<S, F>(this: S, borrow: F) -> Self
     where
         S: 'static,
-        for<'a> F: Fn(&'a S, &'a BindContext) -> Ref<'a, T> + 'static,
+        for<'a> F: Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
     {
         struct ReBorrowFn<S, F> {
             this: S,
@@ -306,10 +306,10 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         where
             T: 'static + ?Sized,
             S: 'static,
-            for<'a> F: Fn(&'a S, &'a BindContext) -> Ref<'a, T> + 'static,
+            for<'a> F: Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
         {
             type Item = T;
-            fn dyn_borrow<'a>(&'a self, ctx: &'a BindContext) -> Ref<'a, T> {
+            fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
                 (self.borrow)(&self.this, ctx)
             }
         }
@@ -404,6 +404,9 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         Fut: Future<Output = ()> + 'static,
     {
         self.to_re_ref().for_each_async_with(f, sp)
+    }
+    pub fn head_tail<'a>(&'a self, scope: &'a BindContextScope) -> (Ref<'a, T>, TailRef<T>) {
+        TailRef::new_borrow(&self, scope)
     }
 
     pub fn hot(&self) -> Self {
