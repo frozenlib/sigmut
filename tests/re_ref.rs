@@ -204,3 +204,21 @@ fn re_ref_flatten() {
 
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }
+
+#[test]
+fn re_ref_head_tail() {
+    let a = ReRefCell::new(2);
+    let mut head = None;
+    let tail = BindContextScope::with(|scope| {
+        a.to_re_ref().head_tail(scope, |&value| {
+            head = Some(value);
+        })
+    });
+    let r = tail.to_vec();
+
+    a.set_and_update(5);
+    a.set_and_update(7);
+
+    assert_eq!(head, Some(2));
+    assert_eq!(r.stop(), vec![5, 7]);
+}

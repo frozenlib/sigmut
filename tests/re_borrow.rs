@@ -170,7 +170,7 @@ fn re_borrow_hot_no() {
 }
 
 #[test]
-fn re_ref_flatten() {
+fn re_borrow_flatten() {
     let cell = ReRefCell::new(Re::constant(1));
 
     let vs = cell.to_re_borrow().flatten().to_vec();
@@ -181,4 +181,22 @@ fn re_ref_flatten() {
     cell.set_and_update(Re::constant(5));
 
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
+}
+
+#[test]
+fn re_borrow_head_tail() {
+    let a = ReRefCell::new(2);
+    let (head, tail) = BindContextScope::with(|scope| {
+        let r = a.to_re_borrow();
+        let (head, tail) = r.head_tail(scope);
+        (*head, tail)
+    });
+    drop(head);
+    let r = tail.to_vec();
+
+    a.set_and_update(5);
+    a.set_and_update(7);
+
+    assert_eq!(head, 2);
+    assert_eq!(r.stop(), vec![5, 7]);
 }
