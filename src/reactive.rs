@@ -72,27 +72,15 @@ enum ReData<T: 'static + ?Sized> {
     DynSource(Rc<dyn DynReSource<Item = T>>),
 }
 
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct ReBorrow<T: 'static + ?Sized>(ReBorrowData<T>);
-
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
-enum ReBorrowData<T: 'static + ?Sized> {
-    Dyn(Rc<dyn DynReBorrow<Item = T>>),
-    DynSource(Rc<dyn DynReBorrowSource<Item = T>>),
-}
-
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct ReRef<T: 'static + ?Sized>(Rc<dyn DynReRef<Item = T>>);
-
 impl<T: 'static> Re<T> {
     pub fn get(&self, ctx: &BindContext) -> T {
         match &self.0 {
             ReData::Dyn(rc) => rc.dyn_get(ctx),
             ReData::DynSource(rc) => rc.clone().dyn_get(ctx),
         }
+    }
+    pub fn head_tail(&self, scope: &BindContextScope) -> (T, Tail<T>) {
+        Tail::new(self.clone(), scope)
     }
 
     pub fn new(get: impl Fn(&BindContext) -> T + 'static) -> Self {
@@ -262,9 +250,6 @@ impl<T: 'static> Re<T> {
         ))
         .into()
     }
-    pub fn head_tail(&self, scope: &BindContextScope) -> (T, Tail<T>) {
-        Tail::new(self.clone(), scope)
-    }
 
     pub fn hot(&self) -> Self {
         Self(ReData::Dyn(Hot::new(self.clone())))
@@ -279,12 +264,26 @@ impl<T: 'static> Re<T> {
     }
 }
 
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
+pub struct ReBorrow<T: 'static + ?Sized>(ReBorrowData<T>);
+
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
+enum ReBorrowData<T: 'static + ?Sized> {
+    Dyn(Rc<dyn DynReBorrow<Item = T>>),
+    DynSource(Rc<dyn DynReBorrowSource<Item = T>>),
+}
+
 impl<T: 'static + ?Sized> ReBorrow<T> {
     pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
         match &self.0 {
             ReBorrowData::Dyn(rc) => rc.dyn_borrow(ctx),
             ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, ctx),
         }
+    }
+    pub fn head_tail<'a>(&'a self, scope: &'a BindContextScope) -> (Ref<'a, T>, TailRef<T>) {
+        TailRef::new_borrow(&self, scope)
     }
 
     pub fn constant(value: T) -> Self
@@ -405,9 +404,6 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     {
         self.to_re_ref().for_each_async_with(f, sp)
     }
-    pub fn head_tail<'a>(&'a self, scope: &'a BindContextScope) -> (Ref<'a, T>, TailRef<T>) {
-        TailRef::new_borrow(&self, scope)
-    }
 
     pub fn hot(&self) -> Self {
         let source = self.clone();
@@ -418,6 +414,11 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(ctx, &*this.borrow(ctx)))
     }
 }
+
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
+pub struct ReRef<T: 'static + ?Sized>(Rc<dyn DynReRef<Item = T>>);
+
 impl<T: 'static + ?Sized> ReRef<T> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &T) -> U) -> U {
         let mut output = None;
@@ -426,6 +427,9 @@ impl<T: 'static + ?Sized> ReRef<T> {
             output = Some((f.take().unwrap())(ctx, value))
         });
         output.unwrap()
+    }
+    pub fn head_tail(&self, scope: &BindContextScope, f: impl FnOnce(&T)) -> TailRef<T> {
+        TailRef::new(self.clone(), scope, f)
     }
     pub fn new<S: 'static>(
         this: S,
@@ -589,9 +593,6 @@ impl<T: 'static + ?Sized> ReRef<T> {
         .into()
     }
 
-    pub fn head_tail(&self, scope: &BindContextScope, f: impl FnOnce(&T)) -> TailRef<T> {
-        TailRef::new(self.clone(), scope, f)
-    }
     pub fn hot(&self) -> Self {
         let source = self.clone();
         Self(Hot::new(source))
