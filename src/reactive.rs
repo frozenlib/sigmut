@@ -772,9 +772,19 @@ impl<T: 'static> From<T> for MayRe<T> {
         MayRe::Value(value)
     }
 }
+impl<T: Copy + 'static> From<&T> for MayRe<T> {
+    fn from(value: &T) -> Self {
+        MayRe::Value(*value)
+    }
+}
 impl<T: 'static> From<Re<T>> for MayRe<T> {
     fn from(source: Re<T>) -> Self {
         MayRe::Re(source)
+    }
+}
+impl<T: 'static> From<&Re<T>> for MayRe<T> {
+    fn from(source: &Re<T>) -> Self {
+        MayRe::Re(source.clone())
     }
 }
 impl<T: Copy + 'static> From<ReRef<T>> for MayRe<T> {
@@ -782,8 +792,18 @@ impl<T: Copy + 'static> From<ReRef<T>> for MayRe<T> {
         MayRe::Re(source.cloned())
     }
 }
+impl<T: Copy + 'static> From<&ReRef<T>> for MayRe<T> {
+    fn from(source: &ReRef<T>) -> Self {
+        MayRe::Re(source.cloned())
+    }
+}
 impl<T: Copy + 'static> From<ReBorrow<T>> for MayRe<T> {
     fn from(source: ReBorrow<T>) -> Self {
+        MayRe::Re(source.cloned())
+    }
+}
+impl<T: Copy + 'static> From<&ReBorrow<T>> for MayRe<T> {
+    fn from(source: &ReBorrow<T>) -> Self {
         MayRe::Re(source.cloned())
     }
 }
@@ -847,5 +867,30 @@ where
 {
     fn from(source: &ReBorrow<T>) -> Self {
         source.to_re_ref().into()
+    }
+}
+
+impl From<String> for MayReRef<str> {
+    fn from(value: String) -> Self {
+        if value.is_empty() {
+            "".into()
+        } else {
+            ReRef::constant(value).into()
+        }
+    }
+}
+impl From<&Re<String>> for MayReRef<str> {
+    fn from(value: &Re<String>) -> Self {
+        value.to_re_ref().into()
+    }
+}
+impl From<&ReRef<String>> for MayReRef<str> {
+    fn from(value: &ReRef<String>) -> Self {
+        value.map_ref(|s| s.as_str()).into()
+    }
+}
+impl From<&ReBorrow<String>> for MayReRef<str> {
+    fn from(value: &ReBorrow<String>) -> Self {
+        value.to_re_ref().into()
     }
 }
