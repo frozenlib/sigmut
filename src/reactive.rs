@@ -11,13 +11,7 @@ use crate::bind::*;
 use derivative::Derivative;
 use futures::Future;
 use std::{
-    any::Any,
-    borrow::{Borrow, Cow},
-    cell::Ref,
-    cell::RefCell,
-    iter::once,
-    marker::PhantomData,
-    rc::Rc,
+    any::Any, borrow::Borrow, cell::Ref, cell::RefCell, iter::once, marker::PhantomData, rc::Rc,
     task::Poll,
 };
 
@@ -338,11 +332,22 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         let this = self.clone();
         Re::new(move |ctx| f(&this.borrow(ctx)))
     }
-    pub fn map_ref<U>(&self, f: impl Fn(&T) -> &U + 'static) -> ReBorrow<U> {
+    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReBorrow<U> {
         ReBorrow::new(self.clone(), move |this, ctx| {
             Ref::map(this.borrow(ctx), &f)
         })
     }
+    pub fn map_borrow<B: ?Sized>(&self) -> ReBorrow<B>
+    where
+        T: Borrow<B>,
+    {
+        if let Some(b) = Any::downcast_ref::<ReBorrow<B>>(self) {
+            b.clone()
+        } else {
+            self.map_ref(|x| x.borrow())
+        }
+    }
+
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
