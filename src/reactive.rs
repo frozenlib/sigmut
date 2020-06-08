@@ -447,16 +447,23 @@ impl<T: 'static + ?Sized> ReRef<T> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &T) -> U) -> U {
         match &self.0 {
             ReRefData::StaticRef(x) => f(ctx, x),
-            ReRefData::Dyn(source) => {
-                let mut output = None;
-                let mut f = Some(f);
-                source.dyn_with(ctx, &mut |ctx, value| {
-                    output = Some((f.take().unwrap())(ctx, value))
-                });
-                output.unwrap()
-            }
+            ReRefData::Dyn(source) => Self::dyn_with(&source, ctx, f),
         }
     }
+    fn dyn_with<U>(
+        this: &Rc<dyn DynReRef<Item = T>>,
+        ctx: &BindContext,
+        f: impl FnOnce(&BindContext, &T) -> U,
+    ) -> U {
+        let this = this.clone();
+        let mut output = None;
+        let mut f = Some(f);
+        this.clone().dyn_with(ctx, &mut |ctx, value| {
+            output = Some((f.take().unwrap())(ctx, value))
+        });
+        output.unwrap()
+    }
+
     pub fn head_tail(&self, scope: &BindContextScope, f: impl FnOnce(&T)) -> TailRef<T> {
         TailRef::new(self.clone(), scope, f)
     }
@@ -506,10 +513,12 @@ impl<T: 'static + ?Sized> ReRef<T> {
         Re::new(move |ctx| this.with(ctx, |_ctx, x| f(x)))
     }
     pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReRef<U> {
-        let this = self.clone();
-        ReRef::new((), move |_, ctx, f_inner| {
-            this.with(ctx, |ctx, x| f_inner(ctx, f(x)))
-        })
+        match &self.0 {
+            ReRefData::StaticRef(x) => ReRef::static_ref(f(x)),
+            ReRefData::Dyn(this) => ReRef::new(this.clone(), move |this, ctx, f_inner| {
+                Self::dyn_with(this, ctx, |ctx, x| f_inner(ctx, f(x)))
+            }),
+        }
     }
     pub fn map_borrow<B: ?Sized>(&self) -> ReRef<B>
     where
