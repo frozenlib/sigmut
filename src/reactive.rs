@@ -53,8 +53,14 @@ trait DynReRef: 'static {
 }
 
 #[must_use]
-#[derive(Clone)]
-pub struct Subscription(Rc<dyn Any>);
+#[derive(Clone, Default)]
+pub struct Subscription(Option<Rc<dyn Any>>);
+
+impl Subscription {
+    pub fn empty() -> Self {
+        Subscription(None)
+    }
+}
 
 pub trait LocalSpawn: 'static {
     type Handle;
@@ -717,6 +723,6 @@ impl<T> Fold<T> {
 }
 impl<T> From<Fold<T>> for Subscription {
     fn from(x: Fold<T>) -> Self {
-        Subscription(x.0.as_dyn_any())
+        Subscription(Some(x.0.as_dyn_any()))
     }
 }
