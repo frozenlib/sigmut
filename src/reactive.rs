@@ -262,8 +262,8 @@ impl<T: 'static> Re<T> {
         ))
         .into()
     }
-    pub fn head_tail(&self) -> (T, Tail<T>) {
-        Tail::new(self.clone())
+    pub fn head_tail(&self, scope: &BindContextScope) -> (T, Tail<T>) {
+        Tail::new(self.clone(), scope)
     }
 
     pub fn hot(&self) -> Self {
@@ -586,8 +586,8 @@ impl<T: 'static + ?Sized> ReRef<T> {
         .into()
     }
 
-    pub fn head_tail(&self, f: impl FnOnce(&T)) -> TailRef<T> {
-        TailRef::new(self.clone(), f)
+    pub fn head_tail(&self, scope: &BindContextScope, f: impl FnOnce(&T)) -> TailRef<T> {
+        TailRef::new(self.clone(), scope, f)
     }
     pub fn hot(&self) -> Self {
         let source = self.clone();

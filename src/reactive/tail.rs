@@ -18,14 +18,12 @@ struct TailState {
 }
 
 impl<T> Tail<T> {
-    pub(crate) fn new(source: Re<T>) -> (T, Self) {
+    pub(crate) fn new(source: Re<T>, scope: &BindContextScope) -> (T, Self) {
         let state = TailState::new();
-        let value = BindContextScope::with(|scope| {
-            state
-                .borrow_mut()
-                .bindings
-                .update(scope, &state, |ctx| source.get(ctx))
-        });
+        let value = state
+            .borrow_mut()
+            .bindings
+            .update(scope, &state, |ctx| source.get(ctx));
         let this = Self { source, state };
         (value, this)
     }
@@ -66,14 +64,12 @@ impl<T> Tail<T> {
     }
 }
 impl<T: ?Sized + 'static> TailRef<T> {
-    pub(crate) fn new(source: ReRef<T>, f: impl FnOnce(&T)) -> Self {
+    pub(crate) fn new(source: ReRef<T>, scope: &BindContextScope, f: impl FnOnce(&T)) -> Self {
         let state = TailState::new();
-        BindContextScope::with(|scope| {
-            state
-                .borrow_mut()
-                .bindings
-                .update(scope, &state, |ctx| source.with(ctx, |_, value| f(value)))
-        });
+        state
+            .borrow_mut()
+            .bindings
+            .update(scope, &state, |ctx| source.with(ctx, |_, value| f(value)));
         Self { source, state }
     }
     pub fn for_each(self, f: impl FnMut(&T) + 'static) -> Subscription {

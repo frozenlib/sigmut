@@ -252,7 +252,7 @@ fn re_for_each() {
 #[test]
 fn re_head_tail() {
     let a = ReCell::new(2);
-    let (head, tail) = a.to_re().head_tail();
+    let (head, tail) = BindContextScope::with(|scope| a.to_re().head_tail(scope));
     let r = tail.to_vec();
 
     a.set_and_update(5);
