@@ -713,20 +713,14 @@ pub enum MayRe<T: 'static> {
     Re(Re<T>),
 }
 
-pub enum MayReRef<T: ?Sized + 'static> {
-    Ref(&'static T),
-    Re(ReRef<T>),
-}
+pub struct MayReRef<T: ?Sized + 'static>(ReRef<T>);
 
 impl<T> Clone for MayReRef<T>
 where
     T: Clone + ?Sized + 'static,
 {
     fn clone(&self) -> Self {
-        match self {
-            MayReRef::Ref(r) => MayReRef::Ref(r),
-            MayReRef::Re(s) => MayReRef::Re(s.clone()),
-        }
+        Self(self.0.clone())
     }
 }
 
@@ -776,7 +770,7 @@ where
     T: ?Sized + 'static,
 {
     fn from(r: &'static T) -> Self {
-        MayReRef::Ref(r)
+        Self(ReRef::static_ref(r))
     }
 }
 
@@ -804,7 +798,7 @@ where
     B: ?Sized + Borrow<T>,
 {
     fn from(source: ReRef<B>) -> Self {
-        MayReRef::Re(source.map_borrow())
+        Self(source.map_borrow())
     }
 }
 impl<T> From<&ReRef<T>> for MayReRef<T>
@@ -812,7 +806,7 @@ where
     T: ?Sized + 'static,
 {
     fn from(source: &ReRef<T>) -> Self {
-        MayReRef::Re(source.map_borrow())
+        Self(source.map_borrow())
     }
 }
 impl<T, B> From<ReBorrow<B>> for MayReRef<T>
