@@ -38,7 +38,7 @@ impl<T> Tail<T> {
                 |st| st,
             )
         });
-        Fold(fold)
+        Fold::new(fold)
     }
     pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
         self.fold(e, |mut e, x| {
@@ -53,34 +53,42 @@ impl<T> Tail<T> {
         self.collect()
     }
 }
-pub struct TailRef<T: ?Sized + 'static> {
-    source: ReRef<T>,
-    state: Rc<RefCell<TailState>>,
-}
+pub struct TailRef<T: ?Sized + 'static>(Option<TailData<ReRef<T>>>);
 
 impl<T: ?Sized + 'static> TailRef<T> {
     pub(crate) fn new(source: ReRef<T>, scope: &BindContextScope, f: impl FnOnce(&T)) -> Self {
+        if let ReRefData::StaticRef(x) = source.0 {
+            f(x);
+            return Self(None);
+        }
         let state = TailState::new();
-        state
-            .borrow_mut()
-            .bindings
+        let mut b = state.borrow_mut();
+        b.bindings
             .update(scope, &state, |ctx| source.with(ctx, |_, value| f(value)));
-        Self { source, state }
+        if b.bindings.is_empty() {
+            Self(None)
+        } else {
+            drop(b);
+            Self(Some(TailData { source, state }))
+        }
     }
     pub(crate) fn new_borrow<'a>(
         source: &'a ReBorrow<T>,
         scope: &'a BindContextScope,
     ) -> (Ref<'a, T>, Self) {
         let state = TailState::new();
-        let b = state
-            .borrow_mut()
-            .bindings
-            .update(scope, &state, |ctx| source.borrow(ctx));
-        let this = Self {
-            source: source.to_re_ref(),
-            state,
+        let mut b = state.borrow_mut();
+        let r = b.bindings.update(scope, &state, |ctx| source.borrow(ctx));
+        let this = if b.bindings.is_empty() {
+            Self(None)
+        } else {
+            drop(b);
+            Self(Some(TailData {
+                source: source.to_re_ref(),
+                state,
+            }))
         };
-        (b, this)
+        (r, this)
     }
 
     pub fn for_each(self, f: impl FnMut(&T) + 'static) -> Subscription {
@@ -95,16 +103,20 @@ impl<T: ?Sized + 'static> TailRef<T> {
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> Fold<St> {
-        let source = self.source;
-        let fold = TailState::connect(self.state, initial_state, |s| {
-            FoldBy::new_with_state(
-                s,
-                move |st, ctx| (source.with(ctx, |_, value| f(st, value)), None),
-                |(st, _)| st,
-                |st| st,
-            )
-        });
-        Fold(fold)
+        if let Some(this) = self.0 {
+            let source = this.source;
+            let fold = TailState::connect(this.state, initial_state, |s| {
+                FoldBy::new_with_state(
+                    s,
+                    move |st, ctx| (source.with(ctx, |_, value| f(st, value)), None),
+                    |(st, _)| st,
+                    |st| st,
+                )
+            });
+            Fold::new(fold)
+        } else {
+            Fold::constant(initial_state)
+        }
     }
     pub fn collect_to<E: for<'a> Extend<&'a T> + 'static>(self, e: E) -> Fold<E> {
         self.fold(e, |mut e, x| {
@@ -122,7 +134,10 @@ impl<T: ?Sized + 'static> TailRef<T> {
         self.collect()
     }
 }
-
+struct TailData<S> {
+    source: S,
+    state: Rc<RefCell<TailState>>,
+}
 struct TailState {
     is_modified: bool,
     bindings: Bindings,

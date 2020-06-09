@@ -211,7 +211,7 @@ impl<T: 'static> Re<T> {
         f: impl Fn(St, T) -> St + 'static,
     ) -> Fold<St> {
         let this = self.clone();
-        Fold(FoldBy::new(
+        Fold::new(FoldBy::new(
             initial_state,
             move |st, ctx| (f(st, this.get(ctx)), ()),
             |(st, _)| st,
@@ -248,7 +248,7 @@ impl<T: 'static> Re<T> {
     {
         let this = self.clone();
         let mut f = f;
-        Fold(FoldBy::new(
+        Fold::new(FoldBy::new(
             (),
             move |_, ctx| ((), sp.spawn_local(f(this.get(ctx)))),
             |_| (),
@@ -594,7 +594,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
     ) -> Fold<St> {
         let this = self.clone();
         let mut f = f;
-        Fold(FoldBy::new(
+        Fold::new(FoldBy::new(
             initial_state,
             move |st, ctx| {
                 let f = &mut f;
@@ -636,7 +636,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
     {
         let this = self.clone();
         let mut f = f;
-        Fold(FoldBy::new(
+        Fold::new(FoldBy::new(
             (),
             move |_, ctx| ((), this.with(ctx, |_ctx, x| sp.spawn_local(f(x)))),
             |_| (),
@@ -676,16 +676,34 @@ trait DynFold {
     fn stop(&self) -> Self::Output;
     fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any>;
 }
-pub struct Fold<T>(Rc<dyn DynFold<Output = T>>);
+pub struct Fold<T>(FoldData<T>);
+
+enum FoldData<T> {
+    Constant(T),
+    Dyn(Rc<dyn DynFold<Output = T>>),
+}
 
 impl<T> Fold<T> {
+    fn new(fold: Rc<dyn DynFold<Output = T>>) -> Self {
+        Self(FoldData::Dyn(fold))
+    }
+    fn constant(value: T) -> Self {
+        Self(FoldData::Constant(value))
+    }
+
     pub fn stop(self) -> T {
-        self.0.stop()
+        match self.0 {
+            FoldData::Constant(value) => value,
+            FoldData::Dyn(this) => this.stop(),
+        }
     }
 }
 impl<T> From<Fold<T>> for Subscription {
     fn from(x: Fold<T>) -> Self {
-        Subscription(Some(x.0.as_dyn_any()))
+        match x.0 {
+            FoldData::Constant(_) => Subscription::empty(),
+            FoldData::Dyn(this) => Subscription(Some(this.as_dyn_any())),
+        }
     }
 }
 
