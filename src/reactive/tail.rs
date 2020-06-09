@@ -2,20 +2,20 @@ use super::*;
 use crate::bind::*;
 use std::{cell::RefCell, iter::once, rc::Rc};
 
-pub struct Tail<T: 'static> {
-    source: Re<T>,
-    state: Rc<RefCell<TailState>>,
-}
+pub struct Tail<T: 'static>(Option<TailData<Re<T>>>);
 
 impl<T> Tail<T> {
     pub(crate) fn new(source: Re<T>, scope: &BindContextScope) -> (T, Self) {
         let state = TailState::new();
-        let value = state
-            .borrow_mut()
-            .bindings
-            .update(scope, &state, |ctx| source.get(ctx));
-        let this = Self { source, state };
-        (value, this)
+        let mut b = state.borrow_mut();
+        let value = b.bindings.update(scope, &state, |ctx| source.get(ctx));
+        let data = if b.bindings.is_empty() {
+            None
+        } else {
+            drop(b);
+            Some(TailData { source, state })
+        };
+        (value, Self(data))
     }
     pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
@@ -29,16 +29,20 @@ impl<T> Tail<T> {
         initial_state: St,
         f: impl Fn(St, T) -> St + 'static,
     ) -> Fold<St> {
-        let source = self.source;
-        let fold = TailState::connect(self.state, initial_state, |s| {
-            FoldBy::new_with_state(
-                s,
-                move |st, ctx| (f(st, source.get(ctx)), None),
-                |(st, _)| st,
-                |st| st,
-            )
-        });
-        Fold::new(fold)
+        if let Some(this) = self.0 {
+            let source = this.source;
+            let fold = TailState::connect(this.state, initial_state, |s| {
+                FoldBy::new_with_state(
+                    s,
+                    move |st, ctx| (f(st, source.get(ctx)), None),
+                    |(st, _)| st,
+                    |st| st,
+                )
+            });
+            Fold::new(fold)
+        } else {
+            Fold::constant(initial_state)
+        }
     }
     pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
         self.fold(e, |mut e, x| {
