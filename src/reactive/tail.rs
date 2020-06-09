@@ -6,16 +6,6 @@ pub struct Tail<T: 'static> {
     source: Re<T>,
     state: Rc<RefCell<TailState>>,
 }
-pub struct TailRef<T: ?Sized + 'static> {
-    source: ReRef<T>,
-    state: Rc<RefCell<TailState>>,
-}
-
-struct TailState {
-    is_modified: bool,
-    bindings: Bindings,
-    sink: Option<Rc<dyn BindSink>>,
-}
 
 impl<T> Tail<T> {
     pub(crate) fn new(source: Re<T>, scope: &BindContextScope) -> (T, Self) {
@@ -63,6 +53,11 @@ impl<T> Tail<T> {
         self.collect()
     }
 }
+pub struct TailRef<T: ?Sized + 'static> {
+    source: ReRef<T>,
+    state: Rc<RefCell<TailState>>,
+}
+
 impl<T: ?Sized + 'static> TailRef<T> {
     pub(crate) fn new(source: ReRef<T>, scope: &BindContextScope, f: impl FnOnce(&T)) -> Self {
         let state = TailState::new();
@@ -128,6 +123,11 @@ impl<T: ?Sized + 'static> TailRef<T> {
     }
 }
 
+struct TailState {
+    is_modified: bool,
+    bindings: Bindings,
+    sink: Option<Rc<dyn BindSink>>,
+}
 impl TailState {
     fn new() -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(TailState {
