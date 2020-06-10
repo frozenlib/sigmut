@@ -58,8 +58,17 @@ impl<S: Reactive> ReOps<S> {
     pub fn get(&self, ctx: &BindContext) -> S::Item {
         self.0.get(ctx)
     }
-    pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
+    pub fn with<T>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> T) -> T {
         f(ctx, &self.0.get(ctx))
+    }
+    pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
+        re(move |ctx| f(self.get(ctx)))
+    }
+    pub fn flat_map<T: Reactive>(
+        self,
+        f: impl Fn(S::Item) -> T + 'static,
+    ) -> ReOps<impl Reactive<Item = T::Item>> {
+        re(move |ctx| f(self.get(ctx)).get(ctx))
     }
 
     pub fn into_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
