@@ -9,13 +9,14 @@ use std::{
     task::Poll,
 };
 
-pub struct MapAsync<Fut, Sp>
+pub struct MapAsync<S, Fut, Sp>
 where
+    S: Reactive<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
     sp: Sp,
-    source: Re<Fut>,
+    source: S,
     sinks: BindSinks,
     state: RefCell<MapAsyncState<Fut::Output, Sp::Handle>>,
 }
@@ -25,12 +26,13 @@ struct MapAsyncState<T, H> {
     bindings: Bindings,
 }
 
-impl<Fut, Sp> MapAsync<Fut, Sp>
+impl<S, Fut, Sp> MapAsync<S, Fut, Sp>
 where
+    S: Reactive<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
-    pub fn new(source: Re<Fut>, sp: Sp) -> Self {
+    pub fn new(source: S, sp: Sp) -> Self {
         Self {
             sp,
             source,
@@ -56,9 +58,28 @@ where
         }));
     }
 }
-
-impl<Fut, Sp> DynReBorrowSource for MapAsync<Fut, Sp>
+impl<S, Fut, Sp> ReactiveBorrow for Rc<MapAsync<S, Fut, Sp>>
 where
+    S: Reactive<Item = Fut>,
+    Fut: Future + 'static,
+    Sp: LocalSpawn,
+{
+    type Item = Poll<Fut::Output>;
+    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        let mut s = self.state.borrow();
+        if s.handle.is_none() {
+            drop(s);
+            self.ready(ctx.scope());
+            s = self.state.borrow();
+        }
+        ctx.bind(self.clone());
+        Ref::map(s, |o| &o.value)
+    }
+}
+
+impl<S, Fut, Sp> DynReBorrowSource for MapAsync<S, Fut, Sp>
+where
+    S: Reactive<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -84,8 +105,9 @@ where
     }
 }
 
-impl<Fut, Sp> BindSource for MapAsync<Fut, Sp>
+impl<S, Fut, Sp> BindSource for MapAsync<S, Fut, Sp>
 where
+    S: Reactive<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -103,8 +125,9 @@ where
     }
 }
 
-impl<Fut, Sp> BindSink for MapAsync<Fut, Sp>
+impl<S, Fut, Sp> BindSink for MapAsync<S, Fut, Sp>
 where
+    S: Reactive<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -122,8 +145,9 @@ where
         }
     }
 }
-impl<Fut, Sp> BindTask for MapAsync<Fut, Sp>
+impl<S, Fut, Sp> BindTask for MapAsync<S, Fut, Sp>
 where
+    S: Reactive<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {

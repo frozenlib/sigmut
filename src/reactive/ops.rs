@@ -71,6 +71,16 @@ impl<S: Reactive> ReOps<S> {
     ) -> ReOps<impl Reactive<Item = T::Item>> {
         re(move |ctx| f(self.get(ctx)).get(ctx))
     }
+    pub fn map_async_with<Fut>(
+        self,
+        f: impl Fn(S::Item) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = Poll<Fut::Output>> + Clone>
+    where
+        Fut: Future + 'static,
+    {
+        ReBorrowOps(Rc::new(MapAsync::new(self.map(f), sp)))
+    }
 
     pub fn into_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
         struct ReRefByRe<S>(ReOps<S>);
