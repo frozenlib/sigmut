@@ -55,9 +55,6 @@ pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Reactive<Item = T
 pub struct ReOps<S>(S);
 
 impl<S: Reactive> ReOps<S> {
-    pub fn get(&self, ctx: &BindContext) -> S::Item {
-        self.0.get(ctx)
-    }
     pub fn with<T>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> T) -> T {
         f(ctx, &self.0.get(ctx))
     }
@@ -82,6 +79,12 @@ impl<S: Reactive> ReOps<S> {
             ) -> U {
                 self.0.with(ctx, f)
             }
+            fn into_dyn(self) -> ReRef<Self::Item>
+            where
+                Self: Sized,
+            {
+                self.0.into_dyn().to_re_ref()
+            }
         }
         ReRefOps(ReRefByRe(self))
     }
@@ -90,6 +93,18 @@ impl<S: Reactive> ReOps<S> {
     }
     pub fn into_dyn_ref(self) -> ReRef<S::Item> {
         self.into_ref().into_dyn()
+    }
+}
+impl<S: Reactive> Reactive for ReOps<S> {
+    type Item = S::Item;
+    fn get(&self, ctx: &BindContext) -> Self::Item {
+        self.0.get(ctx)
+    }
+    fn into_dyn(self) -> Re<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.0.into_dyn()
     }
 }
 
