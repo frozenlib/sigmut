@@ -1,11 +1,12 @@
 mod cell;
 mod hot;
 mod map_async;
+mod ops;
 mod scan;
 mod tail;
 mod to_stream;
 
-pub use self::{cell::*, tail::*};
+pub use self::{cell::*, ops::*, tail::*};
 use self::{hot::*, map_async::*, scan::*, to_stream::*};
 use crate::bind::*;
 use derivative::Derivative;
