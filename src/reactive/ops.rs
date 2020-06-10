@@ -5,13 +5,7 @@ pub trait Reactive: 'static {
     type Item;
     fn get(&self, ctx: &BindContext) -> Self::Item;
 
-    fn into_dyn_re(self) -> Re<Self::Item>
-    where
-        Self: Sized,
-    {
-        todo!();
-    }
-    fn into_dyn_re_ref(self) -> ReRef<Self::Item>
+    fn into_dyn(self) -> Re<Self::Item>
     where
         Self: Sized,
     {
@@ -23,13 +17,7 @@ pub trait ReactiveBorrow: 'static {
     type Item: ?Sized;
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
 
-    fn into_dyn_re_borrow(self) -> ReBorrow<Self::Item>
-    where
-        Self: Sized,
-    {
-        todo!()
-    }
-    fn into_dyn_re_ref(self) -> ReRef<Self::Item>
+    fn into_dyn(self) -> ReBorrow<Self::Item>
     where
         Self: Sized,
     {
@@ -41,7 +29,7 @@ pub trait ReactiveRef: 'static {
     type Item: ?Sized;
     fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U;
 
-    fn into_dyn_re_ref(self) -> ReRef<Self::Item>
+    fn into_dyn(self) -> ReRef<Self::Item>
     where
         Self: Sized,
     {
@@ -49,7 +37,7 @@ pub trait ReactiveRef: 'static {
     }
 }
 
-pub fn re<T>(f: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
+pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
     struct ReFn<F>(F);
     impl<F: Fn(&BindContext) -> T + 'static, T> Reactive for ReFn<F> {
         type Item = T;
@@ -58,15 +46,43 @@ pub fn re<T>(f: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Reactive<Ite
         }
     }
 
-    ReOps(ReFn(f))
+    ReOps(ReFn(get))
 }
 pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Reactive<Item = T>> {
     re(move |_| value.clone())
 }
 
 pub struct ReOps<S>(S);
-pub struct ReBorrowOps<S>(S);
-pub struct ReRefOps<S>(S);
+
+impl<S: Reactive> ReOps<S> {
+    pub fn get(&self, ctx: &BindContext) -> S::Item {
+        self.0.get(ctx)
+    }
+    pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
+        f(ctx, &self.0.get(ctx))
+    }
+
+    pub fn into_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
+        struct ReRefByRe<S>(ReOps<S>);
+        impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
+            type Item = S::Item;
+            fn with<U>(
+                &self,
+                ctx: &BindContext,
+                f: impl FnOnce(&BindContext, &Self::Item) -> U,
+            ) -> U {
+                self.0.with(ctx, f)
+            }
+        }
+        ReRefOps(ReRefByRe(self))
+    }
+    pub fn into_dyn(self) -> Re<S::Item> {
+        self.0.into_dyn()
+    }
+    pub fn into_dyn_ref(self) -> ReRef<S::Item> {
+        self.into_ref().into_dyn()
+    }
+}
 
 pub fn re_borrow<S, T>(
     this: S,
@@ -98,6 +114,37 @@ pub fn re_borrow_constant<T: 'static>(value: T) -> ReBorrowOps<impl ReactiveBorr
     re_borrow(RefCell::new(value), |this, _| this.borrow())
 }
 
+pub struct ReBorrowOps<S>(S);
+
+impl<S: ReactiveBorrow> ReBorrowOps<S> {
+    pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, S::Item> {
+        self.0.borrow(ctx)
+    }
+    pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
+        f(ctx, &self.0.borrow(ctx))
+    }
+    pub fn into_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
+        struct ReRefByReBorrow<S>(ReBorrowOps<S>);
+        impl<S: ReactiveBorrow> ReactiveRef for ReRefByReBorrow<S> {
+            type Item = S::Item;
+            fn with<U>(
+                &self,
+                ctx: &BindContext,
+                f: impl FnOnce(&BindContext, &Self::Item) -> U,
+            ) -> U {
+                self.0.with(ctx, f)
+            }
+        }
+        ReRefOps(ReRefByReBorrow(self))
+    }
+    pub fn into_dyn(self) -> ReBorrow<S::Item> {
+        self.0.into_dyn()
+    }
+    pub fn into_dyn_ref(self) -> ReRef<S::Item> {
+        self.into_ref().into_dyn()
+    }
+}
+
 pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ReactiveRef<Item = T>> {
     struct ReRefConstant<T>(T);
     impl<T: 'static> ReactiveRef for ReRefConstant<T> {
@@ -109,6 +156,13 @@ pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ReactiveRef<Item =
     ReRefOps(ReRefConstant(value))
 }
 
-impl<S: Reactive> ReOps<S> {}
-impl<S: ReactiveBorrow> ReBorrowOps<S> {}
-impl<S: ReactiveRef> ReRefOps<S> {}
+pub struct ReRefOps<S>(S);
+
+impl<S: ReactiveRef> ReRefOps<S> {
+    pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
+        self.0.with(ctx, f)
+    }
+    pub fn into_dyn(self) -> ReRef<S::Item> {
+        self.0.into_dyn()
+    }
+}

@@ -19,11 +19,19 @@ use std::{
 trait DynRe: 'static {
     type Item;
     fn dyn_get(&self, ctx: &BindContext) -> Self::Item;
+
+    fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+        ReRef::new(self, |this, ctx, f| f(ctx, &this.dyn_get(ctx)))
+    }
 }
 
 trait DynReSource: 'static {
     type Item;
     fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item;
+
+    fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+        ReRef::new(self, |this, ctx, f| f(ctx, &this.clone().dyn_get(ctx)))
+    }
 }
 
 trait DynReBorrow: 'static {
@@ -91,20 +99,13 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn new(get: impl Fn(&BindContext) -> T + 'static) -> Self {
-        struct ReFn<F>(F);
-        impl<F: Fn(&BindContext) -> T + 'static, T> DynRe for ReFn<F> {
-            type Item = T;
-            fn dyn_get(&self, ctx: &BindContext) -> Self::Item {
-                (self.0)(ctx)
-            }
-        }
-        Self::from_dyn(ReFn(get))
+        re(get).into_dyn()
     }
     pub fn constant(value: T) -> Self
     where
         T: Clone,
     {
-        Self::new(move |_| value.clone())
+        re_constant(value).into_dyn()
     }
 
     fn from_dyn(inner: impl DynRe<Item = T>) -> Self {
