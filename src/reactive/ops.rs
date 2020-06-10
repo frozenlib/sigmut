@@ -55,8 +55,11 @@ pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Reactive<Item = T
 pub struct ReOps<S>(S);
 
 impl<S: Reactive> ReOps<S> {
+    pub fn get(&self, ctx: &BindContext) -> S::Item {
+        self.0.get(ctx)
+    }
     pub fn with<T>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> T) -> T {
-        f(ctx, &self.0.get(ctx))
+        f(ctx, &self.get(ctx))
     }
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
         re(move |ctx| f(self.get(ctx)))
@@ -145,7 +148,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         self.0.borrow(ctx)
     }
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
-        f(ctx, &self.0.borrow(ctx))
+        f(ctx, &self.borrow(ctx))
     }
     pub fn into_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
         struct ReRefByReBorrow<S>(ReBorrowOps<S>);
@@ -158,6 +161,12 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
             ) -> U {
                 self.0.with(ctx, f)
             }
+            fn into_dyn(self) -> ReRef<Self::Item>
+            where
+                Self: Sized,
+            {
+                self.0.into_dyn_ref()
+            }
         }
         ReRefOps(ReRefByReBorrow(self))
     }
@@ -165,7 +174,19 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         self.0.into_dyn()
     }
     pub fn into_dyn_ref(self) -> ReRef<S::Item> {
-        self.into_ref().into_dyn()
+        self.into_dyn().to_re_ref()
+    }
+}
+impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
+    type Item = S::Item;
+    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.0.borrow(ctx)
+    }
+    fn into_dyn(self) -> ReBorrow<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.0.into_dyn()
     }
 }
 
@@ -187,6 +208,18 @@ impl<S: ReactiveRef> ReRefOps<S> {
         self.0.with(ctx, f)
     }
     pub fn into_dyn(self) -> ReRef<S::Item> {
+        self.0.into_dyn()
+    }
+}
+impl<S: ReactiveRef> ReactiveRef for ReRefOps<S> {
+    type Item = S::Item;
+    fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
+        self.0.with(ctx, f)
+    }
+    fn into_dyn(self) -> ReRef<Self::Item>
+    where
+        Self: Sized,
+    {
         self.0.into_dyn()
     }
 }
