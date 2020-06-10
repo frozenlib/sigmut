@@ -110,6 +110,33 @@ where
     }
 }
 
+impl<T, Loaded, Unloaded, Load, Unload, Get> ReactiveBorrow
+    for Rc<Scan<Loaded, Unloaded, Load, Unload, Get>>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    type Item = T;
+    fn borrow(&self, ctx: &BindContext) -> Ref<Self::Item> {
+        ctx.bind(self.clone());
+        let mut d = self.data.borrow();
+        if !d.state.is_loaded() {
+            drop(d);
+            {
+                let d = &mut *self.data.borrow_mut();
+                d.state
+                    .load(&mut d.bindings, ctx.scope(), self, &mut d.load);
+            }
+            d = self.data.borrow();
+        }
+        Ref::map(d, |d| d.get())
+    }
+}
+
 impl<T, Loaded, Unloaded, Load, Unload, Get> DynReBorrowSource
     for Scan<Loaded, Unloaded, Load, Unload, Get>
 where

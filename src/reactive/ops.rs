@@ -102,6 +102,15 @@ impl<S: Reactive> ReOps<S> {
         }
         ReRefOps(ReRefByRe(self))
     }
+    pub fn cached(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
+        ReBorrowOps(Rc::new(Scan::new(
+            (),
+            move |_, ctx| self.get(ctx),
+            |_| (),
+            |x| x,
+        )))
+    }
+
     pub fn into_dyn(self) -> Re<S::Item> {
         self.0.into_dyn()
     }
