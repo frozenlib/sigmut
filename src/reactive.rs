@@ -265,6 +265,19 @@ impl<T: 'static> Re<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(ctx, &this.get(ctx)))
     }
 }
+impl<T> Reactive for Re<T> {
+    type Item = T;
+
+    fn get(&self, ctx: &BindContext) -> Self::Item {
+        Re::get(self, ctx)
+    }
+    fn into_dyn(self) -> Re<Self::Item>
+    where
+        Self: Sized,
+    {
+        self
+    }
+}
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
@@ -425,6 +438,19 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
 
     pub fn to_re_ref(&self) -> ReRef<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(ctx, &*this.borrow(ctx)))
+    }
+}
+impl<T> ReactiveBorrow for ReBorrow<T> {
+    type Item = T;
+    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        ReBorrow::borrow(self, ctx)
+    }
+
+    fn into_dyn(self) -> ReBorrow<Self::Item>
+    where
+        Self: Sized,
+    {
+        self
     }
 }
 
@@ -646,6 +672,20 @@ impl<T: 'static + ?Sized> ReRef<T> {
         Self(ReRefData::Dyn(Hot::new(source)))
     }
 }
+impl<T> ReactiveRef for ReRef<T> {
+    type Item = T;
+
+    fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
+        ReRef::with(self, ctx, f)
+    }
+    fn into_dyn(self) -> ReRef<Self::Item>
+    where
+        Self: Sized,
+    {
+        self
+    }
+}
+
 impl<T: 'static> Re<Re<T>> {
     pub fn flatten(&self) -> Re<T> {
         let this = self.clone();
