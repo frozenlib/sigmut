@@ -260,6 +260,30 @@ where
     }
 }
 
+impl<T, Loaded, Unloaded, Load, Unload, Get> ReactiveBorrow
+    for Rc<FilterScan<Loaded, Unloaded, Load, Unload, Get>>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &BindContext) -> FilterScanResult<Loaded> + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    type Item = T;
+
+    fn borrow(&self, ctx: &BindContext) -> Ref<Self::Item> {
+        let mut d = self.data.borrow();
+        if !d.state.is_loaded() {
+            drop(d);
+            self.ready(ctx.scope());
+            d = self.data.borrow();
+        }
+        ctx.bind(self.clone());
+        Ref::map(d, |d| d.get())
+    }
+}
+
 impl<T, Loaded, Unloaded, Load, Unload, Get> DynReBorrowSource
     for FilterScan<Loaded, Unloaded, Load, Unload, Get>
 where

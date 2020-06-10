@@ -82,7 +82,7 @@ impl<S: Reactive> ReOps<S> {
         ReBorrowOps(Rc::new(MapAsync::new(self.map(f), sp)))
     }
 
-    pub fn into_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
+    pub fn ops_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
         struct ReRefByRe<S>(ReOps<S>);
         impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
             type Item = S::Item;
@@ -102,6 +102,16 @@ impl<S: Reactive> ReOps<S> {
         }
         ReRefOps(ReRefByRe(self))
     }
+    pub fn into_dyn(self) -> Re<S::Item> {
+        self.0.into_dyn()
+    }
+    pub fn into_dyn_ref(self) -> ReRef<S::Item> {
+        self.0.into_dyn().to_re_ref()
+    }
+    pub fn any(self) -> ReOps<Re<S::Item>> {
+        ReOps(self.into_dyn())
+    }
+
     pub fn cached(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
             (),
@@ -110,12 +120,35 @@ impl<S: Reactive> ReOps<S> {
             |x| x,
         )))
     }
-
-    pub fn into_dyn(self) -> Re<S::Item> {
-        self.0.into_dyn()
+    pub fn scan<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, S::Item) -> St + 'static,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+        ReBorrowOps(Rc::new(Scan::new(
+            initial_state,
+            move |st, ctx| f(st, self.get(ctx)),
+            |st| st,
+            |st| st,
+        )))
     }
-    pub fn into_dyn_ref(self) -> ReRef<S::Item> {
-        self.0.into_dyn().to_re_ref()
+    pub fn filter_scan<St: 'static>(
+        self,
+        initial_state: St,
+        predicate: impl Fn(&St, &S::Item) -> bool + 'static,
+        f: impl Fn(St, S::Item) -> St + 'static,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+        ReBorrowOps(Rc::new(FilterScan::new(
+            initial_state,
+            move |state, ctx| {
+                let value = self.get(ctx);
+                let is_notify = predicate(&state, &value);
+                let state = if is_notify { f(state, value) } else { state };
+                FilterScanResult { is_notify, state }
+            },
+            |state| state,
+            |state| state,
+        )))
     }
 }
 impl<S: Reactive> Reactive for ReOps<S> {
