@@ -83,7 +83,7 @@ impl<S: Reactive> ReOps<S> {
             where
                 Self: Sized,
             {
-                self.0.into_dyn().to_re_ref()
+                self.0.into_dyn_ref()
             }
         }
         ReRefOps(ReRefByRe(self))
@@ -92,7 +92,7 @@ impl<S: Reactive> ReOps<S> {
         self.0.into_dyn()
     }
     pub fn into_dyn_ref(self) -> ReRef<S::Item> {
-        self.into_ref().into_dyn()
+        self.0.into_dyn().to_re_ref()
     }
 }
 impl<S: Reactive> Reactive for ReOps<S> {
