@@ -116,12 +116,6 @@ impl<T: 'static> Re<T> {
         let this = self.clone();
         Re::new(move |ctx| f(this.get(ctx)))
     }
-    pub fn cloned(&self) -> Re<T>
-    where
-        T: Clone,
-    {
-        self.map(|x| x.clone())
-    }
     pub fn flat_map<U>(&self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
     }
