@@ -52,6 +52,7 @@ pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Reactive<Item = T
     re(move |_| value.clone())
 }
 
+#[derive(Clone)]
 pub struct ReOps<S>(S);
 
 impl<S: Reactive> ReOps<S> {
@@ -141,6 +142,7 @@ pub fn re_borrow_constant<T: 'static>(value: T) -> ReBorrowOps<impl ReactiveBorr
     re_borrow(RefCell::new(value), |this, _| this.borrow())
 }
 
+#[derive(Clone)]
 pub struct ReBorrowOps<S>(S);
 
 impl<S: ReactiveBorrow> ReBorrowOps<S> {
@@ -201,6 +203,7 @@ pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ReactiveRef<Item =
     ReRefOps(ReRefConstant(value))
 }
 
+#[derive(Clone)]
 pub struct ReRefOps<S>(S);
 
 impl<S: ReactiveRef> ReRefOps<S> {
