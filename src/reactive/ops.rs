@@ -390,6 +390,78 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     {
         re(move |ctx| self.borrow(ctx).get(ctx))
     }
+
+    pub fn map_async_with<Fut>(
+        self,
+        f: impl Fn(&S::Item) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = Poll<Fut::Output>> + Clone>
+    where
+        Fut: Future + 'static,
+    {
+        self.ops_ref().map_async_with(f, sp)
+    }
+    pub fn cloned(self) -> ReOps<impl Reactive<Item = S::Item>>
+    where
+        S::Item: Clone,
+    {
+        self.map(|x| x.clone())
+    }
+    pub fn scan<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, &S::Item) -> St + 'static,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St>> {
+        self.ops_ref().scan(initial_state, f)
+    }
+    pub fn filter_scan<St: 'static>(
+        self,
+        initial_state: St,
+        predicate: impl Fn(&St, &S::Item) -> bool + 'static,
+        f: impl Fn(St, &S::Item) -> St + 'static,
+    ) -> ReBorrow<St> {
+        self.ops_ref().filter_scan(initial_state, predicate, f)
+    }
+
+    pub fn fold<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, &S::Item) -> St + 'static,
+    ) -> Fold<St> {
+        self.ops_ref().fold(initial_state, f)
+    }
+    pub fn collect_to<E: for<'a> Extend<&'a S::Item> + 'static>(self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: for<'a> Extend<&'a S::Item> + Default + 'static>(self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(&self) -> Fold<Vec<S::Item>>
+    where
+        S::Item: Copy,
+    {
+        self.collect()
+    }
+
+    pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
+        self.ops_ref().for_each(f)
+    }
+    pub fn for_each_async_with<Fut>(
+        self,
+        f: impl FnMut(&S::Item) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        self.ops_ref().for_each_async_with(f, sp)
+    }
+    pub fn hot(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item>> {
+        ReBorrowOps(Hot::new(self))
+    }
 }
 
 impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
