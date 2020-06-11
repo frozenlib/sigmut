@@ -284,15 +284,15 @@ fn re_flatten() {
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }
 
-#[test]
-fn re_head_tail() {
-    let a = ReCell::new(2);
-    let (head, tail) = BindContextScope::with(|scope| a.ops().head_tail(scope));
-    let r = tail.to_vec();
+// #[test]
+// fn re_head_tail() {
+//     let a = ReCell::new(2);
+//     let (head, tail) = BindContextScope::with(|scope| a.ops().head_tail(scope));
+//     let r = tail.to_vec();
 
-    a.set_and_update(5);
-    a.set_and_update(7);
+//     a.set_and_update(5);
+//     a.set_and_update(7);
 
-    assert_eq!(head, 2);
-    assert_eq!(r.stop(), vec![5, 7]);
-}
+//     assert_eq!(head, 2);
+//     assert_eq!(r.stop(), vec![5, 7]);
+// }

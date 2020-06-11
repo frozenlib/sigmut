@@ -90,7 +90,7 @@ pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Reactive<Item = T
 }
 
 #[derive(Clone)]
-pub struct ReOps<S>(pub S);
+pub struct ReOps<S>(pub(crate) S);
 
 impl<S: Reactive> ReOps<S> {
     pub fn get(&self, ctx: &BindContext) -> S::Item {
@@ -331,7 +331,7 @@ pub fn re_borrow_constant<T: 'static>(value: T) -> ReBorrowOps<impl ReactiveBorr
 }
 
 #[derive(Clone)]
-pub struct ReBorrowOps<S>(pub S);
+pub struct ReBorrowOps<S>(pub(crate) S);
 
 impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, S::Item> {
@@ -536,7 +536,7 @@ pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ReactiveRef<Item = T
 }
 
 #[derive(Clone)]
-pub struct ReRefOps<S>(pub S);
+pub struct ReRefOps<S>(pub(crate) S);
 
 impl<S: ReactiveRef> ReRefOps<S> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
