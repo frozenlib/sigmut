@@ -487,6 +487,16 @@ pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ReactiveRef<Item =
     }
     ReRefOps(ReRefConstant(value))
 }
+pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ReactiveRef<Item = T>> {
+    struct ReRefStatic<T: 'static>(&'static T);
+    impl<T: 'static> ReactiveRef for ReRefStatic<T> {
+        type Item = T;
+        fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
+            f(ctx, self.0)
+        }
+    }
+    ReRefOps(ReRefStatic(value))
+}
 
 #[derive(Clone)]
 pub struct ReRefOps<S>(S);
@@ -497,6 +507,92 @@ impl<S: ReactiveRef> ReRefOps<S> {
     }
     pub fn into_dyn(self) -> ReRef<S::Item> {
         self.0.into_dyn()
+    }
+    pub fn map<T: 'static>(
+        self,
+        f: impl Fn(&S::Item) -> T + 'static,
+    ) -> ReOps<impl Reactive<Item = T>> {
+        re(move |ctx| self.with(ctx, |_, x| f(x)))
+    }
+    pub fn map_ref<T: ?Sized>(
+        self,
+        f: impl Fn(&S::Item) -> &T + 'static,
+    ) -> ReRefOps<impl ReactiveRef<Item = T>> {
+        struct MapRef<S, F> {
+            source: S,
+            f: F,
+        }
+        impl<S, F, T> ReactiveRef for MapRef<S, F>
+        where
+            S: ReactiveRef,
+            F: Fn(&S::Item) -> &T + 'static,
+            T: ?Sized,
+        {
+            type Item = T;
+            fn with<U>(
+                &self,
+                ctx: &BindContext,
+                f: impl FnOnce(&BindContext, &Self::Item) -> U,
+            ) -> U {
+                self.source.with(ctx, |ctx, value| f(ctx, (self.f)(value)))
+            }
+        }
+        ReRefOps(MapRef { source: self.0, f })
+    }
+
+    pub fn map_borrow<B: ?Sized + 'static>(self) -> ReRefOps<impl ReactiveRef<Item = B>>
+    where
+        S::Item: Borrow<B>,
+    {
+        struct MapBorrow<S, B>
+        where
+            S: ReactiveRef,
+            S::Item: Borrow<B>,
+            B: ?Sized + 'static,
+        {
+            source: S,
+            _phantom: PhantomData<fn(&S::Item) -> &B>,
+        };
+        impl<S, B> ReactiveRef for MapBorrow<S, B>
+        where
+            S: ReactiveRef,
+            S::Item: Borrow<B>,
+            B: ?Sized + 'static,
+        {
+            type Item = B;
+
+            fn with<U>(
+                &self,
+                ctx: &BindContext,
+                f: impl FnOnce(&BindContext, &Self::Item) -> U,
+            ) -> U {
+                self.source.with(ctx, |ctx, value| f(ctx, value.borrow()))
+            }
+
+            fn into_dyn(self) -> ReRef<Self::Item>
+            where
+                Self: Sized,
+            {
+                self.source.into_dyn().map_borrow()
+            }
+        }
+        ReRefOps(MapBorrow {
+            source: self.0,
+            _phantom: PhantomData,
+        })
+    }
+
+    pub fn flat_map<U: Reactive>(
+        self,
+        f: impl Fn(&S::Item) -> U + 'static,
+    ) -> ReOps<impl Reactive<Item = U::Item>> {
+        self.map(f).flatten()
+    }
+    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>>
+    where
+        S::Item: Reactive,
+    {
+        re(move |ctx| self.with(ctx, |ctx, value| value.get(ctx)))
     }
 }
 impl<S: ReactiveRef> ReactiveRef for ReRefOps<S> {
