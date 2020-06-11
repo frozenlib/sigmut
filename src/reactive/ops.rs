@@ -9,7 +9,24 @@ pub trait Reactive: 'static {
     where
         Self: Sized,
     {
-        todo!();
+        struct DynReactive<S>(S);
+        impl<S: Reactive> DynRe for DynReactive<S> {
+            type Item = S::Item;
+            fn dyn_get(&self, ctx: &BindContext) -> Self::Item {
+                self.0.get(ctx)
+            }
+
+            fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+                ReRef(ReRefData::Dyn(self as Rc<dyn DynReRef<Item = Self::Item>>))
+            }
+        }
+        impl<S: Reactive> DynReRef for DynReactive<S> {
+            type Item = S::Item;
+            fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+                f(ctx, &self.0.get(ctx))
+            }
+        }
+        Re::from_dyn(DynReactive(self))
     }
 }
 
