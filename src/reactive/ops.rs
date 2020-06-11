@@ -411,7 +411,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         self,
         initial_state: St,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St>> {
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         self.ops_ref().scan(initial_state, f)
     }
     pub fn filter_scan<St: 'static>(
@@ -419,7 +419,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         initial_state: St,
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrow<St> {
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         self.ops_ref().filter_scan(initial_state, predicate, f)
     }
 
@@ -439,7 +439,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn collect<E: for<'a> Extend<&'a S::Item> + Default + 'static>(self) -> Fold<E> {
         self.collect_to(Default::default())
     }
-    pub fn to_vec(&self) -> Fold<Vec<S::Item>>
+    pub fn to_vec(self) -> Fold<Vec<S::Item>>
     where
         S::Item: Copy,
     {
@@ -608,7 +608,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
         self,
         initial_state: St,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St>> {
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
             initial_state,
             move |st, ctx| {
@@ -618,6 +618,91 @@ impl<S: ReactiveRef> ReRefOps<S> {
             |st| st,
             |st| st,
         )))
+    }
+    pub fn filter_scan<St: 'static>(
+        self,
+        initial_state: St,
+        predicate: impl Fn(&St, &S::Item) -> bool + 'static,
+        f: impl Fn(St, &S::Item) -> St + 'static,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+        ReBorrowOps(Rc::new(FilterScan::new(
+            initial_state,
+            move |state, ctx| {
+                self.with(ctx, |_ctx, value| {
+                    let is_notify = predicate(&state, &value);
+                    let state = if is_notify { f(state, value) } else { state };
+                    FilterScanResult { is_notify, state }
+                })
+            },
+            |state| state,
+            |state| state,
+        )))
+    }
+
+    pub fn cloned(self) -> ReOps<impl Reactive<Item = S::Item>>
+    where
+        S::Item: Clone,
+    {
+        self.map(|x| x.clone())
+    }
+    pub fn fold<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, &S::Item) -> St + 'static,
+    ) -> Fold<St> {
+        let mut f = f;
+        Fold::new(FoldBy::new(
+            initial_state,
+            move |st, ctx| {
+                let f = &mut f;
+                (self.with(ctx, move |_ctx, x| f(st, x)), ())
+            },
+            |(st, _)| st,
+            |st| st,
+        ))
+    }
+    pub fn collect_to<E: for<'a> Extend<&'a S::Item> + 'static>(self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: for<'a> Extend<&'a S::Item> + Default + 'static>(self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(self) -> Fold<Vec<S::Item>>
+    where
+        S::Item: Copy,
+    {
+        self.collect()
+    }
+    pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
+        self.fold(f, move |mut f, x| {
+            f(x);
+            f
+        })
+        .into()
+    }
+    pub fn for_each_async_with<Fut>(
+        self,
+        f: impl FnMut(&S::Item) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        let mut f = f;
+        Fold::new(FoldBy::new(
+            (),
+            move |_, ctx| ((), self.with(ctx, |_ctx, x| sp.spawn_local(f(x)))),
+            |_| (),
+            |_| (),
+        ))
+        .into()
+    }
+
+    pub fn hot(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
+        ReRefOps(Hot::new(self))
     }
 }
 impl<S: ReactiveRef> ReactiveRef for ReRefOps<S> {
