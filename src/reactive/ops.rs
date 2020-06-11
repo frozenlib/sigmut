@@ -71,6 +71,12 @@ impl<S: Reactive> ReOps<S> {
     ) -> ReOps<impl Reactive<Item = T::Item>> {
         re(move |ctx| f(self.get(ctx)).get(ctx))
     }
+    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>>
+    where
+        S::Item: Reactive,
+    {
+        re(move |ctx| self.get(ctx).get(ctx))
+    }
     pub fn map_async_with<Fut>(
         self,
         f: impl Fn(S::Item) -> Fut + 'static,
@@ -244,14 +250,6 @@ impl<S: Reactive> ReOps<S> {
         IntoStream::new(self)
     }
 }
-impl<S: Reactive> ReOps<S>
-where
-    S::Item: Reactive,
-{
-    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>> {
-        ReOps(re(move |ctx| self.get(ctx).get(ctx)))
-    }
-}
 impl<S: Reactive> Reactive for ReOps<S> {
     type Item = S::Item;
     fn get(&self, ctx: &BindContext) -> Self::Item {
@@ -375,6 +373,19 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
             source: self,
             _phantom: PhantomData,
         })
+    }
+    pub fn flat_map<U: Reactive>(
+        self,
+        f: impl Fn(&S::Item) -> U + 'static,
+    ) -> ReOps<impl Reactive<Item = U::Item>> {
+        re(move |ctx| f(&self.borrow(ctx)).get(ctx))
+    }
+
+    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>>
+    where
+        S::Item: Reactive,
+    {
+        re(move |ctx| self.borrow(ctx).get(ctx))
     }
 }
 
