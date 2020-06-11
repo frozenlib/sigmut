@@ -187,6 +187,31 @@ impl<S: Reactive> ReOps<S> {
     {
         self.dedup_by(|l, r| l == r)
     }
+
+    pub fn fold<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, S::Item) -> St + 'static,
+    ) -> Fold<St> {
+        Fold::new(FoldBy::new(
+            initial_state,
+            move |st, ctx| (f(st, self.get(ctx)), ()),
+            |(st, _)| st,
+            |st| st,
+        ))
+    }
+    pub fn collect_to<E: Extend<S::Item> + 'static>(self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: Extend<S::Item> + Default + 'static>(self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(self) -> Fold<Vec<S::Item>> {
+        self.collect()
+    }
 }
 impl<S: Reactive> Reactive for ReOps<S> {
     type Item = S::Item;
