@@ -324,6 +324,15 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         self.into_dyn().to_re_ref()
     }
 }
+impl<S: Reactive> ReOps<S>
+where
+    S::Item: Reactive,
+{
+    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>> {
+        ReOps(re(move |ctx| self.get(ctx).get(ctx)))
+    }
+}
+
 impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
     type Item = S::Item;
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
