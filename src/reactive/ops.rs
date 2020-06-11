@@ -244,6 +244,14 @@ impl<S: Reactive> ReOps<S> {
         IntoStream::new(self)
     }
 }
+impl<S: Reactive> ReOps<S>
+where
+    S::Item: Reactive,
+{
+    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>> {
+        ReOps(re(move |ctx| self.get(ctx).get(ctx)))
+    }
+}
 impl<S: Reactive> Reactive for ReOps<S> {
     type Item = S::Item;
     fn get(&self, ctx: &BindContext) -> Self::Item {
@@ -323,13 +331,50 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn into_dyn_ref(self) -> ReRef<S::Item> {
         self.into_dyn().to_re_ref()
     }
-}
-impl<S: Reactive> ReOps<S>
-where
-    S::Item: Reactive,
-{
-    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>> {
-        ReOps(re(move |ctx| self.get(ctx).get(ctx)))
+    pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
+        re(move |ctx| f(&self.borrow(ctx)))
+    }
+    pub fn map_ref<T: ?Sized + 'static>(
+        self,
+        f: impl Fn(&S::Item) -> &T + 'static,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = T>> {
+        re_borrow(self, move |this, ctx| Ref::map(this.borrow(ctx), &f))
+    }
+    pub fn map_borrow<B: ?Sized + 'static>(self) -> ReBorrowOps<impl ReactiveBorrow<Item = B>>
+    where
+        S::Item: Borrow<B>,
+    {
+        struct MapBorrow<S, B>
+        where
+            S: ReactiveBorrow,
+            S::Item: Borrow<B>,
+            B: ?Sized + 'static,
+        {
+            source: S,
+            _phantom: PhantomData<fn(&S::Item) -> &B>,
+        };
+        impl<S, B> ReactiveBorrow for MapBorrow<S, B>
+        where
+            S: ReactiveBorrow,
+            S::Item: Borrow<B>,
+            B: ?Sized + 'static,
+        {
+            type Item = B;
+
+            fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+                Ref::map(self.source.borrow(ctx), |x| x.borrow())
+            }
+            fn into_dyn(self) -> ReBorrow<Self::Item>
+            where
+                Self: Sized,
+            {
+                self.source.into_dyn().map_borrow()
+            }
+        }
+        ReBorrowOps(MapBorrow {
+            source: self,
+            _phantom: PhantomData,
+        })
     }
 }
 
