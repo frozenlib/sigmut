@@ -37,6 +37,10 @@ trait DynReSource: 'static {
 trait DynReBorrow: 'static {
     type Item: ?Sized;
     fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
+
+    fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+        todo!();
+    }
 }
 trait DynReBorrowSource: Any + 'static {
     type Item: ?Sized;
@@ -53,6 +57,10 @@ trait DynReBorrowSource: Any + 'static {
         Self: Sized,
     {
         rc_self.clone().as_rc_any().downcast::<Self>().unwrap()
+    }
+
+    fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+        todo!();
     }
 }
 

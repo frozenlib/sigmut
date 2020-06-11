@@ -9,8 +9,8 @@ pub trait Reactive: 'static {
     where
         Self: Sized,
     {
-        struct DynReactive<S>(S);
-        impl<S: Reactive> DynRe for DynReactive<S> {
+        struct IntoDyn<S>(S);
+        impl<S: Reactive> DynRe for IntoDyn<S> {
             type Item = S::Item;
             fn dyn_get(&self, ctx: &BindContext) -> Self::Item {
                 self.0.get(ctx)
@@ -20,13 +20,13 @@ pub trait Reactive: 'static {
                 ReRef(ReRefData::Dyn(self as Rc<dyn DynReRef<Item = Self::Item>>))
             }
         }
-        impl<S: Reactive> DynReRef for DynReactive<S> {
+        impl<S: Reactive> DynReRef for IntoDyn<S> {
             type Item = S::Item;
             fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
                 f(ctx, &self.0.get(ctx))
             }
         }
-        Re::from_dyn(DynReactive(self))
+        Re::from_dyn(IntoDyn(self))
     }
 }
 
@@ -38,7 +38,20 @@ pub trait ReactiveBorrow: 'static {
     where
         Self: Sized,
     {
-        todo!()
+        struct IntoDyn<S>(S);
+        impl<S: ReactiveBorrow> DynReBorrow for IntoDyn<S> {
+            type Item = S::Item;
+            fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+                self.0.borrow(ctx)
+            }
+        }
+        impl<S: ReactiveBorrow> DynReRef for IntoDyn<S> {
+            type Item = S::Item;
+            fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+                f(ctx, &self.0.borrow(ctx))
+            }
+        }
+        ReBorrow::from_dyn(IntoDyn(self))
     }
 }
 
@@ -50,7 +63,14 @@ pub trait ReactiveRef: 'static {
     where
         Self: Sized,
     {
-        todo!()
+        struct IntoDyn<S>(S);
+        impl<S: ReactiveRef> DynReRef for IntoDyn<S> {
+            type Item = S::Item;
+            fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+                self.0.with(ctx, f)
+            }
+        }
+        ReRef::from_dyn(IntoDyn(self))
     }
 }
 
