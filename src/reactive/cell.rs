@@ -36,6 +36,9 @@ impl<T: Copy + 'static> ReCell<T> {
     pub fn to_re(&self) -> Re<T> {
         Re(ReData::DynSource(self.0.clone()))
     }
+    pub fn ops(&self) -> ReOps<impl Reactive<Item = T> + Clone> {
+        ReOps(self.0.clone())
+    }
 }
 impl<T: Copy + 'static> ReCellData<T> {
     fn get(self: &Rc<Self>, ctx: &BindContext) -> T {
@@ -43,6 +46,13 @@ impl<T: Copy + 'static> ReCellData<T> {
         self.value.get()
     }
 }
+impl<T: Copy + 'static> Reactive for Rc<ReCellData<T>> {
+    type Item = T;
+    fn get(&self, ctx: &BindContext) -> Self::Item {
+        self.get(ctx)
+    }
+}
+
 impl<T: Copy + 'static> DynReSource for ReCellData<T> {
     type Item = T;
     fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item {
@@ -104,7 +114,18 @@ impl<T: 'static> ReRefCell<T> {
     pub fn to_re_borrow(&self) -> ReBorrow<T> {
         ReBorrow(ReBorrowData::DynSource(self.0.clone()))
     }
+    pub fn ops(&self) -> ReBorrowOps<impl ReactiveBorrow<Item = T>> {
+        ReBorrowOps(self.0.clone())
+    }
 }
+impl<T: 'static> ReactiveBorrow for Rc<ReRefCellData<T>> {
+    type Item = T;
+    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        ctx.bind(self.clone());
+        self.value.borrow()
+    }
+}
+
 impl<T: 'static> DynReBorrowSource for ReRefCellData<T> {
     type Item = T;
 
