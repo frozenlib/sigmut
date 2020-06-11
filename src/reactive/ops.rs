@@ -212,6 +212,13 @@ impl<S: Reactive> ReOps<S> {
     pub fn to_vec(self) -> Fold<Vec<S::Item>> {
         self.collect()
     }
+    pub fn for_each(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
+        self.fold(f, move |mut f, x| {
+            f(x);
+            f
+        })
+        .into()
+    }
 }
 impl<S: Reactive> Reactive for ReOps<S> {
     type Item = S::Item;
