@@ -175,6 +175,18 @@ impl<S: Reactive> ReOps<S> {
             |value| value,
         )))
     }
+    pub fn dedup_by_key<K: PartialEq>(
+        self,
+        to_key: impl Fn(&S::Item) -> K + 'static,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
+        self.dedup_by(move |l, r| to_key(l) == to_key(r))
+    }
+    pub fn dedup(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone>
+    where
+        S::Item: PartialEq,
+    {
+        self.dedup_by(|l, r| l == r)
+    }
 }
 impl<S: Reactive> Reactive for ReOps<S> {
     type Item = S::Item;
