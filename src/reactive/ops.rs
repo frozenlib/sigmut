@@ -219,6 +219,30 @@ impl<S: Reactive> ReOps<S> {
         })
         .into()
     }
+    pub fn for_each_async_with<Fut>(
+        self,
+        f: impl FnMut(S::Item) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        let mut f = f;
+        Fold::new(FoldBy::new(
+            (),
+            move |_, ctx| ((), sp.spawn_local(f(self.get(ctx)))),
+            |_| (),
+            |_| (),
+        ))
+        .into()
+    }
+    pub fn hot(self) -> ReOps<impl Reactive<Item = S::Item>> {
+        ReOps(Hot::new(self))
+    }
+
+    pub fn into_stream(self) -> impl futures::Stream<Item = S::Item> {
+        ToStream::new(self)
+    }
 }
 impl<S: Reactive> Reactive for ReOps<S> {
     type Item = S::Item;

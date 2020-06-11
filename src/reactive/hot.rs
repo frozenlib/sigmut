@@ -49,6 +49,14 @@ impl<T: 'static> HotReady for Hot<Re<T>> {
             .update(scope, &this, |ctx| self.source.get(ctx));
     }
 }
+impl<S: Reactive> HotReady for Hot<ReOps<S>> {
+    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+        let this = self.clone();
+        self.bindings
+            .borrow_mut()
+            .update(scope, &this, |ctx| self.source.get(ctx));
+    }
+}
 impl<T: 'static + ?Sized> HotReady for Hot<ReBorrow<T>> {
     fn ready(self: Rc<Self>, scope: &BindContextScope) {
         let this = self.clone();
@@ -57,7 +65,24 @@ impl<T: 'static + ?Sized> HotReady for Hot<ReBorrow<T>> {
         });
     }
 }
+impl<S: ReactiveBorrow> HotReady for Hot<ReBorrowOps<S>> {
+    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+        let this = self.clone();
+        self.bindings.borrow_mut().update(scope, &this, |ctx| {
+            self.source.borrow(ctx);
+        });
+    }
+}
+
 impl<T: 'static + ?Sized> HotReady for Hot<ReRef<T>> {
+    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+        let this = self.clone();
+        self.bindings
+            .borrow_mut()
+            .update(scope, &this, |ctx| self.source.with(ctx, |_, _| {}));
+    }
+}
+impl<S: ReactiveRef> HotReady for Hot<ReRefOps<S>> {
     fn ready(self: Rc<Self>, scope: &BindContextScope) {
         let this = self.clone();
         self.bindings
@@ -72,9 +97,22 @@ impl<T: 'static> DynRe for Hot<Re<T>> {
         self.source.get(ctx)
     }
 }
+impl<S: Reactive> Reactive for Rc<Hot<ReOps<S>>> {
+    type Item = S::Item;
+    fn get(&self, ctx: &BindContext) -> Self::Item {
+        self.source.get(ctx)
+    }
+}
+
 impl<T: 'static + ?Sized> DynReBorrow for Hot<ReBorrow<T>> {
     type Item = T;
     fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.source.borrow(ctx)
+    }
+}
+impl<S: ReactiveBorrow> ReactiveBorrow for Rc<Hot<ReBorrowOps<S>>> {
+    type Item = S::Item;
+    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.source.borrow(ctx)
     }
 }
@@ -82,6 +120,12 @@ impl<T: 'static + ?Sized> DynReBorrow for Hot<ReBorrow<T>> {
 impl<T: 'static + ?Sized> DynReRef for Hot<ReRef<T>> {
     type Item = T;
     fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+        self.source.with(ctx, f)
+    }
+}
+impl<S: ReactiveRef> ReactiveRef for Rc<Hot<ReRefOps<S>>> {
+    type Item = S::Item;
+    fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
         self.source.with(ctx, f)
     }
 }
