@@ -594,6 +594,31 @@ impl<S: ReactiveRef> ReRefOps<S> {
     {
         re(move |ctx| self.with(ctx, |ctx, value| value.get(ctx)))
     }
+    pub fn map_async_with<Fut>(
+        self,
+        f: impl Fn(&S::Item) -> Fut + 'static,
+        sp: impl LocalSpawn,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = Poll<Fut::Output>> + Clone>
+    where
+        Fut: Future + 'static,
+    {
+        ReBorrowOps(Rc::new(MapAsync::new(self.map(f), sp)))
+    }
+    pub fn scan<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, &S::Item) -> St + 'static,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St>> {
+        ReBorrowOps(Rc::new(Scan::new(
+            initial_state,
+            move |st, ctx| {
+                let f = &f;
+                self.with(ctx, move |_, x| f(st, x))
+            },
+            |st| st,
+            |st| st,
+        )))
+    }
 }
 impl<S: ReactiveRef> ReactiveRef for ReRefOps<S> {
     type Item = S::Item;
