@@ -108,14 +108,14 @@ impl<S: Reactive> ReOps<S> {
         }
         ReRefOps(ReRefByRe(self))
     }
+    pub fn ops_any(self) -> ReOps<Re<S::Item>> {
+        ReOps(self.into_dyn())
+    }
     pub fn into_dyn(self) -> Re<S::Item> {
         self.0.into_dyn()
     }
     pub fn into_dyn_ref(self) -> ReRef<S::Item> {
         self.0.into_dyn().to_re_ref()
-    }
-    pub fn any(self) -> ReOps<Re<S::Item>> {
-        ReOps(self.into_dyn())
     }
 
     pub fn cached(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
@@ -303,7 +303,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
         f(ctx, &self.borrow(ctx))
     }
-    pub fn into_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
+    pub fn ops_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
         struct ReRefByReBorrow<S>(ReBorrowOps<S>);
         impl<S: ReactiveBorrow> ReactiveRef for ReRefByReBorrow<S> {
             type Item = S::Item;
@@ -322,6 +322,9 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
             }
         }
         ReRefOps(ReRefByReBorrow(self))
+    }
+    pub fn ops_any(self) -> ReBorrowOps<ReBorrow<S::Item>> {
+        ReBorrowOps(self.into_dyn())
     }
     pub fn into_dyn(self) -> ReBorrow<S::Item> {
         self.0.into_dyn()
