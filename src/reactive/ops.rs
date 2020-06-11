@@ -150,6 +150,31 @@ impl<S: Reactive> ReOps<S> {
             |state| state,
         )))
     }
+    pub fn dedup_by(
+        self,
+        eq: impl Fn(&S::Item, &S::Item) -> bool + 'static,
+    ) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
+        ReBorrowOps(Rc::new(FilterScan::new(
+            None,
+            move |state, ctx| {
+                let mut value = self.get(ctx);
+                let mut is_notify = false;
+                if let Some(old) = state {
+                    if eq(&value, &old) {
+                        value = old;
+                    } else {
+                        is_notify = true;
+                    }
+                }
+                FilterScanResult {
+                    state: value,
+                    is_notify,
+                }
+            },
+            |value| Some(value),
+            |value| value,
+        )))
+    }
 }
 impl<S: Reactive> Reactive for ReOps<S> {
     type Item = S::Item;
