@@ -1,13 +1,13 @@
 mod cell;
 mod hot;
+mod into_stream;
 mod map_async;
 mod ops;
 mod scan;
 mod tail;
-mod to_stream;
 
 pub use self::{cell::*, ops::*, tail::*};
-use self::{hot::*, map_async::*, scan::*, to_stream::*};
+use self::{hot::*, into_stream::*, map_async::*, scan::*};
 use crate::bind::*;
 use derivative::Derivative;
 use futures::Future;
@@ -258,7 +258,7 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn to_stream(&self) -> impl futures::Stream<Item = T> {
-        ToStream::new(self.clone())
+        IntoStream::new(self.clone())
     }
 
     pub fn to_re_ref(&self) -> ReRef<T> {

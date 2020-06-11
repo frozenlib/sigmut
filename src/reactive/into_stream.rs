@@ -5,23 +5,23 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-pub struct ToStream<S>(Rc<ToStreamData<S>>);
-struct ToStreamData<S> {
+pub struct IntoStream<S>(Rc<IntoStreamData<S>>);
+struct IntoStreamData<S> {
     source: S,
-    state: RefCell<ToStreamState>,
+    state: RefCell<IntoStreamState>,
 }
 
-struct ToStreamState {
+struct IntoStreamState {
     is_ready: bool,
     bindings: Bindings,
     waker: Option<Waker>,
 }
 
-impl<S> ToStream<S> {
+impl<S> IntoStream<S> {
     pub fn new(source: S) -> Self {
-        Self(Rc::new(ToStreamData {
+        Self(Rc::new(IntoStreamData {
             source,
-            state: RefCell::new(ToStreamState {
+            state: RefCell::new(IntoStreamState {
                 is_ready: true,
                 bindings: Bindings::new(),
                 waker: None,
@@ -30,7 +30,7 @@ impl<S> ToStream<S> {
     }
 }
 
-impl<S: Reactive> BindSink for ToStreamData<S> {
+impl<S: Reactive> BindSink for IntoStreamData<S> {
     fn notify(self: Rc<Self>, _ctx: &NotifyContext) {
         let waker = {
             let mut b = self.state.borrow_mut();
@@ -42,7 +42,7 @@ impl<S: Reactive> BindSink for ToStreamData<S> {
         }
     }
 }
-impl<S: Reactive> Stream for ToStream<S> {
+impl<S: Reactive> Stream for IntoStream<S> {
     type Item = S::Item;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         let this = &self.as_ref().0;
