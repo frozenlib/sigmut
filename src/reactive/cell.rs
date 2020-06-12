@@ -40,7 +40,7 @@ impl<T: Copy + 'static> ReCell<T> {
         ReOps(self.clone())
     }
     pub fn ops_ref(&self) -> ReRefOps<impl ReactiveRef<Item = T> + Clone> {
-        ReRefOps(ReRefByRe(self.ops()))
+        self.ops().ops_ref()
     }
 }
 impl<T: Copy + 'static> ReCellData<T> {
@@ -117,8 +117,11 @@ impl<T: 'static> ReRefCell<T> {
     pub fn to_re_borrow(&self) -> ReBorrow<T> {
         ReBorrow(ReBorrowData::DynSource(self.0.clone()))
     }
-    pub fn ops(&self) -> ReBorrowOps<impl ReactiveBorrow<Item = T>> {
+    pub fn ops(&self) -> ReBorrowOps<impl ReactiveBorrow<Item = T> + Clone> {
         ReBorrowOps(self.clone())
+    }
+    pub fn ops_ref(&self) -> ReRefOps<impl ReactiveRef<Item = T> + Clone> {
+        self.ops().ops_ref()
     }
 }
 impl<T: 'static> ReactiveBorrow for ReRefCell<T> {

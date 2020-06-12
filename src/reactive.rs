@@ -120,6 +120,10 @@ impl<T: 'static> Re<T> {
         Self(ReData::Dyn(Rc::new(inner)))
     }
 
+    pub fn ops(&self) -> ReOps<Self> {
+        ReOps(self.clone())
+    }
+
     pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> Re<U> {
         let this = self.clone();
         Re::new(move |ctx| f(this.get(ctx)))
@@ -345,6 +349,10 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         Self(ReBorrowData::DynSource(Rc::new(inner)))
     }
 
+    pub fn ops(&self) -> ReBorrowOps<Self> {
+        ReBorrowOps(self.clone())
+    }
+
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
         let this = self.clone();
         Re::new(move |ctx| f(&this.borrow(ctx)))
@@ -532,6 +540,10 @@ impl<T: 'static + ?Sized> ReRef<T> {
     }
     pub fn static_ref(value: &'static T) -> Self {
         Self(ReRefData::StaticRef(value))
+    }
+
+    pub fn ops(&self) -> ReRefOps<Self> {
+        ReRefOps(self.clone())
     }
 
     fn from_dyn(inner: impl DynReRef<Item = T>) -> Self {
