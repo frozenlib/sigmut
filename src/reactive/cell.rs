@@ -39,6 +39,9 @@ impl<T: Copy + 'static> ReCell<T> {
     pub fn ops(&self) -> ReOps<impl Reactive<Item = T> + Clone> {
         ReOps(self.clone())
     }
+    pub fn ops_ref(&self) -> ReRefOps<impl ReactiveRef<Item = T> + Clone> {
+        ReRefOps(ReRefByRe(self.ops()))
+    }
 }
 impl<T: Copy + 'static> ReCellData<T> {
     fn get(self: &Rc<Self>, ctx: &BindContext) -> T {

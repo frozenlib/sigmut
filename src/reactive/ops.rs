@@ -130,23 +130,6 @@ impl<S: Reactive> ReOps<S> {
     }
 
     pub fn ops_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
-        struct ReRefByRe<S>(ReOps<S>);
-        impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
-            type Item = S::Item;
-            fn with<U>(
-                &self,
-                ctx: &BindContext,
-                f: impl FnOnce(&BindContext, &Self::Item) -> U,
-            ) -> U {
-                self.0.with(ctx, f)
-            }
-            fn into_dyn(self) -> ReRef<Self::Item>
-            where
-                Self: Sized,
-            {
-                self.0.into_dyn_ref()
-            }
-        }
         ReRefOps(ReRefByRe(self))
     }
     pub fn ops_any(self) -> ReOps<Re<S::Item>> {
@@ -772,5 +755,20 @@ impl<S: ReactiveRef> ReactiveRef for ReRefOps<S> {
         Self: Sized,
     {
         self.0.into_dyn()
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct ReRefByRe<S>(pub(crate) ReOps<S>);
+impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
+    type Item = S::Item;
+    fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
+        self.0.with(ctx, f)
+    }
+    fn into_dyn(self) -> ReRef<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.0.into_dyn_ref()
     }
 }
