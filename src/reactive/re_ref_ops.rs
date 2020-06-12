@@ -57,7 +57,7 @@ pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ReactiveRef<Item = T
 }
 
 #[derive(Clone)]
-pub struct ReRefOps<S>(pub(crate) S);
+pub struct ReRefOps<S>(pub(super) S);
 
 impl<S: ReactiveRef> ReRefOps<S> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {

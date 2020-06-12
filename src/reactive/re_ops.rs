@@ -16,7 +16,7 @@ pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Reactive<Item = T
 }
 
 #[derive(Clone)]
-pub struct ReOps<S>(pub(crate) S);
+pub struct ReOps<S>(pub(super) S);
 
 impl<S: Reactive> ReOps<S> {
     pub fn get(&self, ctx: &BindContext) -> S::Item {

@@ -5,7 +5,7 @@ use std::{cell::RefCell, iter::once, rc::Rc};
 pub struct Tail<T: 'static>(Option<TailData<Re<T>>>);
 
 impl<T> Tail<T> {
-    pub(crate) fn new(source: Re<T>, scope: &BindContextScope) -> (T, Self) {
+    pub(super) fn new(source: Re<T>, scope: &BindContextScope) -> (T, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();
         let value = b.bindings.update(scope, &state, |ctx| source.get(ctx));
@@ -61,7 +61,7 @@ impl<T> Tail<T> {
 pub struct TailOps<S>(Option<TailData<S>>);
 
 impl<S: Reactive> TailOps<S> {
-    pub(crate) fn new(source: S, scope: &BindContextScope) -> (S::Item, Self) {
+    pub(super) fn new(source: S, scope: &BindContextScope) -> (S::Item, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();
         let value = b.bindings.update(scope, &state, |ctx| source.get(ctx));
@@ -117,7 +117,7 @@ impl<S: Reactive> TailOps<S> {
 pub struct TailRef<T: ?Sized + 'static>(Option<TailData<ReRef<T>>>);
 
 impl<T: ?Sized + 'static> TailRef<T> {
-    pub(crate) fn new(source: ReRef<T>, scope: &BindContextScope, f: impl FnOnce(&T)) -> Self {
+    pub(super) fn new(source: ReRef<T>, scope: &BindContextScope, f: impl FnOnce(&T)) -> Self {
         if let ReRefData::StaticRef(x) = source.0 {
             f(x);
             return Self(None);
@@ -133,7 +133,7 @@ impl<T: ?Sized + 'static> TailRef<T> {
             Self(Some(TailData { source, state }))
         }
     }
-    pub(crate) fn new_borrow<'a>(
+    pub(super) fn new_borrow<'a>(
         source: &'a ReBorrow<T>,
         scope: &'a BindContextScope,
     ) -> (Ref<'a, T>, Self) {
@@ -198,7 +198,7 @@ impl<T: ?Sized + 'static> TailRef<T> {
 
 pub struct TailRefOps<S>(Option<TailData<S>>);
 
-pub(crate) fn head_tail_from_borrow<'a, S: ReactiveBorrow + Clone>(
+pub(super) fn head_tail_from_borrow<'a, S: ReactiveBorrow + Clone>(
     source: &'a ReBorrowOps<S>,
     scope: &'a BindContextScope,
 ) -> (
@@ -221,7 +221,7 @@ pub(crate) fn head_tail_from_borrow<'a, S: ReactiveBorrow + Clone>(
 }
 
 impl<S: ReactiveRef> TailRefOps<S> {
-    pub(crate) fn new(source: S, scope: &BindContextScope, f: impl FnOnce(&S::Item)) -> Self {
+    pub(super) fn new(source: S, scope: &BindContextScope, f: impl FnOnce(&S::Item)) -> Self {
         let state = TailState::new();
         let mut b = state.borrow_mut();
         b.bindings

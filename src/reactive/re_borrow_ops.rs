@@ -32,7 +32,7 @@ pub fn re_borrow_constant<T: 'static>(value: T) -> ReBorrowOps<impl ReactiveBorr
 }
 
 #[derive(Clone)]
-pub struct ReBorrowOps<S>(pub(crate) S);
+pub struct ReBorrowOps<S>(pub(super) S);
 
 impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, S::Item> {
