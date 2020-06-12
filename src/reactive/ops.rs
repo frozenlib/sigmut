@@ -99,6 +99,10 @@ impl<S: Reactive> ReOps<S> {
     pub fn with<T>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> T) -> T {
         f(ctx, &self.get(ctx))
     }
+    pub fn head_tail(self, scope: &BindContextScope) -> (S::Item, TailOps<S>) {
+        TailOps::new(self.0, scope)
+    }
+
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
         re(move |ctx| f(self.get(ctx)))
     }
@@ -340,6 +344,19 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
         f(ctx, &self.borrow(ctx))
     }
+    pub fn head_tail<'a>(
+        &'a self,
+        scope: &'a BindContextScope,
+    ) -> (
+        Ref<'a, S::Item>,
+        TailRefOps<impl ReactiveRef<Item = S::Item>>,
+    )
+    where
+        S: Clone,
+    {
+        head_tail_from_borrow(&self, scope)
+    }
+
     pub fn ops_ref(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
         struct ReRefByReBorrow<S>(ReBorrowOps<S>);
         impl<S: ReactiveBorrow> ReactiveRef for ReRefByReBorrow<S> {
@@ -541,6 +558,9 @@ pub struct ReRefOps<S>(pub(crate) S);
 impl<S: ReactiveRef> ReRefOps<S> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
         self.0.with(ctx, f)
+    }
+    pub fn head_tail(self, scope: &BindContextScope, f: impl FnOnce(&S::Item)) -> TailRefOps<S> {
+        TailRefOps::new(self.0, scope, f)
     }
     pub fn into_dyn(self) -> ReRef<S::Item> {
         self.0.into_dyn()

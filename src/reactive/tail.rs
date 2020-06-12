@@ -57,6 +57,63 @@ impl<T> Tail<T> {
         self.collect()
     }
 }
+
+pub struct TailOps<S>(Option<TailData<S>>);
+
+impl<S: Reactive> TailOps<S> {
+    pub(crate) fn new(source: S, scope: &BindContextScope) -> (S::Item, Self) {
+        let state = TailState::new();
+        let mut b = state.borrow_mut();
+        let value = b.bindings.update(scope, &state, |ctx| source.get(ctx));
+        let data = if b.bindings.is_empty() {
+            None
+        } else {
+            drop(b);
+            Some(TailData { source, state })
+        };
+        (value, Self(data))
+    }
+    pub fn for_each(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
+        self.fold(f, move |mut f, x| {
+            f(x);
+            f
+        })
+        .into()
+    }
+    pub fn fold<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, S::Item) -> St + 'static,
+    ) -> Fold<St> {
+        if let Some(this) = self.0 {
+            let source = this.source;
+            let fold = TailState::connect(this.state, initial_state, |s| {
+                FoldBy::new_with_state(
+                    s,
+                    move |st, ctx| (f(st, source.get(ctx)), None),
+                    |(st, _)| st,
+                    |st| st,
+                )
+            });
+            Fold::new(fold)
+        } else {
+            Fold::constant(initial_state)
+        }
+    }
+    pub fn collect_to<E: Extend<S::Item> + 'static>(self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: Extend<S::Item> + Default + 'static>(self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(self) -> Fold<Vec<S::Item>> {
+        self.collect()
+    }
+}
+
 pub struct TailRef<T: ?Sized + 'static>(Option<TailData<ReRef<T>>>);
 
 impl<T: ?Sized + 'static> TailRef<T> {
@@ -138,6 +195,89 @@ impl<T: ?Sized + 'static> TailRef<T> {
         self.collect()
     }
 }
+
+pub struct TailRefOps<S>(Option<TailData<S>>);
+
+pub(crate) fn head_tail_from_borrow<'a, S: ReactiveBorrow + Clone>(
+    source: &'a ReBorrowOps<S>,
+    scope: &'a BindContextScope,
+) -> (
+    Ref<'a, S::Item>,
+    TailRefOps<impl ReactiveRef<Item = S::Item>>,
+) {
+    let state = TailState::new();
+    let mut b = state.borrow_mut();
+    let r = b.bindings.update(scope, &state, |ctx| source.borrow(ctx));
+    let this = if b.bindings.is_empty() {
+        TailRefOps(None)
+    } else {
+        drop(b);
+        TailRefOps(Some(TailData {
+            source: source.clone().ops_ref(),
+            state,
+        }))
+    };
+    (r, this)
+}
+
+impl<S: ReactiveRef> TailRefOps<S> {
+    pub(crate) fn new(source: S, scope: &BindContextScope, f: impl FnOnce(&S::Item)) -> Self {
+        let state = TailState::new();
+        let mut b = state.borrow_mut();
+        b.bindings
+            .update(scope, &state, |ctx| source.with(ctx, |_, value| f(value)));
+        if b.bindings.is_empty() {
+            Self(None)
+        } else {
+            drop(b);
+            Self(Some(TailData { source, state }))
+        }
+    }
+
+    pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
+        self.fold(f, move |mut f, x| {
+            f(x);
+            f
+        })
+        .into()
+    }
+    pub fn fold<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, &S::Item) -> St + 'static,
+    ) -> Fold<St> {
+        if let Some(this) = self.0 {
+            let source = this.source;
+            let fold = TailState::connect(this.state, initial_state, |s| {
+                FoldBy::new_with_state(
+                    s,
+                    move |st, ctx| (source.with(ctx, |_, value| f(st, value)), None),
+                    |(st, _)| st,
+                    |st| st,
+                )
+            });
+            Fold::new(fold)
+        } else {
+            Fold::constant(initial_state)
+        }
+    }
+    pub fn collect_to<E: for<'a> Extend<&'a S::Item> + 'static>(self, e: E) -> Fold<E> {
+        self.fold(e, |mut e, x| {
+            e.extend(once(x));
+            e
+        })
+    }
+    pub fn collect<E: for<'a> Extend<&'a S::Item> + Default + 'static>(self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn to_vec(self) -> Fold<Vec<S::Item>>
+    where
+        S::Item: Copy,
+    {
+        self.collect()
+    }
+}
+
 struct TailData<S> {
     source: S,
     state: Rc<RefCell<TailState>>,
