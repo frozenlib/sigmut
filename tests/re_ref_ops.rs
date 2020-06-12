@@ -8,7 +8,7 @@ fn re_ref_constant_test() {
 #[test]
 fn re_ref_new() {
     let a = ReCell::new(2);
-    let r = ReRef::new(a.clone(), move |a, ctx, f| {
+    let r = re_ref(a.clone(), move |a, ctx, f| {
         let value = a.get(ctx);
         f(ctx, &value)
     })
