@@ -23,4 +23,8 @@ criterion = "0.3"
 [profile.bench]
 lto = true
 
+[[bench]]
+name = "benchmarks"
+harness = false
+
 
