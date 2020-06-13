@@ -43,14 +43,31 @@
       "type": "shell",
       "label": "cargo bench",
       "command": "cargo",
-      "args": ["+nightly", "bench", "--target-dir=target/bench"],
+      "args": ["bench", "--", "--baseline", "base"],
       "problemMatcher": ["$rustc"],
       "group": {
         "kind": "test",
         "isDefault": true
       },
       "presentation": {
-        "panel": "new"
+        "panel": "dedicated",
+        "clear": true
+      },
+      "options": {
+        "env": {
+          "RUST_BACKTRACE": "1"
+        }
+      }
+    },
+    {
+      "type": "shell",
+      "label": "cargo bench update baseline",
+      "command": "cargo",
+      "args": ["bench"],
+      "problemMatcher": ["$rustc"],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
       },
       "options": {
         "env": {

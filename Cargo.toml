@@ -20,11 +20,12 @@ thiserror = "1.0"
 tokio = { version = "0.2", features = [ "time" ] }
 criterion = "0.3"
 
+[lib]
+bench = false
+
 [profile.bench]
 lto = true
 
 [[bench]]
 name = "benchmarks"
 harness = false
-
-
