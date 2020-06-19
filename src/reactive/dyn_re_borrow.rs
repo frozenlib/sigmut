@@ -165,7 +165,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(ctx, &*this.borrow(ctx)))
     }
 }
-impl<T> ReactiveBorrow for ReBorrow<T> {
+impl<T: ?Sized> ReactiveBorrow for ReBorrow<T> {
     type Item = T;
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         ReBorrow::borrow(self, ctx)

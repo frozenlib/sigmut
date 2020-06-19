@@ -222,7 +222,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         Self(ReRefData::Dyn(Hot::new(source)))
     }
 }
-impl<T> ReactiveRef for ReRef<T> {
+impl<T: ?Sized> ReactiveRef for ReRef<T> {
     type Item = T;
 
     fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {

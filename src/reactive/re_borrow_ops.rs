@@ -51,7 +51,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     where
         S: Clone,
     {
-        head_tail_from_borrow(&self, scope)
+        head_tail_from_borrow(self, scope, |s| s.clone().ops_ref())
     }
 
     pub fn ops_ref(self) -> ReRefOps<ReRefByReBorrow<S>> {
