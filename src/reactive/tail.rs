@@ -96,7 +96,7 @@ impl<T: ?Sized + 'static> TailRef<T> {
         source: &'a ReBorrow<T>,
         scope: &'a BindContextScope,
     ) -> (Ref<'a, T>, Self) {
-        let (r, s) = head_tail_from_borrow(source, scope, |s| s.to_re_ref());
+        let (r, s) = TailRefOps::new_borrow(source, scope, |s| s.to_re_ref());
         (r, Self(s))
     }
 
@@ -130,31 +130,6 @@ impl<T: ?Sized + 'static> TailRef<T> {
 
 pub struct TailRefOps<S>(Option<TailData<S>>);
 
-pub(super) fn head_tail_from_borrow<
-    'a,
-    T: 'static + ?Sized,
-    S: ReactiveBorrow<Item = T>,
-    R: ReactiveRef<Item = T>,
->(
-    source: &'a S,
-    scope: &'a BindContextScope,
-    to_ref: impl Fn(&S) -> R,
-) -> (Ref<'a, S::Item>, TailRefOps<R>) {
-    let state = TailState::new();
-    let mut b = state.borrow_mut();
-    let r = b.bindings.update(scope, &state, |ctx| source.borrow(ctx));
-    let this = if b.bindings.is_empty() {
-        TailRefOps(None)
-    } else {
-        drop(b);
-        TailRefOps(Some(TailData {
-            source: to_ref(&source),
-            state,
-        }))
-    };
-    (r, this)
-}
-
 impl<S: ReactiveRef> TailRefOps<S> {
     pub(super) fn new(source: S, scope: &BindContextScope, f: impl FnOnce(&S::Item)) -> Self {
         let state = TailState::new();
@@ -167,6 +142,25 @@ impl<S: ReactiveRef> TailRefOps<S> {
             drop(b);
             Self(Some(TailData { source, state }))
         }
+    }
+    pub(super) fn new_borrow<'a, B: ReactiveBorrow<Item = S::Item>>(
+        source: &'a B,
+        scope: &'a BindContextScope,
+        to_ref: impl Fn(&B) -> S,
+    ) -> (Ref<'a, B::Item>, Self) {
+        let state = TailState::new();
+        let mut b = state.borrow_mut();
+        let r = b.bindings.update(scope, &state, |ctx| source.borrow(ctx));
+        let this = if b.bindings.is_empty() {
+            TailRefOps(None)
+        } else {
+            drop(b);
+            TailRefOps(Some(TailData {
+                source: to_ref(&source),
+                state,
+            }))
+        };
+        (r, this)
     }
 
     pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
