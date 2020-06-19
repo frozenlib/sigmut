@@ -1,229 +1,204 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+#![type_length_limit = "4893383"]
+
+use criterion::{criterion_group, criterion_main, Bencher, BenchmarkId, Criterion};
 use reactive_fn::*;
 
 criterion_main!(benches);
 criterion_group!(benches, criterion_benchmark);
 
+const UPDATE_COUNT: usize = 100;
+fn update_counts() -> Vec<usize> {
+    vec![1, 50, 100, 500, 1000]
+}
+
 pub fn criterion_benchmark(c: &mut Criterion) {
-    {
-        let mut g = c.benchmark_group("re_fold 10000");
-        g.bench_function("dyn", |b| b.iter(|| re_fold_dyn(10000)));
-        g.bench_function("ops", |b| b.iter(|| re_fold_ops(10000)));
-    }
-    {
-        let mut g = c.benchmark_group("re_map_fold 10000");
-        g.bench_function("dyn", |b| b.iter(|| re_map_fold_dyn(10000)));
-        g.bench_function("ops", |b| b.iter(|| re_map_fold_ops(10000)));
-    }
-    {
-        let mut g = c.benchmark_group("re_cell_flatten 1000");
-        g.bench_function("dyn", |b| b.iter(|| re_cell_flatten_dyn(1000)));
-        g.bench_function("ops", |b| b.iter(|| re_cell_flatten_ops(1000)));
-    }
-    {
-        let mut g = c.benchmark_group("many_source 100 100");
-        g.bench_function("dyn", |b| b.iter(|| many_source_dyn(100, 100)));
-        g.bench_function("ops", |b| b.iter(|| many_source_ops(100, 100)));
-    }
-    {
-        let mut g = c.benchmark_group("many_sink 100 100");
-        g.bench_function("dyn", |b| b.iter(|| many_sink_dyn(100, 100)));
-        g.bench_function("ops", |b| b.iter(|| many_sink_ops(100, 100)));
-    }
-    {
-        let mut g = c.benchmark_group("many_source_sink 30 30 30");
-        g.bench_function("dyn", |b| b.iter(|| many_source_sink_dyn(30, 30, 30)));
-        g.bench_function("ops", |b| b.iter(|| many_source_sink_ops(30, 30, 30)));
+    bench(c, "re_fold", &re_fold_inputs(), re_fold_ops, re_fold_dyn);
+    bench(
+        c,
+        "re_map_chain",
+        &re_map_chain_inputs(),
+        re_map_chain_ops,
+        re_map_chain_dyn,
+    );
+
+    bench(
+        c,
+        "re_flatten",
+        &re_flatten_inputs(),
+        re_flatten_ops,
+        re_flatten_dyn,
+    );
+
+    bench(
+        c,
+        "many_source",
+        &many_source_inputs(),
+        many_source_ops,
+        many_source_dyn,
+    );
+    bench(
+        c,
+        "many_sink",
+        &many_sink_inputs(),
+        many_sink_ops,
+        many_sink_dyn,
+    );
+    bench(
+        c,
+        "many_source_sink",
+        &many_source_sink_inputs(),
+        many_source_sink_ops,
+        many_source_sink_dyn,
+    );
+}
+
+fn bench(
+    c: &mut Criterion,
+    name: &str,
+    inputs: &[usize],
+    ops_func: impl Fn(&mut Bencher, usize),
+    dyn_func: impl Fn(&mut Bencher, usize),
+) {
+    let mut g = c.benchmark_group(name);
+    for input in inputs {
+        g.bench_with_input(BenchmarkId::new("ops", input), input, |b, n| {
+            ops_func(b, *n)
+        });
+        g.bench_with_input(BenchmarkId::new("dyn", input), input, |b, n| {
+            dyn_func(b, *n)
+        });
     }
 }
 
-fn re_fold_dyn(n: usize) -> usize {
-    let cell = ReCell::new(0);
-    let fold = cell.to_re().fold(0, |s, x| s + x);
-
-    for i in 1..n {
-        cell.set_and_update(i);
-    }
-    fold.stop()
+fn re_fold_inputs() -> Vec<usize> {
+    update_counts()
 }
-fn re_fold_ops(n: usize) -> usize {
-    let cell = ReCell::new(0);
-    let fold = cell.ops().fold(0, |s, x| s + x);
+fn re_fold_ops(b: &mut Bencher, update_count: usize) {
+    b.iter(|| {
+        let cell = ReCell::new(0);
+        let fold = cell.ops().fold(0, |s, x| s + x);
 
-    for i in 1..n {
-        cell.set_and_update(i);
-    }
-    fold.stop()
+        for i in 1..update_count {
+            cell.set_and_update(i);
+        }
+        fold.stop()
+    })
 }
+fn re_fold_dyn(b: &mut Bencher, update_count: usize) {
+    b.iter(|| {
+        let cell = ReCell::new(0);
+        let fold = cell.to_re().fold(0, |s, x| s + x);
 
-fn re_map_fold_dyn(n: usize) -> usize {
-    let cell = ReCell::new(0);
-    let fold = cell.to_re().map(|x| x * 2).fold(0, |s, x| s + x);
-
-    for i in 1..n {
-        cell.set_and_update(i);
-    }
-    fold.stop()
-}
-fn re_map_fold_ops(n: usize) -> usize {
-    let cell = ReCell::new(0);
-    let fold = cell.ops().map(|x| x * 2).fold(0, |s, x| s + x);
-
-    for i in 1..n {
-        cell.set_and_update(i);
-    }
-    fold.stop()
+        for i in 1..update_count {
+            cell.set_and_update(i);
+        }
+        fold.stop()
+    })
 }
 
-fn re_cell_flatten_dyn(n: usize) -> usize {
-    let s = ReRefCell::new(Re::constant(0));
-    let s1 = Re::constant(1);
-    let s2 = Re::constant(2);
-    let f = s.to_re_borrow().flatten().fold(0, |s, x| s + x);
-
-    for _ in 0..n {
-        s.set_and_update(s1.clone());
-        s.set_and_update(s2.clone());
-    }
-    f.stop()
+fn re_map_chain_inputs() -> Vec<usize> {
+    vec![0, 1, 2, 3, 4, 5]
 }
-
-fn re_cell_flatten_ops(n: usize) -> usize {
-    let s = ReRefCell::new(Re::constant(0));
-    let s1 = Re::constant(1);
-    let s2 = Re::constant(2);
-    let f = s.ops().flatten().fold(0, |s, x| s + x);
-
-    for _ in 0..n {
-        s.set_and_update(s1.clone());
-        s.set_and_update(s2.clone());
+fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
+    struct Runner<S> {
+        cell: ReCell<usize>,
+        ops: ReOps<S>,
+        n: usize,
     }
-    f.stop()
-}
-
-fn many_source_dyn(source_count: usize, repeat: usize) -> usize {
-    let mut ss = Vec::new();
-    for _ in 0..source_count {
-        ss.push(ReCell::new(0));
+    fn new_runner(n: usize) -> Runner<impl Reactive<Item = usize>> {
+        let cell = ReCell::new(0usize);
+        let ops = cell.ops();
+        Runner { cell, ops, n }
     }
-
-    let f = {
-        let ss = ss.clone();
-        Re::new(move |ctx| {
-            let mut sum = 0;
-            for s in &ss {
-                sum += s.get(ctx)
-            }
-            sum
-        })
-        .fold(0, |s, x| s + x)
-    };
-
-    for i in 0..repeat {
-        ss[i % source_count].set_and_update(i);
-    }
-    f.stop()
-}
-fn many_source_ops(source_count: usize, repeat: usize) -> usize {
-    let mut ss = Vec::new();
-    for _ in 0..source_count {
-        ss.push(ReCell::new(0));
-    }
-
-    let f = {
-        let ss = ss.clone();
-        re(move |ctx| {
-            let mut sum = 0;
-            for s in &ss {
-                sum += s.get(ctx)
-            }
-            sum
-        })
-        .fold(0, |s, x| s + x)
-    };
-
-    for i in 0..repeat {
-        ss[i % source_count].set_and_update(i);
-    }
-    f.stop()
-}
-
-fn many_sink_dyn(sink_count: usize, repeat: usize) -> usize {
-    let s = ReCell::new(0);
-    let mut fs = Vec::new();
-
-    for _ in 0..sink_count {
-        fs.push(s.to_re().fold(0, move |s, x| s + x));
-    }
-    for i in 0..repeat {
-        s.set_and_update(i);
-    }
-
-    let mut sum = 0;
-    for f in fs {
-        sum += f.stop();
-    }
-    sum
-}
-fn many_sink_ops(sink_count: usize, repeat: usize) -> usize {
-    let s = ReCell::new(0);
-    let mut fs = Vec::new();
-
-    for _ in 0..sink_count {
-        fs.push(s.ops().fold(0, move |s, x| s + x));
-    }
-    for i in 0..repeat {
-        s.set_and_update(i);
-    }
-
-    let mut sum = 0;
-    for f in fs {
-        sum += f.stop();
-    }
-    sum
-}
-
-fn many_source_sink_dyn(source_count: usize, sink_count: usize, repeat: usize) -> usize {
-    let mut ss = Vec::new();
-    for _ in 0..source_count {
-        ss.push(ReCell::new(0));
-    }
-
-    let mut fs = Vec::new();
-    for _ in 0..sink_count {
-        let f = {
-            let ss = ss.clone();
-            Re::new(move |ctx| {
-                let mut sum = 0;
-                for s in &ss {
-                    sum += s.get(ctx)
+    impl<S: Reactive<Item = usize>> Runner<S> {
+        fn try_run(self) -> Result<Runner<impl Reactive<Item = usize>>, usize> {
+            if self.n == 0 {
+                self.cell.set_and_update(0);
+                let fold = self.ops.fold(0, |s, x| s + x);
+                for i in 0..UPDATE_COUNT {
+                    self.cell.set_and_update(i);
                 }
-                sum
-            })
-            .fold(0, |s, x| s + x)
-        };
-        fs.push(f);
+                Err(fold.stop())
+            } else {
+                Ok(Runner {
+                    cell: self.cell,
+                    ops: self.ops.map(|x| x * 2),
+                    n: self.n - 1,
+                })
+            }
+        }
     }
-
-    for i in 0..repeat {
-        let len = ss.len();
-        ss[i % len].set_and_update(i);
+    fn run(n: usize) -> Result<(), usize> {
+        new_runner(n)
+            .try_run()?
+            .try_run()?
+            .try_run()?
+            .try_run()?
+            .try_run()?
+            .try_run()?;
+        Ok(())
     }
-    let mut sum = 0;
-    for f in fs {
-        sum += f.stop();
+    b.iter(|| run(chain).expect_err("unexpected input"))
+}
+fn re_map_chain_dyn(b: &mut Bencher, chain: usize) {
+    let cell = ReCell::new(0usize);
+    let mut re = cell.to_re();
+    for _ in 0..chain {
+        re = re.map(|x| x * 2);
     }
-    sum
+    b.iter(|| {
+        cell.set_and_update(0);
+        let fold = re.fold(0, |s, x| s + x);
+        for i in 0..UPDATE_COUNT {
+            cell.set_and_update(i);
+        }
+        fold.stop()
+    })
 }
 
-fn many_source_sink_ops(source_count: usize, sink_count: usize, repeat: usize) -> usize {
-    let mut ss = Vec::new();
-    for _ in 0..source_count {
-        ss.push(ReCell::new(0));
-    }
+fn re_flatten_inputs() -> Vec<usize> {
+    update_counts()
+}
+fn re_flatten_ops(b: &mut Bencher, update_count: usize) {
+    b.iter(|| {
+        let s = ReRefCell::new(Re::constant(0));
+        let s1 = Re::constant(1);
+        let s2 = Re::constant(2);
+        let f = s.ops().flatten().fold(0, |s, x| s + x);
 
-    let mut fs = Vec::new();
-    for _ in 0..sink_count {
+        for _ in 0..update_count {
+            s.set_and_update(s1.clone());
+            s.set_and_update(s2.clone());
+        }
+        f.stop()
+    })
+}
+fn re_flatten_dyn(b: &mut Bencher, update_count: usize) {
+    b.iter(|| {
+        let s = ReRefCell::new(Re::constant(0));
+        let s1 = Re::constant(1);
+        let s2 = Re::constant(2);
+        let f = s.to_re_borrow().flatten().fold(0, |s, x| s + x);
+
+        for _ in 0..update_count {
+            s.set_and_update(s1.clone());
+            s.set_and_update(s2.clone());
+        }
+        f.stop()
+    })
+}
+
+fn many_source_inputs() -> Vec<usize> {
+    vec![1, 2, 4, 10, 20, 50, 100]
+}
+
+fn many_source_ops(b: &mut Bencher, source_count: usize) {
+    b.iter(|| {
+        let mut ss = Vec::new();
+        for _ in 0..source_count {
+            ss.push(ReCell::new(0));
+        }
+
         let f = {
             let ss = ss.clone();
             re(move |ctx| {
@@ -235,16 +210,148 @@ fn many_source_sink_ops(source_count: usize, sink_count: usize, repeat: usize) -
             })
             .fold(0, |s, x| s + x)
         };
-        fs.push(f);
-    }
 
-    for i in 0..repeat {
-        let len = ss.len();
-        ss[i % len].set_and_update(i);
-    }
-    let mut sum = 0;
-    for f in fs {
-        sum += f.stop();
-    }
-    sum
+        for i in 0..UPDATE_COUNT {
+            ss[i % source_count].set_and_update(i);
+        }
+        f.stop()
+    })
+}
+fn many_source_dyn(b: &mut Bencher, source_count: usize) {
+    b.iter(|| {
+        let mut ss = Vec::new();
+        for _ in 0..source_count {
+            ss.push(ReCell::new(0));
+        }
+
+        let f = {
+            let ss = ss.clone();
+            Re::new(move |ctx| {
+                let mut sum = 0;
+                for s in &ss {
+                    sum += s.get(ctx)
+                }
+                sum
+            })
+            .fold(0, |s, x| s + x)
+        };
+
+        for i in 0..UPDATE_COUNT {
+            ss[i % source_count].set_and_update(i);
+        }
+        f.stop()
+    })
+}
+
+fn many_sink_inputs() -> Vec<usize> {
+    vec![1, 2, 4, 10, 20, 50, 100]
+}
+fn many_sink_ops(b: &mut Bencher, sink_count: usize) {
+    b.iter(|| {
+        let s = ReCell::new(0);
+        let mut fs = Vec::new();
+
+        for _ in 0..sink_count {
+            fs.push(s.ops().fold(0, move |s, x| s + x));
+        }
+        for i in 0..UPDATE_COUNT {
+            s.set_and_update(i);
+        }
+
+        let mut sum = 0;
+        for f in fs {
+            sum += f.stop();
+        }
+        sum
+    });
+}
+fn many_sink_dyn(b: &mut Bencher, sink_count: usize) {
+    b.iter(|| {
+        let s = ReCell::new(0);
+        let mut fs = Vec::new();
+
+        for _ in 0..sink_count {
+            fs.push(s.to_re().fold(0, move |s, x| s + x));
+        }
+        for i in 0..UPDATE_COUNT {
+            s.set_and_update(i);
+        }
+
+        let mut sum = 0;
+        for f in fs {
+            sum += f.stop();
+        }
+        sum
+    });
+}
+
+fn many_source_sink_inputs() -> Vec<usize> {
+    vec![1, 2, 4, 10, 20, 50]
+}
+
+fn many_source_sink_ops(b: &mut Bencher, count: usize) {
+    b.iter(|| {
+        let mut ss = Vec::new();
+        for _ in 0..count {
+            ss.push(ReCell::new(0));
+        }
+
+        let mut fs = Vec::new();
+        for _ in 0..count {
+            let f = {
+                let ss = ss.clone();
+                re(move |ctx| {
+                    let mut sum = 0;
+                    for s in &ss {
+                        sum += s.get(ctx)
+                    }
+                    sum
+                })
+                .fold(0, |s, x| s + x)
+            };
+            fs.push(f);
+        }
+
+        for i in 0..UPDATE_COUNT {
+            ss[i % ss.len()].set_and_update(i);
+        }
+        let mut sum = 0;
+        for f in fs {
+            sum += f.stop();
+        }
+        sum
+    })
+}
+fn many_source_sink_dyn(b: &mut Bencher, count: usize) {
+    b.iter(|| {
+        let mut ss = Vec::new();
+        for _ in 0..count {
+            ss.push(ReCell::new(0));
+        }
+
+        let mut fs = Vec::new();
+        for _ in 0..count {
+            let f = {
+                let ss = ss.clone();
+                Re::new(move |ctx| {
+                    let mut sum = 0;
+                    for s in &ss {
+                        sum += s.get(ctx)
+                    }
+                    sum
+                })
+                .fold(0, |s, x| s + x)
+            };
+            fs.push(f);
+        }
+
+        for i in 0..UPDATE_COUNT {
+            ss[i % ss.len()].set_and_update(i);
+        }
+        let mut sum = 0;
+        for f in fs {
+            sum += f.stop();
+        }
+        sum
+    })
 }

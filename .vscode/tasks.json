@@ -43,7 +43,7 @@
       "type": "shell",
       "label": "cargo bench",
       "command": "cargo",
-      "args": ["bench", "--", "--baseline", "base"],
+      "args": ["bench"],
       "problemMatcher": ["$rustc"],
       "group": {
         "kind": "test",
@@ -61,18 +61,13 @@
     },
     {
       "type": "shell",
-      "label": "cargo bench update baseline",
-      "command": "cargo",
-      "args": ["bench"],
-      "problemMatcher": ["$rustc"],
+      "label": "cargo bench show report",
+      "command": "target/criterion/report/index.html",
+      "args": [],
+      "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
         "clear": true
-      },
-      "options": {
-        "env": {
-          "RUST_BACKTRACE": "1"
-        }
       }
     },
     {
