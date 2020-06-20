@@ -9,7 +9,7 @@ where
     struct ReRefFn<S, T: ?Sized, F> {
         this: S,
         f: F,
-        _phantom: PhantomData<fn(&fn(&T))>,
+        _phantom: PhantomData<fn(&Self) -> &T>,
     }
     impl<S, T, F> ReactiveRef for ReRefFn<S, T, F>
     where

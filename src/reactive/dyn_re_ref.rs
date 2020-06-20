@@ -42,7 +42,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         struct ReRefFn<S, T: ?Sized, F> {
             this: S,
             f: F,
-            _phantom: PhantomData<fn(&fn(&T))>,
+            _phantom: PhantomData<fn(&Self) -> &T>,
         }
         impl<S, T, F> DynReRef for ReRefFn<S, T, F>
         where
