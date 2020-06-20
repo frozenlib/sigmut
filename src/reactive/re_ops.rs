@@ -165,7 +165,7 @@ impl<S: Reactive> ReOps<S> {
     pub fn collect<E: Extend<S::Item> + Default + 'static>(self) -> Fold<E> {
         self.collect_to(Default::default())
     }
-    pub fn to_vec(self) -> Fold<Vec<S::Item>> {
+    pub fn collect_vec(self) -> Fold<Vec<S::Item>> {
         self.collect()
     }
     pub fn for_each(self, f: impl FnMut(S::Item) + 'static) -> Subscription {

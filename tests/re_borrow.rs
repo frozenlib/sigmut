@@ -2,13 +2,13 @@ use reactive_fn::*;
 
 #[test]
 fn re_borrow_constant() {
-    let r = ReBorrow::constant(2).to_vec();
+    let r = ReBorrow::constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
 fn re_borrow_new() {
     let a = ReRefCell::new(2);
-    let r = ReBorrow::new(a.clone(), move |a, ctx| a.borrow(ctx)).to_vec();
+    let r = ReBorrow::new(a.clone(), move |a, ctx| a.borrow(ctx)).collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -19,7 +19,7 @@ fn re_borrow_new() {
 #[test]
 fn re_borrow_map() {
     let a = ReRefCell::new(2);
-    let r = a.to_re_borrow().map(|x| x * 2).to_vec();
+    let r = a.to_re_borrow().map(|x| x * 2).collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -30,7 +30,7 @@ fn re_borrow_map() {
 #[test]
 fn re_borrow_map_ref() {
     let a = ReRefCell::new((2, 3));
-    let r = a.to_re_borrow().map_ref(|x| &x.0).to_vec();
+    let r = a.to_re_borrow().map_ref(|x| &x.0).collect_vec();
 
     a.set_and_update((5, 8));
     a.set_and_update((7, 1));
@@ -45,7 +45,10 @@ fn re_borrow_flat_map() {
 
     let b = ReRefCell::new(0);
 
-    let r = b.to_re_borrow().flat_map(move |&x| a_[x].to_re()).to_vec();
+    let r = b
+        .to_re_borrow()
+        .flat_map(move |&x| a_[x].to_re())
+        .collect_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -64,7 +67,7 @@ fn re_borrow_flat_map() {
 #[test]
 fn re_borrow_cloned() {
     let cell = ReRefCell::new(2);
-    let r = cell.to_re_borrow().cloned().to_vec();
+    let r = cell.to_re_borrow().cloned().collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -76,7 +79,7 @@ fn re_borrow_cloned() {
 #[test]
 fn re_borrow_scan() {
     let cell = ReRefCell::new(2);
-    let r = cell.to_re_borrow().scan(10, |s, x| s + x).to_vec();
+    let r = cell.to_re_borrow().scan(10, |s, x| s + x).collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -90,7 +93,7 @@ fn re_borrow_filter_scan() {
     let r = cell
         .to_re_borrow()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
-        .to_vec();
+        .collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -111,9 +114,9 @@ fn re_borrow_fold() {
 }
 
 #[test]
-fn re_borrow_to_vec() {
+fn re_borrow_collect_vec() {
     let cell = ReRefCell::new(1);
-    let fold = cell.to_re_ref().to_vec();
+    let fold = cell.to_re_ref().collect_vec();
 
     cell.set_and_update(2);
     cell.set_and_update(1);
@@ -155,7 +158,7 @@ fn re_borrow_hot() {
     cell.set_and_update(2);
     cell.set_and_update(10);
 
-    assert_eq!(hot.to_vec().stop(), vec![13]);
+    assert_eq!(hot.collect_vec().stop(), vec![13]);
 }
 
 #[test]
@@ -166,14 +169,14 @@ fn re_borrow_hot_no() {
     cell.set_and_update(2);
     cell.set_and_update(10);
 
-    assert_eq!(re.to_vec().stop(), vec![10]);
+    assert_eq!(re.collect_vec().stop(), vec![10]);
 }
 
 #[test]
 fn re_borrow_flatten() {
     let cell = ReRefCell::new(Re::constant(1));
 
-    let vs = cell.to_re_borrow().flatten().to_vec();
+    let vs = cell.to_re_borrow().flatten().collect_vec();
 
     cell.set_and_update(Re::constant(2));
     cell.set_and_update(Re::constant(3));
@@ -192,7 +195,7 @@ fn re_borrow_head_tail() {
         (*head, tail)
     });
     drop(head);
-    let r = tail.to_vec();
+    let r = tail.collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);

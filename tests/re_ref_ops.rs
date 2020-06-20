@@ -2,7 +2,7 @@ use reactive_fn::*;
 
 #[test]
 fn re_ref_constant_test() {
-    let r = re_ref_constant(2).to_vec();
+    let r = re_ref_constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
@@ -12,7 +12,7 @@ fn re_ref_new() {
         let value = a.get(ctx);
         f(ctx, &value)
     })
-    .to_vec();
+    .collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -32,7 +32,7 @@ fn re_ref_new_cell2() {
             f(ctx, &value)
         },
     )
-    .to_vec();
+    .collect_vec();
 
     cell1.set_and_update(5);
     cell2.set_and_update(10);
@@ -43,7 +43,7 @@ fn re_ref_new_cell2() {
 #[test]
 fn re_ref_map() {
     let a = ReRefCell::new(2);
-    let r = a.ops_ref().map(|x| x * 2).to_vec();
+    let r = a.ops_ref().map(|x| x * 2).collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -54,7 +54,7 @@ fn re_ref_map() {
 #[test]
 fn re_ref_map_ref() {
     let a = ReRefCell::new((2, 3));
-    let r = a.ops_ref().map_ref(|x| &x.0).to_vec();
+    let r = a.ops_ref().map_ref(|x| &x.0).collect_vec();
 
     a.set_and_update((5, 8));
     a.set_and_update((7, 1));
@@ -68,7 +68,7 @@ fn re_ref_flat_map() {
 
     let b = ReRefCell::new(0);
 
-    let r = b.ops_ref().flat_map(move |&x| a_[x].to_re()).to_vec();
+    let r = b.ops_ref().flat_map(move |&x| a_[x].to_re()).collect_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -86,7 +86,7 @@ fn re_ref_flat_map() {
 #[test]
 fn re_ref_cloned() {
     let cell = ReRefCell::new(2);
-    let r = cell.ops_ref().cloned().to_vec();
+    let r = cell.ops_ref().cloned().collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -98,7 +98,7 @@ fn re_ref_cloned() {
 #[test]
 fn re_ref_scan() {
     let cell = ReRefCell::new(2);
-    let r = cell.ops_ref().scan(10, |s, x| s + x).to_vec();
+    let r = cell.ops_ref().scan(10, |s, x| s + x).collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -112,7 +112,7 @@ fn re_ref_filter_scan() {
     let r = cell
         .ops_ref()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
-        .to_vec();
+        .collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -133,9 +133,9 @@ fn re_ref_fold() {
 }
 
 #[test]
-fn re_ref_to_vec() {
+fn re_ref_collect_vec() {
     let cell = ReRefCell::new(1);
-    let fold = cell.ops_ref().to_vec();
+    let fold = cell.ops_ref().collect_vec();
 
     cell.set_and_update(2);
     cell.set_and_update(1);
@@ -177,7 +177,7 @@ fn re_ref_hot() {
     cell.set_and_update(2);
     cell.set_and_update(10);
 
-    assert_eq!(hot.to_vec().stop(), vec![13]);
+    assert_eq!(hot.collect_vec().stop(), vec![13]);
 }
 
 #[test]
@@ -188,14 +188,14 @@ fn re_ref_hot_no() {
     cell.set_and_update(2);
     cell.set_and_update(10);
 
-    assert_eq!(re.to_vec().stop(), vec![10]);
+    assert_eq!(re.collect_vec().stop(), vec![10]);
 }
 
 #[test]
 fn re_ref_flatten() {
     let cell = ReRefCell::new(Re::constant(1));
 
-    let vs = cell.ops_ref().flatten().to_vec();
+    let vs = cell.ops_ref().flatten().collect_vec();
 
     cell.set_and_update(Re::constant(2));
     cell.set_and_update(Re::constant(3));
@@ -214,7 +214,7 @@ fn re_ref_head_tail() {
             head = Some(value);
         })
     });
-    let r = tail.to_vec();
+    let r = tail.collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);

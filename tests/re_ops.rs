@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 #[test]
 fn re_constant_test() {
-    let r = re_constant(2).to_vec();
+    let r = re_constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 
@@ -11,7 +11,7 @@ fn re_constant_test() {
 fn re_new() {
     let a = ReCell::new(2);
     let a_ = a.clone();
-    let r = re(move |ctx| a_.get(ctx)).to_vec();
+    let r = re(move |ctx| a_.get(ctx)).collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -27,7 +27,7 @@ fn re_new_cell2() {
     let r = {
         let cell1 = cell1.clone();
         let cell2 = cell2.clone();
-        re(move |ctx| cell1.get(ctx) + cell2.get(ctx)).to_vec()
+        re(move |ctx| cell1.get(ctx) + cell2.get(ctx)).collect_vec()
     };
 
     cell1.set_and_update(5);
@@ -39,7 +39,7 @@ fn re_new_cell2() {
 #[test]
 fn re_map() {
     let a = ReCell::new(2);
-    let r = a.ops().map(|x| x * 2).to_vec();
+    let r = a.ops().map(|x| x * 2).collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -54,7 +54,7 @@ fn re_flat_map() {
 
     let b = ReCell::new(0);
 
-    let r = b.ops().flat_map(move |x| a_[x].ops()).to_vec();
+    let r = b.ops().flat_map(move |x| a_[x].ops()).collect_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -73,7 +73,7 @@ fn re_flat_map() {
 #[test]
 fn re_cahced() {
     let cell = ReCell::new(0);
-    let r = cell.ops().map(|x| x + 1).cached().to_vec();
+    let r = cell.ops().map(|x| x + 1).cached().collect_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(10);
@@ -84,7 +84,7 @@ fn re_cahced() {
 #[test]
 fn re_scan() {
     let cell = ReCell::new(2);
-    let r = cell.ops().scan(10, |s, x| s + x).to_vec();
+    let r = cell.ops().scan(10, |s, x| s + x).collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -98,7 +98,7 @@ fn re_filter_scan() {
     let r = cell
         .ops()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
-        .to_vec();
+        .collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -111,7 +111,7 @@ fn re_filter_scan() {
 #[test]
 fn re_same_value() {
     let cell = ReCell::new(5);
-    let r = cell.ops().to_vec();
+    let r = cell.ops().collect_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(5);
@@ -121,7 +121,7 @@ fn re_same_value() {
 #[test]
 fn re_dedup() {
     let cell = ReCell::new(5);
-    let r = cell.ops().dedup().to_vec();
+    let r = cell.ops().dedup().collect_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(5);
@@ -135,7 +135,7 @@ fn re_dedup() {
 #[test]
 fn re_dedup_by_key_1() {
     let cell = ReCell::new((5, 1));
-    let r = cell.ops().dedup_by_key(|&(x, _)| x).to_vec();
+    let r = cell.ops().dedup_by_key(|&(x, _)| x).collect_vec();
 
     cell.set_and_update((5, 2));
     cell.set_and_update((6, 2));
@@ -152,7 +152,7 @@ fn re_dedup_by_key_2() {
     let re = cell.ops().dedup_by_key(|&(x, _)| x);
 
     cell.set_and_update((5, 2));
-    let r = re.to_vec(); // current value is (5, 2), not (5, 1).
+    let r = re.collect_vec(); // current value is (5, 2), not (5, 1).
     cell.set_and_update((6, 2));
     cell.set_and_update((6, 2));
     cell.set_and_update((6, 1));
@@ -164,7 +164,10 @@ fn re_dedup_by_key_2() {
 #[test]
 fn re_dedup_by() {
     let cell = ReCell::new((5, 1));
-    let r = cell.ops().dedup_by(|&(x1, _), &(x2, _)| x1 == x2).to_vec();
+    let r = cell
+        .ops()
+        .dedup_by(|&(x1, _), &(x2, _)| x1 == x2)
+        .collect_vec();
 
     cell.set_and_update((5, 2));
     cell.set_and_update((6, 2));
@@ -212,9 +215,9 @@ fn re_collect() {
 }
 
 #[test]
-fn re_to_vec() {
+fn re_collect_vec() {
     let cell = ReCell::new(1);
-    let fold = cell.ops().to_vec();
+    let fold = cell.ops().collect_vec();
 
     cell.set_and_update(2);
     cell.set_and_update(1);
@@ -256,7 +259,7 @@ fn re_hot() {
     cell.set_and_update(2);
     cell.set_and_update(10);
 
-    assert_eq!(hot.to_vec().stop(), vec![13]);
+    assert_eq!(hot.collect_vec().stop(), vec![13]);
 }
 
 #[test]
@@ -267,14 +270,14 @@ fn re_hot_no() {
     cell.set_and_update(2);
     cell.set_and_update(10);
 
-    assert_eq!(re.to_vec().stop(), vec![10]);
+    assert_eq!(re.collect_vec().stop(), vec![10]);
 }
 
 #[test]
 fn re_flatten() {
     let cell = ReRefCell::new(Re::constant(1));
 
-    let vs = cell.to_re_borrow().cloned().flatten().to_vec();
+    let vs = cell.to_re_borrow().cloned().flatten().collect_vec();
 
     cell.set_and_update(Re::constant(2));
     cell.set_and_update(Re::constant(3));
@@ -288,7 +291,7 @@ fn re_flatten() {
 fn re_head_tail() {
     let a = ReCell::new(2);
     let (head, tail) = BindContextScope::with(|scope| a.ops().head_tail(scope));
-    let r = tail.to_vec();
+    let r = tail.collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);

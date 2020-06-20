@@ -151,7 +151,7 @@ impl<T: 'static> Re<T> {
     pub fn collect<E: Extend<T> + Default + 'static>(&self) -> Fold<E> {
         self.collect_to(Default::default())
     }
-    pub fn to_vec(&self) -> Fold<Vec<T>> {
+    pub fn collect_vec(&self) -> Fold<Vec<T>> {
         self.collect()
     }
 

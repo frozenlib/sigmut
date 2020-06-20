@@ -25,8 +25,8 @@ impl<T> Tail<T> {
     pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
         self.0.collect()
     }
-    pub fn to_vec(self) -> Fold<Vec<T>> {
-        self.0.to_vec()
+    pub fn collect_vec(self) -> Fold<Vec<T>> {
+        self.0.collect_vec()
     }
 }
 
@@ -81,7 +81,7 @@ impl<S: Reactive> TailOps<S> {
     pub fn collect<E: Extend<S::Item> + Default + 'static>(self) -> Fold<E> {
         self.collect_to(Default::default())
     }
-    pub fn to_vec(self) -> Fold<Vec<S::Item>> {
+    pub fn collect_vec(self) -> Fold<Vec<S::Item>> {
         self.collect()
     }
 }
@@ -120,11 +120,11 @@ impl<T: ?Sized + 'static> TailRef<T> {
     pub fn collect<E: for<'a> Extend<&'a T> + Default + 'static>(self) -> Fold<E> {
         self.0.collect()
     }
-    pub fn to_vec(self) -> Fold<Vec<T>>
+    pub fn collect_vec(self) -> Fold<Vec<T>>
     where
         T: Copy,
     {
-        self.0.to_vec()
+        self.0.collect_vec()
     }
 }
 
@@ -199,7 +199,7 @@ impl<S: ReactiveRef> TailRefOps<S> {
     pub fn collect<E: for<'a> Extend<&'a S::Item> + Default + 'static>(self) -> Fold<E> {
         self.collect_to(Default::default())
     }
-    pub fn to_vec(self) -> Fold<Vec<S::Item>>
+    pub fn collect_vec(self) -> Fold<Vec<S::Item>>
     where
         S::Item: Copy,
     {

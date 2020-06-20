@@ -231,7 +231,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
     pub fn collect<E: for<'a> Extend<&'a S::Item> + Default + 'static>(self) -> Fold<E> {
         self.collect_to(Default::default())
     }
-    pub fn to_vec(self) -> Fold<Vec<S::Item>>
+    pub fn collect_vec(self) -> Fold<Vec<S::Item>>
     where
         S::Item: Copy,
     {
