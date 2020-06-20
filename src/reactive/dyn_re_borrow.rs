@@ -7,8 +7,8 @@ pub struct ReBorrow<T: 'static + ?Sized>(pub(super) ReBorrowData<T>);
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
 pub(super) enum ReBorrowData<T: 'static + ?Sized> {
-    Dyn(Rc<dyn DynReBorrow<Item = T>>),
-    DynSource(Rc<dyn DynReBorrowSource<Item = T>>),
+    Dyn(Rc<dyn DynamicReactiveBorrow<Item = T>>),
+    DynSource(Rc<dyn DynamicReactiveBorrowSource<Item = T>>),
 }
 
 impl<T: 'static + ?Sized> ReBorrow<T> {
@@ -37,7 +37,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
             this: S,
             borrow: F,
         }
-        impl<T, S, F> DynReBorrow for ReBorrowFn<S, F>
+        impl<T, S, F> DynamicReactiveBorrow for ReBorrowFn<S, F>
         where
             T: 'static + ?Sized,
             S: 'static,
@@ -51,10 +51,10 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         Self::from_dyn(ReBorrowFn { this, borrow })
     }
 
-    pub(super) fn from_dyn(inner: impl DynReBorrow<Item = T>) -> Self {
+    pub(super) fn from_dyn(inner: impl DynamicReactiveBorrow<Item = T>) -> Self {
         Self(ReBorrowData::Dyn(Rc::new(inner)))
     }
-    pub(super) fn from_dyn_source(inner: impl DynReBorrowSource<Item = T>) -> Self {
+    pub(super) fn from_dyn_source(inner: impl DynamicReactiveBorrowSource<Item = T>) -> Self {
         Self(ReBorrowData::DynSource(Rc::new(inner)))
     }
 

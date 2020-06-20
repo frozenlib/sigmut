@@ -8,7 +8,7 @@ pub struct ReRef<T: 'static + ?Sized>(pub(super) ReRefData<T>);
 #[derivative(Clone(bound = ""))]
 pub(super) enum ReRefData<T: 'static + ?Sized> {
     StaticRef(&'static T),
-    Dyn(Rc<dyn DynReRef<Item = T>>),
+    Dyn(Rc<dyn DynamicReactiveRef<Item = T>>),
 }
 
 impl<T: 'static + ?Sized> ReRef<T> {
@@ -19,7 +19,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         }
     }
     fn dyn_with<U>(
-        this: &Rc<dyn DynReRef<Item = T>>,
+        this: &Rc<dyn DynamicReactiveRef<Item = T>>,
         ctx: &BindContext,
         f: impl FnOnce(&BindContext, &T) -> U,
     ) -> U {
@@ -44,7 +44,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
             f: F,
             _phantom: PhantomData<fn(&Self) -> &T>,
         }
-        impl<S, T, F> DynReRef for ReRefFn<S, T, F>
+        impl<S, T, F> DynamicReactiveRef for ReRefFn<S, T, F>
         where
             S: 'static,
             T: 'static + ?Sized,
@@ -76,7 +76,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         ReRefOps(self.clone())
     }
 
-    pub(super) fn from_dyn(inner: impl DynReRef<Item = T>) -> Self {
+    pub(super) fn from_dyn(inner: impl DynamicReactiveRef<Item = T>) -> Self {
         Self(ReRefData::Dyn(Rc::new(inner)))
     }
 

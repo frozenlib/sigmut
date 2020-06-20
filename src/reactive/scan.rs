@@ -137,7 +137,7 @@ where
     }
 }
 
-impl<T, Loaded, Unloaded, Load, Unload, Get> DynReBorrowSource
+impl<T, Loaded, Unloaded, Load, Unload, Get> DynamicReactiveBorrowSource
     for Scan<Loaded, Unloaded, Load, Unload, Get>
 where
     T: 'static,
@@ -151,7 +151,7 @@ where
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
         ctx: &BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
@@ -284,7 +284,7 @@ where
     }
 }
 
-impl<T, Loaded, Unloaded, Load, Unload, Get> DynReBorrowSource
+impl<T, Loaded, Unloaded, Load, Unload, Get> DynamicReactiveBorrowSource
     for FilterScan<Loaded, Unloaded, Load, Unload, Get>
 where
     T: 'static,
@@ -298,7 +298,7 @@ where
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
         ctx: &BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
@@ -416,7 +416,7 @@ where
         d.state.load(&mut d.bindings, scope, this, &mut d.load);
     }
 }
-impl<T, St, Loaded, Load, Unload, Get> DynFold for FoldBy<St, Loaded, Load, Unload, Get>
+impl<T, St, Loaded, Load, Unload, Get> DynamicFold for FoldBy<St, Loaded, Load, Unload, Get>
 where
     St: 'static,
     Loaded: 'static,

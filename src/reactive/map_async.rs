@@ -77,7 +77,7 @@ where
     }
 }
 
-impl<S, Fut, Sp> DynReBorrowSource for MapAsync<S, Fut, Sp>
+impl<S, Fut, Sp> DynamicReactiveBorrowSource for MapAsync<S, Fut, Sp>
 where
     S: Reactive<Item = Fut>,
     Fut: Future + 'static,
@@ -87,7 +87,7 @@ where
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
         ctx: &BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);

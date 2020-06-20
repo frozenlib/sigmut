@@ -33,17 +33,19 @@ pub trait Reactive: 'static {
         Self: Sized,
     {
         struct IntoDyn<S>(S);
-        impl<S: Reactive> DynRe for IntoDyn<S> {
+        impl<S: Reactive> DynamicReactive for IntoDyn<S> {
             type Item = S::Item;
             fn dyn_get(&self, ctx: &BindContext) -> Self::Item {
                 self.0.get(ctx)
             }
 
             fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
-                ReRef(ReRefData::Dyn(self as Rc<dyn DynReRef<Item = Self::Item>>))
+                ReRef(ReRefData::Dyn(
+                    self as Rc<dyn DynamicReactiveRef<Item = Self::Item>>,
+                ))
             }
         }
-        impl<S: Reactive> DynReRef for IntoDyn<S> {
+        impl<S: Reactive> DynamicReactiveRef for IntoDyn<S> {
             type Item = S::Item;
             fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
                 f(ctx, &self.0.get(ctx))
@@ -62,13 +64,13 @@ pub trait ReactiveBorrow: 'static {
         Self: Sized,
     {
         struct IntoDyn<S>(S);
-        impl<S: ReactiveBorrow> DynReBorrow for IntoDyn<S> {
+        impl<S: ReactiveBorrow> DynamicReactiveBorrow for IntoDyn<S> {
             type Item = S::Item;
             fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
                 self.0.borrow(ctx)
             }
         }
-        impl<S: ReactiveBorrow> DynReRef for IntoDyn<S> {
+        impl<S: ReactiveBorrow> DynamicReactiveRef for IntoDyn<S> {
             type Item = S::Item;
             fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
                 f(ctx, &self.0.borrow(ctx))
@@ -87,7 +89,7 @@ pub trait ReactiveRef: 'static {
         Self: Sized,
     {
         struct IntoDyn<S>(S);
-        impl<S: ReactiveRef> DynReRef for IntoDyn<S> {
+        impl<S: ReactiveRef> DynamicReactiveRef for IntoDyn<S> {
             type Item = S::Item;
             fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
                 self.0.with(ctx, f)
@@ -96,7 +98,7 @@ pub trait ReactiveRef: 'static {
         ReRef::from_dyn(IntoDyn(self))
     }
 }
-trait DynRe: 'static {
+trait DynamicReactive: 'static {
     type Item;
     fn dyn_get(&self, ctx: &BindContext) -> Self::Item;
 
@@ -105,7 +107,7 @@ trait DynRe: 'static {
     }
 }
 
-trait DynReSource: 'static {
+trait DynamicReactiveSource: 'static {
     type Item;
     fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item;
 
@@ -114,7 +116,7 @@ trait DynReSource: 'static {
     }
 }
 
-trait DynReBorrow: 'static {
+trait DynamicReactiveBorrow: 'static {
     type Item: ?Sized;
     fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
 
@@ -122,17 +124,17 @@ trait DynReBorrow: 'static {
         todo!();
     }
 }
-trait DynReBorrowSource: Any + 'static {
+trait DynamicReactiveBorrowSource: Any + 'static {
     type Item: ?Sized;
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
         ctx: &BindContext<'a>,
     ) -> Ref<'a, Self::Item>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 
-    fn downcast(rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>) -> Rc<Self>
+    fn downcast(rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>) -> Rc<Self>
     where
         Self: Sized,
     {
@@ -144,7 +146,7 @@ trait DynReBorrowSource: Any + 'static {
     }
 }
 
-trait DynReRef: 'static {
+trait DynamicReactiveRef: 'static {
     type Item: ?Sized;
     fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item));
 }
@@ -184,7 +186,7 @@ impl<T: 'static> ReRef<Re<T>> {
     }
 }
 
-trait DynFold {
+trait DynamicFold {
     type Output;
 
     fn stop(&self) -> Self::Output;
@@ -194,11 +196,11 @@ pub struct Fold<T>(FoldData<T>);
 
 enum FoldData<T> {
     Constant(T),
-    Dyn(Rc<dyn DynFold<Output = T>>),
+    Dyn(Rc<dyn DynamicFold<Output = T>>),
 }
 
 impl<T> Fold<T> {
-    fn new(fold: Rc<dyn DynFold<Output = T>>) -> Self {
+    fn new(fold: Rc<dyn DynamicFold<Output = T>>) -> Self {
         Self(FoldData::Dyn(fold))
     }
     fn constant(value: T) -> Self {

@@ -56,7 +56,7 @@ impl<T: Copy + 'static> Reactive for ReCell<T> {
     }
 }
 
-impl<T: Copy + 'static> DynReSource for ReCellData<T> {
+impl<T: Copy + 'static> DynamicReactiveSource for ReCellData<T> {
     type Item = T;
     fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item {
         self.get(ctx)
@@ -132,12 +132,12 @@ impl<T: 'static> ReactiveBorrow for ReRefCell<T> {
     }
 }
 
-impl<T: 'static> DynReBorrowSource for ReRefCellData<T> {
+impl<T: 'static> DynamicReactiveBorrowSource for ReRefCellData<T> {
     type Item = T;
 
     fn dyn_borrow(
         &self,
-        rc_self: &Rc<dyn DynReBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
         ctx: &BindContext,
     ) -> Ref<Self::Item> {
         ctx.bind(Self::downcast(rc_self));
