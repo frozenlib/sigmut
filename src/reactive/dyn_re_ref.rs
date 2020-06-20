@@ -9,27 +9,28 @@ pub struct ReRef<T: 'static + ?Sized>(pub(super) ReRefData<T>);
 pub(super) enum ReRefData<T: 'static + ?Sized> {
     StaticRef(&'static T),
     Dyn(Rc<dyn DynamicReactiveRef<Item = T>>),
+    DynSource(Rc<dyn DynamicReactiveRefSource<Item = T>>),
 }
 
 impl<T: 'static + ?Sized> ReRef<T> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &T) -> U) -> U {
-        match &self.0 {
-            ReRefData::StaticRef(x) => f(ctx, x),
-            ReRefData::Dyn(source) => Self::dyn_with(&source, ctx, f),
+        if let ReRefData::StaticRef(x) = &self.0 {
+            f(ctx, x)
+        } else {
+            let mut output = None;
+            let mut f = Some(f);
+            self.dyn_with(ctx, &mut |ctx, value| {
+                output = Some((f.take().unwrap())(ctx, value))
+            });
+            output.unwrap()
         }
     }
-    fn dyn_with<U>(
-        this: &Rc<dyn DynamicReactiveRef<Item = T>>,
-        ctx: &BindContext,
-        f: impl FnOnce(&BindContext, &T) -> U,
-    ) -> U {
-        let this = this.clone();
-        let mut output = None;
-        let mut f = Some(f);
-        this.clone().dyn_with(ctx, &mut |ctx, value| {
-            output = Some((f.take().unwrap())(ctx, value))
-        });
-        output.unwrap()
+    fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &T)) {
+        match &self.0 {
+            ReRefData::StaticRef(x) => f(ctx, x),
+            ReRefData::Dyn(rc) => rc.dyn_with(ctx, f),
+            ReRefData::DynSource(rc) => rc.clone().dyn_with(ctx, f),
+        }
     }
 
     pub fn head_tail(&self, scope: &BindContextScope, f: impl FnOnce(&T)) -> TailRef<T> {
@@ -85,11 +86,12 @@ impl<T: 'static + ?Sized> ReRef<T> {
         Re::new(move |ctx| this.with(ctx, |_ctx, x| f(x)))
     }
     pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReRef<U> {
-        match &self.0 {
-            ReRefData::StaticRef(x) => ReRef::static_ref(f(x)),
-            ReRefData::Dyn(this) => ReRef::new(this.clone(), move |this, ctx, f_inner| {
-                Self::dyn_with(this, ctx, |ctx, x| f_inner(ctx, f(x)))
-            }),
+        if let ReRefData::StaticRef(x) = &self.0 {
+            ReRef::static_ref(f(x))
+        } else {
+            ReRef::new(self.clone(), move |this, ctx, f_inner| {
+                this.with(ctx, |ctx, x| f_inner(ctx, f(x)))
+            })
         }
     }
     pub fn map_borrow<B: ?Sized>(&self) -> ReRef<B>
@@ -218,8 +220,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
     }
 
     pub fn hot(&self) -> Self {
-        let source = self.clone();
-        Self(ReRefData::Dyn(Hot::new(source)))
+        Self(ReRefData::Dyn(Hot::new(self.ops())))
     }
 }
 impl<T: ?Sized> ReactiveRef for ReRef<T> {

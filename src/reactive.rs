@@ -38,11 +38,8 @@ pub trait Reactive: 'static {
             fn dyn_get(&self, ctx: &BindContext) -> Self::Item {
                 self.0.get(ctx)
             }
-
-            fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
-                ReRef(ReRefData::Dyn(
-                    self as Rc<dyn DynamicReactiveRef<Item = Self::Item>>,
-                ))
+            fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRef<Item = Self::Item>> {
+                self
             }
         }
         impl<S: Reactive> DynamicReactiveRef for IntoDyn<S> {
@@ -68,6 +65,9 @@ pub trait ReactiveBorrow: 'static {
             type Item = S::Item;
             fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
                 self.0.borrow(ctx)
+            }
+            fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRef<Item = Self::Item>> {
+                self
             }
         }
         impl<S: ReactiveBorrow> DynamicReactiveRef for IntoDyn<S> {
@@ -101,28 +101,19 @@ pub trait ReactiveRef: 'static {
 trait DynamicReactive: 'static {
     type Item;
     fn dyn_get(&self, ctx: &BindContext) -> Self::Item;
-
-    fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
-        ReRef::new(self, |this, ctx, f| f(ctx, &this.dyn_get(ctx)))
-    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRef<Item = Self::Item>>;
 }
 
 trait DynamicReactiveSource: 'static {
     type Item;
     fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item;
-
-    fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
-        ReRef::new(self, |this, ctx, f| f(ctx, &this.clone().dyn_get(ctx)))
-    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>>;
 }
 
 trait DynamicReactiveBorrow: 'static {
     type Item: ?Sized;
     fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
-
-    fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
-        todo!();
-    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRef<Item = Self::Item>>;
 }
 trait DynamicReactiveBorrowSource: Any + 'static {
     type Item: ?Sized;
@@ -141,14 +132,16 @@ trait DynamicReactiveBorrowSource: Any + 'static {
         rc_self.clone().as_rc_any().downcast::<Self>().unwrap()
     }
 
-    fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
-        todo!();
-    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>>;
 }
 
 trait DynamicReactiveRef: 'static {
     type Item: ?Sized;
     fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item));
+}
+trait DynamicReactiveRefSource: 'static {
+    type Item: ?Sized;
+    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item));
 }
 
 #[must_use]

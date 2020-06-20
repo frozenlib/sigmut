@@ -61,7 +61,17 @@ impl<T: Copy + 'static> DynamicReactiveSource for ReCellData<T> {
     fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item {
         self.get(ctx)
     }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+        self
+    }
 }
+impl<T: Copy + 'static> DynamicReactiveRefSource for ReCellData<T> {
+    type Item = T;
+    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+        f(ctx, &self.get(ctx))
+    }
+}
+
 impl<T: Copy + 'static> BindSource for ReCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
@@ -99,9 +109,8 @@ impl<T: 'static> ReRefCell<T> {
         NotifyContext::with(|ctx| self.set(value, ctx));
     }
 
-    pub fn borrow(&self, ctx: &BindContext) -> Ref<T> {
-        ctx.bind(self.0.clone());
-        self.0.value.borrow()
+    pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
+        self.0.borrow(ctx)
     }
     pub fn borrow_mut<'a>(&'a self, ctx: &'a NotifyContext) -> RefMut<'a, T> {
         RefMut {
@@ -124,11 +133,17 @@ impl<T: 'static> ReRefCell<T> {
         self.ops().ops_ref()
     }
 }
+impl<T: 'static> ReRefCellData<T> {
+    pub fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, T> {
+        ctx.bind(self.clone());
+        self.value.borrow()
+    }
+}
+
 impl<T: 'static> ReactiveBorrow for ReRefCell<T> {
     type Item = T;
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        ctx.bind(self.0.clone());
-        self.0.value.borrow()
+        self.0.borrow(ctx)
     }
 }
 
@@ -146,6 +161,15 @@ impl<T: 'static> DynamicReactiveBorrowSource for ReRefCellData<T> {
 
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
+    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+        self
+    }
+}
+impl<T: 'static> DynamicReactiveRefSource for ReRefCellData<T> {
+    type Item = T;
+    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+        f(ctx, &self.borrow(ctx))
     }
 }
 

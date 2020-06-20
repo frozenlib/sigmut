@@ -57,6 +57,23 @@ where
             }
         }));
     }
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, Poll<Fut::Output>> {
+        self.borrow_with(self.clone(), ctx)
+    }
+    fn borrow_with<'a>(
+        self: &'a Self,
+        rc_self: Rc<Self>,
+        ctx: &BindContext<'a>,
+    ) -> Ref<'a, Poll<Fut::Output>> {
+        let mut s = self.state.borrow();
+        if s.handle.is_none() {
+            drop(s);
+            rc_self.ready(ctx.scope());
+            s = self.state.borrow();
+        }
+        ctx.bind(rc_self);
+        Ref::map(s, |o| &o.value)
+    }
 }
 impl<S, Fut, Sp> ReactiveBorrow for Rc<MapAsync<S, Fut, Sp>>
 where
@@ -66,14 +83,7 @@ where
 {
     type Item = Poll<Fut::Output>;
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        let mut s = self.state.borrow();
-        if s.handle.is_none() {
-            drop(s);
-            self.ready(ctx.scope());
-            s = self.state.borrow();
-        }
-        ctx.bind(self.clone());
-        Ref::map(s, |o| &o.value)
+        self.borrow(ctx)
     }
 }
 
@@ -85,23 +95,29 @@ where
 {
     type Item = Poll<Fut::Output>;
 
-    fn dyn_borrow(
-        &self,
+    fn dyn_borrow<'a>(
+        &'a self,
         rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
-        ctx: &BindContext,
+        ctx: &BindContext<'a>,
     ) -> Ref<Self::Item> {
-        let rc_self = Self::downcast(rc_self);
-        let mut s = self.state.borrow();
-        if s.handle.is_none() {
-            drop(s);
-            rc_self.ready(ctx.scope());
-            s = self.state.borrow();
-        }
-        ctx.bind(rc_self);
-        Ref::map(s, |o| &o.value)
+        self.borrow_with(Self::downcast(rc_self), ctx)
     }
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
+    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+        self
+    }
+}
+impl<S, Fut, Sp> DynamicReactiveRefSource for MapAsync<S, Fut, Sp>
+where
+    S: Reactive<Item = Fut>,
+    Fut: Future + 'static,
+    Sp: LocalSpawn,
+{
+    type Item = Poll<Fut::Output>;
+    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+        f(ctx, &self.borrow(ctx))
     }
 }
 

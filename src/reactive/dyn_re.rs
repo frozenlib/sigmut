@@ -182,7 +182,7 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn hot(&self) -> Self {
-        Self(ReData::Dyn(Hot::new(self.clone())))
+        Self(ReData::Dyn(Hot::new(self.ops())))
     }
 
     pub fn to_stream(&self) -> impl futures::Stream<Item = T> {
@@ -190,7 +190,10 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn as_ref(&self) -> ReRef<T> {
-        ReRef::new(self.clone(), |this, ctx, f| f(ctx, &this.get(ctx)))
+        ReRef(match self.0.clone() {
+            ReData::Dyn(rc) => ReRefData::Dyn(rc.as_ref()),
+            ReData::DynSource(rc) => ReRefData::DynSource(rc.as_ref()),
+        })
     }
 }
 impl<T> Reactive for Re<T> {

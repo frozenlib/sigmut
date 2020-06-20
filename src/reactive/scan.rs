@@ -108,6 +108,20 @@ where
             sinks: BindSinks::new(),
         }
     }
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, T> {
+        ctx.bind(self.clone());
+        let mut d = self.data.borrow();
+        if !d.state.is_loaded() {
+            drop(d);
+            {
+                let d = &mut *self.data.borrow_mut();
+                d.state
+                    .load(&mut d.bindings, ctx.scope(), self, &mut d.load);
+            }
+            d = self.data.borrow();
+        }
+        Ref::map(d, |d| d.get())
+    }
 }
 
 impl<T, Loaded, Unloaded, Load, Unload, Get> ReactiveBorrow
@@ -121,19 +135,8 @@ where
     Get: Fn(&Loaded) -> &T + 'static,
 {
     type Item = T;
-    fn borrow(&self, ctx: &BindContext) -> Ref<Self::Item> {
-        ctx.bind(self.clone());
-        let mut d = self.data.borrow();
-        if !d.state.is_loaded() {
-            drop(d);
-            {
-                let d = &mut *self.data.borrow_mut();
-                d.state
-                    .load(&mut d.bindings, ctx.scope(), self, &mut d.load);
-            }
-            d = self.data.borrow();
-        }
-        Ref::map(d, |d| d.get())
+    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.borrow(ctx)
     }
 }
 
@@ -170,6 +173,24 @@ where
     }
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
+    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+        self
+    }
+}
+impl<T, Loaded, Unloaded, Load, Unload, Get> DynamicReactiveRefSource
+    for Scan<Loaded, Unloaded, Load, Unload, Get>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &BindContext) -> Loaded + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    type Item = T;
+    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+        f(ctx, &self.borrow(ctx))
     }
 }
 
@@ -258,6 +279,16 @@ where
             NotifyContext::update(self);
         }
     }
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, T> {
+        let mut d = self.data.borrow();
+        if !d.state.is_loaded() {
+            drop(d);
+            self.ready(ctx.scope());
+            d = self.data.borrow();
+        }
+        ctx.bind(self.clone());
+        Ref::map(d, |d| d.get())
+    }
 }
 
 impl<T, Loaded, Unloaded, Load, Unload, Get> ReactiveBorrow
@@ -272,15 +303,8 @@ where
 {
     type Item = T;
 
-    fn borrow(&self, ctx: &BindContext) -> Ref<Self::Item> {
-        let mut d = self.data.borrow();
-        if !d.state.is_loaded() {
-            drop(d);
-            self.ready(ctx.scope());
-            d = self.data.borrow();
-        }
-        ctx.bind(self.clone());
-        Ref::map(d, |d| d.get())
+    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.borrow(ctx)
     }
 }
 
@@ -313,6 +337,24 @@ where
     }
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
+    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+        self
+    }
+}
+impl<T, Loaded, Unloaded, Load, Unload, Get> DynamicReactiveRefSource
+    for FilterScan<Loaded, Unloaded, Load, Unload, Get>
+where
+    T: 'static,
+    Loaded: 'static,
+    Unloaded: 'static,
+    Load: FnMut(Unloaded, &BindContext) -> FilterScanResult<Loaded> + 'static,
+    Unload: FnMut(Loaded) -> Unloaded + 'static,
+    Get: Fn(&Loaded) -> &T + 'static,
+{
+    type Item = T;
+    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
+        f(ctx, &self.borrow(ctx))
     }
 }
 
