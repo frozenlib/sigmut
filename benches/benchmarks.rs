@@ -7,6 +7,7 @@ criterion_main!(benches);
 criterion_group!(benches, criterion_benchmark);
 
 const UPDATE_COUNT: usize = 100;
+
 fn update_counts() -> Vec<usize> {
     vec![1, 50, 100, 500, 1000]
 }
@@ -97,7 +98,7 @@ fn re_fold_dyn(b: &mut Bencher, update_count: usize) {
 }
 
 fn re_map_chain_inputs() -> Vec<usize> {
-    vec![0, 1, 2, 3, 4, 5]
+    vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 }
 fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
     struct Runner<S> {
@@ -122,14 +123,22 @@ fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
             } else {
                 Ok(Runner {
                     cell: self.cell,
-                    ops: self.ops.map(|x| x * 2),
+                    ops: self.ops.map(x2),
                     n: self.n - 1,
                 })
             }
         }
     }
+    fn x2(x: usize) -> usize {
+        x * 2
+    }
     fn run(n: usize) -> Result<(), usize> {
         new_runner(n)
+            .try_run()?
+            .try_run()?
+            .try_run()?
+            .try_run()?
+            .try_run()?
             .try_run()?
             .try_run()?
             .try_run()?
