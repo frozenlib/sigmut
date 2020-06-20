@@ -85,6 +85,17 @@
       //         "RUST_BACKTRACE": "1",
       //     }
       // }
+    },
+    {
+      "type": "shell",
+      "label": "cargo clippy",
+      "command": "cargo",
+      "args": ["clippy", "--all-features", "--", "-W", "clippy::all"],
+      "problemMatcher": ["$rustc"],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
     }
   ]
 }
