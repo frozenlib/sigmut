@@ -43,7 +43,7 @@ fn re_ref_new_cell2() {
 #[test]
 fn re_ref_map() {
     let a = ReRefCell::new(2);
-    let r = a.to_re_ref().map(|x| x * 2).collect_vec();
+    let r = a.as_ref().map(|x| x * 2).collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -54,7 +54,7 @@ fn re_ref_map() {
 #[test]
 fn re_ref_map_ref() {
     let a = ReRefCell::new((2, 3));
-    let r = a.to_re_ref().map_ref(|x| &x.0).collect_vec();
+    let r = a.as_ref().map_ref(|x| &x.0).collect_vec();
 
     a.set_and_update((5, 8));
     a.set_and_update((7, 1));
@@ -68,10 +68,7 @@ fn re_ref_flat_map() {
 
     let b = ReRefCell::new(0);
 
-    let r = b
-        .to_re_ref()
-        .flat_map(move |&x| a_[x].to_re())
-        .collect_vec();
+    let r = b.as_ref().flat_map(move |&x| a_[x].to_re()).collect_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -89,7 +86,7 @@ fn re_ref_flat_map() {
 #[test]
 fn re_ref_cloned() {
     let cell = ReRefCell::new(2);
-    let r = cell.to_re_ref().cloned().collect_vec();
+    let r = cell.as_ref().cloned().collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -101,7 +98,7 @@ fn re_ref_cloned() {
 #[test]
 fn re_ref_scan() {
     let cell = ReRefCell::new(2);
-    let r = cell.to_re_ref().scan(10, |s, x| s + x).collect_vec();
+    let r = cell.as_ref().scan(10, |s, x| s + x).collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -113,7 +110,7 @@ fn re_ref_scan() {
 fn re_ref_filter_scan() {
     let cell = ReRefCell::new(2);
     let r = cell
-        .to_re_ref()
+        .as_ref()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
         .collect_vec();
 
@@ -127,7 +124,7 @@ fn re_ref_filter_scan() {
 #[test]
 fn re_ref_fold() {
     let cell = ReRefCell::new(1);
-    let fold = cell.to_re_ref().fold(2, |s, x| s + x);
+    let fold = cell.as_ref().fold(2, |s, x| s + x);
 
     cell.set_and_update(5);
     cell.set_and_update(10);
@@ -138,7 +135,7 @@ fn re_ref_fold() {
 #[test]
 fn re_ref_collect_vec() {
     let cell = ReRefCell::new(1);
-    let fold = cell.to_re_ref().collect_vec();
+    let fold = cell.as_ref().collect_vec();
 
     cell.set_and_update(2);
     cell.set_and_update(1);
@@ -156,7 +153,7 @@ fn re_ref_for_each() {
 
     let vs_send = vs.clone();
 
-    let r = cell.to_re_ref().for_each(move |&x| {
+    let r = cell.as_ref().for_each(move |&x| {
         vs_send.borrow_mut().push(x);
     });
 
@@ -173,7 +170,7 @@ fn re_ref_for_each() {
 #[test]
 fn re_ref_hot() {
     let cell = ReRefCell::new(1);
-    let re = cell.to_re_ref().scan(0, |s, x| s + x);
+    let re = cell.as_ref().scan(0, |s, x| s + x);
 
     let hot = re.hot();
 
@@ -186,7 +183,7 @@ fn re_ref_hot() {
 #[test]
 fn re_ref_hot_no() {
     let cell = ReRefCell::new(1);
-    let re = cell.to_re_ref().scan(0, |s, x| s + x);
+    let re = cell.as_ref().scan(0, |s, x| s + x);
 
     cell.set_and_update(2);
     cell.set_and_update(10);
@@ -198,7 +195,7 @@ fn re_ref_hot_no() {
 fn re_ref_flatten() {
     let cell = ReRefCell::new(Re::constant(1));
 
-    let vs = cell.to_re_ref().flatten().collect_vec();
+    let vs = cell.as_ref().flatten().collect_vec();
 
     cell.set_and_update(Re::constant(2));
     cell.set_and_update(Re::constant(3));
@@ -213,7 +210,7 @@ fn re_ref_head_tail() {
     let a = ReRefCell::new(2);
     let mut head = None;
     let tail = BindContextScope::with(|scope| {
-        a.to_re_ref().head_tail(scope, |&value| {
+        a.as_ref().head_tail(scope, |&value| {
             head = Some(value);
         })
     });

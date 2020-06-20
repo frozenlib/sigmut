@@ -93,7 +93,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     where
         Fut: Future + 'static,
     {
-        self.to_re_ref().map_async_with(f, sp)
+        self.as_ref().map_async_with(f, sp)
     }
 
     pub fn cloned(&self) -> Re<T>
@@ -108,7 +108,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> ReBorrow<St> {
-        self.to_re_ref().scan(initial_state, f)
+        self.as_ref().scan(initial_state, f)
     }
     pub fn filter_scan<St: 'static>(
         &self,
@@ -116,7 +116,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> ReBorrow<St> {
-        self.to_re_ref().filter_scan(initial_state, predicate, f)
+        self.as_ref().filter_scan(initial_state, predicate, f)
     }
 
     pub fn fold<St: 'static>(
@@ -124,7 +124,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> Fold<St> {
-        self.to_re_ref().fold(initial_state, f)
+        self.as_ref().fold(initial_state, f)
     }
     pub fn collect_to<E: for<'a> Extend<&'a T> + 'static>(&self, e: E) -> Fold<E> {
         self.fold(e, |mut e, x| {
@@ -143,7 +143,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     }
 
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
-        self.to_re_ref().for_each(f)
+        self.as_ref().for_each(f)
     }
     pub fn for_each_async_with<Fut>(
         &self,
@@ -153,7 +153,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.to_re_ref().for_each_async_with(f, sp)
+        self.as_ref().for_each_async_with(f, sp)
     }
 
     pub fn hot(&self) -> Self {
@@ -161,7 +161,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         Self(ReBorrowData::Dyn(Hot::new(source)))
     }
 
-    pub fn to_re_ref(&self) -> ReRef<T> {
+    pub fn as_ref(&self) -> ReRef<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(ctx, &*this.borrow(ctx)))
     }
 }

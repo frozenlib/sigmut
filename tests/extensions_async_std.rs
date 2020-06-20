@@ -152,7 +152,7 @@ fn re_ref_map_async() {
     run(async {
         let cell = ReRefCell::new(1);
         let r = cell
-            .to_re_ref()
+            .as_ref()
             .map_async(|&x| async move {
                 sleep(DUR / 2).await;
                 x + 2
@@ -177,7 +177,7 @@ fn re_ref_for_each() {
         let cell = ReRefCell::new(1);
         let (s, r) = channel();
 
-        let _s = cell.to_re_ref().for_each_async(move |&x| {
+        let _s = cell.as_ref().for_each_async(move |&x| {
             let s = s.clone();
             spawn(async move {
                 s.send(x).unwrap();

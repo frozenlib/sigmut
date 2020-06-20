@@ -116,7 +116,7 @@ fn re_borrow_fold() {
 #[test]
 fn re_borrow_collect_vec() {
     let cell = ReRefCell::new(1);
-    let fold = cell.to_re_ref().collect_vec();
+    let fold = cell.as_ref().collect_vec();
 
     cell.set_and_update(2);
     cell.set_and_update(1);

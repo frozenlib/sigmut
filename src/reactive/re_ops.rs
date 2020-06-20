@@ -39,7 +39,7 @@ impl<S: Reactive> ReOps<S> {
         self.0.into_dyn()
     }
     pub fn into_dyn_ref(self) -> ReRef<S::Item> {
-        self.0.into_dyn().to_re_ref()
+        self.0.into_dyn().as_ref()
     }
 
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {

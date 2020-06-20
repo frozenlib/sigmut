@@ -39,7 +39,7 @@ pub trait Reactive: 'static {
                 self.0.get(ctx)
             }
 
-            fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+            fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
                 ReRef(ReRefData::Dyn(self as Rc<dyn DynReRef<Item = Self::Item>>))
             }
         }
@@ -100,7 +100,7 @@ trait DynRe: 'static {
     type Item;
     fn dyn_get(&self, ctx: &BindContext) -> Self::Item;
 
-    fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+    fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
         ReRef::new(self, |this, ctx, f| f(ctx, &this.dyn_get(ctx)))
     }
 }
@@ -109,7 +109,7 @@ trait DynReSource: 'static {
     type Item;
     fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item;
 
-    fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+    fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
         ReRef::new(self, |this, ctx, f| f(ctx, &this.clone().dyn_get(ctx)))
     }
 }
@@ -118,7 +118,7 @@ trait DynReBorrow: 'static {
     type Item: ?Sized;
     fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
 
-    fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+    fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
         todo!();
     }
 }
@@ -139,7 +139,7 @@ trait DynReBorrowSource: Any + 'static {
         rc_self.clone().as_rc_any().downcast::<Self>().unwrap()
     }
 
-    fn to_re_ref(self: Rc<Self>) -> ReRef<Self::Item> {
+    fn as_ref(self: Rc<Self>) -> ReRef<Self::Item> {
         todo!();
     }
 }
@@ -294,7 +294,7 @@ where
     B: Borrow<T>,
 {
     fn from(source: Re<B>) -> Self {
-        source.to_re_ref().into()
+        source.as_ref().into()
     }
 }
 impl<T> From<&Re<T>> for MayReRef<T>
@@ -302,7 +302,7 @@ where
     T: 'static,
 {
     fn from(source: &Re<T>) -> Self {
-        source.to_re_ref().into()
+        source.as_ref().into()
     }
 }
 
@@ -329,7 +329,7 @@ where
     B: ?Sized + Borrow<T>,
 {
     fn from(source: ReBorrow<B>) -> Self {
-        source.to_re_ref().into()
+        source.as_ref().into()
     }
 }
 impl<T> From<&ReBorrow<T>> for MayReRef<T>
@@ -337,7 +337,7 @@ where
     T: ?Sized + 'static,
 {
     fn from(source: &ReBorrow<T>) -> Self {
-        source.to_re_ref().into()
+        source.as_ref().into()
     }
 }
 
@@ -352,7 +352,7 @@ impl From<String> for MayReRef<str> {
 }
 impl From<&Re<String>> for MayReRef<str> {
     fn from(value: &Re<String>) -> Self {
-        value.to_re_ref().into()
+        value.as_ref().into()
     }
 }
 impl From<&ReRef<String>> for MayReRef<str> {
@@ -362,6 +362,6 @@ impl From<&ReRef<String>> for MayReRef<str> {
 }
 impl From<&ReBorrow<String>> for MayReRef<str> {
     fn from(value: &ReBorrow<String>) -> Self {
-        value.to_re_ref().into()
+        value.as_ref().into()
     }
 }

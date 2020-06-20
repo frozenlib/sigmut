@@ -189,7 +189,7 @@ impl<T: 'static> Re<T> {
         IntoStream::new(self.clone())
     }
 
-    pub fn to_re_ref(&self) -> ReRef<T> {
+    pub fn as_ref(&self) -> ReRef<T> {
         ReRef::new(self.clone(), |this, ctx, f| f(ctx, &this.get(ctx)))
     }
 }

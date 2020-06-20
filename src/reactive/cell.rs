@@ -111,8 +111,8 @@ impl<T: 'static> ReRefCell<T> {
             modified: false,
         }
     }
-    pub fn to_re_ref(&self) -> ReRef<T> {
-        self.to_re_borrow().to_re_ref()
+    pub fn as_ref(&self) -> ReRef<T> {
+        self.to_re_borrow().as_ref()
     }
     pub fn to_re_borrow(&self) -> ReBorrow<T> {
         ReBorrow(ReBorrowData::DynSource(self.0.clone()))

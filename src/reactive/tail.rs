@@ -96,7 +96,7 @@ impl<T: ?Sized + 'static> TailRef<T> {
         source: &'a ReBorrow<T>,
         scope: &'a BindContextScope,
     ) -> (Ref<'a, T>, Self) {
-        let (r, s) = TailRefOps::new_borrow(source, scope, |s| s.to_re_ref());
+        let (r, s) = TailRefOps::new_borrow(source, scope, |s| s.as_ref());
         (r, Self(s))
     }
 
