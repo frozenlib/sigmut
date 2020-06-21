@@ -85,7 +85,7 @@ fn re_to_stream() {
     run(async {
         let cell = ReCell::new(1);
         let _task = send_values(&cell, vec![5, 6], DUR);
-        assert_values(cell.to_re(), vec![1, 5, 6], DUR * 2).await;
+        assert_values(cell.re(), vec![1, 5, 6], DUR * 2).await;
     });
 }
 
@@ -94,7 +94,7 @@ fn re_map_async() {
     run(async {
         let cell = ReCell::new(1);
         let r = cell
-            .to_re()
+            .re()
             .map_async(|x| async move {
                 sleep(DUR / 2).await;
                 x + 2
@@ -118,7 +118,7 @@ fn re_map_async_cancel() {
     run(async {
         let cell = ReCell::new(1);
         let r = cell
-            .to_re()
+            .re()
             .map_async(|x| async move {
                 sleep(DUR).await;
                 x + 2
@@ -136,7 +136,7 @@ fn re_for_each() {
         let cell = ReCell::new(1);
         let (s, r) = channel();
 
-        let _s = cell.to_re().for_each_async(move |x| {
+        let _s = cell.re().for_each_async(move |x| {
             let s = s.clone();
             spawn(async move {
                 s.send(x).unwrap();
@@ -152,7 +152,7 @@ fn re_ref_map_async() {
     run(async {
         let cell = ReRefCell::new(1);
         let r = cell
-            .as_ref()
+            .re_ref()
             .map_async(|&x| async move {
                 sleep(DUR / 2).await;
                 x + 2
@@ -177,7 +177,7 @@ fn re_ref_for_each() {
         let cell = ReRefCell::new(1);
         let (s, r) = channel();
 
-        let _s = cell.as_ref().for_each_async(move |&x| {
+        let _s = cell.re_ref().for_each_async(move |&x| {
             let s = s.clone();
             spawn(async move {
                 s.send(x).unwrap();

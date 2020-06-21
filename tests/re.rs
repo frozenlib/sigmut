@@ -39,7 +39,7 @@ fn re_new_cell2() {
 #[test]
 fn re_map() {
     let a = ReCell::new(2);
-    let r = a.to_re().map(|x| x * 2).collect_vec();
+    let r = a.re().map(|x| x * 2).collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -54,7 +54,7 @@ fn re_flat_map() {
 
     let b = ReCell::new(0);
 
-    let r = b.to_re().flat_map(move |x| a_[x].to_re()).collect_vec();
+    let r = b.re().flat_map(move |x| a_[x].re()).collect_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -73,7 +73,7 @@ fn re_flat_map() {
 #[test]
 fn re_cahced() {
     let cell = ReCell::new(0);
-    let r = cell.to_re().map(|x| x + 1).cached().collect_vec();
+    let r = cell.re().map(|x| x + 1).cached().collect_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(10);
@@ -84,7 +84,7 @@ fn re_cahced() {
 #[test]
 fn re_scan() {
     let cell = ReCell::new(2);
-    let r = cell.to_re().scan(10, |s, x| s + x).collect_vec();
+    let r = cell.re().scan(10, |s, x| s + x).collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -96,7 +96,7 @@ fn re_scan() {
 fn re_filter_scan() {
     let cell = ReCell::new(2);
     let r = cell
-        .to_re()
+        .re()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
         .collect_vec();
 
@@ -111,7 +111,7 @@ fn re_filter_scan() {
 #[test]
 fn re_same_value() {
     let cell = ReCell::new(5);
-    let r = cell.to_re().collect_vec();
+    let r = cell.re().collect_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(5);
@@ -121,7 +121,7 @@ fn re_same_value() {
 #[test]
 fn re_dedup() {
     let cell = ReCell::new(5);
-    let r = cell.to_re().dedup().collect_vec();
+    let r = cell.re().dedup().collect_vec();
 
     cell.set_and_update(5);
     cell.set_and_update(5);
@@ -135,7 +135,7 @@ fn re_dedup() {
 #[test]
 fn re_dedup_by_key_1() {
     let cell = ReCell::new((5, 1));
-    let r = cell.to_re().dedup_by_key(|&(x, _)| x).collect_vec();
+    let r = cell.re().dedup_by_key(|&(x, _)| x).collect_vec();
 
     cell.set_and_update((5, 2));
     cell.set_and_update((6, 2));
@@ -149,7 +149,7 @@ fn re_dedup_by_key_1() {
 #[test]
 fn re_dedup_by_key_2() {
     let cell = ReCell::new((5, 1));
-    let re = cell.to_re().dedup_by_key(|&(x, _)| x);
+    let re = cell.re().dedup_by_key(|&(x, _)| x);
 
     cell.set_and_update((5, 2));
     let r = re.collect_vec(); // current value is (5, 2), not (5, 1).
@@ -165,7 +165,7 @@ fn re_dedup_by_key_2() {
 fn re_dedup_by() {
     let cell = ReCell::new((5, 1));
     let r = cell
-        .to_re()
+        .re()
         .dedup_by(|&(x1, _), &(x2, _)| x1 == x2)
         .collect_vec();
 
@@ -181,7 +181,7 @@ fn re_dedup_by() {
 #[test]
 fn re_fold() {
     let cell = ReCell::new(1);
-    let fold = cell.to_re().fold(2, |s, x| s + x);
+    let fold = cell.re().fold(2, |s, x| s + x);
 
     cell.set_and_update(5);
     cell.set_and_update(10);
@@ -191,7 +191,7 @@ fn re_fold() {
 #[test]
 fn re_collect_to() {
     let cell = ReCell::new(1);
-    let fold = cell.to_re().collect_to(HashSet::new());
+    let fold = cell.re().collect_to(HashSet::new());
 
     cell.set_and_update(2);
     cell.set_and_update(1);
@@ -203,7 +203,7 @@ fn re_collect_to() {
 #[test]
 fn re_collect() {
     let cell = ReCell::new(1);
-    let fold = cell.to_re().collect_to(HashSet::new());
+    let fold = cell.re().collect_to(HashSet::new());
 
     cell.set_and_update(2);
     cell.set_and_update(1);
@@ -217,7 +217,7 @@ fn re_collect() {
 #[test]
 fn re_collect_vec() {
     let cell = ReCell::new(1);
-    let fold = cell.to_re().collect_vec();
+    let fold = cell.re().collect_vec();
 
     cell.set_and_update(2);
     cell.set_and_update(1);
@@ -235,7 +235,7 @@ fn re_for_each() {
 
     let vs_send = vs.clone();
 
-    let r = cell.to_re().for_each(move |x| {
+    let r = cell.re().for_each(move |x| {
         vs_send.borrow_mut().push(x);
     });
 
@@ -252,7 +252,7 @@ fn re_for_each() {
 #[test]
 fn re_hot() {
     let cell = ReCell::new(1);
-    let re = cell.to_re().scan(0, |s, x| s + x);
+    let re = cell.re().scan(0, |s, x| s + x);
 
     let hot = re.hot();
 
@@ -265,7 +265,7 @@ fn re_hot() {
 #[test]
 fn re_hot_no() {
     let cell = ReCell::new(1);
-    let re = cell.to_re().scan(0, |s, x| s + x);
+    let re = cell.re().scan(0, |s, x| s + x);
 
     cell.set_and_update(2);
     cell.set_and_update(10);
@@ -277,7 +277,7 @@ fn re_hot_no() {
 fn re_flatten() {
     let cell = ReRefCell::new(Re::constant(1));
 
-    let vs = cell.to_re_borrow().cloned().flatten().collect_vec();
+    let vs = cell.re().cloned().flatten().collect_vec();
 
     cell.set_and_update(Re::constant(2));
     cell.set_and_update(Re::constant(3));
@@ -290,7 +290,7 @@ fn re_flatten() {
 #[test]
 fn re_head_tail() {
     let a = ReCell::new(2);
-    let (head, tail) = BindContextScope::with(|scope| a.to_re().head_tail(scope));
+    let (head, tail) = BindContextScope::with(|scope| a.re().head_tail(scope));
     let r = tail.collect_vec();
 
     a.set_and_update(5);

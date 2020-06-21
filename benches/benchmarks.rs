@@ -88,7 +88,7 @@ fn re_fold_ops(b: &mut Bencher, update_count: usize) {
 fn re_fold_dyn(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
         let cell = ReCell::new(0);
-        let fold = cell.to_re().fold(0, |s, x| s + x);
+        let fold = cell.re().fold(0, |s, x| s + x);
 
         for i in 1..update_count {
             cell.set_and_update(i);
@@ -151,7 +151,7 @@ fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
 }
 fn re_map_chain_dyn(b: &mut Bencher, chain: usize) {
     let cell = ReCell::new(0usize);
-    let mut re = cell.to_re();
+    let mut re = cell.re();
     for _ in 0..chain {
         re = re.map(|x| x * 2);
     }
@@ -187,7 +187,7 @@ fn re_flatten_dyn(b: &mut Bencher, update_count: usize) {
         let s = ReRefCell::new(Re::constant(0));
         let s1 = Re::constant(1);
         let s2 = Re::constant(2);
-        let f = s.to_re_borrow().flatten().fold(0, |s, x| s + x);
+        let f = s.re().flatten().fold(0, |s, x| s + x);
 
         for _ in 0..update_count {
             s.set_and_update(s1.clone());
@@ -280,7 +280,7 @@ fn many_sink_dyn(b: &mut Bencher, sink_count: usize) {
         let mut fs = Vec::new();
 
         for _ in 0..sink_count {
-            fs.push(s.to_re().fold(0, move |s, x| s + x));
+            fs.push(s.re().fold(0, move |s, x| s + x));
         }
         for i in 0..UPDATE_COUNT {
             s.set_and_update(i);

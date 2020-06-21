@@ -68,7 +68,7 @@ fn re_ref_flat_map() {
 
     let b = ReRefCell::new(0);
 
-    let r = b.ops_ref().flat_map(move |&x| a_[x].to_re()).collect_vec();
+    let r = b.ops_ref().flat_map(move |&x| a_[x].re()).collect_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
