@@ -50,7 +50,7 @@ impl<T: 'static> Re<T> {
         self.ops().map(f).re()
     }
     pub fn flat_map<U>(&self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
-        self.map(f).flatten()
+        self.ops().flat_map(f).re()
     }
     pub fn map_async_with<Fut>(
         &self,
@@ -60,25 +60,18 @@ impl<T: 'static> Re<T> {
     where
         Fut: Future + 'static,
     {
-        ReBorrow::from_dyn_source(MapAsync::new(self.map(f), sp))
+        self.ops().map_async_with(f, sp).re_borrow()
     }
 
     pub fn cached(&self) -> ReBorrow<T> {
-        let this = self.clone();
-        ReBorrow::from_dyn_source(Scan::new((), move |_, ctx| this.get(ctx), |_| (), |x| x))
+        self.ops().cached().re_borrow()
     }
     pub fn scan<St: 'static>(
         &self,
         initial_state: St,
         f: impl Fn(St, T) -> St + 'static,
     ) -> ReBorrow<St> {
-        let this = self.clone();
-        ReBorrow::from_dyn_source(Scan::new(
-            initial_state,
-            move |st, ctx| f(st, this.get(ctx)),
-            |st| st,
-            |st| st,
-        ))
+        self.ops().scan(initial_state, f).re_borrow()
     }
     pub fn filter_scan<St: 'static>(
         &self,
@@ -86,52 +79,23 @@ impl<T: 'static> Re<T> {
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl Fn(St, T) -> St + 'static,
     ) -> ReBorrow<St> {
-        let this = self.clone();
-        ReBorrow::from_dyn_source(FilterScan::new(
-            initial_state,
-            move |state, ctx| {
-                let value = this.get(ctx);
-                let is_notify = predicate(&state, &value);
-                let state = if is_notify { f(state, value) } else { state };
-                FilterScanResult { is_notify, state }
-            },
-            |state| state,
-            |state| state,
-        ))
+        self.ops()
+            .filter_scan(initial_state, predicate, f)
+            .re_borrow()
     }
 
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
-        let this = self.clone();
-        ReBorrow::from_dyn_source(FilterScan::new(
-            None,
-            move |state, ctx| {
-                let mut value = this.get(ctx);
-                let mut is_notify = false;
-                if let Some(old) = state {
-                    if eq(&value, &old) {
-                        value = old;
-                    } else {
-                        is_notify = true;
-                    }
-                }
-                FilterScanResult {
-                    state: value,
-                    is_notify,
-                }
-            },
-            |value| Some(value),
-            |value| value,
-        ))
+        self.ops().dedup_by(eq).re_borrow()
     }
     pub fn dedup_by_key<K: PartialEq>(&self, to_key: impl Fn(&T) -> K + 'static) -> ReBorrow<T> {
-        self.dedup_by(move |l, r| to_key(l) == to_key(r))
+        self.ops().dedup_by_key(to_key).re_borrow()
     }
 
     pub fn dedup(&self) -> ReBorrow<T>
     where
         T: PartialEq,
     {
-        self.dedup_by(|l, r| l == r)
+        self.ops().dedup().re_borrow()
     }
 
     pub fn fold<St: 'static>(
@@ -139,33 +103,20 @@ impl<T: 'static> Re<T> {
         initial_state: St,
         f: impl Fn(St, T) -> St + 'static,
     ) -> Fold<St> {
-        let this = self.clone();
-        Fold::new(FoldBy::new(
-            initial_state,
-            move |st, ctx| (f(st, this.get(ctx)), ()),
-            |(st, _)| st,
-            |st| st,
-        ))
+        self.ops().fold(initial_state, f)
     }
     pub fn collect_to<E: Extend<T> + 'static>(&self, e: E) -> Fold<E> {
-        self.fold(e, |mut e, x| {
-            e.extend(once(x));
-            e
-        })
+        self.ops().collect_to(e)
     }
     pub fn collect<E: Extend<T> + Default + 'static>(&self) -> Fold<E> {
-        self.collect_to(Default::default())
+        self.ops().collect()
     }
     pub fn collect_vec(&self) -> Fold<Vec<T>> {
-        self.collect()
+        self.ops().collect_vec()
     }
 
     pub fn for_each(&self, f: impl FnMut(T) + 'static) -> Subscription {
-        self.fold(f, move |mut f, x| {
-            f(x);
-            f
-        })
-        .into()
+        self.ops().for_each(f)
     }
     pub fn for_each_async_with<Fut>(
         &self,
@@ -175,22 +126,15 @@ impl<T: 'static> Re<T> {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        let this = self.clone();
-        let mut f = f;
-        Fold::new(FoldBy::new(
-            (),
-            move |_, ctx| ((), sp.spawn_local(f(this.get(ctx)))),
-            |_| (),
-            |_| (),
-        ))
-        .into()
+        self.ops().for_each_async_with(f, sp)
     }
 
     pub fn hot(&self) -> Self {
-        Self(ReData::Dyn(Hot::new(self.ops())))
+        self.ops().hot().re()
     }
 
     pub fn to_stream(&self) -> impl futures::Stream<Item = T> {
+        // TODO : ReOpsに実装し、そちらに処理を移譲
         IntoStream::new(self.clone())
     }
 }
