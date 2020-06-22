@@ -51,20 +51,20 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     where
         S: Clone,
     {
-        TailRefOps::new_borrow(self, scope, |s| s.clone().ops_ref())
+        TailRefOps::new_borrow(self, scope, |s| s.clone().as_ref())
     }
 
-    pub fn ops_ref(self) -> ReRefOps<ReRefByReBorrow<S>> {
+    pub fn as_ref(self) -> ReRefOps<ReRefByReBorrow<S>> {
         ReRefOps(ReRefByReBorrow(self))
     }
-    pub fn ops_any(self) -> ReBorrowOps<ReBorrow<S::Item>> {
-        ReBorrowOps(self.into_dyn())
+    pub fn as_any(self) -> ReBorrowOps<ReBorrow<S::Item>> {
+        ReBorrowOps(self.re_borrow())
     }
-    pub fn into_dyn(self) -> ReBorrow<S::Item> {
+    pub fn re_borrow(self) -> ReBorrow<S::Item> {
         self.0.into_dyn()
     }
-    pub fn into_dyn_ref(self) -> ReRef<S::Item> {
-        self.into_dyn().as_ref()
+    pub fn re_ref(self) -> ReRef<S::Item> {
+        self.re_borrow().as_ref()
     }
     pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
         re(move |ctx| f(&self.borrow(ctx)))
@@ -133,7 +133,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     where
         Fut: Future + 'static,
     {
-        self.ops_ref().map_async_with(f, sp)
+        self.as_ref().map_async_with(f, sp)
     }
     pub fn cloned(self) -> ReOps<impl Reactive<Item = S::Item>>
     where
@@ -146,7 +146,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         initial_state: St,
         f: impl Fn(St, &S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
-        self.ops_ref().scan(initial_state, f)
+        self.as_ref().scan(initial_state, f)
     }
     pub fn filter_scan<St: 'static>(
         self,
@@ -154,7 +154,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl Fn(St, &S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
-        self.ops_ref().filter_scan(initial_state, predicate, f)
+        self.as_ref().filter_scan(initial_state, predicate, f)
     }
 
     pub fn fold<St: 'static>(
@@ -162,7 +162,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         initial_state: St,
         f: impl Fn(St, &S::Item) -> St + 'static,
     ) -> Fold<St> {
-        self.ops_ref().fold(initial_state, f)
+        self.as_ref().fold(initial_state, f)
     }
     pub fn collect_to<E: for<'a> Extend<&'a S::Item> + 'static>(self, e: E) -> Fold<E> {
         self.fold(e, |mut e, x| {
@@ -181,7 +181,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     }
 
     pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
-        self.ops_ref().for_each(f)
+        self.as_ref().for_each(f)
     }
     pub fn for_each_async_with<Fut>(
         self,
@@ -191,7 +191,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.ops_ref().for_each_async_with(f, sp)
+        self.as_ref().for_each_async_with(f, sp)
     }
     pub fn hot(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item>> {
         ReBorrowOps(Hot::new(self))
@@ -222,6 +222,6 @@ impl<S: ReactiveBorrow> ReactiveRef for ReRefByReBorrow<S> {
     where
         Self: Sized,
     {
-        self.0.into_dyn_ref()
+        self.0.re_ref()
     }
 }

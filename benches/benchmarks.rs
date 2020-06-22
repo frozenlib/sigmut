@@ -187,7 +187,7 @@ fn re_flatten_dyn(b: &mut Bencher, update_count: usize) {
         let s = ReRefCell::new(Re::constant(0));
         let s1 = Re::constant(1);
         let s2 = Re::constant(2);
-        let f = s.re().flatten().fold(0, |s, x| s + x);
+        let f = s.re_borrow().flatten().fold(0, |s, x| s + x);
 
         for _ in 0..update_count {
             s.set_and_update(s1.clone());

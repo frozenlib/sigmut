@@ -19,7 +19,7 @@ fn re_borrow_new() {
 #[test]
 fn re_borrow_map() {
     let a = ReRefCell::new(2);
-    let r = a.re().map(|x| x * 2).collect_vec();
+    let r = a.re_borrow().map(|x| x * 2).collect_vec();
 
     a.set_and_update(5);
     a.set_and_update(7);
@@ -30,7 +30,7 @@ fn re_borrow_map() {
 #[test]
 fn re_borrow_map_ref() {
     let a = ReRefCell::new((2, 3));
-    let r = a.re().map_ref(|x| &x.0).collect_vec();
+    let r = a.re_borrow().map_ref(|x| &x.0).collect_vec();
 
     a.set_and_update((5, 8));
     a.set_and_update((7, 1));
@@ -45,7 +45,7 @@ fn re_borrow_flat_map() {
 
     let b = ReRefCell::new(0);
 
-    let r = b.re().flat_map(move |&x| a_[x].re()).collect_vec();
+    let r = b.re_borrow().flat_map(move |&x| a_[x].re()).collect_vec();
 
     a[0].set_and_update(6);
     a[1].set_and_update(12);
@@ -64,7 +64,7 @@ fn re_borrow_flat_map() {
 #[test]
 fn re_borrow_cloned() {
     let cell = ReRefCell::new(2);
-    let r = cell.re().cloned().collect_vec();
+    let r = cell.re_borrow().cloned().collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -76,7 +76,7 @@ fn re_borrow_cloned() {
 #[test]
 fn re_borrow_scan() {
     let cell = ReRefCell::new(2);
-    let r = cell.re().scan(10, |s, x| s + x).collect_vec();
+    let r = cell.re_borrow().scan(10, |s, x| s + x).collect_vec();
 
     cell.set_and_update(3);
     cell.set_and_update(4);
@@ -88,7 +88,7 @@ fn re_borrow_scan() {
 fn re_borrow_filter_scan() {
     let cell = ReRefCell::new(2);
     let r = cell
-        .re()
+        .re_borrow()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
         .collect_vec();
 
@@ -102,7 +102,7 @@ fn re_borrow_filter_scan() {
 #[test]
 fn re_borrow_fold() {
     let cell = ReRefCell::new(1);
-    let fold = cell.re().fold(2, |s, x| s + x);
+    let fold = cell.re_borrow().fold(2, |s, x| s + x);
 
     cell.set_and_update(5);
     cell.set_and_update(10);
@@ -131,7 +131,7 @@ fn re_borrow_for_each() {
 
     let vs_send = vs.clone();
 
-    let r = cell.re().for_each(move |&x| {
+    let r = cell.re_borrow().for_each(move |&x| {
         vs_send.borrow_mut().push(x);
     });
 
@@ -148,7 +148,7 @@ fn re_borrow_for_each() {
 #[test]
 fn re_borrow_hot() {
     let cell = ReRefCell::new(1);
-    let re = cell.re().scan(0, |s, x| s + x);
+    let re = cell.re_borrow().scan(0, |s, x| s + x);
 
     let hot = re.hot();
 
@@ -161,7 +161,7 @@ fn re_borrow_hot() {
 #[test]
 fn re_borrow_hot_no() {
     let cell = ReRefCell::new(1);
-    let re = cell.re().scan(0, |s, x| s + x);
+    let re = cell.re_borrow().scan(0, |s, x| s + x);
 
     cell.set_and_update(2);
     cell.set_and_update(10);
@@ -173,7 +173,7 @@ fn re_borrow_hot_no() {
 fn re_borrow_flatten() {
     let cell = ReRefCell::new(Re::constant(1));
 
-    let vs = cell.re().flatten().collect_vec();
+    let vs = cell.re_borrow().flatten().collect_vec();
 
     cell.set_and_update(Re::constant(2));
     cell.set_and_update(Re::constant(3));
@@ -187,7 +187,7 @@ fn re_borrow_flatten() {
 fn re_borrow_head_tail() {
     let a = ReRefCell::new(2);
     let (head, tail) = BindContextScope::with(|scope| {
-        let r = a.re();
+        let r = a.re_borrow();
         let (head, tail) = r.head_tail(scope);
         (*head, tail)
     });

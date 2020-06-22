@@ -26,14 +26,14 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     where
         T: Sized,
     {
-        re_borrow_constant(value).into_dyn()
+        re_borrow_constant(value).re_borrow()
     }
     pub fn new<S, F>(this: S, borrow: F) -> Self
     where
         S: 'static,
         for<'a> F: Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
     {
-        re_borrow(this, borrow).into_dyn()
+        re_borrow(this, borrow).re_borrow()
     }
 
     pub(super) fn from_dyn(inner: impl DynamicReactiveBorrow<Item = T>) -> Self {
@@ -43,6 +43,12 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         Self(ReBorrowData::DynSource(Rc::new(inner)))
     }
 
+    pub fn as_ref(&self) -> ReRef<T> {
+        ReRef(match self.0.clone() {
+            ReBorrowData::Dyn(rc) => ReRefData::Dyn(rc.as_ref()),
+            ReBorrowData::DynSource(rc) => ReRefData::DynSource(rc.as_ref()),
+        })
+    }
     pub fn ops(&self) -> ReBorrowOps<Self> {
         ReBorrowOps(self.clone())
     }
@@ -143,13 +149,6 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
 
     pub fn hot(&self) -> Self {
         Self(ReBorrowData::Dyn(Hot::new(self.ops())))
-    }
-
-    pub fn as_ref(&self) -> ReRef<T> {
-        ReRef(match self.0.clone() {
-            ReBorrowData::Dyn(rc) => ReRefData::Dyn(rc.as_ref()),
-            ReBorrowData::DynSource(rc) => ReRefData::DynSource(rc.as_ref()),
-        })
     }
 }
 impl<T: ?Sized> ReactiveBorrow for ReBorrow<T> {

@@ -23,7 +23,7 @@ fn re_cell() {
 #[test]
 fn re_ref_cell_dyn() {
     let cell = ReRefCell::new(1);
-    let r = cell.re().collect_vec();
+    let r = cell.re_borrow().collect_vec();
     cell.set_and_update(5);
     cell.set_and_update(10);
 

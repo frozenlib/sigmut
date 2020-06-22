@@ -277,7 +277,7 @@ fn re_hot_no() {
 fn re_flatten() {
     let cell = ReRefCell::new(Re::constant(1));
 
-    let vs = cell.re().cloned().flatten().collect_vec();
+    let vs = cell.re_borrow().cloned().flatten().collect_vec();
 
     cell.set_and_update(Re::constant(2));
     cell.set_and_update(Re::constant(3));

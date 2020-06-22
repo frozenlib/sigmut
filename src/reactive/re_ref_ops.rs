@@ -66,7 +66,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
     pub fn head_tail(self, scope: &BindContextScope, f: impl FnOnce(&S::Item)) -> TailRefOps<S> {
         TailRefOps::new(self.0, scope, f)
     }
-    pub fn into_dyn(self) -> ReRef<S::Item> {
+    pub fn re_ref(self) -> ReRef<S::Item> {
         self.0.into_dyn()
     }
     pub fn map<T: 'static>(

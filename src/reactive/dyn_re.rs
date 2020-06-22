@@ -23,26 +23,31 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn new(get: impl Fn(&BindContext) -> T + 'static) -> Self {
-        re(get).into_dyn()
+        re(get).re()
     }
     pub fn constant(value: T) -> Self
     where
         T: Clone,
     {
-        re_constant(value).into_dyn()
+        re_constant(value).re()
     }
 
     pub(super) fn from_dyn(inner: impl DynamicReactive<Item = T>) -> Self {
         Self(ReData::Dyn(Rc::new(inner)))
     }
 
+    pub fn as_ref(&self) -> ReRef<T> {
+        ReRef(match self.0.clone() {
+            ReData::Dyn(rc) => ReRefData::Dyn(rc.as_ref()),
+            ReData::DynSource(rc) => ReRefData::DynSource(rc.as_ref()),
+        })
+    }
     pub fn ops(&self) -> ReOps<Self> {
         ReOps(self.clone())
     }
 
     pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> Re<U> {
-        let this = self.clone();
-        Re::new(move |ctx| f(this.get(ctx)))
+        self.ops().map(f).re()
     }
     pub fn flat_map<U>(&self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
         self.map(f).flatten()
@@ -187,13 +192,6 @@ impl<T: 'static> Re<T> {
 
     pub fn to_stream(&self) -> impl futures::Stream<Item = T> {
         IntoStream::new(self.clone())
-    }
-
-    pub fn as_ref(&self) -> ReRef<T> {
-        ReRef(match self.0.clone() {
-            ReData::Dyn(rc) => ReRefData::Dyn(rc.as_ref()),
-            ReData::DynSource(rc) => ReRefData::DynSource(rc.as_ref()),
-        })
     }
 }
 impl<T> Reactive for Re<T> {

@@ -29,16 +29,16 @@ impl<S: Reactive> ReOps<S> {
         TailOps::new(self.0, scope)
     }
 
-    pub fn ops_ref(self) -> ReRefOps<ReRefByRe<S>> {
+    pub fn as_ref(self) -> ReRefOps<ReRefByRe<S>> {
         ReRefOps(ReRefByRe(self))
     }
-    pub fn ops_any(self) -> ReOps<Re<S::Item>> {
-        ReOps(self.into_dyn())
+    pub fn as_any(self) -> ReOps<Re<S::Item>> {
+        ReOps(self.re())
     }
-    pub fn into_dyn(self) -> Re<S::Item> {
+    pub fn re(self) -> Re<S::Item> {
         self.0.into_dyn()
     }
-    pub fn into_dyn_ref(self) -> ReRef<S::Item> {
+    pub fn re_ref(self) -> ReRef<S::Item> {
         self.0.into_dyn().as_ref()
     }
 
@@ -224,6 +224,6 @@ impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
     where
         Self: Sized,
     {
-        self.0.into_dyn_ref()
+        self.0.re_ref()
     }
 }
