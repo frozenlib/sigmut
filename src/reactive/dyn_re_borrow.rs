@@ -44,10 +44,10 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     }
 
     pub fn as_ref(&self) -> ReRef<T> {
-        ReRef(match self.0.clone() {
-            ReBorrowData::Dyn(rc) => ReRefData::Dyn(rc.as_ref()),
-            ReBorrowData::DynSource(rc) => ReRefData::DynSource(rc.as_ref()),
-        })
+        match self.0.clone() {
+            ReBorrowData::Dyn(rc) => ReRef::from_dyn(rc.as_ref()),
+            ReBorrowData::DynSource(rc) => ReRef::from_dyn_source(rc.as_ref()),
+        }
     }
     pub fn ops(&self) -> ReBorrowOps<Self> {
         ReBorrowOps(self.clone())

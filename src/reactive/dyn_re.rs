@@ -37,10 +37,10 @@ impl<T: 'static> Re<T> {
     }
 
     pub fn as_ref(&self) -> ReRef<T> {
-        ReRef(match self.0.clone() {
-            ReData::Dyn(rc) => ReRefData::Dyn(rc.as_ref()),
-            ReData::DynSource(rc) => ReRefData::DynSource(rc.as_ref()),
-        })
+        match self.0.clone() {
+            ReData::Dyn(rc) => ReRef::from_dyn(rc.as_ref()),
+            ReData::DynSource(rc) => ReRef::from_dyn_source(rc.as_ref()),
+        }
     }
     pub fn ops(&self) -> ReOps<Self> {
         ReOps(self.clone())

@@ -95,7 +95,7 @@ pub trait ReactiveRef: 'static {
                 self.0.with(ctx, f)
             }
         }
-        ReRef::from_dyn(IntoDyn(self))
+        ReRef::from_dyn(Rc::new(IntoDyn(self)))
     }
 }
 trait DynamicReactive: 'static {

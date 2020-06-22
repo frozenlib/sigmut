@@ -2,11 +2,11 @@ use super::*;
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ReRef<T: 'static + ?Sized>(pub(super) ReRefData<T>);
+pub struct ReRef<T: 'static + ?Sized>(ReRefData<T>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub(super) enum ReRefData<T: 'static + ?Sized> {
+enum ReRefData<T: 'static + ?Sized> {
     StaticRef(&'static T),
     Dyn(Rc<dyn DynamicReactiveRef<Item = T>>),
     DynSource(Rc<dyn DynamicReactiveRefSource<Item = T>>),
@@ -57,11 +57,11 @@ impl<T: 'static + ?Sized> ReRef<T> {
                 (self.f)(&self.this, ctx, f)
             }
         }
-        Self::from_dyn(ReRefFn {
+        Self::from_dyn(Rc::new(ReRefFn {
             this,
             f,
             _phantom: PhantomData,
-        })
+        }))
     }
     pub fn constant(value: T) -> Self
     where
@@ -77,8 +77,12 @@ impl<T: 'static + ?Sized> ReRef<T> {
         ReRefOps(self.clone())
     }
 
-    pub(super) fn from_dyn(inner: impl DynamicReactiveRef<Item = T>) -> Self {
-        Self(ReRefData::Dyn(Rc::new(inner)))
+    pub(super) fn from_dyn(rc: Rc<dyn DynamicReactiveRef<Item = T>>) -> Self {
+        Self(ReRefData::Dyn(rc))
+    }
+
+    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicReactiveRefSource<Item = T>>) -> Self {
+        Self(ReRefData::DynSource(rc))
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
