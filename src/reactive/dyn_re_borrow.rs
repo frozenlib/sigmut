@@ -54,13 +54,10 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
-        let this = self.clone();
-        Re::new(move |ctx| f(&this.borrow(ctx)))
+        self.ops().map(f).re()
     }
     pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReBorrow<U> {
-        ReBorrow::new(self.clone(), move |this, ctx| {
-            Ref::map(this.borrow(ctx), &f)
-        })
+        self.ops().map_ref(f).re_borrow()
     }
     pub fn map_borrow<B: ?Sized>(&self) -> ReBorrow<B>
     where
@@ -74,7 +71,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     }
 
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
-        self.map(f).flatten()
+        self.ops().flat_map(f).re()
     }
     pub fn map_async_with<Fut>(
         &self,
@@ -84,14 +81,14 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     where
         Fut: Future + 'static,
     {
-        self.as_ref().map_async_with(f, sp)
+        self.ops().map_async_with(f, sp).re_borrow()
     }
 
     pub fn cloned(&self) -> Re<T>
     where
         T: Clone,
     {
-        self.map(|x| x.clone())
+        self.ops().cloned().re()
     }
 
     pub fn scan<St: 'static>(
@@ -99,7 +96,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> ReBorrow<St> {
-        self.as_ref().scan(initial_state, f)
+        self.ops().scan(initial_state, f).re_borrow()
     }
     pub fn filter_scan<St: 'static>(
         &self,
@@ -107,7 +104,9 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> ReBorrow<St> {
-        self.as_ref().filter_scan(initial_state, predicate, f)
+        self.ops()
+            .filter_scan(initial_state, predicate, f)
+            .re_borrow()
     }
 
     pub fn fold<St: 'static>(
@@ -115,26 +114,23 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> Fold<St> {
-        self.as_ref().fold(initial_state, f)
+        self.ops().fold(initial_state, f)
     }
     pub fn collect_to<E: for<'a> Extend<&'a T> + 'static>(&self, e: E) -> Fold<E> {
-        self.fold(e, |mut e, x| {
-            e.extend(once(x));
-            e
-        })
+        self.ops().collect_to(e)
     }
     pub fn collect<E: for<'a> Extend<&'a T> + Default + 'static>(&self) -> Fold<E> {
-        self.collect_to(Default::default())
+        self.ops().collect()
     }
     pub fn collect_vec(&self) -> Fold<Vec<T>>
     where
         T: Copy,
     {
-        self.collect()
+        self.ops().collect_vec()
     }
 
     pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
-        self.as_ref().for_each(f)
+        self.ops().for_each(f)
     }
     pub fn for_each_async_with<Fut>(
         &self,
@@ -144,13 +140,19 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.as_ref().for_each_async_with(f, sp)
+        self.ops().for_each_async_with(f, sp)
     }
 
     pub fn hot(&self) -> Self {
-        Self(ReBorrowData::Dyn(Hot::new(self.ops())))
+        self.ops().hot().re_borrow()
     }
 }
+impl<T: 'static> ReBorrow<Re<T>> {
+    pub fn flatten(&self) -> Re<T> {
+        self.ops().flatten().re()
+    }
+}
+
 impl<T: ?Sized> ReactiveBorrow for ReBorrow<T> {
     type Item = T;
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {

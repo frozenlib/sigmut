@@ -159,18 +159,6 @@ pub trait LocalSpawn: 'static {
     fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle;
 }
 
-impl<T: 'static> Re<Re<T>> {
-    pub fn flatten(&self) -> Re<T> {
-        let this = self.clone();
-        Re::new(move |ctx| this.get(ctx).get(ctx))
-    }
-}
-impl<T: 'static> ReBorrow<Re<T>> {
-    pub fn flatten(&self) -> Re<T> {
-        let this = self.clone();
-        Re::new(move |ctx| this.borrow(ctx).get(ctx))
-    }
-}
 
 impl<T: 'static> ReRef<Re<T>> {
     pub fn flatten(&self) -> Re<T> {

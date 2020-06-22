@@ -137,6 +137,12 @@ impl<T: 'static> Re<T> {
         self.ops().stream()
     }
 }
+impl<T: 'static> Re<Re<T>> {
+    pub fn flatten(&self) -> Re<T> {
+        self.ops().flatten().re()
+    }
+}
+
 impl<T> Reactive for Re<T> {
     type Item = T;
 
