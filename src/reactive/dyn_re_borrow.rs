@@ -157,7 +157,7 @@ impl<T: ?Sized> ReactiveBorrow for ReBorrow<T> {
         ReBorrow::borrow(self, ctx)
     }
 
-    fn into_dyn(self) -> ReBorrow<Self::Item>
+    fn into_re_borrow(self) -> ReBorrow<Self::Item>
     where
         Self: Sized,
     {

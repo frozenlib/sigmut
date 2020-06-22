@@ -56,7 +56,7 @@ pub trait ReactiveBorrow: 'static {
     type Item: ?Sized;
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
 
-    fn into_dyn(self) -> ReBorrow<Self::Item>
+    fn into_re_borrow(self) -> ReBorrow<Self::Item>
     where
         Self: Sized,
     {

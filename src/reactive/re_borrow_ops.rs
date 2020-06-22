@@ -61,7 +61,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         ReBorrowOps(self.re_borrow())
     }
     pub fn re_borrow(self) -> ReBorrow<S::Item> {
-        self.0.into_dyn()
+        self.0.into_re_borrow()
     }
     pub fn re_ref(self) -> ReRef<S::Item> {
         self.re_borrow().as_ref()
@@ -99,11 +99,11 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
             fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
                 Ref::map(self.source.borrow(ctx), |x| x.borrow())
             }
-            fn into_dyn(self) -> ReBorrow<Self::Item>
+            fn into_re_borrow(self) -> ReBorrow<Self::Item>
             where
                 Self: Sized,
             {
-                self.source.into_dyn().map_borrow()
+                self.source.into_re_borrow().map_borrow()
             }
         }
         ReBorrowOps(MapBorrow {
@@ -203,11 +203,11 @@ impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.0.borrow(ctx)
     }
-    fn into_dyn(self) -> ReBorrow<Self::Item>
+    fn into_re_borrow(self) -> ReBorrow<Self::Item>
     where
         Self: Sized,
     {
-        self.0.into_dyn()
+        self.0.into_re_borrow()
     }
 }
 
