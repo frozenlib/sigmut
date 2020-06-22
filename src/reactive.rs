@@ -160,13 +160,6 @@ pub trait LocalSpawn: 'static {
 }
 
 
-impl<T: 'static> ReRef<Re<T>> {
-    pub fn flatten(&self) -> Re<T> {
-        let this = self.clone();
-        Re::new(move |ctx| this.with(ctx, |ctx, x| x.get(ctx)))
-    }
-}
-
 trait DynamicFold {
     type Output;
 
