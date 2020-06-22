@@ -76,7 +76,7 @@ pub trait ReactiveBorrow: 'static {
                 f(ctx, &self.0.borrow(ctx))
             }
         }
-        ReBorrow::from_dyn(IntoDyn(self))
+        ReBorrow::from_dyn(Rc::new(IntoDyn(self)))
     }
 }
 
@@ -158,7 +158,6 @@ pub trait LocalSpawn: 'static {
     type Handle;
     fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle;
 }
-
 
 trait DynamicFold {
     type Output;

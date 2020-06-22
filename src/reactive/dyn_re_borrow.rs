@@ -2,11 +2,11 @@ use super::*;
 use std::cell::Ref;
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ReBorrow<T: 'static + ?Sized>(pub(super) ReBorrowData<T>);
+pub struct ReBorrow<T: 'static + ?Sized>(ReBorrowData<T>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub(super) enum ReBorrowData<T: 'static + ?Sized> {
+enum ReBorrowData<T: 'static + ?Sized> {
     Dyn(Rc<dyn DynamicReactiveBorrow<Item = T>>),
     DynSource(Rc<dyn DynamicReactiveBorrowSource<Item = T>>),
 }
@@ -36,11 +36,11 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         re_borrow(this, borrow).re_borrow()
     }
 
-    pub(super) fn from_dyn(inner: impl DynamicReactiveBorrow<Item = T>) -> Self {
-        Self(ReBorrowData::Dyn(Rc::new(inner)))
+    pub(super) fn from_dyn(rc: Rc<dyn DynamicReactiveBorrow<Item = T>>) -> Self {
+        Self(ReBorrowData::Dyn(rc))
     }
-    pub(super) fn from_dyn_source(inner: impl DynamicReactiveBorrowSource<Item = T>) -> Self {
-        Self(ReBorrowData::DynSource(Rc::new(inner)))
+    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicReactiveBorrowSource<Item = T>>) -> Self {
+        Self(ReBorrowData::DynSource(rc))
     }
 
     pub fn as_ref(&self) -> ReRef<T> {
