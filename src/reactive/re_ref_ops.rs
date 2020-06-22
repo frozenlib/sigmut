@@ -67,7 +67,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
         TailRefOps::new(self.0, scope, f)
     }
     pub fn re_ref(self) -> ReRef<S::Item> {
-        self.0.into_dyn()
+        self.0.into_re_ref()
     }
     pub fn map<T: 'static>(
         self,
@@ -130,11 +130,11 @@ impl<S: ReactiveRef> ReRefOps<S> {
                 self.source.with(ctx, |ctx, value| f(ctx, value.borrow()))
             }
 
-            fn into_dyn(self) -> ReRef<Self::Item>
+            fn into_re_ref(self) -> ReRef<Self::Item>
             where
                 Self: Sized,
             {
-                self.source.into_dyn().map_borrow()
+                self.source.into_re_ref().map_borrow()
             }
         }
         ReRefOps(MapBorrow {
@@ -271,10 +271,10 @@ impl<S: ReactiveRef> ReactiveRef for ReRefOps<S> {
     fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
         self.0.with(ctx, f)
     }
-    fn into_dyn(self) -> ReRef<Self::Item>
+    fn into_re_ref(self) -> ReRef<Self::Item>
     where
         Self: Sized,
     {
-        self.0.into_dyn()
+        self.0.into_re_ref()
     }
 }

@@ -84,7 +84,7 @@ pub trait ReactiveRef: 'static {
     type Item: ?Sized;
     fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U;
 
-    fn into_dyn(self) -> ReRef<Self::Item>
+    fn into_re_ref(self) -> ReRef<Self::Item>
     where
         Self: Sized,
     {

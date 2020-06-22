@@ -220,7 +220,7 @@ impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
     fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
         self.0.with(ctx, f)
     }
-    fn into_dyn(self) -> ReRef<Self::Item>
+    fn into_re_ref(self) -> ReRef<Self::Item>
     where
         Self: Sized,
     {
