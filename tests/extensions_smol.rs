@@ -74,7 +74,7 @@ async fn assert_values<T>(source: Re<T>, values: Vec<T>, dur: Duration)
 where
     T: 'static + PartialEq + Debug,
 {
-    let mut s = source.to_stream();
+    let mut s = source.stream();
     for value in values {
         assert_eq!(timeout(dur, s.next()).await, Some(Some(value)));
     }

@@ -196,7 +196,7 @@ impl<S: Reactive> ReOps<S> {
         ReOps(Hot::new(self))
     }
 
-    pub fn into_stream(self) -> impl futures::Stream<Item = S::Item> {
+    pub fn stream(self) -> impl futures::Stream<Item = S::Item> {
         IntoStream::new(self)
     }
 }

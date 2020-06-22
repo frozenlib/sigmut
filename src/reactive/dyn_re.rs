@@ -133,9 +133,8 @@ impl<T: 'static> Re<T> {
         self.ops().hot().re()
     }
 
-    pub fn to_stream(&self) -> impl futures::Stream<Item = T> {
-        // TODO : ReOpsに実装し、そちらに処理を移譲
-        IntoStream::new(self.clone())
+    pub fn stream(&self) -> impl futures::Stream<Item = T> {
+        self.ops().stream()
     }
 }
 impl<T> Reactive for Re<T> {
