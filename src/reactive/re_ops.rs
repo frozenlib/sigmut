@@ -36,10 +36,10 @@ impl<S: Reactive> ReOps<S> {
         ReOps(self.re())
     }
     pub fn re(self) -> Re<S::Item> {
-        self.0.into_dyn()
+        self.0.into_re()
     }
     pub fn re_ref(self) -> ReRef<S::Item> {
-        self.0.into_dyn().as_ref()
+        self.0.into_re().as_ref()
     }
 
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
@@ -205,11 +205,11 @@ impl<S: Reactive> Reactive for ReOps<S> {
     fn get(&self, ctx: &BindContext) -> Self::Item {
         self.0.get(ctx)
     }
-    fn into_dyn(self) -> Re<Self::Item>
+    fn into_re(self) -> Re<Self::Item>
     where
         Self: Sized,
     {
-        self.0.into_dyn()
+        self.0.into_re()
     }
 }
 

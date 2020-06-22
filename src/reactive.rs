@@ -28,7 +28,7 @@ pub trait Reactive: 'static {
     type Item;
     fn get(&self, ctx: &BindContext) -> Self::Item;
 
-    fn into_dyn(self) -> Re<Self::Item>
+    fn into_re(self) -> Re<Self::Item>
     where
         Self: Sized,
     {
