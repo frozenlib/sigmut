@@ -1,4 +1,4 @@
-use slab::Slab;
+use slabmap::SlabMap;
 use std::cell::{RefCell, RefMut};
 use std::mem::{drop, replace, swap};
 use std::rc::{Rc, Weak};
@@ -113,19 +113,20 @@ impl Bindings {
 
 /// A collection of `BindSink`.
 pub struct BindSinks {
-    sinks: RefCell<Slab<Weak<dyn BindSink>>>,
+    sinks: RefCell<SlabMap<Weak<dyn BindSink>>>,
     detach_idxs: RefCell<Vec<usize>>,
 }
 
 impl BindSinks {
     pub fn new() -> Self {
         Self {
-            sinks: RefCell::new(Slab::new()),
+            sinks: RefCell::new(SlabMap::new()),
             detach_idxs: RefCell::new(Vec::new()),
         }
     }
     pub fn notify(&self, ctx: &NotifyContext) {
         let mut sinks = self.sinks.borrow_mut();
+        sinks.optimize();
         for (_, sink) in sinks.iter() {
             if let Some(sink) = Weak::upgrade(sink) {
                 sink.notify(ctx);
