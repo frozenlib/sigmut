@@ -202,3 +202,90 @@ impl<T: ?Sized> ReactiveRef for ReRef<T> {
         self
     }
 }
+
+impl<T> From<&'static T> for ReRef<T>
+where
+    T: ?Sized + 'static,
+{
+    fn from(r: &'static T) -> Self {
+        Self(ReRef::static_ref(r))
+    }
+}
+
+impl<T, B> From<Re<B>> for ReRef<T>
+where
+    T: ?Sized + 'static,
+    B: Borrow<T>,
+{
+    fn from(source: Re<B>) -> Self {
+        source.as_ref().into()
+    }
+}
+impl<T> From<&Re<T>> for ReRef<T>
+where
+    T: 'static,
+{
+    fn from(source: &Re<T>) -> Self {
+        source.as_ref().into()
+    }
+}
+
+impl<T, B> From<ReRef<B>> for ReRef<T>
+where
+    T: ?Sized + 'static,
+    B: ?Sized + Borrow<T>,
+{
+    fn from(source: ReRef<B>) -> Self {
+        Self(source.map_borrow())
+    }
+}
+impl<T> From<&ReRef<T>> for ReRef<T>
+where
+    T: ?Sized + 'static,
+{
+    fn from(source: &ReRef<T>) -> Self {
+        Self(source.map_borrow())
+    }
+}
+impl<T, B> From<ReBorrow<B>> for ReRef<T>
+where
+    T: ?Sized + 'static,
+    B: ?Sized + Borrow<T>,
+{
+    fn from(source: ReBorrow<B>) -> Self {
+        source.as_ref().into()
+    }
+}
+impl<T> From<&ReBorrow<T>> for ReRef<T>
+where
+    T: ?Sized + 'static,
+{
+    fn from(source: &ReBorrow<T>) -> Self {
+        source.as_ref().into()
+    }
+}
+
+impl From<String> for MayRe<str> {
+    fn from(value: String) -> Self {
+        if value.is_empty() {
+            "".into()
+        } else {
+            ReRef::constant(value).into()
+        }
+    }
+}
+impl From<&Re<String>> for MayRe<str> {
+    fn from(value: &Re<String>) -> Self {
+        value.as_ref().into()
+    }
+}
+impl From<&ReRef<String>> for MayRe<str> {
+    fn from(value: &ReRef<String>) -> Self {
+        value.map_ref(|s| s.as_str()).into()
+    }
+}
+impl From<&ReBorrow<String>> for MayRe<str> {
+    fn from(value: &ReBorrow<String>) -> Self {
+        value.as_ref().into()
+    }
+}

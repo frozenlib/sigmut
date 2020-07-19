@@ -52,7 +52,7 @@ impl<T: 'static> MayRe<T> {
     }
 }
 
-impl<T> Clone for MayReRef<T>
+impl<T> Clone for MayRe<T>
 where
     T: Clone + ?Sized + 'static,
 {
