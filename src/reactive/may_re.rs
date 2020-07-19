@@ -9,6 +9,46 @@ enum MayReData<T: 'static> {
     Re(Re<T>),
 }
 
+impl<T: 'static> MayRe<T> {
+    pub fn fold<St: 'static>(
+        self,
+        initial_state: St,
+        f: impl Fn(St, T) -> St + 'static,
+    ) -> Fold<St> {
+        match self.0 {
+            MayReData::Value(x) => Fold::constant(f(initial_state, x)),
+            MayReData::Re(re) => re.fold(initial_state, f),
+        }
+    }
+    pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
+        match self.0 {
+            MayReData::Value(x) => {
+                let mut e = e;
+                e.extend(once(x));
+                Fold::constant(e)
+            }
+            MayReData::Re(re) => re.collect_to(e),
+        }
+    }
+    pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
+        self.collect_to(Default::default())
+    }
+    pub fn collect_vec(self) -> Fold<Vec<T>> {
+        self.collect()
+    }
+
+    pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
+        match self.0 {
+            MayReData::Value(x) => {
+                let mut f = f;
+                f(x);
+                Subscription::empty()
+            }
+            MayReData::Re(re) => re.for_each(f),
+        }
+    }
+}
+
 impl<T> Clone for MayReRef<T>
 where
     T: Clone + ?Sized + 'static,
