@@ -1,20 +1,20 @@
 mod cell;
-mod dyn_re;
-mod dyn_re_borrow;
-mod dyn_re_ref;
 mod hot;
 mod into_stream;
 mod map_async;
 mod may_re;
+mod re;
+mod re_borrow;
 mod re_borrow_ops;
 mod re_ops;
+mod re_ref;
 mod re_ref_ops;
 mod scan;
 mod tail;
 
 pub use self::{
-    cell::*, dyn_re::*, dyn_re_borrow::*, dyn_re_ref::*, may_re::*, re_borrow_ops::*, re_ops::*,
-    re_ref_ops::*, tail::*,
+    cell::*, may_re::*, re::*, re_borrow::*, re_borrow_ops::*, re_ops::*, re_ref::*, re_ref_ops::*,
+    tail::*,
 };
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
 use crate::bind::*;
