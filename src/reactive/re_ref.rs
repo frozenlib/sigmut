@@ -203,89 +203,95 @@ impl<T: ?Sized> ReactiveRef for ReRef<T> {
     }
 }
 
-impl<T> From<&'static T> for ReRef<T>
+pub trait IntoReRef<T: ?Sized> {
+    fn into_re_ref(self) -> ReRef<T>;
+}
+
+impl<T> IntoReRef<T> for &'static T
 where
     T: ?Sized + 'static,
 {
-    fn from(r: &'static T) -> Self {
-        Self(ReRef::static_ref(r))
+    fn into_re_ref(self) -> ReRef<T> {
+        ReRef::static_ref(self)
     }
 }
 
-impl<T, B> From<Re<B>> for ReRef<T>
+impl<T, B> IntoReRef<T> for Re<B>
 where
     T: ?Sized + 'static,
     B: Borrow<T>,
 {
-    fn from(source: Re<B>) -> Self {
-        source.as_ref().into()
+    fn into_re_ref(self) -> ReRef<T> {
+        self.as_ref().map_borrow()
     }
 }
-impl<T> From<&Re<T>> for ReRef<T>
+impl<T> IntoReRef<T> for &Re<T>
 where
     T: 'static,
 {
-    fn from(source: &Re<T>) -> Self {
-        source.as_ref().into()
+    fn into_re_ref(self) -> ReRef<T> {
+        self.as_ref()
     }
 }
 
-impl<T, B> From<ReRef<B>> for ReRef<T>
+impl<T, B> IntoReRef<T> for ReRef<B>
 where
     T: ?Sized + 'static,
     B: ?Sized + Borrow<T>,
 {
-    fn from(source: ReRef<B>) -> Self {
-        Self(source.map_borrow())
+    fn into_re_ref(self) -> ReRef<T> {
+        self.map_borrow()
     }
 }
-impl<T> From<&ReRef<T>> for ReRef<T>
+
+impl<T> IntoReRef<T> for &ReRef<T>
 where
     T: ?Sized + 'static,
 {
-    fn from(source: &ReRef<T>) -> Self {
-        Self(source.map_borrow())
+    fn into_re_ref(self) -> ReRef<T> {
+        self.map_borrow()
     }
 }
-impl<T, B> From<ReBorrow<B>> for ReRef<T>
+impl<T, B> IntoReRef<T> for ReBorrow<B>
 where
     T: ?Sized + 'static,
     B: ?Sized + Borrow<T>,
 {
-    fn from(source: ReBorrow<B>) -> Self {
-        source.as_ref().into()
+    fn into_re_ref(self) -> ReRef<T> {
+        self.as_ref().map_borrow()
     }
 }
-impl<T> From<&ReBorrow<T>> for ReRef<T>
+impl<T> IntoReRef<T> for &ReBorrow<T>
 where
     T: ?Sized + 'static,
 {
-    fn from(source: &ReBorrow<T>) -> Self {
-        source.as_ref().into()
+    fn into_re_ref(self) -> ReRef<T> {
+        self.as_ref()
     }
 }
 
-impl From<String> for MayRe<str> {
-    fn from(value: String) -> Self {
-        if value.is_empty() {
-            "".into()
+impl IntoReRef<str> for String {
+    fn into_re_ref(self) -> ReRef<str> {
+        if self.is_empty() {
+            ReRef::static_ref("")
         } else {
-            ReRef::constant(value).into()
+            ReRef::constant(self).map_borrow()
         }
     }
 }
-impl From<&Re<String>> for MayRe<str> {
-    fn from(value: &Re<String>) -> Self {
-        value.as_ref().into()
+impl IntoReRef<str> for &Re<String> {
+    fn into_re_ref(self) -> ReRef<str> {
+        self.as_ref().map_borrow()
     }
 }
-impl From<&ReRef<String>> for MayRe<str> {
-    fn from(value: &ReRef<String>) -> Self {
-        value.map_ref(|s| s.as_str()).into()
+
+impl IntoReRef<str> for &ReRef<String> {
+    fn into_re_ref(self) -> ReRef<str> {
+        self.map_borrow()
     }
 }
-impl From<&ReBorrow<String>> for MayRe<str> {
-    fn from(value: &ReBorrow<String>) -> Self {
-        value.as_ref().into()
+impl IntoReRef<str> for &ReBorrow<String> {
+    fn into_re_ref(self) -> ReRef<str> {
+        self.as_ref().map_borrow()
     }
 }

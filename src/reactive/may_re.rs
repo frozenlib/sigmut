@@ -52,15 +52,6 @@ impl<T: 'static> MayRe<T> {
     }
 }
 
-impl<T> Clone for MayRe<T>
-where
-    T: Clone + ?Sized + 'static,
-{
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
 impl<T: 'static> From<T> for MayRe<T> {
     fn from(value: T) -> Self {
         MayRe::Value(value)

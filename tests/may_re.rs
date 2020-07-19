@@ -17,14 +17,14 @@ fn into_may_re_int() {
 }
 
 #[test]
-fn into_may_re_ref_str() {
-    fn func_may_re_ref_str(_: impl Into<MayReRef<str>>) {}
-    func_may_re_ref_str("abc");
-    func_may_re_ref_str(String::from("abc"));
-    func_may_re_ref_str(Re::constant(String::from("abc")));
-    func_may_re_ref_str(&Re::constant(String::from("abc")));
-    func_may_re_ref_str(ReRef::constant(String::from("abc")));
-    func_may_re_ref_str(&ReRef::constant(String::from("abc")));
-    func_may_re_ref_str(ReBorrow::constant(String::from("abc")));
-    func_may_re_ref_str(&ReBorrow::constant(String::from("abc")));
+fn into_re_ref_str() {
+    fn func_into_re_ref_str(_: impl IntoReRef<str>) {}
+    func_into_re_ref_str("abc");
+    func_into_re_ref_str(String::from("abc"));
+    func_into_re_ref_str(Re::constant(String::from("abc")));
+    func_into_re_ref_str(&Re::constant(String::from("abc")));
+    func_into_re_ref_str(ReRef::constant(String::from("abc")));
+    func_into_re_ref_str(&ReRef::constant(String::from("abc")));
+    func_into_re_ref_str(ReBorrow::constant(String::from("abc")));
+    func_into_re_ref_str(&ReBorrow::constant(String::from("abc")));
 }
