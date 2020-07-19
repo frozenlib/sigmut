@@ -5,6 +5,7 @@ mod dyn_re_ref;
 mod hot;
 mod into_stream;
 mod map_async;
+mod may_re;
 mod re_borrow_ops;
 mod re_ops;
 mod re_ref_ops;
@@ -12,7 +13,7 @@ mod scan;
 mod tail;
 
 pub use self::{
-    cell::*, dyn_re::*, dyn_re_borrow::*, dyn_re_ref::*, re_borrow_ops::*, re_ops::*,
+    cell::*, dyn_re::*, dyn_re_borrow::*, dyn_re_ref::*, may_re::*, re_borrow_ops::*, re_ops::*,
     re_ref_ops::*, tail::*,
 };
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
@@ -196,63 +197,7 @@ impl<T> From<Fold<T>> for Subscription {
     }
 }
 
-#[derive(Clone)]
-pub enum MayRe<T: 'static> {
-    Value(T),
-    Re(Re<T>),
-}
-
 pub struct MayReRef<T: ?Sized + 'static>(ReRef<T>);
-
-impl<T> Clone for MayReRef<T>
-where
-    T: Clone + ?Sized + 'static,
-{
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<T: 'static> From<T> for MayRe<T> {
-    fn from(value: T) -> Self {
-        MayRe::Value(value)
-    }
-}
-impl<T: Copy + 'static> From<&T> for MayRe<T> {
-    fn from(value: &T) -> Self {
-        MayRe::Value(*value)
-    }
-}
-impl<T: 'static> From<Re<T>> for MayRe<T> {
-    fn from(source: Re<T>) -> Self {
-        MayRe::Re(source)
-    }
-}
-impl<T: 'static> From<&Re<T>> for MayRe<T> {
-    fn from(source: &Re<T>) -> Self {
-        MayRe::Re(source.clone())
-    }
-}
-impl<T: Copy + 'static> From<ReRef<T>> for MayRe<T> {
-    fn from(source: ReRef<T>) -> Self {
-        MayRe::Re(source.cloned())
-    }
-}
-impl<T: Copy + 'static> From<&ReRef<T>> for MayRe<T> {
-    fn from(source: &ReRef<T>) -> Self {
-        MayRe::Re(source.cloned())
-    }
-}
-impl<T: Copy + 'static> From<ReBorrow<T>> for MayRe<T> {
-    fn from(source: ReBorrow<T>) -> Self {
-        MayRe::Re(source.cloned())
-    }
-}
-impl<T: Copy + 'static> From<&ReBorrow<T>> for MayRe<T> {
-    fn from(source: &ReBorrow<T>) -> Self {
-        MayRe::Re(source.cloned())
-    }
-}
 
 impl<T> From<&'static T> for MayReRef<T>
 where
