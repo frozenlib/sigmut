@@ -1,10 +1,7 @@
 use super::*;
 
 #[derive(Clone)]
-pub struct MayRe<T: 'static>(MayReData<T>);
-
-#[derive(Clone)]
-enum MayReData<T: 'static> {
+pub enum MayRe<T: 'static> {
     Value(T),
     Re(Re<T>),
 }
@@ -15,19 +12,19 @@ impl<T: 'static> MayRe<T> {
         initial_state: St,
         f: impl Fn(St, T) -> St + 'static,
     ) -> Fold<St> {
-        match self.0 {
-            MayReData::Value(x) => Fold::constant(f(initial_state, x)),
-            MayReData::Re(re) => re.fold(initial_state, f),
+        match self {
+            MayRe::Value(x) => Fold::constant(f(initial_state, x)),
+            MayRe::Re(re) => re.fold(initial_state, f),
         }
     }
     pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
-        match self.0 {
-            MayReData::Value(x) => {
+        match self {
+            MayRe::Value(x) => {
                 let mut e = e;
                 e.extend(once(x));
                 Fold::constant(e)
             }
-            MayReData::Re(re) => re.collect_to(e),
+            MayRe::Re(re) => re.collect_to(e),
         }
     }
     pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
@@ -38,13 +35,13 @@ impl<T: 'static> MayRe<T> {
     }
 
     pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
-        match self.0 {
-            MayReData::Value(x) => {
+        match self {
+            MayRe::Value(x) => {
                 let mut f = f;
                 f(x);
                 Subscription::empty()
             }
-            MayReData::Re(re) => re.for_each(f),
+            MayRe::Re(re) => re.for_each(f),
         }
     }
 }
@@ -60,42 +57,42 @@ where
 
 impl<T: 'static> From<T> for MayRe<T> {
     fn from(value: T) -> Self {
-        MayRe(MayReData::Value(value))
+        MayRe::Value(value)
     }
 }
 
 impl<T: Copy + 'static> From<&T> for MayRe<T> {
     fn from(value: &T) -> Self {
-        MayRe(MayReData::Value(*value))
+        MayRe::Value(*value)
     }
 }
 impl<T: 'static> From<Re<T>> for MayRe<T> {
     fn from(source: Re<T>) -> Self {
-        MayRe(MayReData::Re(source))
+        MayRe::Re(source)
     }
 }
 impl<T: 'static> From<&Re<T>> for MayRe<T> {
     fn from(source: &Re<T>) -> Self {
-        MayRe(MayReData::Re(source.clone()))
+        MayRe::Re(source.clone())
     }
 }
 impl<T: Copy + 'static> From<ReRef<T>> for MayRe<T> {
     fn from(source: ReRef<T>) -> Self {
-        MayRe(MayReData::Re(source.cloned()))
+        MayRe::Re(source.cloned())
     }
 }
 impl<T: Copy + 'static> From<&ReRef<T>> for MayRe<T> {
     fn from(source: &ReRef<T>) -> Self {
-        MayRe(MayReData::Re(source.cloned()))
+        MayRe::Re(source.cloned())
     }
 }
 impl<T: Copy + 'static> From<ReBorrow<T>> for MayRe<T> {
     fn from(source: ReBorrow<T>) -> Self {
-        MayRe(MayReData::Re(source.cloned()))
+        MayRe::Re(source.cloned())
     }
 }
 impl<T: Copy + 'static> From<&ReBorrow<T>> for MayRe<T> {
     fn from(source: &ReBorrow<T>) -> Self {
-        MayRe(MayReData::Re(source.cloned()))
+        MayRe::Re(source.cloned())
     }
 }
