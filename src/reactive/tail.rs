@@ -107,6 +107,9 @@ impl<T: ?Sized + 'static> TailRef<T> {
         let (r, s) = TailRefOps::new_borrow(source, scope, |s| s.as_ref());
         (r, Self(s))
     }
+    pub fn empty() -> Self {
+        Self(TailRefOps::empty())
+    }
 
     pub fn for_each(self, f: impl FnMut(&T) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
@@ -169,6 +172,9 @@ impl<S: ReactiveRef> TailRefOps<S> {
             }))
         };
         (r, this)
+    }
+    pub fn empty() -> Self {
+        Self(None)
     }
 
     pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
