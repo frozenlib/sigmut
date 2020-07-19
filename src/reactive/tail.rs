@@ -9,6 +9,10 @@ impl<T> Tail<T> {
         let (value, s) = TailOps::new(source, scope);
         (value, Self(s))
     }
+    pub fn empty() -> Self {
+        Self(TailOps::empty())
+    }
+
     pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
         self.0.for_each(f)
     }
@@ -45,6 +49,10 @@ impl<S: Reactive> TailOps<S> {
         };
         (value, Self(data))
     }
+    pub fn empty() -> Self {
+        Self(None)
+    }
+
     pub fn for_each(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
             f(x);

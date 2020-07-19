@@ -7,6 +7,12 @@ pub enum MayRe<T: 'static> {
 }
 
 impl<T: 'static> MayRe<T> {
+    pub fn head_tail(self, scope: &BindContextScope) -> (T, Tail<T>) {
+        match self {
+            MayRe::Value(x) => (x, Tail::empty()),
+            MayRe::Re(re) => re.head_tail(scope),
+        }
+    }
     pub fn fold<St: 'static>(
         self,
         initial_state: St,
