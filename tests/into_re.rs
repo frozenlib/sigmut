@@ -2,7 +2,7 @@ use reactive_fn::*;
 
 #[test]
 fn into_may_re_int() {
-    fn func_may_re_int(_: impl Into<MayRe<u32>>) {}
+    fn func_may_re_int(_: impl IntoMayRe<u32>) {}
     func_may_re_int(10);
     func_may_re_int(&10);
 
