@@ -9,15 +9,14 @@ mod re_borrow_ops;
 mod re_ops;
 mod re_ref;
 mod re_ref_ops;
-// mod scan;
-mod scan2;
+mod scan;
 mod tail;
 
 pub use self::{
     cell::*, may_re::*, re::*, re_borrow::*, re_borrow_ops::*, re_ops::*, re_ref::*, re_ref_ops::*,
     tail::*,
 };
-use self::{hot::*, into_stream::*, map_async::*, scan2::*};
+use self::{hot::*, into_stream::*, map_async::*, scan::*};
 use crate::bind::*;
 use derivative::Derivative;
 use futures::Future;
