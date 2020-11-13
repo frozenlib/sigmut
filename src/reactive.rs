@@ -182,7 +182,11 @@ impl<T> Fold<T> {
         Self(FoldData::Constant(value))
     }
 
-    pub fn stop(self, scope: &BindContextScope) -> T {
+    pub fn stop(self) -> T {
+        BindContextScope::with(move |scope| self.stop_with(scope))
+    }
+
+    pub fn stop_with(self, scope: &BindContextScope) -> T {
         match self.0 {
             FoldData::Constant(value) => value,
             FoldData::Dyn(this) => this.stop(scope),
