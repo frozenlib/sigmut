@@ -23,14 +23,14 @@ impl<T: Copy + 'static> ReCell<T> {
         self.0.get(ctx)
     }
 
-    pub fn set_with(&self, value: T, ctx: &NotifyContext) {
+    pub fn set_with(&self, value: T, scope: &NotifyScope) {
         self.0.value.set(value);
-        self.0.sinks.notify(ctx);
+        self.0.sinks.notify(scope);
     }
 
     pub fn set(&self, value: T) {
         self.0.value.set(value);
-        NotifyContext::update(&self.0);
+        NotifyScope::update(&self.0);
     }
 
     pub fn re(&self) -> Re<T> {
@@ -101,18 +101,18 @@ impl<T: 'static> ReRefCell<T> {
             sinks: BindSinks::new(),
         }))
     }
-    pub fn set_with(&self, value: T, ctx: &NotifyContext) {
+    pub fn set_with(&self, value: T, scope: &NotifyScope) {
         *self.0.value.borrow_mut() = value;
-        self.0.sinks.notify(ctx);
+        self.0.sinks.notify(scope);
     }
     pub fn set(&self, value: T) {
-        NotifyContext::with(|ctx| self.set_with(value, ctx));
+        NotifyScope::with(|scope| self.set_with(value, scope));
     }
 
     pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
         self.0.borrow(ctx)
     }
-    pub fn borrow_mut<'a>(&'a self, ctx: &'a NotifyContext) -> RefMut<'a, T> {
+    pub fn borrow_mut<'a>(&'a self, ctx: &'a NotifyScope) -> RefMut<'a, T> {
         RefMut {
             ctx,
             b: self.0.value.borrow_mut(),
@@ -191,7 +191,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for ReRefCell<T> {
 
 /// A wrapper type for a mutably borrowed value from a `BindRefCell<T>`.
 pub struct RefMut<'a, T> {
-    ctx: &'a NotifyContext,
+    ctx: &'a NotifyScope,
     b: std::cell::RefMut<'a, T>,
     sinks: &'a BindSinks,
     modified: bool,

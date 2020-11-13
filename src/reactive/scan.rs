@@ -7,8 +7,8 @@ use std::{
 };
 
 use crate::{
-    BindContext, BindScope, BindSink, BindSinks, BindSource, BindTask, Bindings,
-    NotifyContext, ReactiveBorrow,
+    BindContext, BindScope, BindSink, BindSinks, BindSource, BindTask, Bindings, NotifyScope,
+    ReactiveBorrow,
 };
 
 use super::{DynamicFold, DynamicReactiveBorrowSource, DynamicReactiveRefSource};
@@ -390,9 +390,9 @@ impl<Op: ScanOp> BindSource for Scan<Op> {
 }
 
 impl<Op: ScanOp> BindSink for Scan<Op> {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+    fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if self.data.borrow_mut().unload() {
-            self.sinks.notify(ctx);
+            self.sinks.notify(scope);
         }
     }
 }
@@ -416,7 +416,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
 
     fn ready(self: &Rc<Self>, scope: &BindScope) {
         if self.data.borrow_mut().load(scope, self) {
-            NotifyContext::update(self);
+            NotifyScope::update(self);
         }
     }
     fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, Op::Value> {
@@ -486,9 +486,9 @@ impl<Op: FilterScanOp> BindSource for FilterScan<Op> {
 }
 
 impl<Op: FilterScanOp> BindSink for FilterScan<Op> {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+    fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if self.data.borrow_mut().unload() && !self.sinks.is_empty() {
-            ctx.spawn(self);
+            scope.spawn(self);
         }
     }
 }
@@ -539,9 +539,9 @@ impl<Op: FoldByOp> DynamicFold for FoldBy<Op> {
 }
 
 impl<Op: FoldByOp> BindSink for FoldBy<Op> {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+    fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if self.0.borrow_mut().unload() {
-            ctx.spawn(self);
+            scope.spawn(self);
         }
     }
 }

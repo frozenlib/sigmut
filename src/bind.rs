@@ -66,7 +66,7 @@ pub trait BindSource: 'static {
 }
 
 pub trait BindSink: 'static {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext);
+    fn notify(self: Rc<Self>, scope: &NotifyScope);
 }
 
 struct Binding {
@@ -124,12 +124,12 @@ impl BindSinks {
             detach_idxs: RefCell::new(Vec::new()),
         }
     }
-    pub fn notify(&self, ctx: &NotifyContext) {
+    pub fn notify(&self, scope: &NotifyScope) {
         let mut sinks = self.sinks.borrow_mut();
         sinks.optimize();
         for (_, sink) in sinks.iter() {
             if let Some(sink) = Weak::upgrade(sink) {
-                sink.notify(ctx);
+                sink.notify(scope);
             }
         }
         let mut detach_idxs = self.detach_idxs.borrow_mut();
@@ -154,8 +154,8 @@ impl BindSinks {
 }
 
 struct ReactiveContext(BindScope);
-pub struct BindScope(NotifyContext);
-pub struct NotifyContext(RefCell<ReactiveContextData>);
+pub struct BindScope(NotifyScope);
+pub struct NotifyScope(RefCell<ReactiveContextData>);
 
 struct ReactiveContextData {
     state: ReactiveState,
@@ -172,11 +172,11 @@ pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindScope);
 }
 
-impl NotifyContext {
+impl NotifyScope {
     pub fn spawn(&self, task: Rc<dyn BindTask>) {
         self.0.borrow_mut().lazy_bind_tasks.push(task);
     }
-    pub fn with<T>(f: impl FnOnce(&NotifyContext) -> T) -> T {
+    pub fn with<T>(f: impl FnOnce(&NotifyScope) -> T) -> T {
         ReactiveContext::with(|this| {
             this.notify(f, |_| {
                 panic!("Cannot create NotifyContext when BindContext exists.")
@@ -200,17 +200,15 @@ impl BindScope {
 
 impl ReactiveContext {
     fn new() -> Self {
-        Self(BindScope(NotifyContext(RefCell::new(
-            ReactiveContextData {
-                state: ReactiveState::None,
-                lazy_bind_tasks: Vec::new(),
-                lazy_notify_sources: Vec::new(),
-            },
-        ))))
+        Self(BindScope(NotifyScope(RefCell::new(ReactiveContextData {
+            state: ReactiveState::None,
+            lazy_bind_tasks: Vec::new(),
+            lazy_notify_sources: Vec::new(),
+        }))))
     }
     fn notify<T>(
         &self,
-        on_ctx: impl FnOnce(&NotifyContext) -> T,
+        on_ctx: impl FnOnce(&NotifyScope) -> T,
         on_failed: impl FnOnce(&mut ReactiveContextData) -> T,
     ) -> T {
         let value;
@@ -299,7 +297,7 @@ impl ReactiveContext {
     fn borrow_mut(&self) -> RefMut<ReactiveContextData> {
         ((self.0).0).0.borrow_mut()
     }
-    fn notify_ctx(&self) -> &NotifyContext {
+    fn notify_ctx(&self) -> &NotifyScope {
         &(self.0).0
     }
     fn bind_ctx_scope(&self) -> &BindScope {

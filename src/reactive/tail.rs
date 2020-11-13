@@ -262,11 +262,11 @@ impl TailState {
 }
 
 impl BindSink for RefCell<TailState> {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+    fn notify(self: Rc<Self>, scope: &NotifyScope) {
         let mut b = self.borrow_mut();
         b.is_modified = true;
         if let Some(sink) = b.sink.take() {
-            sink.notify(ctx);
+            sink.notify(scope);
         }
     }
 }

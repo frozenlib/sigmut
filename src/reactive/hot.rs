@@ -28,8 +28,8 @@ impl<S> BindSink for Hot<S>
 where
     Self: HotReady,
 {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
-        ctx.spawn(self);
+    fn notify(self: Rc<Self>, scope: &NotifyScope) {
+        scope.spawn(self);
     }
 }
 impl<S> BindTask for Hot<S>

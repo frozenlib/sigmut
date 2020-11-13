@@ -53,7 +53,7 @@ where
             let value = fut.await;
             if let Some(this) = Weak::upgrade(&this) {
                 this.state.borrow_mut().value = Poll::Ready(value);
-                NotifyContext::update(&this);
+                NotifyScope::update(&this);
             }
         }));
     }
@@ -147,16 +147,16 @@ where
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
-    fn notify(self: Rc<Self>, ctx: &NotifyContext) {
+    fn notify(self: Rc<Self>, scope: &NotifyScope) {
         let mut s = self.state.borrow_mut();
         if s.handle.take().is_some() {
             if let Poll::Ready(_) = &s.value {
                 s.value = Poll::Pending;
                 drop(s);
-                self.sinks.notify(ctx);
+                self.sinks.notify(scope);
             } else {
                 drop(s);
-                ctx.spawn(self);
+                scope.spawn(self);
             }
         }
     }

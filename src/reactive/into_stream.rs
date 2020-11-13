@@ -31,7 +31,7 @@ impl<S> IntoStream<S> {
 }
 
 impl<S: Reactive> BindSink for IntoStreamData<S> {
-    fn notify(self: Rc<Self>, _ctx: &NotifyContext) {
+    fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         let waker = {
             let mut b = self.state.borrow_mut();
             b.is_ready = true;
@@ -50,9 +50,8 @@ impl<S: Reactive> Stream for IntoStream<S> {
         if b.is_ready {
             b.is_ready = false;
             let bindings = &mut b.bindings;
-            let value = BindScope::with(|scope| {
-                bindings.update(scope, this, |ctx| this.source.get(ctx))
-            });
+            let value =
+                BindScope::with(|scope| bindings.update(scope, this, |ctx| this.source.get(ctx)));
             Poll::Ready(Some(value))
         } else {
             b.waker = Some(cx.waker().clone());
