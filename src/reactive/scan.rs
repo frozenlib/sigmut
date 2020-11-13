@@ -468,7 +468,7 @@ where
 {
     type Output = T;
 
-    fn stop(&self) -> Self::Output {
+    fn stop(self: Rc<Self>, _scope: &BindContextScope) -> Self::Output {
         let d = &mut *(self.0).borrow_mut();
         d.state.unload(&mut d.unload);
         let s = match take(&mut d.state) {

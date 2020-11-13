@@ -10,6 +10,7 @@ mod re_ops;
 mod re_ref;
 mod re_ref_ops;
 mod scan;
+mod scan2;
 mod tail;
 
 pub use self::{
@@ -163,7 +164,7 @@ pub trait LocalSpawn: 'static {
 trait DynamicFold {
     type Output;
 
-    fn stop(&self) -> Self::Output;
+    fn stop(self: Rc<Self>, scope: &BindContextScope) -> Self::Output;
     fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any>;
 }
 pub struct Fold<T>(FoldData<T>);
@@ -181,10 +182,10 @@ impl<T> Fold<T> {
         Self(FoldData::Constant(value))
     }
 
-    pub fn stop(self) -> T {
+    pub fn stop(self, scope: &BindContextScope) -> T {
         match self.0 {
             FoldData::Constant(value) => value,
-            FoldData::Dyn(this) => this.stop(),
+            FoldData::Dyn(this) => this.stop(scope),
         }
     }
 }
@@ -196,4 +197,3 @@ impl<T> From<Fold<T>> for Subscription {
         }
     }
 }
-
