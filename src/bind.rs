@@ -219,12 +219,12 @@ impl ReactiveEnvironment {
             ReactiveState::None => {
                 b.state = ReactiveState::Notify;
                 drop(b);
-                value = on_ctx(self.notify_ctx());
+                value = on_ctx(self.notify_scope());
                 self.notify_end(self.borrow_mut());
             }
             ReactiveState::Notify => {
                 drop(b);
-                value = on_ctx(self.notify_ctx());
+                value = on_ctx(self.notify_scope());
             }
             ReactiveState::Bind => {
                 value = on_failed(&mut b);
@@ -241,7 +241,7 @@ impl ReactiveEnvironment {
         b.state = ReactiveState::Bind;
         while let Some(task) = b.defer_bind_tasks.pop() {
             drop(b);
-            task.run(self.bind_ctx_scope());
+            task.run(self.bind_scope());
             b = self.borrow_mut();
         }
         self.bind_end(b);
@@ -253,12 +253,12 @@ impl ReactiveEnvironment {
             ReactiveState::None => {
                 b.state = ReactiveState::Bind;
                 drop(b);
-                value = f(self.bind_ctx_scope());
+                value = f(self.bind_scope());
                 self.bind_end(self.borrow_mut());
             }
             ReactiveState::Bind => {
                 drop(b);
-                value = f(self.bind_ctx_scope());
+                value = f(self.bind_scope());
             }
             ReactiveState::Notify => {
                 panic!("Cannot create BindContext when NotifyContext exists.");
@@ -278,7 +278,7 @@ impl ReactiveEnvironment {
         swap(&mut b.defer_notify_sources, &mut sources);
         drop(b);
         for s in &sources {
-            s.sinks().notify(self.notify_ctx());
+            s.sinks().notify(self.notify_scope());
         }
         sources.clear();
         b = self.borrow_mut();
@@ -293,10 +293,10 @@ impl ReactiveEnvironment {
     fn borrow_mut(&self) -> RefMut<ReactiveEnvironmentData> {
         ((self.0).0).0.borrow_mut()
     }
-    fn notify_ctx(&self) -> &NotifyScope {
+    fn notify_scope(&self) -> &NotifyScope {
         &(self.0).0
     }
-    fn bind_ctx_scope(&self) -> &BindScope {
+    fn bind_scope(&self) -> &BindScope {
         &self.0
     }
 }
