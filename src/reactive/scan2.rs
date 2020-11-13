@@ -177,9 +177,7 @@ where
     Get: Fn(&LoadSt) -> &Value,
 {
     load: Load,
-    load_phantom: PhantomData<fn(UnloadSt) -> LoadSt>,
     unload: Unload,
-    unload_phantom: PhantomData<fn(LoadSt) -> UnloadSt>,
     get: Get,
     get_phatnom: PhantomData<fn(&LoadSt) -> &Value>,
 }
@@ -216,9 +214,7 @@ pub fn scan_schema<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
 ) -> impl ScanSchema<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
     AnonymousScanSchema {
         load,
-        load_phantom: PhantomData,
         unload,
-        unload_phantom: PhantomData,
         get,
         get_phatnom: PhantomData,
     }
