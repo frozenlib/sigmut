@@ -171,7 +171,8 @@ impl<S: ReactiveRef> ReRefOps<S> {
         f: impl Fn(St, &S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
-            scan_schema(
+            initial_state,
+            scan_op(
                 move |st, ctx| {
                     let f = &f;
                     self.with(ctx, move |_, x| f(st, x))
@@ -179,7 +180,6 @@ impl<S: ReactiveRef> ReRefOps<S> {
                 |st| st,
                 |st| st,
             ),
-            initial_state,
         )))
     }
     pub fn filter_scan<St: 'static>(
@@ -189,7 +189,8 @@ impl<S: ReactiveRef> ReRefOps<S> {
         f: impl Fn(St, &S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
-            filter_scan_schema(
+            initial_state,
+            filter_scan_op(
                 move |state, ctx| {
                     self.with(ctx, |_ctx, value| {
                         let is_notify = predicate(&state, &value);
@@ -200,7 +201,6 @@ impl<S: ReactiveRef> ReRefOps<S> {
                 |state| state,
                 |state| state,
             ),
-            initial_state,
         )))
     }
 
@@ -217,7 +217,8 @@ impl<S: ReactiveRef> ReRefOps<S> {
     ) -> Fold<St> {
         let mut f = f;
         Fold::new(FoldBy::new(
-            fold_by_schema(
+            initial_state,
+            fold_by_op(
                 move |st, ctx| {
                     let f = &mut f;
                     self.with(ctx, move |_ctx, x| f(st, x))
@@ -225,7 +226,6 @@ impl<S: ReactiveRef> ReRefOps<S> {
                 |st| st,
                 |st| st,
             ),
-            initial_state,
         ))
     }
     pub fn collect_to<E: for<'a> Extend<&'a S::Item> + 'static>(self, e: E) -> Fold<E> {
@@ -260,12 +260,12 @@ impl<S: ReactiveRef> ReRefOps<S> {
     {
         let mut f = f;
         Fold::new(FoldBy::new(
-            fold_by_schema(
+            (),
+            fold_by_op(
                 move |_, ctx| ((), self.with(ctx, |_ctx, x| sp.spawn_local(f(x)))),
                 |_| (),
                 |_| (),
             ),
-            (),
         ))
         .into()
     }

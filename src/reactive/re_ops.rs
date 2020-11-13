@@ -70,8 +70,8 @@ impl<S: Reactive> ReOps<S> {
 
     pub fn cached(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
-            scan_schema(move |_, ctx| self.get(ctx), |_| (), |x| x),
             (),
+            scan_op(move |_, ctx| self.get(ctx), |_| (), |x| x),
         )))
     }
     pub fn scan<St: 'static>(
@@ -80,8 +80,8 @@ impl<S: Reactive> ReOps<S> {
         f: impl Fn(St, S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
-            scan_schema(move |st, ctx| f(st, self.get(ctx)), |st| st, |st| st),
             initial_state,
+            scan_op(move |st, ctx| f(st, self.get(ctx)), |st| st, |st| st),
         )))
     }
     pub fn filter_scan<St: 'static>(
@@ -91,7 +91,8 @@ impl<S: Reactive> ReOps<S> {
         f: impl Fn(St, S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
-            filter_scan_schema(
+            initial_state,
+            filter_scan_op(
                 move |state, ctx| {
                     let value = self.get(ctx);
                     let is_notify = predicate(&state, &value);
@@ -101,7 +102,6 @@ impl<S: Reactive> ReOps<S> {
                 |state| state,
                 |state| state,
             ),
-            initial_state,
         )))
     }
     pub fn dedup_by(
@@ -109,7 +109,8 @@ impl<S: Reactive> ReOps<S> {
         eq: impl Fn(&S::Item, &S::Item) -> bool + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
-            filter_scan_schema(
+            None,
+            filter_scan_op(
                 move |state, ctx| {
                     let mut value = self.get(ctx);
                     let mut is_notify = false;
@@ -128,7 +129,6 @@ impl<S: Reactive> ReOps<S> {
                 |value| Some(value),
                 |value| value,
             ),
-            None,
         )))
     }
     pub fn dedup_by_key<K: PartialEq>(
@@ -150,8 +150,8 @@ impl<S: Reactive> ReOps<S> {
         f: impl Fn(St, S::Item) -> St + 'static,
     ) -> Fold<St> {
         Fold::new(FoldBy::new(
-            fold_by_schema(move |st, ctx| f(st, self.get(ctx)), |st| st, |st| st),
             initial_state,
+            fold_by_op(move |st, ctx| f(st, self.get(ctx)), |st| st, |st| st),
         ))
     }
     pub fn collect_to<E: Extend<S::Item> + 'static>(self, e: E) -> Fold<E> {
@@ -183,12 +183,12 @@ impl<S: Reactive> ReOps<S> {
     {
         let mut f = f;
         Fold::new(FoldBy::new(
-            fold_by_schema(
+            (),
+            fold_by_op(
                 move |_, ctx| ((), sp.spawn_local(f(self.get(ctx)))),
                 |_| (),
                 |_| (),
             ),
-            (),
         ))
         .into()
     }

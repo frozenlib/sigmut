@@ -13,7 +13,7 @@ use crate::{
 
 use super::{DynamicFold, DynamicReactiveBorrowSource, DynamicReactiveRefSource};
 
-pub trait ScanSchema: 'static {
+pub trait ScanOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
@@ -21,7 +21,7 @@ pub trait ScanSchema: 'static {
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt;
     fn get<'a>(&self, state: &'a Self::LoadSt) -> &'a Self::Value;
 }
-pub trait FilterScanSchema: 'static {
+pub trait FilterScanOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
@@ -29,7 +29,7 @@ pub trait FilterScanSchema: 'static {
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt;
     fn get<'a>(&self, state: &'a Self::LoadSt) -> &'a Self::Value;
 }
-pub trait FoldBySchema: 'static {
+pub trait FoldByOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
@@ -42,19 +42,19 @@ pub struct FilterScanLoad<LoadSt> {
     pub state: LoadSt,
     pub is_notify: bool,
 }
-struct ScanData<S: ScanSchema> {
-    schema: S,
-    state: ScanState<S::LoadSt, S::UnloadSt>,
+struct ScanData<Op: ScanOp> {
+    op: Op,
+    state: ScanState<Op::LoadSt, Op::UnloadSt>,
     bindings: Bindings,
 }
-struct FilterScanData<S: FilterScanSchema> {
-    schema: S,
-    state: ScanState<S::LoadSt, S::UnloadSt>,
+struct FilterScanData<Op: FilterScanOp> {
+    op: Op,
+    state: ScanState<Op::LoadSt, Op::UnloadSt>,
     bindings: Bindings,
 }
-struct FoldByData<S: FoldBySchema> {
-    schema: S,
-    state: ScanState<S::LoadSt, S::UnloadSt>,
+struct FoldByData<Op: FoldByOp> {
+    op: Op,
+    state: ScanState<Op::LoadSt, Op::UnloadSt>,
     bindings: Bindings,
 }
 
@@ -115,57 +115,57 @@ impl<LoadSt, UnloadSt> ScanState<LoadSt, UnloadSt> {
     }
 }
 
-impl<S: ScanSchema> ScanData<S> {
+impl<Op: ScanOp> ScanData<Op> {
     fn load(&mut self, scope: &BindContextScope, sink: &Rc<impl BindSink>) -> bool {
-        let schema = &mut self.schema;
+        let op = &mut self.op;
         self.state
             .load(&mut self.bindings, scope, sink, |state, ctx| {
-                schema.load(state, ctx)
+                op.load(state, ctx)
             })
     }
     fn unload(&mut self) -> bool {
-        let schema = &mut self.schema;
-        self.state.unload(|state| schema.unload(state))
+        let op = &mut self.op;
+        self.state.unload(|state| op.unload(state))
     }
-    fn get(&self) -> &S::Value {
-        self.state.get(|state| self.schema.get(state))
+    fn get(&self) -> &Op::Value {
+        self.state.get(|state| self.op.get(state))
     }
 }
-impl<S: FilterScanSchema> FilterScanData<S> {
+impl<Op: FilterScanOp> FilterScanData<Op> {
     fn load(&mut self, scope: &BindContextScope, sink: &Rc<impl BindSink>) -> bool {
         let mut is_notify = false;
-        let schema = &mut self.schema;
+        let op = &mut self.op;
         self.state
             .load(&mut self.bindings, scope, sink, |state, ctx| {
-                let r = schema.load(state, ctx);
+                let r = op.load(state, ctx);
                 is_notify = r.is_notify;
                 r.state
             });
         is_notify
     }
     fn unload(&mut self) -> bool {
-        let schema = &mut self.schema;
-        self.state.unload(|state| schema.unload(state))
+        let op = &mut self.op;
+        self.state.unload(|state| op.unload(state))
     }
-    fn get(&self) -> &S::Value {
-        self.state.get(|state| self.schema.get(state))
+    fn get(&self) -> &Op::Value {
+        self.state.get(|state| self.op.get(state))
     }
 }
-impl<S: FoldBySchema> FoldByData<S> {
+impl<Op: FoldByOp> FoldByData<Op> {
     fn load(&mut self, scope: &BindContextScope, sink: &Rc<impl BindSink>) -> bool {
-        let schema = &mut self.schema;
+        let op = &mut self.op;
         self.state
             .load(&mut self.bindings, scope, sink, |state, ctx| {
-                schema.load(state, ctx)
+                op.load(state, ctx)
             })
     }
     fn unload(&mut self) -> bool {
-        let schema = &mut self.schema;
-        self.state.unload(|state| schema.unload(state))
+        let op = &mut self.op;
+        self.state.unload(|state| op.unload(state))
     }
 }
 
-struct AnonymousScanSchema<LoadSt, UnloadSt, Value, Load, Unload, Get>
+struct AnonymousScanOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
     Load: FnMut(UnloadSt, &BindContext) -> LoadSt,
     Unload: FnMut(LoadSt) -> UnloadSt,
@@ -176,8 +176,8 @@ where
     get: Get,
     get_phatnom: PhantomData<fn(&LoadSt) -> &Value>,
 }
-impl<LoadSt, UnloadSt, Value, Load, Unload, Get> ScanSchema
-    for AnonymousScanSchema<LoadSt, UnloadSt, Value, Load, Unload, Get>
+impl<LoadSt, UnloadSt, Value, Load, Unload, Get> ScanOp
+    for AnonymousScanOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
     Load: FnMut(UnloadSt, &BindContext) -> LoadSt + 'static,
     Unload: FnMut(LoadSt) -> UnloadSt + 'static,
@@ -200,12 +200,12 @@ where
         (self.get)(state)
     }
 }
-pub fn scan_schema<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
+pub fn scan_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
     load: impl FnMut(UnloadSt, &BindContext) -> LoadSt + 'static,
     unload: impl FnMut(LoadSt) -> UnloadSt + 'static,
     get: impl Fn(&LoadSt) -> &Value + 'static,
-) -> impl ScanSchema<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
-    AnonymousScanSchema {
+) -> impl ScanOp<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
+    AnonymousScanOp {
         load,
         unload,
         get,
@@ -213,7 +213,7 @@ pub fn scan_schema<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
     }
 }
 
-struct AnonymousFilterScanSchema<LoadSt, UnloadSt, Value, Load, Unload, Get>
+struct AnonymousFilterScanOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
     Load: FnMut(UnloadSt, &BindContext) -> FilterScanLoad<LoadSt>,
     Unload: FnMut(LoadSt) -> UnloadSt,
@@ -224,8 +224,8 @@ where
     get: Get,
     get_phatnom: PhantomData<fn(&LoadSt) -> &Value>,
 }
-impl<LoadSt, UnloadSt, Value, Load, Unload, Get> FilterScanSchema
-    for AnonymousFilterScanSchema<LoadSt, UnloadSt, Value, Load, Unload, Get>
+impl<LoadSt, UnloadSt, Value, Load, Unload, Get> FilterScanOp
+    for AnonymousFilterScanOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
     Load: FnMut(UnloadSt, &BindContext) -> FilterScanLoad<LoadSt> + 'static,
     Unload: FnMut(LoadSt) -> UnloadSt + 'static,
@@ -248,12 +248,12 @@ where
         (self.get)(state)
     }
 }
-pub fn filter_scan_schema<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
+pub fn filter_scan_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
     load: impl FnMut(UnloadSt, &BindContext) -> FilterScanLoad<LoadSt> + 'static,
     unload: impl FnMut(LoadSt) -> UnloadSt + 'static,
     get: impl Fn(&LoadSt) -> &Value + 'static,
-) -> impl FilterScanSchema<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
-    AnonymousFilterScanSchema {
+) -> impl FilterScanOp<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
+    AnonymousFilterScanOp {
         load,
         unload,
         get,
@@ -261,7 +261,7 @@ pub fn filter_scan_schema<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
     }
 }
 
-struct AnonymousFoldBySchema<LoadSt, UnloadSt, Value, Load, Unload, Get>
+struct AnonymousFoldByOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
     Load: FnMut(UnloadSt, &BindContext) -> LoadSt,
     Unload: FnMut(LoadSt) -> UnloadSt,
@@ -272,8 +272,8 @@ where
     get: Get,
     get_phatnom: PhantomData<fn(&LoadSt) -> &Value>,
 }
-impl<LoadSt, UnloadSt, Value, Load, Unload, Get> FoldBySchema
-    for AnonymousFoldBySchema<LoadSt, UnloadSt, Value, Load, Unload, Get>
+impl<LoadSt, UnloadSt, Value, Load, Unload, Get> FoldByOp
+    for AnonymousFoldByOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
     Load: FnMut(UnloadSt, &BindContext) -> LoadSt + 'static,
     Unload: FnMut(LoadSt) -> UnloadSt + 'static,
@@ -296,12 +296,12 @@ where
         (self.get)(state)
     }
 }
-pub fn fold_by_schema<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
+pub fn fold_by_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
     load: impl FnMut(UnloadSt, &BindContext) -> LoadSt + 'static,
     unload: impl FnMut(LoadSt) -> UnloadSt + 'static,
     get: impl Fn(LoadSt) -> Value + 'static,
-) -> impl FoldBySchema<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
-    AnonymousFoldBySchema {
+) -> impl FoldByOp<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
+    AnonymousFoldByOp {
         load,
         unload,
         get,
@@ -309,22 +309,22 @@ pub fn fold_by_schema<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
     }
 }
 
-pub struct Scan<S: ScanSchema> {
-    data: RefCell<ScanData<S>>,
+pub struct Scan<Op: ScanOp> {
+    data: RefCell<ScanData<Op>>,
     sinks: BindSinks,
 }
-impl<S: ScanSchema> Scan<S> {
-    pub fn new(schema: S, initial_state: S::UnloadSt) -> Self {
+impl<Op: ScanOp> Scan<Op> {
+    pub fn new(initial_state: Op::UnloadSt, op: Op) -> Self {
         Self {
             data: RefCell::new(ScanData {
-                schema,
+                op,
                 state: ScanState::Unloaded(initial_state),
                 bindings: Bindings::new(),
             }),
             sinks: BindSinks::new(),
         }
     }
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, S::Value> {
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, Op::Value> {
         ctx.bind(self.clone());
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
@@ -335,15 +335,15 @@ impl<S: ScanSchema> Scan<S> {
         Ref::map(d, |d| d.get())
     }
 }
-impl<S: ScanSchema> ReactiveBorrow for Rc<Scan<S>> {
-    type Item = S::Value;
+impl<Op: ScanOp> ReactiveBorrow for Rc<Scan<Op>> {
+    type Item = Op::Value;
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.borrow(ctx)
     }
 }
 
-impl<S: ScanSchema> DynamicReactiveBorrowSource for Scan<S> {
-    type Item = S::Value;
+impl<Op: ScanOp> DynamicReactiveBorrowSource for Scan<Op> {
+    type Item = Op::Value;
 
     fn dyn_borrow(
         &self,
@@ -368,14 +368,14 @@ impl<S: ScanSchema> DynamicReactiveBorrowSource for Scan<S> {
     }
 }
 
-impl<S: ScanSchema> DynamicReactiveRefSource for Scan<S> {
-    type Item = S::Value;
+impl<Op: ScanOp> DynamicReactiveRefSource for Scan<Op> {
+    type Item = Op::Value;
     fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
         f(ctx, &self.borrow(ctx))
     }
 }
 
-impl<S: ScanSchema> BindSource for Scan<S> {
+impl<Op: ScanOp> BindSource for Scan<Op> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
@@ -389,7 +389,7 @@ impl<S: ScanSchema> BindSource for Scan<S> {
     }
 }
 
-impl<S: ScanSchema> BindSink for Scan<S> {
+impl<Op: ScanOp> BindSink for Scan<Op> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         if self.data.borrow_mut().unload() {
             self.sinks.notify(ctx);
@@ -397,16 +397,16 @@ impl<S: ScanSchema> BindSink for Scan<S> {
     }
 }
 
-pub struct FilterScan<S: FilterScanSchema> {
-    data: RefCell<FilterScanData<S>>,
+pub struct FilterScan<Op: FilterScanOp> {
+    data: RefCell<FilterScanData<Op>>,
     sinks: BindSinks,
 }
 
-impl<S: FilterScanSchema> FilterScan<S> {
-    pub fn new(schema: S, initial_state: S::UnloadSt) -> Self {
+impl<Op: FilterScanOp> FilterScan<Op> {
+    pub fn new(initial_state: Op::UnloadSt, op: Op) -> Self {
         Self {
             data: RefCell::new(FilterScanData {
-                schema,
+                op,
                 state: ScanState::Unloaded(initial_state),
                 bindings: Bindings::new(),
             }),
@@ -419,7 +419,7 @@ impl<S: FilterScanSchema> FilterScan<S> {
             NotifyContext::update(self);
         }
     }
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, S::Value> {
+    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, Op::Value> {
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
             drop(d);
@@ -431,16 +431,16 @@ impl<S: FilterScanSchema> FilterScan<S> {
     }
 }
 
-impl<S: FilterScanSchema> ReactiveBorrow for Rc<FilterScan<S>> {
-    type Item = S::Value;
+impl<Op: FilterScanOp> ReactiveBorrow for Rc<FilterScan<Op>> {
+    type Item = Op::Value;
 
     fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.borrow(ctx)
     }
 }
 
-impl<S: FilterScanSchema> DynamicReactiveBorrowSource for FilterScan<S> {
-    type Item = S::Value;
+impl<Op: FilterScanOp> DynamicReactiveBorrowSource for FilterScan<Op> {
+    type Item = Op::Value;
 
     fn dyn_borrow(
         &self,
@@ -464,14 +464,14 @@ impl<S: FilterScanSchema> DynamicReactiveBorrowSource for FilterScan<S> {
         self
     }
 }
-impl<S: FilterScanSchema> DynamicReactiveRefSource for FilterScan<S> {
-    type Item = S::Value;
+impl<Op: FilterScanOp> DynamicReactiveRefSource for FilterScan<Op> {
+    type Item = Op::Value;
     fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
         f(ctx, &self.borrow(ctx))
     }
 }
 
-impl<S: FilterScanSchema> BindSource for FilterScan<S> {
+impl<Op: FilterScanOp> BindSource for FilterScan<Op> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
@@ -485,29 +485,29 @@ impl<S: FilterScanSchema> BindSource for FilterScan<S> {
     }
 }
 
-impl<S: FilterScanSchema> BindSink for FilterScan<S> {
+impl<Op: FilterScanOp> BindSink for FilterScan<Op> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         if self.data.borrow_mut().unload() && !self.sinks.is_empty() {
             ctx.spawn(self);
         }
     }
 }
-impl<S: FilterScanSchema> BindTask for FilterScan<S> {
+impl<Op: FilterScanOp> BindTask for FilterScan<Op> {
     fn run(self: Rc<Self>, scope: &BindContextScope) {
         self.ready(scope);
     }
 }
 
-pub struct FoldBy<S: FoldBySchema>(RefCell<FoldByData<S>>);
+pub struct FoldBy<Op: FoldByOp>(RefCell<FoldByData<Op>>);
 
-impl<S: FoldBySchema> FoldBy<S> {
-    pub fn new(schema: S, state: S::UnloadSt) -> Rc<Self> {
-        Self::new_with_state(schema, ScanState::Unloaded(state))
+impl<Op: FoldByOp> FoldBy<Op> {
+    pub fn new(state: Op::UnloadSt, op: Op) -> Rc<Self> {
+        Self::new_with_state(ScanState::Unloaded(state), op)
     }
-    pub fn new_with_state(schema: S, state: ScanState<S::LoadSt, S::UnloadSt>) -> Rc<Self> {
+    pub fn new_with_state(state: ScanState<Op::LoadSt, Op::UnloadSt>, op: Op) -> Rc<Self> {
         let is_loaded = state.is_loaded();
         let this = Rc::new(FoldBy(RefCell::new(FoldByData {
-            schema,
+            op,
             state,
             bindings: Bindings::new(),
         })));
@@ -520,15 +520,15 @@ impl<S: FoldBySchema> FoldBy<S> {
         this.0.borrow_mut().load(scope, this);
     }
 }
-impl<S: FoldBySchema> DynamicFold for FoldBy<S> {
-    type Output = S::Value;
+impl<Op: FoldByOp> DynamicFold for FoldBy<Op> {
+    type Output = Op::Value;
 
     fn stop(self: Rc<Self>, scope: &BindContextScope) -> Self::Output {
         let d = &mut *(self.0).borrow_mut();
         d.load(scope, &self);
         d.bindings.clear();
         if let ScanState::Loaded(state) = take(&mut d.state) {
-            d.schema.get(state)
+            d.op.get(state)
         } else {
             panic!("invalid state.")
         }
@@ -538,7 +538,7 @@ impl<S: FoldBySchema> DynamicFold for FoldBy<S> {
     }
 }
 
-impl<S: FoldBySchema> BindSink for FoldBy<S> {
+impl<Op: FoldByOp> BindSink for FoldBy<Op> {
     fn notify(self: Rc<Self>, ctx: &NotifyContext) {
         if self.0.borrow_mut().unload() {
             ctx.spawn(self);
@@ -546,12 +546,12 @@ impl<S: FoldBySchema> BindSink for FoldBy<S> {
     }
 }
 
-impl<S: FoldBySchema> BindTask for FoldBy<S> {
+impl<Op: FoldByOp> BindTask for FoldBy<Op> {
     fn run(self: Rc<Self>, scope: &BindContextScope) {
         Self::next(&self, scope);
     }
 }
-impl<S: FoldBySchema> Drop for FoldBy<S> {
+impl<Op: FoldByOp> Drop for FoldBy<Op> {
     fn drop(&mut self) {
         self.0.borrow_mut().unload();
     }
