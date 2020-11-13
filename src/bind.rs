@@ -159,8 +159,8 @@ pub struct NotifyScope(RefCell<ReactiveContextData>);
 
 struct ReactiveContextData {
     state: ReactiveState,
-    lazy_bind_tasks: Vec<Rc<dyn BindTask>>,
-    lazy_notify_sources: Vec<Rc<dyn BindSource>>,
+    defer_bind_tasks: Vec<Rc<dyn BindTask>>,
+    defer_notify_sources: Vec<Rc<dyn BindSource>>,
 }
 enum ReactiveState {
     None,
@@ -174,7 +174,7 @@ pub trait BindTask: 'static {
 
 impl NotifyScope {
     pub fn spawn(&self, task: Rc<dyn BindTask>) {
-        self.0.borrow_mut().lazy_bind_tasks.push(task);
+        self.0.borrow_mut().defer_bind_tasks.push(task);
     }
     pub fn with<T>(f: impl FnOnce(&NotifyScope) -> T) -> T {
         ReactiveContext::with(|this| {
@@ -187,7 +187,7 @@ impl NotifyScope {
         ReactiveContext::with(|this| {
             this.notify(
                 |ctx| s.sinks().notify(ctx),
-                |this| this.lazy_notify_sources.push(s.clone()),
+                |this| this.defer_notify_sources.push(s.clone()),
             )
         });
     }
@@ -202,8 +202,8 @@ impl ReactiveContext {
     fn new() -> Self {
         Self(BindScope(NotifyScope(RefCell::new(ReactiveContextData {
             state: ReactiveState::None,
-            lazy_bind_tasks: Vec::new(),
-            lazy_notify_sources: Vec::new(),
+            defer_bind_tasks: Vec::new(),
+            defer_notify_sources: Vec::new(),
         }))))
     }
     fn notify<T>(
@@ -235,12 +235,12 @@ impl ReactiveContext {
     }
     fn notify_end(&self, b: RefMut<ReactiveContextData>) {
         let mut b = b;
-        if b.lazy_bind_tasks.is_empty() {
+        if b.defer_bind_tasks.is_empty() {
             b.state = ReactiveState::None;
             return;
         }
         b.state = ReactiveState::Bind(0);
-        while let Some(task) = b.lazy_bind_tasks.pop() {
+        while let Some(task) = b.defer_bind_tasks.pop() {
             drop(b);
             task.run(self.bind_ctx_scope());
             b = self.borrow_mut();
@@ -274,19 +274,19 @@ impl ReactiveContext {
     fn bind_end(&self, b: RefMut<ReactiveContextData>) {
         let mut b = b;
         b.state = ReactiveState::None;
-        if b.lazy_notify_sources.is_empty() {
+        if b.defer_notify_sources.is_empty() {
             return;
         }
         b.state = ReactiveState::Notify(0);
         let mut sources = Vec::new();
-        swap(&mut b.lazy_notify_sources, &mut sources);
+        swap(&mut b.defer_notify_sources, &mut sources);
         drop(b);
         for s in &sources {
             s.sinks().notify(self.notify_ctx());
         }
         sources.clear();
         b = self.borrow_mut();
-        b.lazy_notify_sources = sources;
+        b.defer_notify_sources = sources;
         self.notify_end(b);
     }
 
