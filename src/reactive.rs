@@ -163,7 +163,7 @@ pub trait LocalSpawn: 'static {
 trait DynamicFold {
     type Output;
 
-    fn stop(self: Rc<Self>, scope: &BindContextScope) -> Self::Output;
+    fn stop(self: Rc<Self>, scope: &BindScope) -> Self::Output;
     fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any>;
 }
 pub struct Fold<T>(FoldData<T>);
@@ -182,10 +182,10 @@ impl<T> Fold<T> {
     }
 
     pub fn stop(self) -> T {
-        BindContextScope::with(move |scope| self.stop_with(scope))
+        BindScope::with(move |scope| self.stop_with(scope))
     }
 
-    pub fn stop_with(self, scope: &BindContextScope) -> T {
+    pub fn stop_with(self, scope: &BindScope) -> T {
         match self.0 {
             FoldData::Constant(value) => value,
             FoldData::Dyn(this) => this.stop(scope),

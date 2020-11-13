@@ -64,11 +64,11 @@ impl<S: ReactiveRef> ReRefOps<S> {
         self.0.with(ctx, f)
     }
     pub fn head_tail(self, f: impl FnOnce(&S::Item)) -> TailRefOps<S> {
-        BindContextScope::with(|scope| self.head_tail_with(scope, f))
+        BindScope::with(|scope| self.head_tail_with(scope, f))
     }
     pub fn head_tail_with(
         self,
-        scope: &BindContextScope,
+        scope: &BindScope,
         f: impl FnOnce(&S::Item),
     ) -> TailRefOps<S> {
         TailRefOps::new(self.0, scope, f)

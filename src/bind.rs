@@ -4,7 +4,7 @@ use std::mem::{drop, replace, swap};
 use std::rc::{Rc, Weak};
 
 pub struct BindContext<'a> {
-    scope: &'a BindContextScope,
+    scope: &'a BindScope,
     bb: RefCell<BindingsBuilder>,
 }
 
@@ -12,7 +12,7 @@ impl<'a> BindContext<'a> {
     pub fn bind(&self, source: Rc<impl BindSource>) {
         self.bb.borrow_mut().bind(source)
     }
-    pub fn scope(&self) -> &BindContextScope {
+    pub fn scope(&self) -> &BindScope {
         &self.scope
     }
 }
@@ -86,7 +86,7 @@ impl Bindings {
     }
     pub fn update<'a, T: 'a>(
         &mut self,
-        scope: &'a BindContextScope,
+        scope: &'a BindScope,
         sink: &Rc<impl BindSink>,
         f: impl FnOnce(&BindContext<'a>) -> T,
     ) -> T {
@@ -153,8 +153,8 @@ impl BindSinks {
     }
 }
 
-struct ReactiveContext(BindContextScope);
-pub struct BindContextScope(NotifyContext);
+struct ReactiveContext(BindScope);
+pub struct BindScope(NotifyContext);
 pub struct NotifyContext(RefCell<ReactiveContextData>);
 
 struct ReactiveContextData {
@@ -169,7 +169,7 @@ enum ReactiveState {
 }
 
 pub trait BindTask: 'static {
-    fn run(self: Rc<Self>, scope: &BindContextScope);
+    fn run(self: Rc<Self>, scope: &BindScope);
 }
 
 impl NotifyContext {
@@ -192,15 +192,15 @@ impl NotifyContext {
         });
     }
 }
-impl BindContextScope {
-    pub fn with<T>(f: impl FnOnce(&BindContextScope) -> T) -> T {
+impl BindScope {
+    pub fn with<T>(f: impl FnOnce(&BindScope) -> T) -> T {
         ReactiveContext::with(|this| this.bind(f))
     }
 }
 
 impl ReactiveContext {
     fn new() -> Self {
-        Self(BindContextScope(NotifyContext(RefCell::new(
+        Self(BindScope(NotifyContext(RefCell::new(
             ReactiveContextData {
                 state: ReactiveState::None,
                 lazy_bind_tasks: Vec::new(),
@@ -249,7 +249,7 @@ impl ReactiveContext {
         }
         self.bind_end(b);
     }
-    fn bind<T>(&self, f: impl FnOnce(&BindContextScope) -> T) -> T {
+    fn bind<T>(&self, f: impl FnOnce(&BindScope) -> T) -> T {
         let mut b = self.borrow_mut();
         let value;
         match b.state {
@@ -302,7 +302,7 @@ impl ReactiveContext {
     fn notify_ctx(&self) -> &NotifyContext {
         &(self.0).0
     }
-    fn bind_ctx_scope(&self) -> &BindContextScope {
+    fn bind_ctx_scope(&self) -> &BindScope {
         &self.0
     }
 }

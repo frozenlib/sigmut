@@ -5,7 +5,7 @@ use std::{cell::RefCell, iter::once, rc::Rc};
 pub struct Tail<T: 'static>(TailOps<Re<T>>);
 
 impl<T> Tail<T> {
-    pub(super) fn new(source: Re<T>, scope: &BindContextScope) -> (T, Self) {
+    pub(super) fn new(source: Re<T>, scope: &BindScope) -> (T, Self) {
         let (value, s) = TailOps::new(source, scope);
         (value, Self(s))
     }
@@ -37,7 +37,7 @@ impl<T> Tail<T> {
 pub struct TailOps<S>(Option<TailData<S>>);
 
 impl<S: Reactive> TailOps<S> {
-    pub(super) fn new(source: S, scope: &BindContextScope) -> (S::Item, Self) {
+    pub(super) fn new(source: S, scope: &BindScope) -> (S::Item, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();
         let value = b.bindings.update(scope, &state, |ctx| source.get(ctx));
@@ -99,12 +99,12 @@ impl<S: Reactive> TailOps<S> {
 pub struct TailRef<T: ?Sized + 'static>(TailRefOps<ReRef<T>>);
 
 impl<T: ?Sized + 'static> TailRef<T> {
-    pub(super) fn new(source: ReRef<T>, scope: &BindContextScope, f: impl FnOnce(&T)) -> Self {
+    pub(super) fn new(source: ReRef<T>, scope: &BindScope, f: impl FnOnce(&T)) -> Self {
         Self(TailRefOps::new(source, scope, f))
     }
     pub(super) fn new_borrow<'a>(
         source: &'a ReBorrow<T>,
-        scope: &'a BindContextScope,
+        scope: &'a BindScope,
     ) -> (Ref<'a, T>, Self) {
         let (r, s) = TailRefOps::new_borrow(source, scope, |s| s.as_ref());
         (r, Self(s))
@@ -144,7 +144,7 @@ impl<T: ?Sized + 'static> TailRef<T> {
 pub struct TailRefOps<S>(Option<TailData<S>>);
 
 impl<S: ReactiveRef> TailRefOps<S> {
-    pub(super) fn new(source: S, scope: &BindContextScope, f: impl FnOnce(&S::Item)) -> Self {
+    pub(super) fn new(source: S, scope: &BindScope, f: impl FnOnce(&S::Item)) -> Self {
         let state = TailState::new();
         let mut b = state.borrow_mut();
         b.bindings
@@ -158,7 +158,7 @@ impl<S: ReactiveRef> TailRefOps<S> {
     }
     pub(super) fn new_borrow<'a, B: ReactiveBorrow<Item = S::Item>>(
         source: &'a B,
-        scope: &'a BindContextScope,
+        scope: &'a BindScope,
         to_ref: impl Fn(&B) -> S,
     ) -> (Ref<'a, B::Item>, Self) {
         let state = TailState::new();

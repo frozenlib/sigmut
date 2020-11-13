@@ -7,7 +7,7 @@ pub struct Hot<S> {
     bindings: RefCell<Bindings>,
 }
 pub trait HotReady: 'static {
-    fn ready(self: Rc<Self>, scope: &BindContextScope);
+    fn ready(self: Rc<Self>, scope: &BindScope);
 }
 
 impl<S> Hot<S>
@@ -20,7 +20,7 @@ where
             bindings: RefCell::new(Bindings::new()),
         });
         let this = rc.clone();
-        BindContextScope::with(|scope| this.ready(scope));
+        BindScope::with(|scope| this.ready(scope));
         rc
     }
 }
@@ -36,13 +36,13 @@ impl<S> BindTask for Hot<S>
 where
     Self: HotReady,
 {
-    fn run(self: Rc<Self>, scope: &BindContextScope) {
+    fn run(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }
 
 impl<T: 'static> HotReady for Hot<Re<T>> {
-    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+    fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings
             .borrow_mut()
@@ -50,7 +50,7 @@ impl<T: 'static> HotReady for Hot<Re<T>> {
     }
 }
 impl<S: Reactive> HotReady for Hot<ReOps<S>> {
-    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+    fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings
             .borrow_mut()
@@ -58,7 +58,7 @@ impl<S: Reactive> HotReady for Hot<ReOps<S>> {
     }
 }
 impl<T: 'static + ?Sized> HotReady for Hot<ReBorrow<T>> {
-    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+    fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings.borrow_mut().update(scope, &this, |ctx| {
             self.source.borrow(ctx);
@@ -66,7 +66,7 @@ impl<T: 'static + ?Sized> HotReady for Hot<ReBorrow<T>> {
     }
 }
 impl<S: ReactiveBorrow> HotReady for Hot<ReBorrowOps<S>> {
-    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+    fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings.borrow_mut().update(scope, &this, |ctx| {
             self.source.borrow(ctx);
@@ -75,7 +75,7 @@ impl<S: ReactiveBorrow> HotReady for Hot<ReBorrowOps<S>> {
 }
 
 impl<T: 'static + ?Sized> HotReady for Hot<ReRef<T>> {
-    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+    fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings
             .borrow_mut()
@@ -83,7 +83,7 @@ impl<T: 'static + ?Sized> HotReady for Hot<ReRef<T>> {
     }
 }
 impl<S: ReactiveRef> HotReady for Hot<ReRefOps<S>> {
-    fn ready(self: Rc<Self>, scope: &BindContextScope) {
+    fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings
             .borrow_mut()

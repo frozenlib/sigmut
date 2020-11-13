@@ -8,9 +8,9 @@ pub enum MayRe<T: 'static> {
 
 impl<T: 'static> MayRe<T> {
     pub fn head_tail(self) -> (T, Tail<T>) {
-        BindContextScope::with(|scope| self.head_tail_with(scope))
+        BindScope::with(|scope| self.head_tail_with(scope))
     }
-    pub fn head_tail_with(self, scope: &BindContextScope) -> (T, Tail<T>) {
+    pub fn head_tail_with(self, scope: &BindScope) -> (T, Tail<T>) {
         match self {
             MayRe::Constant(x) => (x, Tail::empty()),
             MayRe::Re(re) => re.head_tail_with(scope),

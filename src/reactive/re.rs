@@ -19,9 +19,9 @@ impl<T: 'static> Re<T> {
         }
     }
     pub fn head_tail(&self) -> (T, Tail<T>) {
-        BindContextScope::with(|scope| self.head_tail_with(scope))
+        BindScope::with(|scope| self.head_tail_with(scope))
     }
-    pub fn head_tail_with(&self, scope: &BindContextScope) -> (T, Tail<T>) {
+    pub fn head_tail_with(&self, scope: &BindScope) -> (T, Tail<T>) {
         Tail::new(self.clone(), scope)
     }
 

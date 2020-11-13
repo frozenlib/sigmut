@@ -45,7 +45,7 @@ where
         }
     }
 
-    fn ready(self: &Rc<Self>, scope: &BindContextScope) {
+    fn ready(self: &Rc<Self>, scope: &BindScope) {
         let mut s = self.state.borrow_mut();
         let fut = s.bindings.update(scope, self, |ctx| self.source.get(ctx));
         let this = Rc::downgrade(self);
@@ -167,7 +167,7 @@ where
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
-    fn run(self: Rc<Self>, scope: &BindContextScope) {
+    fn run(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }

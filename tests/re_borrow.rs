@@ -186,7 +186,7 @@ fn re_borrow_flatten() {
 #[test]
 fn re_borrow_head_tail_with() {
     let a = ReRefCell::new(2);
-    let (head, tail) = BindContextScope::with(|scope| {
+    let (head, tail) = BindScope::with(|scope| {
         let r = a.re_borrow();
         let (head, tail) = r.head_tail_with(scope);
         (*head, tail)

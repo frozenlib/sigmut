@@ -43,7 +43,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     }
     pub fn head_tail_with<'a>(
         &'a self,
-        scope: &'a BindContextScope,
+        scope: &'a BindScope,
     ) -> (
         Ref<'a, S::Item>,
         TailRefOps<impl ReactiveRef<Item = S::Item>>,

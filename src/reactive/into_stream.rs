@@ -50,7 +50,7 @@ impl<S: Reactive> Stream for IntoStream<S> {
         if b.is_ready {
             b.is_ready = false;
             let bindings = &mut b.bindings;
-            let value = BindContextScope::with(|scope| {
+            let value = BindScope::with(|scope| {
                 bindings.update(scope, this, |ctx| this.source.get(ctx))
             });
             Poll::Ready(Some(value))

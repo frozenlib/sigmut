@@ -26,9 +26,9 @@ impl<S: Reactive> ReOps<S> {
         f(ctx, &self.get(ctx))
     }
     pub fn head_tail(self) -> (S::Item, TailOps<S>) {
-        BindContextScope::with(|scope| self.head_tail_with(scope))
+        BindScope::with(|scope| self.head_tail_with(scope))
     }
-    pub fn head_tail_with(self, scope: &BindContextScope) -> (S::Item, TailOps<S>) {
+    pub fn head_tail_with(self, scope: &BindScope) -> (S::Item, TailOps<S>) {
         TailOps::new(self.0, scope)
     }
 

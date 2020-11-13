@@ -7,7 +7,7 @@ use std::{
 };
 
 use crate::{
-    BindContext, BindContextScope, BindSink, BindSinks, BindSource, BindTask, Bindings,
+    BindContext, BindScope, BindSink, BindSinks, BindSource, BindTask, Bindings,
     NotifyContext, ReactiveBorrow,
 };
 
@@ -73,7 +73,7 @@ impl<LoadSt, UnloadSt> ScanState<LoadSt, UnloadSt> {
     fn load(
         &mut self,
         bindings: &mut Bindings,
-        scope: &BindContextScope,
+        scope: &BindScope,
         sink: &Rc<impl BindSink>,
         load: impl FnOnce(UnloadSt, &BindContext) -> LoadSt,
     ) -> bool {
@@ -116,7 +116,7 @@ impl<LoadSt, UnloadSt> ScanState<LoadSt, UnloadSt> {
 }
 
 impl<Op: ScanOp> ScanData<Op> {
-    fn load(&mut self, scope: &BindContextScope, sink: &Rc<impl BindSink>) -> bool {
+    fn load(&mut self, scope: &BindScope, sink: &Rc<impl BindSink>) -> bool {
         let op = &mut self.op;
         self.state
             .load(&mut self.bindings, scope, sink, |state, ctx| {
@@ -132,7 +132,7 @@ impl<Op: ScanOp> ScanData<Op> {
     }
 }
 impl<Op: FilterScanOp> FilterScanData<Op> {
-    fn load(&mut self, scope: &BindContextScope, sink: &Rc<impl BindSink>) -> bool {
+    fn load(&mut self, scope: &BindScope, sink: &Rc<impl BindSink>) -> bool {
         let mut is_notify = false;
         let op = &mut self.op;
         self.state
@@ -152,7 +152,7 @@ impl<Op: FilterScanOp> FilterScanData<Op> {
     }
 }
 impl<Op: FoldByOp> FoldByData<Op> {
-    fn load(&mut self, scope: &BindContextScope, sink: &Rc<impl BindSink>) -> bool {
+    fn load(&mut self, scope: &BindScope, sink: &Rc<impl BindSink>) -> bool {
         let op = &mut self.op;
         self.state
             .load(&mut self.bindings, scope, sink, |state, ctx| {
@@ -414,7 +414,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
         }
     }
 
-    fn ready(self: &Rc<Self>, scope: &BindContextScope) {
+    fn ready(self: &Rc<Self>, scope: &BindScope) {
         if self.data.borrow_mut().load(scope, self) {
             NotifyContext::update(self);
         }
@@ -493,7 +493,7 @@ impl<Op: FilterScanOp> BindSink for FilterScan<Op> {
     }
 }
 impl<Op: FilterScanOp> BindTask for FilterScan<Op> {
-    fn run(self: Rc<Self>, scope: &BindContextScope) {
+    fn run(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }
@@ -512,18 +512,18 @@ impl<Op: FoldByOp> FoldBy<Op> {
             bindings: Bindings::new(),
         })));
         if !is_loaded {
-            BindContextScope::with(|scope| Self::next(&this, scope));
+            BindScope::with(|scope| Self::next(&this, scope));
         }
         this
     }
-    fn next(this: &Rc<Self>, scope: &BindContextScope) {
+    fn next(this: &Rc<Self>, scope: &BindScope) {
         this.0.borrow_mut().load(scope, this);
     }
 }
 impl<Op: FoldByOp> DynamicFold for FoldBy<Op> {
     type Output = Op::Value;
 
-    fn stop(self: Rc<Self>, scope: &BindContextScope) -> Self::Output {
+    fn stop(self: Rc<Self>, scope: &BindScope) -> Self::Output {
         let d = &mut *(self.0).borrow_mut();
         d.load(scope, &self);
         d.bindings.clear();
@@ -547,7 +547,7 @@ impl<Op: FoldByOp> BindSink for FoldBy<Op> {
 }
 
 impl<Op: FoldByOp> BindTask for FoldBy<Op> {
-    fn run(self: Rc<Self>, scope: &BindContextScope) {
+    fn run(self: Rc<Self>, scope: &BindScope) {
         Self::next(&self, scope);
     }
 }
