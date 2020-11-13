@@ -164,8 +164,8 @@ struct ReactiveContextData {
 }
 enum ReactiveState {
     None,
-    Notify(usize),
-    Bind(usize),
+    Notify,
+    Bind,
 }
 
 pub trait BindTask: 'static {
@@ -215,19 +215,16 @@ impl ReactiveContext {
         let mut b = self.borrow_mut();
         match b.state {
             ReactiveState::None => {
-                b.state = ReactiveState::Notify(0);
+                b.state = ReactiveState::Notify;
                 drop(b);
                 value = on_ctx(self.notify_ctx());
                 self.notify_end(self.borrow_mut());
             }
-            ReactiveState::Notify(depth) => {
-                assert_ne!(depth, usize::MAX);
-                b.state = ReactiveState::Notify(depth + 1);
+            ReactiveState::Notify => {
                 drop(b);
                 value = on_ctx(self.notify_ctx());
-                self.borrow_mut().state = ReactiveState::Notify(depth);
             }
-            ReactiveState::Bind(_) => {
+            ReactiveState::Bind => {
                 value = on_failed(&mut b);
             }
         }
@@ -239,7 +236,7 @@ impl ReactiveContext {
             b.state = ReactiveState::None;
             return;
         }
-        b.state = ReactiveState::Bind(0);
+        b.state = ReactiveState::Bind;
         while let Some(task) = b.defer_bind_tasks.pop() {
             drop(b);
             task.run(self.bind_ctx_scope());
@@ -252,19 +249,16 @@ impl ReactiveContext {
         let value;
         match b.state {
             ReactiveState::None => {
-                b.state = ReactiveState::Bind(0);
+                b.state = ReactiveState::Bind;
                 drop(b);
                 value = f(self.bind_ctx_scope());
                 self.bind_end(self.borrow_mut());
             }
-            ReactiveState::Bind(depth) => {
-                assert_ne!(depth, usize::MAX);
-                b.state = ReactiveState::Bind(depth + 1);
+            ReactiveState::Bind => {
                 drop(b);
                 value = f(self.bind_ctx_scope());
-                self.borrow_mut().state = ReactiveState::Bind(depth);
             }
-            ReactiveState::Notify(_) => {
+            ReactiveState::Notify => {
                 panic!("Cannot create BindContext when NotifyContext exists.");
             }
         }
@@ -277,7 +271,7 @@ impl ReactiveContext {
         if b.defer_notify_sources.is_empty() {
             return;
         }
-        b.state = ReactiveState::Notify(0);
+        b.state = ReactiveState::Notify;
         let mut sources = Vec::new();
         swap(&mut b.defer_notify_sources, &mut sources);
         drop(b);
