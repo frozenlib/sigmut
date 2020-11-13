@@ -153,11 +153,11 @@ impl BindSinks {
     }
 }
 
-struct ReactiveContext(BindScope);
+struct ReactiveEnvironment(BindScope);
 pub struct BindScope(NotifyScope);
-pub struct NotifyScope(RefCell<ReactiveContextData>);
+pub struct NotifyScope(RefCell<ReactiveEnvironmentData>);
 
-struct ReactiveContextData {
+struct ReactiveEnvironmentData {
     state: ReactiveState,
     defer_bind_tasks: Vec<Rc<dyn BindTask>>,
     defer_notify_sources: Vec<Rc<dyn BindSource>>,
@@ -177,14 +177,14 @@ impl NotifyScope {
         self.0.borrow_mut().defer_bind_tasks.push(task);
     }
     pub fn with<T>(f: impl FnOnce(&NotifyScope) -> T) -> T {
-        ReactiveContext::with(|this| {
+        ReactiveEnvironment::with(|this| {
             this.notify(f, |_| {
                 panic!("Cannot create NotifyContext when BindContext exists.")
             })
         })
     }
     pub fn update(s: &Rc<impl BindSource>) {
-        ReactiveContext::with(|this| {
+        ReactiveEnvironment::with(|this| {
             this.notify(
                 |ctx| s.sinks().notify(ctx),
                 |this| this.defer_notify_sources.push(s.clone()),
@@ -194,22 +194,24 @@ impl NotifyScope {
 }
 impl BindScope {
     pub fn with<T>(f: impl FnOnce(&BindScope) -> T) -> T {
-        ReactiveContext::with(|this| this.bind(f))
+        ReactiveEnvironment::with(|this| this.bind(f))
     }
 }
 
-impl ReactiveContext {
+impl ReactiveEnvironment {
     fn new() -> Self {
-        Self(BindScope(NotifyScope(RefCell::new(ReactiveContextData {
-            state: ReactiveState::None,
-            defer_bind_tasks: Vec::new(),
-            defer_notify_sources: Vec::new(),
-        }))))
+        Self(BindScope(NotifyScope(RefCell::new(
+            ReactiveEnvironmentData {
+                state: ReactiveState::None,
+                defer_bind_tasks: Vec::new(),
+                defer_notify_sources: Vec::new(),
+            },
+        ))))
     }
     fn notify<T>(
         &self,
         on_ctx: impl FnOnce(&NotifyScope) -> T,
-        on_failed: impl FnOnce(&mut ReactiveContextData) -> T,
+        on_failed: impl FnOnce(&mut ReactiveEnvironmentData) -> T,
     ) -> T {
         let value;
         let mut b = self.borrow_mut();
@@ -230,7 +232,7 @@ impl ReactiveContext {
         }
         value
     }
-    fn notify_end(&self, b: RefMut<ReactiveContextData>) {
+    fn notify_end(&self, b: RefMut<ReactiveEnvironmentData>) {
         let mut b = b;
         if b.defer_bind_tasks.is_empty() {
             b.state = ReactiveState::None;
@@ -265,7 +267,7 @@ impl ReactiveContext {
         value
     }
 
-    fn bind_end(&self, b: RefMut<ReactiveContextData>) {
+    fn bind_end(&self, b: RefMut<ReactiveEnvironmentData>) {
         let mut b = b;
         b.state = ReactiveState::None;
         if b.defer_notify_sources.is_empty() {
@@ -285,10 +287,10 @@ impl ReactiveContext {
     }
 
     fn with<T>(f: impl FnOnce(&Self) -> T) -> T {
-        thread_local!(static CTX: ReactiveContext = ReactiveContext::new());
-        CTX.with(|data| f(data))
+        thread_local!(static ENV: ReactiveEnvironment = ReactiveEnvironment::new());
+        ENV.with(|data| f(data))
     }
-    fn borrow_mut(&self) -> RefMut<ReactiveContextData> {
+    fn borrow_mut(&self) -> RefMut<ReactiveEnvironmentData> {
         ((self.0).0).0.borrow_mut()
     }
     fn notify_ctx(&self) -> &NotifyScope {
