@@ -14,8 +14,8 @@ fn re_ref_new() {
     })
     .collect_vec();
 
-    a.set_and_update(5);
-    a.set_and_update(7);
+    a.set(5);
+    a.set(7);
 
     assert_eq!(r.stop(), vec![2, 5, 7]);
 }
@@ -34,8 +34,8 @@ fn re_ref_new_cell2() {
     )
     .collect_vec();
 
-    cell1.set_and_update(5);
-    cell2.set_and_update(10);
+    cell1.set(5);
+    cell2.set(10);
 
     assert_eq!(r.stop(), vec![1 + 2, 5 + 2, 5 + 10]);
 }
@@ -45,8 +45,8 @@ fn re_ref_map() {
     let a = ReRefCell::new(2);
     let r = a.ops_ref().map(|x| x * 2).collect_vec();
 
-    a.set_and_update(5);
-    a.set_and_update(7);
+    a.set(5);
+    a.set(7);
 
     assert_eq!(r.stop(), vec![4, 10, 14]);
 }
@@ -56,8 +56,8 @@ fn re_ref_map_ref() {
     let a = ReRefCell::new((2, 3));
     let r = a.ops_ref().map_ref(|x| &x.0).collect_vec();
 
-    a.set_and_update((5, 8));
-    a.set_and_update((7, 1));
+    a.set((5, 8));
+    a.set((7, 1));
 
     assert_eq!(r.stop(), vec![2, 5, 7]);
 }
@@ -70,16 +70,16 @@ fn re_ref_flat_map() {
 
     let r = b.ops_ref().flat_map(move |&x| a_[x].re()).collect_vec();
 
-    a[0].set_and_update(6);
-    a[1].set_and_update(12);
+    a[0].set(6);
+    a[1].set(12);
 
-    a[0].set_and_update(7);
-    a[1].set_and_update(13);
+    a[0].set(7);
+    a[1].set(13);
 
-    b.set_and_update(1);
+    b.set(1);
 
-    a[0].set_and_update(8);
-    a[1].set_and_update(14);
+    a[0].set(8);
+    a[1].set(14);
 
     assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
 }
@@ -88,9 +88,9 @@ fn re_ref_cloned() {
     let cell = ReRefCell::new(2);
     let r = cell.ops_ref().cloned().collect_vec();
 
-    cell.set_and_update(3);
-    cell.set_and_update(4);
-    cell.set_and_update(5);
+    cell.set(3);
+    cell.set(4);
+    cell.set(5);
 
     assert_eq!(r.stop(), vec![2, 3, 4, 5]);
 }
@@ -100,9 +100,9 @@ fn re_ref_scan() {
     let cell = ReRefCell::new(2);
     let r = cell.ops_ref().scan(10, |s, x| s + x).collect_vec();
 
-    cell.set_and_update(3);
-    cell.set_and_update(4);
-    cell.set_and_update(5);
+    cell.set(3);
+    cell.set(4);
+    cell.set(5);
 
     assert_eq!(r.stop(), vec![12, 15, 19, 24]);
 }
@@ -114,10 +114,10 @@ fn re_ref_filter_scan() {
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
         .collect_vec();
 
-    cell.set_and_update(3);
-    cell.set_and_update(4);
-    cell.set_and_update(5);
-    cell.set_and_update(6);
+    cell.set(3);
+    cell.set(4);
+    cell.set(5);
+    cell.set(6);
 
     assert_eq!(r.stop(), vec![10, 13, 18]);
 }
@@ -126,8 +126,8 @@ fn re_ref_fold() {
     let cell = ReRefCell::new(1);
     let fold = cell.ops_ref().fold(2, |s, x| s + x);
 
-    cell.set_and_update(5);
-    cell.set_and_update(10);
+    cell.set(5);
+    cell.set(10);
 
     assert_eq!(fold.stop(), 18);
 }
@@ -137,9 +137,9 @@ fn re_ref_collect_vec() {
     let cell = ReRefCell::new(1);
     let fold = cell.ops_ref().collect_vec();
 
-    cell.set_and_update(2);
-    cell.set_and_update(1);
-    cell.set_and_update(3);
+    cell.set(2);
+    cell.set(1);
+    cell.set(3);
 
     assert_eq!(fold.stop(), vec![1, 2, 1, 3]);
 }
@@ -157,13 +157,13 @@ fn re_ref_for_each() {
         vs_send.borrow_mut().push(x);
     });
 
-    cell.set_and_update(5);
-    cell.set_and_update(10);
+    cell.set(5);
+    cell.set(10);
 
     drop(r);
     assert_eq!(*vs.borrow(), vec![0, 5, 10]);
 
-    cell.set_and_update(15);
+    cell.set(15);
     assert_eq!(*vs.borrow(), vec![0, 5, 10]);
 }
 
@@ -174,8 +174,8 @@ fn re_ref_hot() {
 
     let hot = re.hot();
 
-    cell.set_and_update(2);
-    cell.set_and_update(10);
+    cell.set(2);
+    cell.set(10);
 
     assert_eq!(hot.collect_vec().stop(), vec![13]);
 }
@@ -185,8 +185,8 @@ fn re_ref_hot_no() {
     let cell = ReRefCell::new(1);
     let re = cell.ops_ref().scan(0, |s, x| s + x);
 
-    cell.set_and_update(2);
-    cell.set_and_update(10);
+    cell.set(2);
+    cell.set(10);
 
     assert_eq!(re.collect_vec().stop(), vec![10]);
 }
@@ -197,10 +197,10 @@ fn re_ref_flatten() {
 
     let vs = cell.ops_ref().flatten().collect_vec();
 
-    cell.set_and_update(Re::constant(2));
-    cell.set_and_update(Re::constant(3));
-    cell.set_and_update(Re::constant(4));
-    cell.set_and_update(Re::constant(5));
+    cell.set(Re::constant(2));
+    cell.set(Re::constant(3));
+    cell.set(Re::constant(4));
+    cell.set(Re::constant(5));
 
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }
@@ -215,8 +215,8 @@ fn re_ref_head_tail() {
 
     let r = tail.collect_vec();
 
-    a.set_and_update(5);
-    a.set_and_update(7);
+    a.set(5);
+    a.set(7);
 
     assert_eq!(head, Some(2));
     assert_eq!(r.stop(), vec![5, 7]);

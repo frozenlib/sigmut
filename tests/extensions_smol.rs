@@ -36,7 +36,7 @@ fn send_values<T: 'static + Copy>(cell: &ReCell<T>, values: Vec<T>, dur: Duratio
     local(async move {
         for value in values {
             sleep(dur).await;
-            cell.set_and_update(value);
+            cell.set(value);
         }
     })
 }
@@ -46,7 +46,7 @@ fn send_values_ref<T: 'static>(cell: &ReRefCell<T>, values: Vec<T>, dur: Duratio
     local(async move {
         for value in values {
             sleep(dur).await;
-            cell.set_and_update(value);
+            cell.set(value);
         }
     })
 }

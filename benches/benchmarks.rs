@@ -80,7 +80,7 @@ fn re_fold_ops(b: &mut Bencher, update_count: usize) {
         let fold = cell.ops().fold(0, |s, x| s + x);
 
         for i in 1..update_count {
-            cell.set_and_update(i);
+            cell.set(i);
         }
         fold.stop()
     })
@@ -91,7 +91,7 @@ fn re_fold_dyn(b: &mut Bencher, update_count: usize) {
         let fold = cell.re().fold(0, |s, x| s + x);
 
         for i in 1..update_count {
-            cell.set_and_update(i);
+            cell.set(i);
         }
         fold.stop()
     })
@@ -114,10 +114,10 @@ fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
     impl<S: Reactive<Item = usize>> Runner<S> {
         fn try_run(self) -> Result<Runner<impl Reactive<Item = usize>>, usize> {
             if self.n == 0 {
-                self.cell.set_and_update(0);
+                self.cell.set(0);
                 let fold = self.ops.fold(0, |s, x| s + x);
                 for i in 0..UPDATE_COUNT {
-                    self.cell.set_and_update(i);
+                    self.cell.set(i);
                 }
                 Err(fold.stop())
             } else {
@@ -156,10 +156,10 @@ fn re_map_chain_dyn(b: &mut Bencher, chain: usize) {
         re = re.map(|x| x * 2);
     }
     b.iter(|| {
-        cell.set_and_update(0);
+        cell.set(0);
         let fold = re.fold(0, |s, x| s + x);
         for i in 0..UPDATE_COUNT {
-            cell.set_and_update(i);
+            cell.set(i);
         }
         fold.stop()
     })
@@ -176,8 +176,8 @@ fn re_flatten_ops(b: &mut Bencher, update_count: usize) {
         let f = s.ops().flatten().fold(0, |s, x| s + x);
 
         for _ in 0..update_count {
-            s.set_and_update(s1.clone());
-            s.set_and_update(s2.clone());
+            s.set(s1.clone());
+            s.set(s2.clone());
         }
         f.stop()
     })
@@ -190,8 +190,8 @@ fn re_flatten_dyn(b: &mut Bencher, update_count: usize) {
         let f = s.re_borrow().flatten().fold(0, |s, x| s + x);
 
         for _ in 0..update_count {
-            s.set_and_update(s1.clone());
-            s.set_and_update(s2.clone());
+            s.set(s1.clone());
+            s.set(s2.clone());
         }
         f.stop()
     })
@@ -221,7 +221,7 @@ fn many_source_ops(b: &mut Bencher, source_count: usize) {
         };
 
         for i in 0..UPDATE_COUNT {
-            ss[i % source_count].set_and_update(i);
+            ss[i % source_count].set(i);
         }
         f.stop()
     })
@@ -246,7 +246,7 @@ fn many_source_dyn(b: &mut Bencher, source_count: usize) {
         };
 
         for i in 0..UPDATE_COUNT {
-            ss[i % source_count].set_and_update(i);
+            ss[i % source_count].set(i);
         }
         f.stop()
     })
@@ -264,7 +264,7 @@ fn many_sink_ops(b: &mut Bencher, sink_count: usize) {
             fs.push(s.ops().fold(0, move |s, x| s + x));
         }
         for i in 0..UPDATE_COUNT {
-            s.set_and_update(i);
+            s.set(i);
         }
 
         let mut sum = 0;
@@ -283,7 +283,7 @@ fn many_sink_dyn(b: &mut Bencher, sink_count: usize) {
             fs.push(s.re().fold(0, move |s, x| s + x));
         }
         for i in 0..UPDATE_COUNT {
-            s.set_and_update(i);
+            s.set(i);
         }
 
         let mut sum = 0;
@@ -322,7 +322,7 @@ fn many_source_sink_ops(b: &mut Bencher, count: usize) {
         }
 
         for i in 0..UPDATE_COUNT {
-            ss[i % ss.len()].set_and_update(i);
+            ss[i % ss.len()].set(i);
         }
         let mut sum = 0;
         for f in fs {
@@ -355,7 +355,7 @@ fn many_source_sink_dyn(b: &mut Bencher, count: usize) {
         }
 
         for i in 0..UPDATE_COUNT {
-            ss[i % ss.len()].set_and_update(i);
+            ss[i % ss.len()].set(i);
         }
         let mut sum = 0;
         for f in fs {

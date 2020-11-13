@@ -23,12 +23,12 @@ impl<T: Copy + 'static> ReCell<T> {
         self.0.get(ctx)
     }
 
-    pub fn set(&self, value: T, ctx: &NotifyContext) {
+    pub fn set_with(&self, value: T, ctx: &NotifyContext) {
         self.0.value.set(value);
         self.0.sinks.notify(ctx);
     }
 
-    pub fn set_and_update(&self, value: T) {
+    pub fn set(&self, value: T) {
         self.0.value.set(value);
         NotifyContext::update(&self.0);
     }
@@ -101,12 +101,12 @@ impl<T: 'static> ReRefCell<T> {
             sinks: BindSinks::new(),
         }))
     }
-    pub fn set(&self, value: T, ctx: &NotifyContext) {
+    pub fn set_with(&self, value: T, ctx: &NotifyContext) {
         *self.0.value.borrow_mut() = value;
         self.0.sinks.notify(ctx);
     }
-    pub fn set_and_update(&self, value: T) {
-        NotifyContext::with(|ctx| self.set(value, ctx));
+    pub fn set(&self, value: T) {
+        NotifyContext::with(|ctx| self.set_with(value, ctx));
     }
 
     pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
