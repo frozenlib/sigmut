@@ -39,8 +39,8 @@ pub trait FoldBySchema: 'static {
 }
 
 pub struct FilterScanLoad<LoadSt> {
-    state: LoadSt,
-    is_notify: bool,
+    pub state: LoadSt,
+    pub is_notify: bool,
 }
 struct ScanData<S: ScanSchema> {
     schema: S,
@@ -501,7 +501,10 @@ impl<S: FilterScanSchema> BindTask for FilterScan<S> {
 pub struct FoldBy<S: FoldBySchema>(RefCell<FoldByData<S>>);
 
 impl<S: FoldBySchema> FoldBy<S> {
-    pub fn new(schema: S, state: ScanState<S::LoadSt, S::UnloadSt>) -> Rc<Self> {
+    pub fn new(schema: S, state: S::UnloadSt) -> Rc<Self> {
+        Self::new_with_state(schema, ScanState::Unloaded(state))
+    }
+    pub fn new_with_state(schema: S, state: ScanState<S::LoadSt, S::UnloadSt>) -> Rc<Self> {
         let is_loaded = state.is_loaded();
         let this = Rc::new(FoldBy(RefCell::new(FoldByData {
             schema,

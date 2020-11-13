@@ -69,10 +69,12 @@ impl<S: Reactive> TailOps<S> {
             let source = this.source;
             let fold = TailState::connect(this.state, initial_state, |s| {
                 FoldBy::new_with_state(
+                    fold_by_schema(
+                        move |st, ctx| (f(st, source.get(ctx)), None),
+                        |(st, _)| st,
+                        |(st, _)| st,
+                    ),
                     s,
-                    move |st, ctx| (f(st, source.get(ctx)), None),
-                    |(st, _)| st,
-                    |st| st,
                 )
             });
             Fold::new(fold)
@@ -193,10 +195,12 @@ impl<S: ReactiveRef> TailRefOps<S> {
             let source = this.source;
             let fold = TailState::connect(this.state, initial_state, |s| {
                 FoldBy::new_with_state(
+                    fold_by_schema(
+                        move |st, ctx| (source.with(ctx, |_, value| f(st, value)), None),
+                        |(st, _)| st,
+                        |(st, _)| st,
+                    ),
                     s,
-                    move |st, ctx| (source.with(ctx, |_, value| f(st, value)), None),
-                    |(st, _)| st,
-                    |st| st,
                 )
             });
             Fold::new(fold)

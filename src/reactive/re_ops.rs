@@ -70,10 +70,8 @@ impl<S: Reactive> ReOps<S> {
 
     pub fn cached(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
+            scan_schema(move |_, ctx| self.get(ctx), |_| (), |x| x),
             (),
-            move |_, ctx| self.get(ctx),
-            |_| (),
-            |x| x,
         )))
     }
     pub fn scan<St: 'static>(
@@ -82,10 +80,8 @@ impl<S: Reactive> ReOps<S> {
         f: impl Fn(St, S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
+            scan_schema(move |st, ctx| f(st, self.get(ctx)), |st| st, |st| st),
             initial_state,
-            move |st, ctx| f(st, self.get(ctx)),
-            |st| st,
-            |st| st,
         )))
     }
     pub fn filter_scan<St: 'static>(
@@ -95,15 +91,17 @@ impl<S: Reactive> ReOps<S> {
         f: impl Fn(St, S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
+            filter_scan_schema(
+                move |state, ctx| {
+                    let value = self.get(ctx);
+                    let is_notify = predicate(&state, &value);
+                    let state = if is_notify { f(state, value) } else { state };
+                    FilterScanLoad { is_notify, state }
+                },
+                |state| state,
+                |state| state,
+            ),
             initial_state,
-            move |state, ctx| {
-                let value = self.get(ctx);
-                let is_notify = predicate(&state, &value);
-                let state = if is_notify { f(state, value) } else { state };
-                FilterScanResult { is_notify, state }
-            },
-            |state| state,
-            |state| state,
         )))
     }
     pub fn dedup_by(
@@ -111,24 +109,26 @@ impl<S: Reactive> ReOps<S> {
         eq: impl Fn(&S::Item, &S::Item) -> bool + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
-            None,
-            move |state, ctx| {
-                let mut value = self.get(ctx);
-                let mut is_notify = false;
-                if let Some(old) = state {
-                    if eq(&value, &old) {
-                        value = old;
-                    } else {
-                        is_notify = true;
+            filter_scan_schema(
+                move |state, ctx| {
+                    let mut value = self.get(ctx);
+                    let mut is_notify = false;
+                    if let Some(old) = state {
+                        if eq(&value, &old) {
+                            value = old;
+                        } else {
+                            is_notify = true;
+                        }
                     }
-                }
-                FilterScanResult {
-                    state: value,
-                    is_notify,
-                }
-            },
-            |value| Some(value),
-            |value| value,
+                    FilterScanLoad {
+                        state: value,
+                        is_notify,
+                    }
+                },
+                |value| Some(value),
+                |value| value,
+            ),
+            None,
         )))
     }
     pub fn dedup_by_key<K: PartialEq>(
@@ -150,10 +150,8 @@ impl<S: Reactive> ReOps<S> {
         f: impl Fn(St, S::Item) -> St + 'static,
     ) -> Fold<St> {
         Fold::new(FoldBy::new(
+            fold_by_schema(move |st, ctx| f(st, self.get(ctx)), |st| st, |st| st),
             initial_state,
-            move |st, ctx| (f(st, self.get(ctx)), ()),
-            |(st, _)| st,
-            |st| st,
         ))
     }
     pub fn collect_to<E: Extend<S::Item> + 'static>(self, e: E) -> Fold<E> {
@@ -185,10 +183,12 @@ impl<S: Reactive> ReOps<S> {
     {
         let mut f = f;
         Fold::new(FoldBy::new(
+            fold_by_schema(
+                move |_, ctx| ((), sp.spawn_local(f(self.get(ctx)))),
+                |_| (),
+                |_| (),
+            ),
             (),
-            move |_, ctx| ((), sp.spawn_local(f(self.get(ctx)))),
-            |_| (),
-            |_| (),
         ))
         .into()
     }

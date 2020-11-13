@@ -171,13 +171,15 @@ impl<S: ReactiveRef> ReRefOps<S> {
         f: impl Fn(St, &S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
+            scan_schema(
+                move |st, ctx| {
+                    let f = &f;
+                    self.with(ctx, move |_, x| f(st, x))
+                },
+                |st| st,
+                |st| st,
+            ),
             initial_state,
-            move |st, ctx| {
-                let f = &f;
-                self.with(ctx, move |_, x| f(st, x))
-            },
-            |st| st,
-            |st| st,
         )))
     }
     pub fn filter_scan<St: 'static>(
@@ -187,16 +189,18 @@ impl<S: ReactiveRef> ReRefOps<S> {
         f: impl Fn(St, &S::Item) -> St + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
+            filter_scan_schema(
+                move |state, ctx| {
+                    self.with(ctx, |_ctx, value| {
+                        let is_notify = predicate(&state, &value);
+                        let state = if is_notify { f(state, value) } else { state };
+                        FilterScanLoad { is_notify, state }
+                    })
+                },
+                |state| state,
+                |state| state,
+            ),
             initial_state,
-            move |state, ctx| {
-                self.with(ctx, |_ctx, value| {
-                    let is_notify = predicate(&state, &value);
-                    let state = if is_notify { f(state, value) } else { state };
-                    FilterScanResult { is_notify, state }
-                })
-            },
-            |state| state,
-            |state| state,
         )))
     }
 
@@ -213,13 +217,15 @@ impl<S: ReactiveRef> ReRefOps<S> {
     ) -> Fold<St> {
         let mut f = f;
         Fold::new(FoldBy::new(
+            fold_by_schema(
+                move |st, ctx| {
+                    let f = &mut f;
+                    self.with(ctx, move |_ctx, x| f(st, x))
+                },
+                |st| st,
+                |st| st,
+            ),
             initial_state,
-            move |st, ctx| {
-                let f = &mut f;
-                (self.with(ctx, move |_ctx, x| f(st, x)), ())
-            },
-            |(st, _)| st,
-            |st| st,
         ))
     }
     pub fn collect_to<E: for<'a> Extend<&'a S::Item> + 'static>(self, e: E) -> Fold<E> {
@@ -254,10 +260,12 @@ impl<S: ReactiveRef> ReRefOps<S> {
     {
         let mut f = f;
         Fold::new(FoldBy::new(
+            fold_by_schema(
+                move |_, ctx| ((), self.with(ctx, |_ctx, x| sp.spawn_local(f(x)))),
+                |_| (),
+                |_| (),
+            ),
             (),
-            move |_, ctx| ((), self.with(ctx, |_ctx, x| sp.spawn_local(f(x)))),
-            |_| (),
-            |_| (),
         ))
         .into()
     }
