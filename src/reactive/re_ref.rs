@@ -33,7 +33,10 @@ impl<T: 'static + ?Sized> ReRef<T> {
         }
     }
 
-    pub fn head_tail(&self, scope: &BindContextScope, f: impl FnOnce(&T)) -> TailRef<T> {
+    pub fn head_tail(&self, f: impl FnOnce(&T)) -> TailRef<T> {
+        BindContextScope::with(|scope| self.head_tail_with(scope, f))
+    }
+    pub fn head_tail_with(&self, scope: &BindContextScope, f: impl FnOnce(&T)) -> TailRef<T> {
         if let ReRefData::StaticRef(x) = &self.0 {
             f(x);
             return TailRef::empty();

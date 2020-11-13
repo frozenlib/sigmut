@@ -18,7 +18,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
             ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, ctx),
         }
     }
-    pub fn head_tail<'a>(&'a self, scope: &'a BindContextScope) -> (Ref<'a, T>, TailRef<T>) {
+    pub fn head_tail_with<'a>(&'a self, scope: &'a BindContextScope) -> (Ref<'a, T>, TailRef<T>) {
         TailRef::new_borrow(&self, scope)
     }
 

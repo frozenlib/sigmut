@@ -209,11 +209,10 @@ fn re_ref_flatten() {
 fn re_ref_head_tail() {
     let a = ReRefCell::new(2);
     let mut head = None;
-    let tail = BindContextScope::with(|scope| {
-        a.re_ref().head_tail(scope, |&value| {
-            head = Some(value);
-        })
+    let tail = a.re_ref().head_tail(|&value| {
+        head = Some(value);
     });
+
     let r = tail.collect_vec();
 
     a.set_and_update(5);

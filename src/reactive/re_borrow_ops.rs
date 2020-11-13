@@ -41,7 +41,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
         f(ctx, &self.borrow(ctx))
     }
-    pub fn head_tail<'a>(
+    pub fn head_tail_with<'a>(
         &'a self,
         scope: &'a BindContextScope,
     ) -> (

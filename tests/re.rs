@@ -290,7 +290,7 @@ fn re_flatten() {
 #[test]
 fn re_head_tail() {
     let a = ReCell::new(2);
-    let (head, tail) = BindContextScope::with(|scope| a.re().head_tail(scope));
+    let (head, tail) = a.re().head_tail();
     let r = tail.collect_vec();
 
     a.set_and_update(5);
