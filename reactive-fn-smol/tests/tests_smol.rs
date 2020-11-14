@@ -1,14 +1,12 @@
-#![cfg(feature = "tokio")]
-use futures::future::FutureExt;
-use reactive_fn::extensions::tokio::*;
+use reactive_fn_smol::*;
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
-    tokio::task::spawn_local(fut).map(|_| ())
+    smol::Task::local(fut)
 }
 fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
-    tokio::task::spawn(fut).map(|_| ())
+    smol::Task::spawn(fut)
 }
 fn sleep(dur: Duration) -> impl Future {
-    tokio::time::delay_for(dur)
+    smol::Timer::after(dur)
 }
 async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Option<T> {
     use futures::future::{select, Either};
@@ -17,11 +15,8 @@ async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Opti
         Either::Right(_) => None,
     }
 }
-
 fn run(f: impl Future<Output = ()>) {
-    let mut rt = tokio::runtime::Runtime::new().unwrap();
-    let local = tokio::task::LocalSet::new();
-    local.block_on(&mut rt, f);
+    smol::run(f);
 }
 
 use futures::{stream::StreamExt, Future};
