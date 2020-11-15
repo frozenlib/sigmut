@@ -1,10 +1,9 @@
 use crate::bind::*;
 use crate::reactive::*;
-use futures::Future;
 use std::{
     any::Any,
-    cell::Ref,
-    cell::RefCell,
+    cell::{Ref, RefCell},
+    future::Future,
     rc::{Rc, Weak},
     task::Poll,
 };

@@ -1,8 +1,7 @@
 use async_std::task::{spawn_local, JoinHandle};
 use extend::ext;
-use futures::Future;
 use reactive_fn::*;
-use std::task::Poll;
+use std::{future::Future, task::Poll};
 
 pub struct AutoCancelHandle(Option<JoinHandle<()>>);
 

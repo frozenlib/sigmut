@@ -1,5 +1,16 @@
-use futures::future::FutureExt;
+use futures::{
+    future::{select, Either, FutureExt},
+    stream::StreamExt,
+};
+use reactive_fn::*;
 use reactive_fn_tokio::*;
+use std::{
+    fmt::Debug,
+    future::Future,
+    sync::mpsc::{channel, Receiver, RecvTimeoutError},
+    task::Poll,
+    time::Duration,
+};
 
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
     tokio::task::spawn_local(fut).map(|_| ())
@@ -11,7 +22,6 @@ fn sleep(dur: Duration) -> impl Future {
     tokio::time::delay_for(dur)
 }
 async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Option<T> {
-    use futures::future::{select, Either};
     match select(fut, sleep(dur)).await {
         Either::Left(x) => Some(x.0),
         Either::Right(_) => None,
@@ -23,15 +33,6 @@ fn run(f: impl Future<Output = ()>) {
     let local = tokio::task::LocalSet::new();
     local.block_on(&mut rt, f);
 }
-
-use futures::{stream::StreamExt, Future};
-use reactive_fn::*;
-use std::{
-    fmt::Debug,
-    sync::mpsc::{channel, Receiver, RecvTimeoutError},
-    task::Poll,
-    time::Duration,
-};
 
 const DUR: Duration = Duration::from_millis(300);
 

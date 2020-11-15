@@ -1,4 +1,14 @@
+use futures::stream::StreamExt;
+use reactive_fn::*;
 use reactive_fn_smol::*;
+use std::{
+    fmt::Debug,
+    future::Future,
+    sync::mpsc::{channel, Receiver, RecvTimeoutError},
+    task::Poll,
+    time::Duration,
+};
+
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
     smol::Task::local(fut)
 }
@@ -18,15 +28,6 @@ async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Opti
 fn run(f: impl Future<Output = ()>) {
     smol::run(f);
 }
-
-use futures::{stream::StreamExt, Future};
-use reactive_fn::*;
-use std::{
-    fmt::Debug,
-    sync::mpsc::{channel, Receiver, RecvTimeoutError},
-    task::Poll,
-    time::Duration,
-};
 
 const DUR: Duration = Duration::from_millis(300);
 

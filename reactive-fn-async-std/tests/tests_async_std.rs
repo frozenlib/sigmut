@@ -1,5 +1,13 @@
-use futures::future::FutureExt;
+use futures::{future::FutureExt, stream::StreamExt};
+use reactive_fn::*;
 use reactive_fn_async_std::*;
+use std::{
+    fmt::Debug,
+    future::Future,
+    sync::mpsc::{channel, Receiver, RecvTimeoutError},
+    task::Poll,
+    time::Duration,
+};
 
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
     async_std::task::spawn_local(fut).map(|_| ())
@@ -17,15 +25,6 @@ async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Opti
 fn run(f: impl Future<Output = ()>) {
     async_std::task::block_on(f);
 }
-
-use futures::{stream::StreamExt, Future};
-use reactive_fn::*;
-use std::{
-    fmt::Debug,
-    sync::mpsc::{channel, Receiver, RecvTimeoutError},
-    task::Poll,
-    time::Duration,
-};
 
 const DUR: Duration = Duration::from_millis(300);
 

@@ -19,9 +19,14 @@ pub use self::{
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
 use crate::bind::*;
 use derivative::Derivative;
-use futures::Future;
 use std::{
-    any::Any, borrow::Borrow, cell::Ref, cell::RefCell, iter::once, marker::PhantomData, rc::Rc,
+    any::Any,
+    borrow::Borrow,
+    cell::{Ref, RefCell},
+    future::Future,
+    iter::once,
+    marker::PhantomData,
+    rc::Rc,
     task::Poll,
 };
 
