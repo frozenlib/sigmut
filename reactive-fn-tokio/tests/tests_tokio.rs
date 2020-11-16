@@ -19,7 +19,7 @@ fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output =
     tokio::task::spawn(fut).map(|_| ())
 }
 fn sleep(dur: Duration) -> impl Future {
-    tokio::time::delay_for(dur)
+    tokio::time::sleep(dur)
 }
 async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Option<T> {
     match select(fut, sleep(dur)).await {
