@@ -10,10 +10,10 @@ use std::{
 };
 
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
-    smol::Task::local(fut)
+    LOCAL_EXECUTOR.with(|sp| sp.spawn(fut))
 }
 fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
-    smol::Task::spawn(fut)
+    smol::spawn(fut)
 }
 fn sleep(dur: Duration) -> impl Future {
     smol::Timer::after(dur)
@@ -26,7 +26,7 @@ async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Opti
     }
 }
 fn run(f: impl Future<Output = ()>) {
-    smol::run(f);
+    LOCAL_EXECUTOR.with(|ex| smol::block_on(ex.run(f)))
 }
 
 const DUR: Duration = Duration::from_millis(300);

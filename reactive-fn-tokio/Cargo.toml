@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3"
-extend = "0.1"
+extend = "0.3"
 tokio = { version = "0.3", features = [ "rt", "rt-multi-thread" ] }
 reactive-fn = { path = "../reactive-fn" }
 

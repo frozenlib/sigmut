@@ -8,6 +8,6 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3"
-extend = "0.1"
-async-std = { version = "1.6", optional = true, features = ["unstable"] }
+extend = "0.3"
+async-std = { version = "1.7", features = ["unstable"] }
 reactive-fn = { path = "../reactive-fn" }
