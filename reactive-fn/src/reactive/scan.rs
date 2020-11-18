@@ -370,8 +370,8 @@ impl<Op: ScanOp> DynamicReactiveBorrowSource for Scan<Op> {
 
 impl<Op: ScanOp> DynamicReactiveRefSource for Scan<Op> {
     type Item = Op::Value;
-    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
-        f(ctx, &self.borrow(ctx))
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
+        f(&self.borrow(ctx), ctx)
     }
 }
 
@@ -466,8 +466,8 @@ impl<Op: FilterScanOp> DynamicReactiveBorrowSource for FilterScan<Op> {
 }
 impl<Op: FilterScanOp> DynamicReactiveRefSource for FilterScan<Op> {
     type Item = Op::Value;
-    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
-        f(ctx, &self.borrow(ctx))
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
+        f(&self.borrow(ctx), ctx)
     }
 }
 

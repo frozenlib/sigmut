@@ -67,8 +67,8 @@ impl<T: Copy + 'static> DynamicReactiveSource for ReCellData<T> {
 }
 impl<T: Copy + 'static> DynamicReactiveRefSource for ReCellData<T> {
     type Item = T;
-    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
-        f(ctx, &self.get(ctx))
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
+        f(&self.get(ctx), ctx)
     }
 }
 
@@ -168,8 +168,8 @@ impl<T: 'static> DynamicReactiveBorrowSource for ReRefCellData<T> {
 }
 impl<T: 'static> DynamicReactiveRefSource for ReRefCellData<T> {
     type Item = T;
-    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
-        f(ctx, &self.borrow(ctx))
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
+        f(&self.borrow(ctx), ctx)
     }
 }
 

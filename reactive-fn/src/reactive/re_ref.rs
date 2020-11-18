@@ -13,23 +13,24 @@ enum ReRefData<T: 'static + ?Sized> {
 }
 
 impl<T: 'static + ?Sized> ReRef<T> {
-    pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &T) -> U) -> U {
+    pub fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, ctx: &BindContext) -> U {
         if let ReRefData::StaticRef(x) = &self.0 {
-            f(ctx, x)
+            f(x, ctx)
         } else {
             let mut output = None;
             let mut f = Some(f);
-            self.dyn_with(ctx, &mut |ctx, value| {
-                output = Some((f.take().unwrap())(ctx, value))
-            });
+            self.dyn_with(
+                &mut |value, ctx| output = Some((f.take().unwrap())(value, ctx)),
+                ctx,
+            );
             output.unwrap()
         }
     }
-    fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &T)) {
+    fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), ctx: &BindContext) {
         match &self.0 {
-            ReRefData::StaticRef(x) => f(ctx, x),
-            ReRefData::Dyn(rc) => rc.dyn_with(ctx, f),
-            ReRefData::DynSource(rc) => rc.clone().dyn_with(ctx, f),
+            ReRefData::StaticRef(x) => f(x, ctx),
+            ReRefData::Dyn(rc) => rc.dyn_with(f, ctx),
+            ReRefData::DynSource(rc) => rc.clone().dyn_with(f, ctx),
         }
     }
 
@@ -45,7 +46,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
     }
     pub fn new<S: 'static>(
         this: S,
-        f: impl Fn(&S, &BindContext, &mut dyn FnMut(&BindContext, &T)) + 'static,
+        f: impl Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
     ) -> Self {
         struct ReRefFn<S, T: ?Sized, F> {
             this: S,
@@ -56,12 +57,12 @@ impl<T: 'static + ?Sized> ReRef<T> {
         where
             S: 'static,
             T: 'static + ?Sized,
-            F: Fn(&S, &BindContext, &mut dyn FnMut(&BindContext, &T)) + 'static,
+            F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
         {
             type Item = T;
 
-            fn dyn_with(&self, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &T)) {
-                (self.f)(&self.this, ctx, f)
+            fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), ctx: &BindContext) {
+                (self.f)(&self.this, f, ctx)
             }
         }
         Self::from_dyn(Rc::new(ReRefFn {
@@ -74,7 +75,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
     where
         T: Sized,
     {
-        Self::new(value, |value, ctx, f| f(ctx, value))
+        Self::new(value, |value, f, ctx| f(value, ctx))
     }
     pub fn static_ref(value: &'static T) -> Self {
         Self(ReRefData::StaticRef(value))
@@ -195,8 +196,8 @@ impl<T: 'static> ReRef<Re<T>> {
 impl<T: ?Sized> ReactiveRef for ReRef<T> {
     type Item = T;
 
-    fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
-        ReRef::with(self, ctx, f)
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U {
+        ReRef::with(self, f, ctx)
     }
     fn into_re_ref(self) -> ReRef<Self::Item>
     where

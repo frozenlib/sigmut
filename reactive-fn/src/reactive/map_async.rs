@@ -115,8 +115,8 @@ where
     Sp: LocalSpawn,
 {
     type Item = Poll<Fut::Output>;
-    fn dyn_with(self: Rc<Self>, ctx: &BindContext, f: &mut dyn FnMut(&BindContext, &Self::Item)) {
-        f(ctx, &self.borrow(ctx))
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
+        f(&self.borrow(ctx), ctx)
     }
 }
 

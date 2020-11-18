@@ -148,7 +148,7 @@ impl<S: ReactiveRef> TailRefOps<S> {
         let state = TailState::new();
         let mut b = state.borrow_mut();
         b.bindings
-            .update(scope, &state, |ctx| source.with(ctx, |_, value| f(value)));
+            .update(scope, &state, |ctx| source.with(|value, _| f(value), ctx));
         if b.bindings.is_empty() {
             Self(None)
         } else {
@@ -197,7 +197,7 @@ impl<S: ReactiveRef> TailRefOps<S> {
                 FoldBy::new_with_state(
                     s,
                     fold_by_op(
-                        move |st, ctx| (source.with(ctx, |_, value| f(st, value)), None),
+                        move |st, ctx| (source.with(|value, _| f(st, value), ctx), None),
                         |(st, _)| st,
                         |(st, _)| st,
                     ),

@@ -22,8 +22,8 @@ impl<S: Reactive> ReOps<S> {
     pub fn get(&self, ctx: &BindContext) -> S::Item {
         self.0.get(ctx)
     }
-    pub fn with<T>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> T) -> T {
-        f(ctx, &self.get(ctx))
+    pub fn with<T>(&self, f: impl FnOnce(&S::Item, &BindContext) -> T, ctx: &BindContext) -> T {
+        f(&self.get(ctx), ctx)
     }
     pub fn head_tail(self) -> (S::Item, TailOps<S>) {
         BindScope::with(|scope| self.head_tail_with(scope))
@@ -220,8 +220,8 @@ impl<S: Reactive> Reactive for ReOps<S> {
 pub struct ReRefByRe<S>(ReOps<S>);
 impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
     type Item = S::Item;
-    fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
-        self.0.with(ctx, f)
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U {
+        self.0.with(f, ctx)
     }
     fn into_re_ref(self) -> ReRef<Self::Item>
     where

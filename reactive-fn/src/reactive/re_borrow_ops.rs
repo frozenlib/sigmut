@@ -38,8 +38,8 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, S::Item> {
         self.0.borrow(ctx)
     }
-    pub fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &S::Item) -> U) -> U {
-        f(ctx, &self.borrow(ctx))
+    pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, ctx: &BindContext) -> U {
+        f(&self.borrow(ctx), ctx)
     }
     pub fn head_tail_with<'a>(
         &'a self,
@@ -215,8 +215,8 @@ impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
 pub struct ReRefByReBorrow<S>(ReBorrowOps<S>);
 impl<S: ReactiveBorrow> ReactiveRef for ReRefByReBorrow<S> {
     type Item = S::Item;
-    fn with<U>(&self, ctx: &BindContext, f: impl FnOnce(&BindContext, &Self::Item) -> U) -> U {
-        self.0.with(ctx, f)
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U {
+        self.0.with(f, ctx)
     }
     fn into_re_ref(self) -> ReRef<Self::Item>
     where
