@@ -171,6 +171,9 @@ enum ReactiveState {
 pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindScope);
 }
+pub trait NotifyTask: 'static {
+    fn run(self: Rc<Self>, scope: &NotifyScope);
+}
 
 impl NotifyScope {
     pub fn spawn(&self, task: Rc<dyn BindTask>) {
