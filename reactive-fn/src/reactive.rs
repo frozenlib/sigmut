@@ -17,7 +17,7 @@ pub use self::{
     tail::*,
 };
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
-use crate::bind::*;
+use crate::{bind::*, BindScope, NotifyScope};
 use derivative::Derivative;
 use std::{
     any::Any,

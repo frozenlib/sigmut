@@ -1,5 +1,5 @@
 use super::*;
-use crate::bind::*;
+use crate::{bind::*, BindTask};
 use std::{cell::RefCell, rc::Rc};
 
 pub struct Hot<S> {
@@ -29,14 +29,14 @@ where
     Self: HotReady,
 {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
-        scope.spawn(self);
+        scope.bind_defer(self);
     }
 }
 impl<S> BindTask for Hot<S>
 where
     Self: HotReady,
 {
-    fn run(self: Rc<Self>, scope: &BindScope) {
+    fn run_bind(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }

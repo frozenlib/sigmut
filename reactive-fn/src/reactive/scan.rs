@@ -416,7 +416,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
 
     fn ready(self: &Rc<Self>, scope: &BindScope) {
         if self.data.borrow_mut().load(scope, self) {
-            NotifyScope::update(self);
+            scope.notify_defer(self.clone());
         }
     }
     fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, Op::Value> {
@@ -488,12 +488,12 @@ impl<Op: FilterScanOp> BindSource for FilterScan<Op> {
 impl<Op: FilterScanOp> BindSink for FilterScan<Op> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if self.data.borrow_mut().unload() && !self.sinks.is_empty() {
-            scope.spawn(self);
+            scope.bind_defer(self);
         }
     }
 }
 impl<Op: FilterScanOp> BindTask for FilterScan<Op> {
-    fn run(self: Rc<Self>, scope: &BindScope) {
+    fn run_bind(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }
@@ -546,13 +546,13 @@ impl<Op: FoldByOp> DynamicTask for FoldBy<Op> {
 impl<Op: FoldByOp> BindSink for FoldBy<Op> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if self.0.borrow_mut().unload() {
-            scope.spawn(self);
+            scope.bind_defer(self);
         }
     }
 }
 
 impl<Op: FoldByOp> BindTask for FoldBy<Op> {
-    fn run(self: Rc<Self>, scope: &BindScope) {
+    fn run_bind(self: Rc<Self>, scope: &BindScope) {
         Self::next(&self, scope);
     }
 }

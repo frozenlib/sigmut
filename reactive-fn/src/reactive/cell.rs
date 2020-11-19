@@ -1,3 +1,4 @@
+use crate::Runtime;
 use std::cell::{Cell, RefCell};
 use std::ops::{Deref, DerefMut};
 use std::{any::Any, rc::Rc};
@@ -30,7 +31,7 @@ impl<T: Copy + 'static> ReCell<T> {
 
     pub fn set(&self, value: T) {
         self.0.value.set(value);
-        NotifyScope::update(&self.0);
+        Runtime::notify_defer(self.0.clone());
     }
 
     pub fn re(&self) -> Re<T> {

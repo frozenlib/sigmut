@@ -1,5 +1,5 @@
-use crate::bind::*;
-use crate::reactive::*;
+use crate::{bind::*, BindTask};
+use crate::{reactive::*, Runtime};
 use std::{
     any::Any,
     cell::{Ref, RefCell},
@@ -52,7 +52,7 @@ where
             let value = fut.await;
             if let Some(this) = Weak::upgrade(&this) {
                 this.state.borrow_mut().value = Poll::Ready(value);
-                NotifyScope::update(&this);
+                Runtime::notify_defer(this);
             }
         }));
     }
@@ -155,7 +155,7 @@ where
                 self.sinks.notify(scope);
             } else {
                 drop(s);
-                scope.spawn(self);
+                scope.bind_defer(self);
             }
         }
     }
@@ -166,7 +166,7 @@ where
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
-    fn run(self: Rc<Self>, scope: &BindScope) {
+    fn run_bind(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }
