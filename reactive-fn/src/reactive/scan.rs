@@ -11,7 +11,7 @@ use crate::{
     ReactiveBorrow,
 };
 
-use super::{DynamicFold, DynamicReactiveBorrowSource, DynamicReactiveRefSource, DynamicTask};
+use super::{DynamicFold, DynamicReactiveBorrowSource, DynamicReactiveRefSource};
 
 pub trait ScanOp: 'static {
     type LoadSt;
@@ -533,11 +533,6 @@ impl<Op: FoldByOp> DynamicFold for FoldBy<Op> {
             panic!("invalid state.")
         }
     }
-    fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-}
-impl<Op: FoldByOp> DynamicTask for FoldBy<Op> {
     fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }

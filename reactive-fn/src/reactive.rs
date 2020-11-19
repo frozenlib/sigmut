@@ -206,27 +206,8 @@ impl<T> From<Fold<T>> for Subscription {
     }
 }
 
-trait DynamicTask: BindSink {
-    fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any>;
-}
-pub struct Task(Rc<dyn DynamicTask>);
-
-impl Task {
-    pub fn notify(&self) {
-        NotifyScope::with(|scope| self.notify_with(scope));
-    }
-    pub fn notify_with(&self, scope: &NotifyScope) {
-        self.0.clone().notify(scope);
-    }
-}
-impl From<Task> for Subscription {
-    fn from(x: Task) -> Self {
-        Subscription(Some(x.0.as_dyn_any()))
-    }
-}
-
-pub fn spawn(mut f: impl FnMut(&BindContext) + 'static) -> Task {
-    Task(FoldBy::new(
+pub fn spawn(mut f: impl FnMut(&BindContext) + 'static) -> Subscription {
+    Subscription(Some(FoldBy::new(
         (),
         fold_by_op(
             move |st, ctx| {
@@ -236,5 +217,5 @@ pub fn spawn(mut f: impl FnMut(&BindContext) + 'static) -> Task {
             |st| st,
             |st| st,
         ),
-    ))
+    )))
 }
