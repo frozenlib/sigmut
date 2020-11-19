@@ -11,7 +11,7 @@ fn re_constant_test() {
 fn re_new() {
     let a = ReCell::new(2);
     let a_ = a.clone();
-    let r = re(move |ctx| a_.get(ctx)).collect_vec();
+    let r = re(move |cx| a_.get(cx)).collect_vec();
 
     a.set(5);
     a.set(7);
@@ -27,7 +27,7 @@ fn re_new_cell2() {
     let r = {
         let cell1 = cell1.clone();
         let cell2 = cell2.clone();
-        re(move |ctx| cell1.get(ctx) + cell2.get(ctx)).collect_vec()
+        re(move |cx| cell1.get(cx) + cell2.get(cx)).collect_vec()
     };
 
     cell1.set(5);

@@ -210,10 +210,10 @@ fn many_source_ops(b: &mut Bencher, source_count: usize) {
 
         let f = {
             let ss = ss.clone();
-            re(move |ctx| {
+            re(move |cx| {
                 let mut sum = 0;
                 for s in &ss {
-                    sum += s.get(ctx)
+                    sum += s.get(cx)
                 }
                 sum
             })
@@ -235,10 +235,10 @@ fn many_source_dyn(b: &mut Bencher, source_count: usize) {
 
         let f = {
             let ss = ss.clone();
-            Re::new(move |ctx| {
+            Re::new(move |cx| {
                 let mut sum = 0;
                 for s in &ss {
-                    sum += s.get(ctx)
+                    sum += s.get(cx)
                 }
                 sum
             })
@@ -309,10 +309,10 @@ fn many_source_sink_ops(b: &mut Bencher, count: usize) {
         for _ in 0..count {
             let f = {
                 let ss = ss.clone();
-                re(move |ctx| {
+                re(move |cx| {
                     let mut sum = 0;
                     for s in &ss {
-                        sum += s.get(ctx)
+                        sum += s.get(cx)
                     }
                     sum
                 })
@@ -342,10 +342,10 @@ fn many_source_sink_dyn(b: &mut Bencher, count: usize) {
         for _ in 0..count {
             let f = {
                 let ss = ss.clone();
-                Re::new(move |ctx| {
+                Re::new(move |cx| {
                     let mut sum = 0;
                     for s in &ss {
-                        sum += s.get(ctx)
+                        sum += s.get(cx)
                     }
                     sum
                 })

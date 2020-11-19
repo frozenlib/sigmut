@@ -32,7 +32,7 @@ use std::{
 
 pub trait Reactive: 'static {
     type Item;
-    fn get(&self, ctx: &BindContext) -> Self::Item;
+    fn get(&self, cx: &BindContext) -> Self::Item;
 
     fn into_re(self) -> Re<Self::Item>
     where
@@ -41,8 +41,8 @@ pub trait Reactive: 'static {
         struct IntoDyn<S>(S);
         impl<S: Reactive> DynamicReactive for IntoDyn<S> {
             type Item = S::Item;
-            fn dyn_get(&self, ctx: &BindContext) -> Self::Item {
-                self.0.get(ctx)
+            fn dyn_get(&self, cx: &BindContext) -> Self::Item {
+                self.0.get(cx)
             }
             fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRef<Item = Self::Item>> {
                 self
@@ -50,8 +50,8 @@ pub trait Reactive: 'static {
         }
         impl<S: Reactive> DynamicReactiveRef for IntoDyn<S> {
             type Item = S::Item;
-            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
-                f(&self.0.get(ctx), ctx)
+            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+                f(&self.0.get(cx), cx)
             }
         }
         Re::from_dyn(IntoDyn(self))
@@ -60,7 +60,7 @@ pub trait Reactive: 'static {
 
 pub trait ReactiveBorrow: 'static {
     type Item: ?Sized;
-    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
+    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item>;
 
     fn into_re_borrow(self) -> ReBorrow<Self::Item>
     where
@@ -69,8 +69,8 @@ pub trait ReactiveBorrow: 'static {
         struct IntoDyn<S>(S);
         impl<S: ReactiveBorrow> DynamicReactiveBorrow for IntoDyn<S> {
             type Item = S::Item;
-            fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-                self.0.borrow(ctx)
+            fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+                self.0.borrow(cx)
             }
             fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRef<Item = Self::Item>> {
                 self
@@ -78,8 +78,8 @@ pub trait ReactiveBorrow: 'static {
         }
         impl<S: ReactiveBorrow> DynamicReactiveRef for IntoDyn<S> {
             type Item = S::Item;
-            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
-                f(&self.0.borrow(ctx), ctx)
+            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+                f(&self.0.borrow(cx), cx)
             }
         }
         ReBorrow::from_dyn(Rc::new(IntoDyn(self)))
@@ -88,7 +88,7 @@ pub trait ReactiveBorrow: 'static {
 
 pub trait ReactiveRef: 'static {
     type Item: ?Sized;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U;
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U;
 
     fn into_re_ref(self) -> ReRef<Self::Item>
     where
@@ -97,8 +97,8 @@ pub trait ReactiveRef: 'static {
         struct IntoDyn<S>(S);
         impl<S: ReactiveRef> DynamicReactiveRef for IntoDyn<S> {
             type Item = S::Item;
-            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
-                self.0.with(f, ctx)
+            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+                self.0.with(f, cx)
             }
         }
         ReRef::from_dyn(Rc::new(IntoDyn(self)))
@@ -106,19 +106,19 @@ pub trait ReactiveRef: 'static {
 }
 trait DynamicReactive: 'static {
     type Item;
-    fn dyn_get(&self, ctx: &BindContext) -> Self::Item;
+    fn dyn_get(&self, cx: &BindContext) -> Self::Item;
     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRef<Item = Self::Item>>;
 }
 
 trait DynamicReactiveSource: 'static {
     type Item;
-    fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item;
+    fn dyn_get(self: Rc<Self>, cx: &BindContext) -> Self::Item;
     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>>;
 }
 
 trait DynamicReactiveBorrow: 'static {
     type Item: ?Sized;
-    fn dyn_borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item>;
+    fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item>;
     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRef<Item = Self::Item>>;
 }
 trait DynamicReactiveBorrowSource: Any + 'static {
@@ -127,7 +127,7 @@ trait DynamicReactiveBorrowSource: Any + 'static {
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
-        ctx: &BindContext<'a>,
+        cx: &BindContext<'a>,
     ) -> Ref<'a, Self::Item>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 
@@ -143,11 +143,11 @@ trait DynamicReactiveBorrowSource: Any + 'static {
 
 trait DynamicReactiveRef: 'static {
     type Item: ?Sized;
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext);
+    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
 }
 trait DynamicReactiveRefSource: 'static {
     type Item: ?Sized;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext);
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
 }
 
 #[must_use]
@@ -210,8 +210,8 @@ pub fn spawn(mut f: impl FnMut(&BindContext) + 'static) -> Subscription {
     Subscription(Some(FoldBy::new(
         (),
         fold_by_op(
-            move |st, ctx| {
-                f(ctx);
+            move |st, cx| {
+                f(cx);
                 st
             },
             |st| st,

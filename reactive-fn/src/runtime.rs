@@ -18,7 +18,7 @@ impl BindScope {
         Runtime::with(|this| {
             this.try_bind(
                 (),
-                |_, ctx| f(ctx),
+                |_, cx| f(cx),
                 |_, _| panic!("Cannot create BindContext when NotifyContext exists."),
             )
         })
@@ -38,7 +38,7 @@ impl NotifyScope {
         Runtime::with(|this| {
             this.try_notify(
                 (),
-                |_, ctx| f(ctx),
+                |_, cx| f(cx),
                 |_, _| panic!("Cannot create NotifyContext when BindContext exists."),
             )
         })

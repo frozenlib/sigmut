@@ -40,7 +40,7 @@ impl<S: Reactive> TailOps<S> {
     pub(super) fn new(source: S, scope: &BindScope) -> (S::Item, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();
-        let value = b.bindings.update(scope, &state, |ctx| source.get(ctx));
+        let value = b.bindings.update(scope, &state, |cx| source.get(cx));
         let data = if b.bindings.is_empty() {
             None
         } else {
@@ -71,7 +71,7 @@ impl<S: Reactive> TailOps<S> {
                 FoldBy::new_with_state(
                     s,
                     fold_by_op(
-                        move |st, ctx| (f(st, source.get(ctx)), None),
+                        move |st, cx| (f(st, source.get(cx)), None),
                         |(st, _)| st,
                         |(st, _)| st,
                     ),
@@ -148,7 +148,7 @@ impl<S: ReactiveRef> TailRefOps<S> {
         let state = TailState::new();
         let mut b = state.borrow_mut();
         b.bindings
-            .update(scope, &state, |ctx| source.with(|value, _| f(value), ctx));
+            .update(scope, &state, |cx| source.with(|value, _| f(value), cx));
         if b.bindings.is_empty() {
             Self(None)
         } else {
@@ -163,7 +163,7 @@ impl<S: ReactiveRef> TailRefOps<S> {
     ) -> (Ref<'a, B::Item>, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();
-        let r = b.bindings.update(scope, &state, |ctx| source.borrow(ctx));
+        let r = b.bindings.update(scope, &state, |cx| source.borrow(cx));
         let this = if b.bindings.is_empty() {
             TailRefOps(None)
         } else {
@@ -197,7 +197,7 @@ impl<S: ReactiveRef> TailRefOps<S> {
                 FoldBy::new_with_state(
                     s,
                     fold_by_op(
-                        move |st, ctx| (source.with(|value, _| f(st, value), ctx), None),
+                        move |st, cx| (source.with(|value, _| f(st, value), cx), None),
                         |(st, _)| st,
                         |(st, _)| st,
                     ),

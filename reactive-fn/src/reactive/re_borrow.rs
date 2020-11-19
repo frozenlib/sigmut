@@ -12,10 +12,10 @@ enum ReBorrowData<T: 'static + ?Sized> {
 }
 
 impl<T: 'static + ?Sized> ReBorrow<T> {
-    pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
+    pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
         match &self.0 {
-            ReBorrowData::Dyn(rc) => rc.dyn_borrow(ctx),
-            ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, ctx),
+            ReBorrowData::Dyn(rc) => rc.dyn_borrow(cx),
+            ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, cx),
         }
     }
     pub fn head_tail_with<'a>(&'a self, scope: &'a BindScope) -> (Ref<'a, T>, TailRef<T>) {
@@ -155,8 +155,8 @@ impl<T: 'static> ReBorrow<Re<T>> {
 
 impl<T: ?Sized> ReactiveBorrow for ReBorrow<T> {
     type Item = T;
-    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        ReBorrow::borrow(self, ctx)
+    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        ReBorrow::borrow(self, cx)
     }
 
     fn into_re_borrow(self) -> ReBorrow<Self::Item>

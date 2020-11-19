@@ -19,15 +19,15 @@ where
     {
         type Item = T;
 
-        fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, ctx: &BindContext) -> U {
+        fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
             let mut result = None;
             let mut f = Some(f);
             (self.f)(
                 &self.this,
-                &mut |value, ctx| {
-                    result = Some((f.take().unwrap())(value, ctx));
+                &mut |value, cx| {
+                    result = Some((f.take().unwrap())(value, cx));
                 },
-                ctx,
+                cx,
             );
             result.unwrap()
         }
@@ -43,8 +43,8 @@ pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ReactiveRef<Item =
     struct ReRefConstant<T>(T);
     impl<T: 'static> ReactiveRef for ReRefConstant<T> {
         type Item = T;
-        fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U {
-            f(&self.0, ctx)
+        fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+            f(&self.0, cx)
         }
     }
     ReRefOps(ReRefConstant(value))
@@ -53,8 +53,8 @@ pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ReactiveRef<Item = T
     struct ReRefStatic<T: 'static>(&'static T);
     impl<T: 'static> ReactiveRef for ReRefStatic<T> {
         type Item = T;
-        fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U {
-            f(self.0, ctx)
+        fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+            f(self.0, cx)
         }
     }
     ReRefOps(ReRefStatic(value))
@@ -64,8 +64,8 @@ pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ReactiveRef<Item = T
 pub struct ReRefOps<S>(pub(super) S);
 
 impl<S: ReactiveRef> ReRefOps<S> {
-    pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, ctx: &BindContext) -> U {
-        self.0.with(f, ctx)
+    pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        self.0.with(f, cx)
     }
     pub fn head_tail(self, f: impl FnOnce(&S::Item)) -> TailRefOps<S> {
         BindScope::with(|scope| self.head_tail_with(scope, f))
@@ -80,7 +80,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
         self,
         f: impl Fn(&S::Item) -> T + 'static,
     ) -> ReOps<impl Reactive<Item = T>> {
-        re(move |ctx| self.with(|x, _| f(x), ctx))
+        re(move |cx| self.with(|x, _| f(x), cx))
     }
     pub fn map_ref<T: ?Sized>(
         self,
@@ -100,9 +100,9 @@ impl<S: ReactiveRef> ReRefOps<S> {
             fn with<U>(
                 &self,
                 f: impl FnOnce(&Self::Item, &BindContext) -> U,
-                ctx: &BindContext,
+                cx: &BindContext,
             ) -> U {
-                self.source.with(|value, ctx| f((self.f)(value), ctx), ctx)
+                self.source.with(|value, cx| f((self.f)(value), cx), cx)
             }
         }
         ReRefOps(MapRef { source: self.0, f })
@@ -132,9 +132,9 @@ impl<S: ReactiveRef> ReRefOps<S> {
             fn with<U>(
                 &self,
                 f: impl FnOnce(&Self::Item, &BindContext) -> U,
-                ctx: &BindContext,
+                cx: &BindContext,
             ) -> U {
-                self.source.with(|value, ctx| f(value.borrow(), ctx), ctx)
+                self.source.with(|value, cx| f(value.borrow(), cx), cx)
             }
 
             fn into_re_ref(self) -> ReRef<Self::Item>
@@ -160,7 +160,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
     where
         S::Item: Reactive,
     {
-        re(move |ctx| self.with(|value, ctx| value.get(ctx), ctx))
+        re(move |cx| self.with(|value, cx| value.get(cx), cx))
     }
     pub fn map_async_with<Fut>(
         self,
@@ -180,9 +180,9 @@ impl<S: ReactiveRef> ReRefOps<S> {
         ReBorrowOps(Rc::new(Scan::new(
             initial_state,
             scan_op(
-                move |st, ctx| {
+                move |st, cx| {
                     let f = &f;
-                    self.with(move |x, _| f(st, x), ctx)
+                    self.with(move |x, _| f(st, x), cx)
                 },
                 |st| st,
                 |st| st,
@@ -198,14 +198,14 @@ impl<S: ReactiveRef> ReRefOps<S> {
         ReBorrowOps(Rc::new(FilterScan::new(
             initial_state,
             filter_scan_op(
-                move |state, ctx| {
+                move |state, cx| {
                     self.with(
                         |value, _ctx| {
                             let is_notify = predicate(&state, &value);
                             let state = if is_notify { f(state, value) } else { state };
                             FilterScanLoad { is_notify, state }
                         },
-                        ctx,
+                        cx,
                     )
                 },
                 |state| state,
@@ -229,9 +229,9 @@ impl<S: ReactiveRef> ReRefOps<S> {
         Fold::new(FoldBy::new(
             initial_state,
             fold_by_op(
-                move |st, ctx| {
+                move |st, cx| {
                     let f = &mut f;
-                    self.with(move |x, _| f(st, x), ctx)
+                    self.with(move |x, _| f(st, x), cx)
                 },
                 |st| st,
                 |st| st,
@@ -272,7 +272,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
         Fold::new(FoldBy::new(
             (),
             fold_by_op(
-                move |_, ctx| ((), self.with(|x, _ctx| sp.spawn_local(f(x)), ctx)),
+                move |_, cx| ((), self.with(|x, _ctx| sp.spawn_local(f(x)), cx)),
                 |_| (),
                 |_| (),
             ),
@@ -286,8 +286,8 @@ impl<S: ReactiveRef> ReRefOps<S> {
 }
 impl<S: ReactiveRef> ReactiveRef for ReRefOps<S> {
     type Item = S::Item;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U {
-        self.0.with(f, ctx)
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        self.0.with(f, cx)
     }
     fn into_re_ref(self) -> ReRef<Self::Item>
     where

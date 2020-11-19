@@ -97,15 +97,15 @@ impl Bindings {
         f: impl FnOnce(&BindContext<'a>) -> T,
     ) -> T {
         let bindings = replace(&mut self.0, Vec::new());
-        let ctx = BindContext {
+        let cx = BindContext {
             scope,
             bb: RefCell::new(BindingsBuilder::new(
                 Rc::downgrade(sink) as Weak<dyn BindSink>,
                 bindings,
             )),
         };
-        let value = f(&ctx);
-        self.0 = ctx.bb.into_inner().build();
+        let value = f(&cx);
+        self.0 = cx.bb.into_inner().build();
         value
     }
 

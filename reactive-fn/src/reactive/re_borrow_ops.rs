@@ -20,8 +20,8 @@ where
         for<'a> F: Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
     {
         type Item = T;
-        fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
-            (self.borrow)(&self.this, ctx)
+        fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
+            (self.borrow)(&self.this, cx)
         }
     }
 
@@ -35,11 +35,11 @@ pub fn re_borrow_constant<T: 'static>(value: T) -> ReBorrowOps<impl ReactiveBorr
 pub struct ReBorrowOps<S>(pub(super) S);
 
 impl<S: ReactiveBorrow> ReBorrowOps<S> {
-    pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, S::Item> {
-        self.0.borrow(ctx)
+    pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, S::Item> {
+        self.0.borrow(cx)
     }
-    pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, ctx: &BindContext) -> U {
-        f(&self.borrow(ctx), ctx)
+    pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        f(&self.borrow(cx), cx)
     }
     pub fn head_tail_with<'a>(
         &'a self,
@@ -67,13 +67,13 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         self.re_borrow().as_ref()
     }
     pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
-        re(move |ctx| f(&self.borrow(ctx)))
+        re(move |cx| f(&self.borrow(cx)))
     }
     pub fn map_ref<T: ?Sized + 'static>(
         self,
         f: impl Fn(&S::Item) -> &T + 'static,
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = T>> {
-        re_borrow(self, move |this, ctx| Ref::map(this.borrow(ctx), &f))
+        re_borrow(self, move |this, cx| Ref::map(this.borrow(cx), &f))
     }
     pub fn map_borrow<B: ?Sized + 'static>(self) -> ReBorrowOps<impl ReactiveBorrow<Item = B>>
     where
@@ -96,8 +96,8 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         {
             type Item = B;
 
-            fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-                Ref::map(self.source.borrow(ctx), |x| x.borrow())
+            fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+                Ref::map(self.source.borrow(cx), |x| x.borrow())
             }
             fn into_re_borrow(self) -> ReBorrow<Self::Item>
             where
@@ -115,14 +115,14 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         self,
         f: impl Fn(&S::Item) -> U + 'static,
     ) -> ReOps<impl Reactive<Item = U::Item>> {
-        re(move |ctx| f(&self.borrow(ctx)).get(ctx))
+        re(move |cx| f(&self.borrow(cx)).get(cx))
     }
 
     pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>>
     where
         S::Item: Reactive,
     {
-        re(move |ctx| self.borrow(ctx).get(ctx))
+        re(move |cx| self.borrow(cx).get(cx))
     }
 
     pub fn map_async_with<Fut>(
@@ -200,8 +200,8 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
 
 impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
     type Item = S::Item;
-    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        self.0.borrow(ctx)
+    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.0.borrow(cx)
     }
     fn into_re_borrow(self) -> ReBorrow<Self::Item>
     where
@@ -215,8 +215,8 @@ impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
 pub struct ReRefByReBorrow<S>(ReBorrowOps<S>);
 impl<S: ReactiveBorrow> ReactiveRef for ReRefByReBorrow<S> {
     type Item = S::Item;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U {
-        self.0.with(f, ctx)
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        self.0.with(f, cx)
     }
     fn into_re_ref(self) -> ReRef<Self::Item>
     where

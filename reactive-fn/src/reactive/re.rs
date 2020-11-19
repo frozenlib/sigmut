@@ -12,10 +12,10 @@ pub(super) enum ReData<T: 'static + ?Sized> {
 }
 
 impl<T: 'static> Re<T> {
-    pub fn get(&self, ctx: &BindContext) -> T {
+    pub fn get(&self, cx: &BindContext) -> T {
         match &self.0 {
-            ReData::Dyn(rc) => rc.dyn_get(ctx),
-            ReData::DynSource(rc) => rc.clone().dyn_get(ctx),
+            ReData::Dyn(rc) => rc.dyn_get(cx),
+            ReData::DynSource(rc) => rc.clone().dyn_get(cx),
         }
     }
     pub fn head_tail(&self) -> (T, Tail<T>) {
@@ -149,8 +149,8 @@ impl<T: 'static> Re<Re<T>> {
 impl<T> Reactive for Re<T> {
     type Item = T;
 
-    fn get(&self, ctx: &BindContext) -> Self::Item {
-        Re::get(self, ctx)
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        Re::get(self, cx)
     }
     fn into_re(self) -> Re<Self::Item>
     where

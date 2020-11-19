@@ -4,8 +4,8 @@ pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Reactive<I
     struct ReFn<F>(F);
     impl<F: Fn(&BindContext) -> T + 'static, T> Reactive for ReFn<F> {
         type Item = T;
-        fn get(&self, ctx: &BindContext) -> Self::Item {
-            (self.0)(ctx)
+        fn get(&self, cx: &BindContext) -> Self::Item {
+            (self.0)(cx)
         }
     }
 
@@ -19,11 +19,11 @@ pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Reactive<Item = T
 pub struct ReOps<S>(pub(super) S);
 
 impl<S: Reactive> ReOps<S> {
-    pub fn get(&self, ctx: &BindContext) -> S::Item {
-        self.0.get(ctx)
+    pub fn get(&self, cx: &BindContext) -> S::Item {
+        self.0.get(cx)
     }
-    pub fn with<T>(&self, f: impl FnOnce(&S::Item, &BindContext) -> T, ctx: &BindContext) -> T {
-        f(&self.get(ctx), ctx)
+    pub fn with<T>(&self, f: impl FnOnce(&S::Item, &BindContext) -> T, cx: &BindContext) -> T {
+        f(&self.get(cx), cx)
     }
     pub fn head_tail(self) -> (S::Item, TailOps<S>) {
         BindScope::with(|scope| self.head_tail_with(scope))
@@ -46,19 +46,19 @@ impl<S: Reactive> ReOps<S> {
     }
 
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
-        re(move |ctx| f(self.get(ctx)))
+        re(move |cx| f(self.get(cx)))
     }
     pub fn flat_map<T: Reactive>(
         self,
         f: impl Fn(S::Item) -> T + 'static,
     ) -> ReOps<impl Reactive<Item = T::Item>> {
-        re(move |ctx| f(self.get(ctx)).get(ctx))
+        re(move |cx| f(self.get(cx)).get(cx))
     }
     pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>>
     where
         S::Item: Reactive,
     {
-        re(move |ctx| self.get(ctx).get(ctx))
+        re(move |cx| self.get(cx).get(cx))
     }
     pub fn map_async_with<Fut>(
         self,
@@ -74,7 +74,7 @@ impl<S: Reactive> ReOps<S> {
     pub fn cached(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
             (),
-            scan_op(move |_, ctx| self.get(ctx), |_| (), |x| x),
+            scan_op(move |_, cx| self.get(cx), |_| (), |x| x),
         )))
     }
     pub fn scan<St: 'static>(
@@ -84,7 +84,7 @@ impl<S: Reactive> ReOps<S> {
     ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
             initial_state,
-            scan_op(move |st, ctx| f(st, self.get(ctx)), |st| st, |st| st),
+            scan_op(move |st, cx| f(st, self.get(cx)), |st| st, |st| st),
         )))
     }
     pub fn filter_scan<St: 'static>(
@@ -96,8 +96,8 @@ impl<S: Reactive> ReOps<S> {
         ReBorrowOps(Rc::new(FilterScan::new(
             initial_state,
             filter_scan_op(
-                move |state, ctx| {
-                    let value = self.get(ctx);
+                move |state, cx| {
+                    let value = self.get(cx);
                     let is_notify = predicate(&state, &value);
                     let state = if is_notify { f(state, value) } else { state };
                     FilterScanLoad { is_notify, state }
@@ -114,8 +114,8 @@ impl<S: Reactive> ReOps<S> {
         ReBorrowOps(Rc::new(FilterScan::new(
             None,
             filter_scan_op(
-                move |state, ctx| {
-                    let mut value = self.get(ctx);
+                move |state, cx| {
+                    let mut value = self.get(cx);
                     let mut is_notify = false;
                     if let Some(old) = state {
                         if eq(&value, &old) {
@@ -154,7 +154,7 @@ impl<S: Reactive> ReOps<S> {
     ) -> Fold<St> {
         Fold::new(FoldBy::new(
             initial_state,
-            fold_by_op(move |st, ctx| f(st, self.get(ctx)), |st| st, |st| st),
+            fold_by_op(move |st, cx| f(st, self.get(cx)), |st| st, |st| st),
         ))
     }
     pub fn collect_to<E: Extend<S::Item> + 'static>(self, e: E) -> Fold<E> {
@@ -188,7 +188,7 @@ impl<S: Reactive> ReOps<S> {
         Fold::new(FoldBy::new(
             (),
             fold_by_op(
-                move |_, ctx| ((), sp.spawn_local(f(self.get(ctx)))),
+                move |_, cx| ((), sp.spawn_local(f(self.get(cx)))),
                 |_| (),
                 |_| (),
             ),
@@ -205,8 +205,8 @@ impl<S: Reactive> ReOps<S> {
 }
 impl<S: Reactive> Reactive for ReOps<S> {
     type Item = S::Item;
-    fn get(&self, ctx: &BindContext) -> Self::Item {
-        self.0.get(ctx)
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        self.0.get(cx)
     }
     fn into_re(self) -> Re<Self::Item>
     where
@@ -220,8 +220,8 @@ impl<S: Reactive> Reactive for ReOps<S> {
 pub struct ReRefByRe<S>(ReOps<S>);
 impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
     type Item = S::Item;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, ctx: &BindContext) -> U {
-        self.0.with(f, ctx)
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        self.0.with(f, cx)
     }
     fn into_re_ref(self) -> ReRef<Self::Item>
     where

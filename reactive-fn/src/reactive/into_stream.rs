@@ -51,7 +51,7 @@ impl<S: Reactive> Stream for IntoStream<S> {
             b.is_ready = false;
             let bindings = &mut b.bindings;
             let value =
-                BindScope::with(|scope| bindings.update(scope, this, |ctx| this.source.get(ctx)));
+                BindScope::with(|scope| bindings.update(scope, this, |cx| this.source.get(cx)));
             Poll::Ready(Some(value))
         } else {
             b.waker = Some(cx.waker().clone());

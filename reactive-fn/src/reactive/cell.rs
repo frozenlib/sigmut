@@ -20,8 +20,8 @@ impl<T: Copy + 'static> ReCell<T> {
         }))
     }
 
-    pub fn get(&self, ctx: &BindContext) -> T {
-        self.0.get(ctx)
+    pub fn get(&self, cx: &BindContext) -> T {
+        self.0.get(cx)
     }
 
     pub fn set_with(&self, value: T, scope: &NotifyScope) {
@@ -45,22 +45,22 @@ impl<T: Copy + 'static> ReCell<T> {
     }
 }
 impl<T: Copy + 'static> ReCellData<T> {
-    fn get(self: &Rc<Self>, ctx: &BindContext) -> T {
-        ctx.bind(self.clone());
+    fn get(self: &Rc<Self>, cx: &BindContext) -> T {
+        cx.bind(self.clone());
         self.value.get()
     }
 }
 impl<T: Copy + 'static> Reactive for ReCell<T> {
     type Item = T;
-    fn get(&self, ctx: &BindContext) -> Self::Item {
-        self.0.get(ctx)
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        self.0.get(cx)
     }
 }
 
 impl<T: Copy + 'static> DynamicReactiveSource for ReCellData<T> {
     type Item = T;
-    fn dyn_get(self: Rc<Self>, ctx: &BindContext) -> Self::Item {
-        self.get(ctx)
+    fn dyn_get(self: Rc<Self>, cx: &BindContext) -> Self::Item {
+        self.get(cx)
     }
     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
         self
@@ -68,8 +68,8 @@ impl<T: Copy + 'static> DynamicReactiveSource for ReCellData<T> {
 }
 impl<T: Copy + 'static> DynamicReactiveRefSource for ReCellData<T> {
     type Item = T;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
-        f(&self.get(ctx), ctx)
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+        f(&self.get(cx), cx)
     }
 }
 
@@ -110,12 +110,12 @@ impl<T: 'static> ReRefCell<T> {
         NotifyScope::with(|scope| self.set_with(value, scope));
     }
 
-    pub fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, T> {
-        self.0.borrow(ctx)
+    pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
+        self.0.borrow(cx)
     }
-    pub fn borrow_mut<'a>(&'a self, ctx: &'a NotifyScope) -> RefMut<'a, T> {
+    pub fn borrow_mut<'a>(&'a self, cx: &'a NotifyScope) -> RefMut<'a, T> {
         RefMut {
-            ctx,
+            cx,
             b: self.0.value.borrow_mut(),
             sinks: &self.0.sinks,
             modified: false,
@@ -135,16 +135,16 @@ impl<T: 'static> ReRefCell<T> {
     }
 }
 impl<T: 'static> ReRefCellData<T> {
-    pub fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, T> {
-        ctx.bind(self.clone());
+    pub fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, T> {
+        cx.bind(self.clone());
         self.value.borrow()
     }
 }
 
 impl<T: 'static> ReactiveBorrow for ReRefCell<T> {
     type Item = T;
-    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        self.0.borrow(ctx)
+    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.0.borrow(cx)
     }
 }
 
@@ -154,9 +154,9 @@ impl<T: 'static> DynamicReactiveBorrowSource for ReRefCellData<T> {
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
-        ctx: &BindContext,
+        cx: &BindContext,
     ) -> Ref<Self::Item> {
-        ctx.bind(Self::downcast(rc_self));
+        cx.bind(Self::downcast(rc_self));
         self.value.borrow()
     }
 
@@ -169,8 +169,8 @@ impl<T: 'static> DynamicReactiveBorrowSource for ReRefCellData<T> {
 }
 impl<T: 'static> DynamicReactiveRefSource for ReRefCellData<T> {
     type Item = T;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
-        f(&self.borrow(ctx), ctx)
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+        f(&self.borrow(cx), cx)
     }
 }
 
@@ -192,7 +192,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for ReRefCell<T> {
 
 /// A wrapper type for a mutably borrowed value from a `BindRefCell<T>`.
 pub struct RefMut<'a, T> {
-    ctx: &'a NotifyScope,
+    cx: &'a NotifyScope,
     b: std::cell::RefMut<'a, T>,
     sinks: &'a BindSinks,
     modified: bool,
@@ -213,7 +213,7 @@ impl<'a, T> DerefMut for RefMut<'a, T> {
 impl<'a, T> Drop for RefMut<'a, T> {
     fn drop(&mut self) {
         if self.modified {
-            self.sinks.notify(self.ctx);
+            self.sinks.notify(self.cx);
         }
     }
 }

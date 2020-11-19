@@ -8,7 +8,7 @@ fn re_borrow_constant() {
 #[test]
 fn re_borrow_new() {
     let a = ReRefCell::new(2);
-    let r = ReBorrow::new(a.clone(), move |a, ctx| a.borrow(ctx)).collect_vec();
+    let r = ReBorrow::new(a.clone(), move |a, cx| a.borrow(cx)).collect_vec();
 
     a.set(5);
     a.set(7);

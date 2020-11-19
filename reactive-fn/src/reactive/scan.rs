@@ -17,7 +17,7 @@ pub trait ScanOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
-    fn load(&mut self, state: Self::UnloadSt, ctx: &BindContext) -> Self::LoadSt;
+    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt;
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt;
     fn get<'a>(&self, state: &'a Self::LoadSt) -> &'a Self::Value;
 }
@@ -25,7 +25,7 @@ pub trait FilterScanOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
-    fn load(&mut self, state: Self::UnloadSt, ctx: &BindContext) -> FilterScanLoad<Self::LoadSt>;
+    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> FilterScanLoad<Self::LoadSt>;
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt;
     fn get<'a>(&self, state: &'a Self::LoadSt) -> &'a Self::Value;
 }
@@ -33,7 +33,7 @@ pub trait FoldByOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
-    fn load(&mut self, state: Self::UnloadSt, ctx: &BindContext) -> Self::LoadSt;
+    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt;
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt;
     fn get(&self, state: Self::LoadSt) -> Self::Value;
 }
@@ -79,7 +79,7 @@ impl<LoadSt, UnloadSt> ScanState<LoadSt, UnloadSt> {
     ) -> bool {
         if let Self::Unloaded(_) = self {
             if let Self::Unloaded(state) = take(self) {
-                *self = Self::Loaded(bindings.update(scope, sink, |ctx| load(state, ctx)));
+                *self = Self::Loaded(bindings.update(scope, sink, |cx| load(state, cx)));
                 return true;
             } else {
                 unreachable!()
@@ -119,8 +119,8 @@ impl<Op: ScanOp> ScanData<Op> {
     fn load(&mut self, scope: &BindScope, sink: &Rc<impl BindSink>) -> bool {
         let op = &mut self.op;
         self.state
-            .load(&mut self.bindings, scope, sink, |state, ctx| {
-                op.load(state, ctx)
+            .load(&mut self.bindings, scope, sink, |state, cx| {
+                op.load(state, cx)
             })
     }
     fn unload(&mut self) -> bool {
@@ -136,8 +136,8 @@ impl<Op: FilterScanOp> FilterScanData<Op> {
         let mut is_notify = false;
         let op = &mut self.op;
         self.state
-            .load(&mut self.bindings, scope, sink, |state, ctx| {
-                let r = op.load(state, ctx);
+            .load(&mut self.bindings, scope, sink, |state, cx| {
+                let r = op.load(state, cx);
                 is_notify = r.is_notify;
                 r.state
             });
@@ -155,8 +155,8 @@ impl<Op: FoldByOp> FoldByData<Op> {
     fn load(&mut self, scope: &BindScope, sink: &Rc<impl BindSink>) -> bool {
         let op = &mut self.op;
         self.state
-            .load(&mut self.bindings, scope, sink, |state, ctx| {
-                op.load(state, ctx)
+            .load(&mut self.bindings, scope, sink, |state, cx| {
+                op.load(state, cx)
             })
     }
     fn unload(&mut self) -> bool {
@@ -190,8 +190,8 @@ where
     type UnloadSt = UnloadSt;
     type Value = Value;
 
-    fn load(&mut self, state: Self::UnloadSt, ctx: &BindContext) -> Self::LoadSt {
-        (self.load)(state, ctx)
+    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+        (self.load)(state, cx)
     }
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt {
         (self.unload)(state)
@@ -238,8 +238,8 @@ where
     type UnloadSt = UnloadSt;
     type Value = Value;
 
-    fn load(&mut self, state: Self::UnloadSt, ctx: &BindContext) -> FilterScanLoad<Self::LoadSt> {
-        (self.load)(state, ctx)
+    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> FilterScanLoad<Self::LoadSt> {
+        (self.load)(state, cx)
     }
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt {
         (self.unload)(state)
@@ -286,8 +286,8 @@ where
     type UnloadSt = UnloadSt;
     type Value = Value;
 
-    fn load(&mut self, state: Self::UnloadSt, ctx: &BindContext) -> Self::LoadSt {
-        (self.load)(state, ctx)
+    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+        (self.load)(state, cx)
     }
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt {
         (self.unload)(state)
@@ -324,12 +324,12 @@ impl<Op: ScanOp> Scan<Op> {
             sinks: BindSinks::new(),
         }
     }
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, Op::Value> {
-        ctx.bind(self.clone());
+    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, Op::Value> {
+        cx.bind(self.clone());
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
             drop(d);
-            self.data.borrow_mut().load(ctx.scope(), self);
+            self.data.borrow_mut().load(cx.scope(), self);
             d = self.data.borrow();
         }
         Ref::map(d, |d| d.get())
@@ -337,8 +337,8 @@ impl<Op: ScanOp> Scan<Op> {
 }
 impl<Op: ScanOp> ReactiveBorrow for Rc<Scan<Op>> {
     type Item = Op::Value;
-    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        self.borrow(ctx)
+    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.borrow(cx)
     }
 }
 
@@ -348,14 +348,14 @@ impl<Op: ScanOp> DynamicReactiveBorrowSource for Scan<Op> {
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
-        ctx: &BindContext,
+        cx: &BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
-        ctx.bind(rc_self.clone());
+        cx.bind(rc_self.clone());
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
             drop(d);
-            self.data.borrow_mut().load(ctx.scope(), &rc_self);
+            self.data.borrow_mut().load(cx.scope(), &rc_self);
             d = self.data.borrow();
         }
         Ref::map(d, |d| d.get())
@@ -370,8 +370,8 @@ impl<Op: ScanOp> DynamicReactiveBorrowSource for Scan<Op> {
 
 impl<Op: ScanOp> DynamicReactiveRefSource for Scan<Op> {
     type Item = Op::Value;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
-        f(&self.borrow(ctx), ctx)
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+        f(&self.borrow(cx), cx)
     }
 }
 
@@ -419,14 +419,14 @@ impl<Op: FilterScanOp> FilterScan<Op> {
             scope.notify_defer(self.clone());
         }
     }
-    fn borrow<'a>(self: &'a Rc<Self>, ctx: &BindContext<'a>) -> Ref<'a, Op::Value> {
+    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, Op::Value> {
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
             drop(d);
-            self.ready(ctx.scope());
+            self.ready(cx.scope());
             d = self.data.borrow();
         }
-        ctx.bind(self.clone());
+        cx.bind(self.clone());
         Ref::map(d, |d| d.get())
     }
 }
@@ -434,8 +434,8 @@ impl<Op: FilterScanOp> FilterScan<Op> {
 impl<Op: FilterScanOp> ReactiveBorrow for Rc<FilterScan<Op>> {
     type Item = Op::Value;
 
-    fn borrow<'a>(&'a self, ctx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        self.borrow(ctx)
+    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.borrow(cx)
     }
 }
 
@@ -445,16 +445,16 @@ impl<Op: FilterScanOp> DynamicReactiveBorrowSource for FilterScan<Op> {
     fn dyn_borrow(
         &self,
         rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
-        ctx: &BindContext,
+        cx: &BindContext,
     ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
             drop(d);
-            rc_self.ready(ctx.scope());
+            rc_self.ready(cx.scope());
             d = self.data.borrow();
         }
-        ctx.bind(rc_self);
+        cx.bind(rc_self);
         Ref::map(d, |d| d.get())
     }
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
@@ -466,8 +466,8 @@ impl<Op: FilterScanOp> DynamicReactiveBorrowSource for FilterScan<Op> {
 }
 impl<Op: FilterScanOp> DynamicReactiveRefSource for FilterScan<Op> {
     type Item = Op::Value;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), ctx: &BindContext) {
-        f(&self.borrow(ctx), ctx)
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+        f(&self.borrow(cx), cx)
     }
 }
 

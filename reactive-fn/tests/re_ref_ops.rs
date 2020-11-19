@@ -8,9 +8,9 @@ fn re_ref_constant_test() {
 #[test]
 fn re_ref_new() {
     let a = ReCell::new(2);
-    let r = re_ref(a.clone(), move |a, f, ctx| {
-        let value = a.get(ctx);
-        f(&value, ctx)
+    let r = re_ref(a.clone(), move |a, f, cx| {
+        let value = a.get(cx);
+        f(&value, cx)
     })
     .collect_vec();
 
@@ -27,9 +27,9 @@ fn re_ref_new_cell2() {
 
     let r = ReRef::new(
         (cell1.clone(), cell2.clone()),
-        move |(cell1, cell2), f, ctx| {
-            let value = cell1.get(ctx) + cell2.get(ctx);
-            f(&value, ctx)
+        move |(cell1, cell2), f, cx| {
+            let value = cell1.get(cx) + cell2.get(cx);
+            f(&value, cx)
         },
     )
     .collect_vec();
