@@ -206,7 +206,17 @@ impl<T> From<Fold<T>> for Subscription {
     }
 }
 
-pub fn spawn(f: impl FnMut(&BindContext) + 'static) -> Subscription {
-    let f = RefCell::new(f);
-    re(move |ctx| (f.borrow_mut())(ctx)).for_each(|_| {})
+pub fn spawn(mut f: impl FnMut(&BindContext) + 'static) -> Subscription {
+    Fold::new(FoldBy::new(
+        (),
+        fold_by_op(
+            move |st, ctx| {
+                f(ctx);
+                st
+            },
+            |st| st,
+            |st| st,
+        ),
+    ))
+    .into()
 }
