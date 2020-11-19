@@ -206,7 +206,7 @@ impl<T> From<Fold<T>> for Subscription {
     }
 }
 
-pub fn for_each(f: impl FnMut(&BindContext) + 'static) -> Subscription {
+pub fn spawn(f: impl FnMut(&BindContext) + 'static) -> Subscription {
     let f = RefCell::new(f);
     re(move |ctx| (f.borrow_mut())(ctx)).for_each(|_| {})
 }
