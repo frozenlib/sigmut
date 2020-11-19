@@ -158,11 +158,11 @@ pub struct BindScope(NotifyScope);
 pub struct NotifyScope(RefCell<RuntimeData>);
 
 struct RuntimeData {
-    state: ReactiveState,
+    state: RuntimeState,
     defer_bind_tasks: Vec<Rc<dyn BindTask>>,
     defer_notify_sources: Vec<Rc<dyn BindSource>>,
 }
-enum ReactiveState {
+enum RuntimeState {
     None,
     Notify,
     Bind,
@@ -204,7 +204,7 @@ impl BindScope {
 impl Runtime {
     fn new() -> Self {
         Self(BindScope(NotifyScope(RefCell::new(RuntimeData {
-            state: ReactiveState::None,
+            state: RuntimeState::None,
             defer_bind_tasks: Vec::new(),
             defer_notify_sources: Vec::new(),
         }))))
@@ -217,17 +217,17 @@ impl Runtime {
         let value;
         let mut b = self.borrow_mut();
         match b.state {
-            ReactiveState::None => {
-                b.state = ReactiveState::Notify;
+            RuntimeState::None => {
+                b.state = RuntimeState::Notify;
                 drop(b);
                 value = on_ctx(self.notify_scope());
                 self.notify_end(self.borrow_mut());
             }
-            ReactiveState::Notify => {
+            RuntimeState::Notify => {
                 drop(b);
                 value = on_ctx(self.notify_scope());
             }
-            ReactiveState::Bind => {
+            RuntimeState::Bind => {
                 value = on_failed(&mut b);
             }
         }
@@ -236,10 +236,10 @@ impl Runtime {
     fn notify_end(&self, b: RefMut<RuntimeData>) {
         let mut b = b;
         if b.defer_bind_tasks.is_empty() {
-            b.state = ReactiveState::None;
+            b.state = RuntimeState::None;
             return;
         }
-        b.state = ReactiveState::Bind;
+        b.state = RuntimeState::Bind;
         while let Some(task) = b.defer_bind_tasks.pop() {
             drop(b);
             task.run(self.bind_scope());
@@ -251,17 +251,17 @@ impl Runtime {
         let mut b = self.borrow_mut();
         let value;
         match b.state {
-            ReactiveState::None => {
-                b.state = ReactiveState::Bind;
+            RuntimeState::None => {
+                b.state = RuntimeState::Bind;
                 drop(b);
                 value = f(self.bind_scope());
                 self.bind_end(self.borrow_mut());
             }
-            ReactiveState::Bind => {
+            RuntimeState::Bind => {
                 drop(b);
                 value = f(self.bind_scope());
             }
-            ReactiveState::Notify => {
+            RuntimeState::Notify => {
                 panic!("Cannot create BindContext when NotifyContext exists.");
             }
         }
@@ -270,11 +270,11 @@ impl Runtime {
 
     fn bind_end(&self, b: RefMut<RuntimeData>) {
         let mut b = b;
-        b.state = ReactiveState::None;
+        b.state = RuntimeState::None;
         if b.defer_notify_sources.is_empty() {
             return;
         }
-        b.state = ReactiveState::Notify;
+        b.state = RuntimeState::Notify;
         let mut sources = Vec::new();
         swap(&mut b.defer_notify_sources, &mut sources);
         drop(b);
