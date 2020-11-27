@@ -345,11 +345,11 @@ impl<Op: ScanOp> ReactiveBorrow for Rc<Scan<Op>> {
 impl<Op: ScanOp> DynamicReactiveBorrowSource for Scan<Op> {
     type Item = Op::Value;
 
-    fn dyn_borrow(
-        &self,
+    fn dyn_borrow<'a>(
+        &'a self,
         rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
-        cx: &BindContext,
-    ) -> Ref<Self::Item> {
+        cx: &BindContext<'a>,
+    ) -> Ref<'a, Self::Item> {
         let rc_self = Self::downcast(rc_self);
         cx.bind(rc_self.clone());
         let mut d = self.data.borrow();
@@ -442,11 +442,11 @@ impl<Op: FilterScanOp> ReactiveBorrow for Rc<FilterScan<Op>> {
 impl<Op: FilterScanOp> DynamicReactiveBorrowSource for FilterScan<Op> {
     type Item = Op::Value;
 
-    fn dyn_borrow(
-        &self,
+    fn dyn_borrow<'a>(
+        &'a self,
         rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
-        cx: &BindContext,
-    ) -> Ref<Self::Item> {
+        cx: &BindContext<'a>,
+    ) -> Ref<'a, Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {

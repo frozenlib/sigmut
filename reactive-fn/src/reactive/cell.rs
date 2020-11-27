@@ -151,11 +151,11 @@ impl<T: 'static> ReactiveBorrow for ReRefCell<T> {
 impl<T: 'static> DynamicReactiveBorrowSource for ReRefCellData<T> {
     type Item = T;
 
-    fn dyn_borrow(
-        &self,
+    fn dyn_borrow<'a>(
+        &'a self,
         rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
-        cx: &BindContext,
-    ) -> Ref<Self::Item> {
+        cx: &BindContext<'a>,
+    ) -> Ref<'a, Self::Item> {
         cx.bind(Self::downcast(rc_self));
         self.value.borrow()
     }
