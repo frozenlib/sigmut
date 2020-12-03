@@ -23,10 +23,7 @@ impl BindScope {
             )
         })
     }
-    pub fn notify_defer(&self, task: Rc<dyn NotifyTask>)
-    where
-        Self: Sized,
-    {
+    pub fn notify_defer(&self, task: Rc<dyn NotifyTask>) {
         (self.0).0.borrow_mut().notify_tasks.push(task);
     }
 }
