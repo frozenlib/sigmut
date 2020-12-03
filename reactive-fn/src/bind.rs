@@ -66,7 +66,7 @@ pub trait BindSource: 'static {
     }
 }
 impl<T: BindSource> NotifyTask for T {
-    fn run_notify(self: Rc<Self>, scope: &NotifyScope) {
+    fn run(self: Rc<Self>, scope: &NotifyScope) {
         self.sinks().notify(scope)
     }
 }

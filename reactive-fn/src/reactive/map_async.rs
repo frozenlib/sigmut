@@ -166,7 +166,7 @@ where
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
-    fn run_bind(self: Rc<Self>, scope: &BindScope) {
+    fn run(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }

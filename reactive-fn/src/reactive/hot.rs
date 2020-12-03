@@ -36,7 +36,7 @@ impl<S> BindTask for Hot<S>
 where
     Self: HotReady,
 {
-    fn run_bind(self: Rc<Self>, scope: &BindScope) {
+    fn run(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }

@@ -19,7 +19,7 @@ impl BindScope {
             this.try_bind(
                 (),
                 |_, cx| f(cx),
-                |_, _| panic!("Cannot create BindContext when NotifyContext exists."),
+                |_, _| panic!("Cannot create BindScope when NotifyScope exists."),
             )
         })
     }
@@ -36,7 +36,7 @@ impl NotifyScope {
             this.try_notify(
                 (),
                 |_, cx| f(cx),
-                |_, _| panic!("Cannot create NotifyContext when BindContext exists."),
+                |_, _| panic!("Cannot create NotifyScope when BindScope exists."),
             )
         })
     }
@@ -46,11 +46,11 @@ impl NotifyScope {
 }
 
 pub trait BindTask: 'static {
-    fn run_bind(self: Rc<Self>, scope: &BindScope);
+    fn run(self: Rc<Self>, scope: &BindScope);
 }
 
 pub trait NotifyTask: 'static {
-    fn run_notify(self: Rc<Self>, scope: &NotifyScope);
+    fn run(self: Rc<Self>, scope: &NotifyScope);
 }
 
 impl Runtime {
@@ -65,7 +65,7 @@ impl Runtime {
         Runtime::with(|rt| {
             rt.try_bind(
                 task,
-                |task, scope| task.run_bind(scope),
+                |task, scope| task.run(scope),
                 |task, rt| rt.bind_tasks.push(task),
             )
         })
@@ -74,7 +74,7 @@ impl Runtime {
         Runtime::with(|rt| {
             rt.try_notify(
                 task,
-                |task, scope| task.run_notify(scope),
+                |task, scope| task.run(scope),
                 |task, rt| rt.notify_tasks.push(task),
             )
         })
@@ -114,7 +114,7 @@ impl Runtime {
         b.state = RuntimeState::Bind;
         while let Some(task) = b.bind_tasks.pop() {
             drop(b);
-            task.run_bind(self.bind_scope());
+            task.run(self.bind_scope());
             b = self.borrow_mut();
         }
         self.bind_end(b);
@@ -156,7 +156,7 @@ impl Runtime {
         swap(&mut b.notify_tasks, &mut tasks);
         drop(b);
         for task in tasks.drain(..) {
-            task.run_notify(self.notify_scope());
+            task.run(self.notify_scope());
         }
         b = self.borrow_mut();
         b.notify_tasks = tasks;

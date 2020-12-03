@@ -493,7 +493,7 @@ impl<Op: FilterScanOp> BindSink for FilterScan<Op> {
     }
 }
 impl<Op: FilterScanOp> BindTask for FilterScan<Op> {
-    fn run_bind(self: Rc<Self>, scope: &BindScope) {
+    fn run(self: Rc<Self>, scope: &BindScope) {
         self.ready(scope);
     }
 }
@@ -547,7 +547,7 @@ impl<Op: FoldByOp> BindSink for FoldBy<Op> {
 }
 
 impl<Op: FoldByOp> BindTask for FoldBy<Op> {
-    fn run_bind(self: Rc<Self>, scope: &BindScope) {
+    fn run(self: Rc<Self>, scope: &BindScope) {
         Self::next(&self, scope);
     }
 }
