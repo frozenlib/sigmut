@@ -23,6 +23,9 @@ impl<T: Copy + 'static> ReCell<T> {
     pub fn get(&self, cx: &BindContext) -> T {
         self.0.get(cx)
     }
+    pub fn get_direct(&self) -> T {
+        self.0.value.get()
+    }
 
     pub fn set_with(&self, value: T, scope: &NotifyScope) {
         self.0.value.set(value);
@@ -112,6 +115,9 @@ impl<T: 'static> ReRefCell<T> {
 
     pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
         self.0.borrow(cx)
+    }
+    pub fn borrow_direct(&self) -> Ref<T> {
+        self.0.value.borrow()
     }
     pub fn borrow_mut<'a>(&'a self, cx: &'a NotifyScope) -> RefMut<'a, T> {
         RefMut {
