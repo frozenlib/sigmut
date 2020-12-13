@@ -6,15 +6,20 @@ use std::rc::{Rc, Weak};
 
 pub struct BindContext<'a> {
     scope: &'a BindScope,
-    bb: RefCell<BindingsBuilder>,
+    bb: Option<RefCell<BindingsBuilder>>,
 }
 
 impl<'a> BindContext<'a> {
     pub fn bind(&self, source: Rc<impl BindSource>) {
-        self.bb.borrow_mut().bind(source)
+        if let Some(bb) = &self.bb {
+            bb.borrow_mut().bind(source);
+        }
     }
     pub fn scope(&self) -> &BindScope {
         &self.scope
+    }
+    pub fn with_no_sink<T>(f: impl FnOnce(&BindContext) -> T) -> T {
+        BindScope::with(|scope| f(&BindContext { scope, bb: None }))
     }
 }
 struct BindingsBuilder {
@@ -99,13 +104,13 @@ impl Bindings {
         let bindings = replace(&mut self.0, Vec::new());
         let cx = BindContext {
             scope,
-            bb: RefCell::new(BindingsBuilder::new(
+            bb: Some(RefCell::new(BindingsBuilder::new(
                 Rc::downgrade(sink) as Weak<dyn BindSink>,
                 bindings,
-            )),
+            ))),
         };
         let value = f(&cx);
-        self.0 = cx.bb.into_inner().build();
+        self.0 = cx.bb.unwrap().into_inner().build();
         value
     }
 
