@@ -8,7 +8,7 @@ pub trait Collect: 'static {
     type Key;
     fn insert(&mut self, value: Self::Input) -> (Self::Key, bool);
     fn remove(&mut self, key: Self::Key) -> bool;
-    fn update(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool);
+    fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool);
     fn borrow(&self) -> &Self::Output;
 }
 
@@ -113,7 +113,7 @@ impl<T: Collect> Observer for ObsCollectorObserver<T> {
             .collector
             .collector
             .borrow_mut()
-            .update(self.key.take().unwrap(), value);
+            .set(self.key.take().unwrap(), value);
         self.key = Some(key);
         if is_modified {
             Runtime::notify_defer(self.collector.clone());
