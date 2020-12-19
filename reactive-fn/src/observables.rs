@@ -1,10 +1,10 @@
 mod cell;
 mod dyn_obs;
+mod dyn_obs_borrow;
 mod hot;
 mod into_stream;
 mod map_async;
 mod may_re;
-mod re_borrow;
 mod re_borrow_ops;
 mod re_ops;
 mod re_ref;
@@ -13,7 +13,7 @@ mod scan;
 mod tail;
 
 pub use self::{
-    cell::*, dyn_obs::*, may_re::*, re_borrow::*, re_borrow_ops::*, re_ops::*, re_ref::*,
+    cell::*, dyn_obs::*, dyn_obs_borrow::*, may_re::*, re_borrow_ops::*, re_ops::*, re_ref::*,
     re_ref_ops::*, tail::*,
 };
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
