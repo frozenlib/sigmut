@@ -1,18 +1,18 @@
 use super::*;
 
-pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> Obs<impl Observable<Item = T>> {
-    struct ReFn<F>(F);
-    impl<F: Fn(&BindContext) -> T + 'static, T> Observable for ReFn<F> {
+pub fn obs<T>(get: impl Fn(&BindContext) -> T + 'static) -> Obs<impl Observable<Item = T>> {
+    struct ObsFn<F>(F);
+    impl<F: Fn(&BindContext) -> T + 'static, T> Observable for ObsFn<F> {
         type Item = T;
         fn get(&self, cx: &BindContext) -> Self::Item {
             (self.0)(cx)
         }
     }
 
-    Obs(ReFn(get))
+    Obs(ObsFn(get))
 }
-pub fn re_constant<T: 'static + Clone>(value: T) -> Obs<impl Observable<Item = T>> {
-    re(move |_| value.clone())
+pub fn obs_constant<T: 'static + Clone>(value: T) -> Obs<impl Observable<Item = T>> {
+    obs(move |_| value.clone())
 }
 
 #[derive(Clone)]
@@ -46,19 +46,19 @@ impl<S: Observable> Obs<S> {
     }
 
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> Obs<impl Observable<Item = T>> {
-        re(move |cx| f(self.get(cx)))
+        obs(move |cx| f(self.get(cx)))
     }
     pub fn flat_map<T: Observable>(
         self,
         f: impl Fn(S::Item) -> T + 'static,
     ) -> Obs<impl Observable<Item = T::Item>> {
-        re(move |cx| f(self.get(cx)).get(cx))
+        obs(move |cx| f(self.get(cx)).get(cx))
     }
     pub fn flatten(self) -> Obs<impl Observable<Item = <S::Item as Observable>::Item>>
     where
         S::Item: Observable,
     {
-        re(move |cx| self.get(cx).get(cx))
+        obs(move |cx| self.get(cx).get(cx))
     }
     pub fn map_async_with<Fut>(
         self,

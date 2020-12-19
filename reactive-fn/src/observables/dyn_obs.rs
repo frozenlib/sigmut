@@ -26,13 +26,13 @@ impl<T: 'static> DynObs<T> {
     }
 
     pub fn new(get: impl Fn(&BindContext) -> T + 'static) -> Self {
-        re(get).re()
+        obs(get).re()
     }
     pub fn constant(value: T) -> Self
     where
         T: Clone,
     {
-        re_constant(value).re()
+        obs_constant(value).re()
     }
 
     pub(super) fn from_dyn(inner: impl DynamicObservable<Item = T>) -> Self {

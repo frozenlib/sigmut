@@ -80,7 +80,7 @@ impl<S: ObservableRef> ReRefOps<S> {
         self,
         f: impl Fn(&S::Item) -> T + 'static,
     ) -> Obs<impl Observable<Item = T>> {
-        re(move |cx| self.with(|x, _| f(x), cx))
+        obs(move |cx| self.with(|x, _| f(x), cx))
     }
     pub fn map_ref<T: ?Sized>(
         self,
@@ -160,7 +160,7 @@ impl<S: ObservableRef> ReRefOps<S> {
     where
         S::Item: Observable,
     {
-        re(move |cx| self.with(|value, cx| value.get(cx), cx))
+        obs(move |cx| self.with(|value, cx| value.get(cx), cx))
     }
     pub fn map_async_with<Fut>(
         self,

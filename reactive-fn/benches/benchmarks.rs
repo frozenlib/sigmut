@@ -210,7 +210,7 @@ fn many_source_ops(b: &mut Bencher, source_count: usize) {
 
         let f = {
             let ss = ss.clone();
-            re(move |cx| {
+            obs(move |cx| {
                 let mut sum = 0;
                 for s in &ss {
                     sum += s.get(cx)
@@ -309,7 +309,7 @@ fn many_source_sink_ops(b: &mut Bencher, count: usize) {
         for _ in 0..count {
             let f = {
                 let ss = ss.clone();
-                re(move |cx| {
+                obs(move |cx| {
                     let mut sum = 0;
                     for s in &ss {
                         sum += s.get(cx)

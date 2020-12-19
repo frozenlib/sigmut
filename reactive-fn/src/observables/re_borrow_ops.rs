@@ -67,7 +67,7 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
         self.re_borrow().as_ref()
     }
     pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> Obs<impl Observable<Item = T>> {
-        re(move |cx| f(&self.borrow(cx)))
+        obs(move |cx| f(&self.borrow(cx)))
     }
     pub fn map_ref<T: ?Sized + 'static>(
         self,
@@ -115,14 +115,14 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
         self,
         f: impl Fn(&S::Item) -> U + 'static,
     ) -> Obs<impl Observable<Item = U::Item>> {
-        re(move |cx| f(&self.borrow(cx)).get(cx))
+        obs(move |cx| f(&self.borrow(cx)).get(cx))
     }
 
     pub fn flatten(self) -> Obs<impl Observable<Item = <S::Item as Observable>::Item>>
     where
         S::Item: Observable,
     {
-        re(move |cx| self.borrow(cx).get(cx))
+        obs(move |cx| self.borrow(cx).get(cx))
     }
 
     pub fn map_async_with<Fut>(
