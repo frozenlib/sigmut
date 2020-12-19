@@ -1,12 +1,12 @@
 use reactive_fn::*;
 
 #[test]
-fn re_borrow_constant() {
+fn obs_borrow_constant() {
     let r = DynObsBorrow::constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
-fn re_borrow_new() {
+fn obs_borrow_new() {
     let a = ObsRefCell::new(2);
     let r = DynObsBorrow::new(a.clone(), move |a, cx| a.borrow(cx)).collect_vec();
 
@@ -17,7 +17,7 @@ fn re_borrow_new() {
 }
 
 #[test]
-fn re_borrow_map() {
+fn obs_borrow_map() {
     let a = ObsRefCell::new(2);
     let r = a.as_dyn().map(|x| x * 2).collect_vec();
 
@@ -28,7 +28,7 @@ fn re_borrow_map() {
 }
 
 #[test]
-fn re_borrow_map_ref() {
+fn obs_borrow_map_ref() {
     let a = ObsRefCell::new((2, 3));
     let r = a.as_dyn().map_ref(|x| &x.0).collect_vec();
 
@@ -39,7 +39,7 @@ fn re_borrow_map_ref() {
 }
 
 #[test]
-fn re_borrow_flat_map() {
+fn obs_borrow_flat_map() {
     let a = [ObsCell::new(5), ObsCell::new(10)];
     let a_ = a.clone();
 
@@ -62,7 +62,7 @@ fn re_borrow_flat_map() {
 }
 
 #[test]
-fn re_borrow_cloned() {
+fn obs_borrow_cloned() {
     let cell = ObsRefCell::new(2);
     let r = cell.as_dyn().cloned().collect_vec();
 
@@ -74,7 +74,7 @@ fn re_borrow_cloned() {
 }
 
 #[test]
-fn re_borrow_scan() {
+fn obs_borrow_scan() {
     let cell = ObsRefCell::new(2);
     let r = cell.as_dyn().scan(10, |s, x| s + x).collect_vec();
 
@@ -85,7 +85,7 @@ fn re_borrow_scan() {
     assert_eq!(r.stop(), vec![12, 15, 19, 24]);
 }
 #[test]
-fn re_borrow_filter_scan() {
+fn obs_borrow_filter_scan() {
     let cell = ObsRefCell::new(2);
     let r = cell
         .as_dyn()
@@ -100,7 +100,7 @@ fn re_borrow_filter_scan() {
     assert_eq!(r.stop(), vec![10, 13, 18]);
 }
 #[test]
-fn re_borrow_fold() {
+fn obs_borrow_fold() {
     let cell = ObsRefCell::new(1);
     let fold = cell.as_dyn().fold(2, |s, x| s + x);
 
@@ -111,7 +111,7 @@ fn re_borrow_fold() {
 }
 
 #[test]
-fn re_borrow_collect_vec() {
+fn obs_borrow_collect_vec() {
     let cell = ObsRefCell::new(1);
     let fold = cell.as_dyn_ref().collect_vec();
 
@@ -123,7 +123,7 @@ fn re_borrow_collect_vec() {
 }
 
 #[test]
-fn re_borrow_for_each() {
+fn obs_borrow_for_each() {
     use std::cell::RefCell;
     use std::rc::Rc;
     let cell = ObsRefCell::new(0);
@@ -146,11 +146,11 @@ fn re_borrow_for_each() {
 }
 
 #[test]
-fn re_borrow_hot() {
+fn obs_borrow_hot() {
     let cell = ObsRefCell::new(1);
-    let re = cell.as_dyn().scan(0, |s, x| s + x);
+    let obs = cell.as_dyn().scan(0, |s, x| s + x);
 
-    let hot = re.hot();
+    let hot = obs.hot();
 
     cell.set(2);
     cell.set(10);
@@ -159,18 +159,18 @@ fn re_borrow_hot() {
 }
 
 #[test]
-fn re_borrow_hot_no() {
+fn obs_borrow_hot_no() {
     let cell = ObsRefCell::new(1);
-    let re = cell.as_dyn().scan(0, |s, x| s + x);
+    let obs = cell.as_dyn().scan(0, |s, x| s + x);
 
     cell.set(2);
     cell.set(10);
 
-    assert_eq!(re.collect_vec().stop(), vec![10]);
+    assert_eq!(obs.collect_vec().stop(), vec![10]);
 }
 
 #[test]
-fn re_borrow_flatten() {
+fn obs_borrow_flatten() {
     let cell = ObsRefCell::new(DynObs::constant(1));
 
     let vs = cell.as_dyn().flatten().collect_vec();
@@ -184,7 +184,7 @@ fn re_borrow_flatten() {
 }
 
 #[test]
-fn re_borrow_head_tail_with() {
+fn obs_borrow_head_tail_with() {
     let a = ObsRefCell::new(2);
     let (head, tail) = BindScope::with(|scope| {
         let r = a.as_dyn();

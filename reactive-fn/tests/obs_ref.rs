@@ -1,12 +1,12 @@
 use reactive_fn::*;
 
 #[test]
-fn re_ref_constant_test() {
+fn obs_ref_constant_test() {
     let r = obs_ref_constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
-fn re_ref_new() {
+fn obs_ref_new() {
     let a = ObsCell::new(2);
     let r = obs_ref(a.clone(), move |a, f, cx| {
         let value = a.get(cx);
@@ -21,7 +21,7 @@ fn re_ref_new() {
 }
 
 #[test]
-fn re_ref_new_cell2() {
+fn obs_ref_new_cell2() {
     let cell1 = ObsCell::new(1);
     let cell2 = ObsCell::new(2);
 
@@ -41,7 +41,7 @@ fn re_ref_new_cell2() {
 }
 
 #[test]
-fn re_ref_map() {
+fn obs_ref_map() {
     let a = ObsRefCell::new(2);
     let r = a.obs_ref().map(|x| x * 2).collect_vec();
 
@@ -52,7 +52,7 @@ fn re_ref_map() {
 }
 
 #[test]
-fn re_ref_map_ref() {
+fn obs_ref_map_ref() {
     let a = ObsRefCell::new((2, 3));
     let r = a.obs_ref().map_ref(|x| &x.0).collect_vec();
 
@@ -62,7 +62,7 @@ fn re_ref_map_ref() {
     assert_eq!(r.stop(), vec![2, 5, 7]);
 }
 #[test]
-fn re_ref_flat_map() {
+fn obs_ref_flat_map() {
     let a = [ObsCell::new(5), ObsCell::new(10)];
     let a_ = a.clone();
 
@@ -84,7 +84,7 @@ fn re_ref_flat_map() {
     assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
 }
 #[test]
-fn re_ref_cloned() {
+fn obs_ref_cloned() {
     let cell = ObsRefCell::new(2);
     let r = cell.obs_ref().cloned().collect_vec();
 
@@ -96,7 +96,7 @@ fn re_ref_cloned() {
 }
 
 #[test]
-fn re_ref_scan() {
+fn obs_ref_scan() {
     let cell = ObsRefCell::new(2);
     let r = cell.obs_ref().scan(10, |s, x| s + x).collect_vec();
 
@@ -107,7 +107,7 @@ fn re_ref_scan() {
     assert_eq!(r.stop(), vec![12, 15, 19, 24]);
 }
 #[test]
-fn re_ref_filter_scan() {
+fn obs_ref_filter_scan() {
     let cell = ObsRefCell::new(2);
     let r = cell
         .obs_ref()
@@ -122,7 +122,7 @@ fn re_ref_filter_scan() {
     assert_eq!(r.stop(), vec![10, 13, 18]);
 }
 #[test]
-fn re_ref_fold() {
+fn obs_ref_fold() {
     let cell = ObsRefCell::new(1);
     let fold = cell.obs_ref().fold(2, |s, x| s + x);
 
@@ -133,7 +133,7 @@ fn re_ref_fold() {
 }
 
 #[test]
-fn re_ref_collect_vec() {
+fn obs_ref_collect_vec() {
     let cell = ObsRefCell::new(1);
     let fold = cell.obs_ref().collect_vec();
 
@@ -145,7 +145,7 @@ fn re_ref_collect_vec() {
 }
 
 #[test]
-fn re_ref_for_each() {
+fn obs_ref_for_each() {
     use std::cell::RefCell;
     use std::rc::Rc;
     let cell = ObsRefCell::new(0);
@@ -168,11 +168,11 @@ fn re_ref_for_each() {
 }
 
 #[test]
-fn re_ref_hot() {
+fn obs_ref_hot() {
     let cell = ObsRefCell::new(1);
-    let re = cell.obs_ref().scan(0, |s, x| s + x);
+    let obs = cell.obs_ref().scan(0, |s, x| s + x);
 
-    let hot = re.hot();
+    let hot = obs.hot();
 
     cell.set(2);
     cell.set(10);
@@ -181,18 +181,18 @@ fn re_ref_hot() {
 }
 
 #[test]
-fn re_ref_hot_no() {
+fn obs_ref_hot_no() {
     let cell = ObsRefCell::new(1);
-    let re = cell.obs_ref().scan(0, |s, x| s + x);
+    let obs = cell.obs_ref().scan(0, |s, x| s + x);
 
     cell.set(2);
     cell.set(10);
 
-    assert_eq!(re.collect_vec().stop(), vec![10]);
+    assert_eq!(obs.collect_vec().stop(), vec![10]);
 }
 
 #[test]
-fn re_ref_flatten() {
+fn obs_ref_flatten() {
     let cell = ObsRefCell::new(DynObs::constant(1));
 
     let vs = cell.obs_ref().flatten().collect_vec();
@@ -206,7 +206,7 @@ fn re_ref_flatten() {
 }
 
 #[test]
-fn re_ref_head_tail() {
+fn obs_ref_head_tail() {
     let a = ObsRefCell::new(2);
     let mut head = None;
     let tail = a.obs_ref().head_tail(|&value| {

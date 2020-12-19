@@ -149,10 +149,10 @@ fn re_dedup_by_key_1() {
 #[test]
 fn re_dedup_by_key_2() {
     let cell = ObsCell::new((5, 1));
-    let re = cell.obs().dedup_by_key(|&(x, _)| x);
+    let obs = cell.obs().dedup_by_key(|&(x, _)| x);
 
     cell.set((5, 2));
-    let r = re.collect_vec(); // current value is (5, 2), not (5, 1).
+    let r = obs.collect_vec(); // current value is (5, 2), not (5, 1).
     cell.set((6, 2));
     cell.set((6, 2));
     cell.set((6, 1));
@@ -252,9 +252,9 @@ fn re_for_each() {
 #[test]
 fn re_hot() {
     let cell = ObsCell::new(1);
-    let re = cell.obs().scan(0, |s, x| s + x);
+    let obs = cell.obs().scan(0, |s, x| s + x);
 
-    let hot = re.hot();
+    let hot = obs.hot();
 
     cell.set(2);
     cell.set(10);
@@ -265,12 +265,12 @@ fn re_hot() {
 #[test]
 fn re_hot_no() {
     let cell = ObsCell::new(1);
-    let re = cell.obs().scan(0, |s, x| s + x);
+    let obs = cell.obs().scan(0, |s, x| s + x);
 
     cell.set(2);
     cell.set(10);
 
-    assert_eq!(re.collect_vec().stop(), vec![10]);
+    assert_eq!(obs.collect_vec().stop(), vec![10]);
 }
 
 #[test]

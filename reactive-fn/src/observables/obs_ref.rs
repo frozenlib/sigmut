@@ -49,7 +49,7 @@ pub fn obs_ref_constant<T: 'static>(value: T) -> ObsRef<impl ObservableRef<Item 
     }
     ObsRef(ReRefConstant(value))
 }
-pub fn re_ref_static<T>(value: &'static T) -> ObsRef<impl ObservableRef<Item = T>> {
+pub fn obs_ref_static<T>(value: &'static T) -> ObsRef<impl ObservableRef<Item = T>> {
     struct ReRefStatic<T: 'static>(&'static T);
     impl<T: 'static> ObservableRef for ReRefStatic<T> {
         type Item = T;

@@ -154,7 +154,7 @@ fn re_for_each() {
 }
 
 #[test]
-fn re_ref_map_async() {
+fn obs_ref_map_async() {
     run(async {
         let cell = ObsRefCell::new(1);
         let r = cell
@@ -178,7 +178,7 @@ fn re_ref_map_async() {
 }
 
 #[test]
-fn re_ref_for_each() {
+fn obs_ref_for_each() {
     run(async {
         let cell = ObsRefCell::new(1);
         let (s, r) = channel();

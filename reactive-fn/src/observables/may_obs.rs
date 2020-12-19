@@ -13,7 +13,7 @@ impl<T: 'static> MayObs<T> {
     pub fn head_tail_with(self, scope: &BindScope) -> (T, Tail<T>) {
         match self {
             MayObs::Constant(x) => (x, Tail::empty()),
-            MayObs::Re(re) => re.head_tail_with(scope),
+            MayObs::Re(obs) => obs.head_tail_with(scope),
         }
     }
     pub fn fold<St: 'static>(
@@ -23,7 +23,7 @@ impl<T: 'static> MayObs<T> {
     ) -> Fold<St> {
         match self {
             MayObs::Constant(x) => Fold::constant(f(initial_state, x)),
-            MayObs::Re(re) => re.fold(initial_state, f),
+            MayObs::Re(obs) => obs.fold(initial_state, f),
         }
     }
     pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
@@ -33,7 +33,7 @@ impl<T: 'static> MayObs<T> {
                 e.extend(once(x));
                 Fold::constant(e)
             }
-            MayObs::Re(re) => re.collect_to(e),
+            MayObs::Re(obs) => obs.collect_to(e),
         }
     }
     pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
@@ -50,7 +50,7 @@ impl<T: 'static> MayObs<T> {
                 f(x);
                 Subscription::empty()
             }
-            MayObs::Re(re) => re.for_each(f),
+            MayObs::Re(obs) => obs.for_each(f),
         }
     }
 }

@@ -151,13 +151,13 @@ fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
 }
 fn re_map_chain_dyn(b: &mut Bencher, chain: usize) {
     let cell = ObsCell::new(0usize);
-    let mut re = cell.as_dyn();
+    let mut obs = cell.as_dyn();
     for _ in 0..chain {
-        re = re.map(|x| x * 2);
+        obs = obs.map(|x| x * 2);
     }
     b.iter(|| {
         cell.set(0);
-        let fold = re.fold(0, |s, x| s + x);
+        let fold = obs.fold(0, |s, x| s + x);
         for i in 0..UPDATE_COUNT {
             cell.set(i);
         }
