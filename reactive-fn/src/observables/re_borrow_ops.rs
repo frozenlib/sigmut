@@ -61,7 +61,7 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
         ReBorrowOps(self.re_borrow())
     }
     pub fn re_borrow(self) -> DynObsBorrow<S::Item> {
-        self.0.into_dyn_borrow()
+        self.0.into_dyn()
     }
     pub fn re_ref(self) -> DynObsRef<S::Item> {
         self.re_borrow().as_ref()
@@ -99,11 +99,11 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
             fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
                 Ref::map(self.source.borrow(cx), |x| x.borrow())
             }
-            fn into_dyn_borrow(self) -> DynObsBorrow<Self::Item>
+            fn into_dyn(self) -> DynObsBorrow<Self::Item>
             where
                 Self: Sized,
             {
-                self.source.into_dyn_borrow().map_borrow()
+                self.source.into_dyn().map_borrow()
             }
         }
         ReBorrowOps(MapBorrow {
@@ -203,11 +203,11 @@ impl<S: ObservableBorrow> ObservableBorrow for ReBorrowOps<S> {
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.0.borrow(cx)
     }
-    fn into_dyn_borrow(self) -> DynObsBorrow<Self::Item>
+    fn into_dyn(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
     {
-        self.0.into_dyn_borrow()
+        self.0.into_dyn()
     }
 }
 
@@ -218,7 +218,7 @@ impl<S: ObservableBorrow> ObservableRef for ReRefByReBorrow<S> {
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
-    fn into_dyn_ref(self) -> DynObsRef<Self::Item>
+    fn into_dyn(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {

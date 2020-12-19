@@ -223,7 +223,7 @@ impl<S: Observable> ObservableRef for ReRefByRe<S> {
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
-    fn into_dyn_ref(self) -> DynObsRef<Self::Item>
+    fn into_dyn(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {

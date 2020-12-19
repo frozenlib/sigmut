@@ -159,7 +159,7 @@ impl<T: ?Sized> ObservableBorrow for DynObsBorrow<T> {
         DynObsBorrow::borrow(self, cx)
     }
 
-    fn into_dyn_borrow(self) -> DynObsBorrow<Self::Item>
+    fn into_dyn(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
     {
