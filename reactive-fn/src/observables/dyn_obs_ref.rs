@@ -298,4 +298,5 @@ impl IntoDynObsRef<str> for &DynObsBorrow<String> {
     fn into_re_ref(self) -> DynObsRef<str> {
         self.as_ref().map_borrow()
     }
+
 }
