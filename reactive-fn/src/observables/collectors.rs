@@ -166,6 +166,7 @@ impl Collect for AnyCollector {
     }
 }
 
+pub type ObsSomeCollector<T> = ObsCollector<SomeCollector<T>>;
 pub struct SomeCollector<T>(SlabMap<T>);
 
 impl<T: Clone + 'static> SomeCollector<T> {
