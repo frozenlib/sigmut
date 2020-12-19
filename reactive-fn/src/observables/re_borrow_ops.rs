@@ -57,10 +57,10 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
     pub fn as_ref(self) -> ReRefOps<ReRefByReBorrow<S>> {
         ReRefOps(ReRefByReBorrow(self))
     }
-    pub fn as_any(self) -> ReBorrowOps<ReBorrow<S::Item>> {
+    pub fn as_any(self) -> ReBorrowOps<DynObsBorrow<S::Item>> {
         ReBorrowOps(self.re_borrow())
     }
-    pub fn re_borrow(self) -> ReBorrow<S::Item> {
+    pub fn re_borrow(self) -> DynObsBorrow<S::Item> {
         self.0.into_re_borrow()
     }
     pub fn re_ref(self) -> ReRef<S::Item> {
@@ -99,7 +99,7 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
             fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
                 Ref::map(self.source.borrow(cx), |x| x.borrow())
             }
-            fn into_re_borrow(self) -> ReBorrow<Self::Item>
+            fn into_re_borrow(self) -> DynObsBorrow<Self::Item>
             where
                 Self: Sized,
             {
@@ -203,7 +203,7 @@ impl<S: ObservableBorrow> ObservableBorrow for ReBorrowOps<S> {
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.0.borrow(cx)
     }
-    fn into_re_borrow(self) -> ReBorrow<Self::Item>
+    fn into_re_borrow(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
     {

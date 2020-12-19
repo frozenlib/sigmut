@@ -2,20 +2,20 @@ use super::*;
 use std::cell::Ref;
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ReBorrow<T: 'static + ?Sized>(ReBorrowData<T>);
+pub struct DynObsBorrow<T: 'static + ?Sized>(DynObsBorrowData<T>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-enum ReBorrowData<T: 'static + ?Sized> {
+enum DynObsBorrowData<T: 'static + ?Sized> {
     Dyn(Rc<dyn DynamicObservableBorrow<Item = T>>),
     DynSource(Rc<dyn DynamicObservableBorrowSource<Item = T>>),
 }
 
-impl<T: 'static + ?Sized> ReBorrow<T> {
+impl<T: 'static + ?Sized> DynObsBorrow<T> {
     pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
         match &self.0 {
-            ReBorrowData::Dyn(rc) => rc.dyn_borrow(cx),
-            ReBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, cx),
+            DynObsBorrowData::Dyn(rc) => rc.dyn_borrow(cx),
+            DynObsBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, cx),
         }
     }
     pub fn head_tail_with<'a>(&'a self, scope: &'a BindScope) -> (Ref<'a, T>, TailRef<T>) {
@@ -37,16 +37,16 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     }
 
     pub(super) fn from_dyn(rc: Rc<dyn DynamicObservableBorrow<Item = T>>) -> Self {
-        Self(ReBorrowData::Dyn(rc))
+        Self(DynObsBorrowData::Dyn(rc))
     }
     pub(super) fn from_dyn_source(rc: Rc<dyn DynamicObservableBorrowSource<Item = T>>) -> Self {
-        Self(ReBorrowData::DynSource(rc))
+        Self(DynObsBorrowData::DynSource(rc))
     }
 
     pub fn as_ref(&self) -> ReRef<T> {
         match self.0.clone() {
-            ReBorrowData::Dyn(rc) => ReRef::from_dyn(rc.as_ref()),
-            ReBorrowData::DynSource(rc) => ReRef::from_dyn_source(rc.as_ref()),
+            DynObsBorrowData::Dyn(rc) => ReRef::from_dyn(rc.as_ref()),
+            DynObsBorrowData::DynSource(rc) => ReRef::from_dyn_source(rc.as_ref()),
         }
     }
     pub fn ops(&self) -> ReBorrowOps<Self> {
@@ -56,14 +56,14 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
         self.ops().map(f).re()
     }
-    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReBorrow<U> {
+    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObsBorrow<U> {
         self.ops().map_ref(f).re_borrow()
     }
-    pub fn map_borrow<B: ?Sized>(&self) -> ReBorrow<B>
+    pub fn map_borrow<B: ?Sized>(&self) -> DynObsBorrow<B>
     where
         T: Borrow<B>,
     {
-        if let Some(b) = Any::downcast_ref::<ReBorrow<B>>(self) {
+        if let Some(b) = Any::downcast_ref::<DynObsBorrow<B>>(self) {
             b.clone()
         } else {
             self.map_ref(|x| x.borrow())
@@ -77,7 +77,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         &self,
         f: impl Fn(&T) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> ReBorrow<Poll<Fut::Output>>
+    ) -> DynObsBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,
     {
@@ -95,7 +95,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         &self,
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
-    ) -> ReBorrow<St> {
+    ) -> DynObsBorrow<St> {
         self.ops().scan(initial_state, f).re_borrow()
     }
     pub fn filter_scan<St: 'static>(
@@ -103,7 +103,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         initial_state: St,
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl Fn(St, &T) -> St + 'static,
-    ) -> ReBorrow<St> {
+    ) -> DynObsBorrow<St> {
         self.ops()
             .filter_scan(initial_state, predicate, f)
             .re_borrow()
@@ -147,19 +147,19 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         self.ops().hot().re_borrow()
     }
 }
-impl<T: 'static> ReBorrow<DynObs<T>> {
+impl<T: 'static> DynObsBorrow<DynObs<T>> {
     pub fn flatten(&self) -> DynObs<T> {
         self.ops().flatten().re()
     }
 }
 
-impl<T: ?Sized> ObservableBorrow for ReBorrow<T> {
+impl<T: ?Sized> ObservableBorrow for DynObsBorrow<T> {
     type Item = T;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        ReBorrow::borrow(self, cx)
+        DynObsBorrow::borrow(self, cx)
     }
 
-    fn into_re_borrow(self) -> ReBorrow<Self::Item>
+    fn into_re_borrow(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
     {

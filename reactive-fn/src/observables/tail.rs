@@ -103,7 +103,7 @@ impl<T: ?Sized + 'static> TailRef<T> {
         Self(TailRefOps::new(source, scope, f))
     }
     pub(super) fn new_borrow<'a>(
-        source: &'a ReBorrow<T>,
+        source: &'a DynObsBorrow<T>,
         scope: &'a BindScope,
     ) -> (Ref<'a, T>, Self) {
         let (r, s) = TailRefOps::new_borrow(source, scope, |s| s.as_ref());

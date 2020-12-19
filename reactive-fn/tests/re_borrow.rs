@@ -2,13 +2,13 @@ use reactive_fn::*;
 
 #[test]
 fn re_borrow_constant() {
-    let r = ReBorrow::constant(2).collect_vec();
+    let r = DynObsBorrow::constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
 fn re_borrow_new() {
     let a = ReRefCell::new(2);
-    let r = ReBorrow::new(a.clone(), move |a, cx| a.borrow(cx)).collect_vec();
+    let r = DynObsBorrow::new(a.clone(), move |a, cx| a.borrow(cx)).collect_vec();
 
     a.set(5);
     a.set(7);

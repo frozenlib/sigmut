@@ -12,8 +12,8 @@ fn into_may_re_int() {
     func_may_re_int(ReRef::constant(10));
     func_may_re_int(&ReRef::constant(10));
 
-    func_may_re_int(ReBorrow::constant(10));
-    func_may_re_int(&ReBorrow::constant(10));
+    func_may_re_int(DynObsBorrow::constant(10));
+    func_may_re_int(&DynObsBorrow::constant(10));
 }
 
 #[test]
@@ -25,6 +25,6 @@ fn into_re_ref_str() {
     func_into_re_ref_str(&DynObs::constant(String::from("abc")));
     func_into_re_ref_str(ReRef::constant(String::from("abc")));
     func_into_re_ref_str(&ReRef::constant(String::from("abc")));
-    func_into_re_ref_str(ReBorrow::constant(String::from("abc")));
-    func_into_re_ref_str(&ReBorrow::constant(String::from("abc")));
+    func_into_re_ref_str(DynObsBorrow::constant(String::from("abc")));
+    func_into_re_ref_str(&DynObsBorrow::constant(String::from("abc")));
 }

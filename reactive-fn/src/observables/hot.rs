@@ -57,7 +57,7 @@ impl<S: Observable> HotReady for Hot<ReOps<S>> {
             .update(scope, &this, |cx| self.source.get(cx));
     }
 }
-impl<T: 'static + ?Sized> HotReady for Hot<ReBorrow<T>> {
+impl<T: 'static + ?Sized> HotReady for Hot<DynObsBorrow<T>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings.borrow_mut().update(scope, &this, |cx| {

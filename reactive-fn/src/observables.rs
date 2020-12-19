@@ -62,7 +62,7 @@ pub trait ObservableBorrow: 'static {
     type Item: ?Sized;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item>;
 
-    fn into_re_borrow(self) -> ReBorrow<Self::Item>
+    fn into_re_borrow(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
     {
@@ -82,7 +82,7 @@ pub trait ObservableBorrow: 'static {
                 f(&self.0.borrow(cx), cx)
             }
         }
-        ReBorrow::from_dyn(Rc::new(IntoDyn(self)))
+        DynObsBorrow::from_dyn(Rc::new(IntoDyn(self)))
     }
 }
 

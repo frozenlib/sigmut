@@ -28,7 +28,7 @@ impl LocalSpawn for LocalSpawner {
 
 #[ext(pub)]
 impl<T: 'static> DynObs<T> {
-    fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
+    fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,
     {
@@ -45,7 +45,7 @@ impl<T: 'static> DynObs<T> {
 
 #[ext(pub)]
 impl<T: 'static> ReRef<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
+    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,
     {
@@ -61,8 +61,8 @@ impl<T: 'static> ReRef<T> {
 }
 
 #[ext(pub)]
-impl<T: 'static> ReBorrow<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
+impl<T: 'static> DynObsBorrow<T> {
+    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,
     {

@@ -121,7 +121,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         &self,
         f: impl Fn(&T) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> ReBorrow<Poll<Fut::Output>>
+    ) -> DynObsBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,
     {
@@ -131,7 +131,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         &self,
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
-    ) -> ReBorrow<St> {
+    ) -> DynObsBorrow<St> {
         self.ops().scan(initial_state, f).re_borrow()
     }
     pub fn filter_scan<St: 'static>(
@@ -139,7 +139,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         initial_state: St,
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl Fn(St, &T) -> St + 'static,
-    ) -> ReBorrow<St> {
+    ) -> DynObsBorrow<St> {
         self.ops()
             .filter_scan(initial_state, predicate, f)
             .re_borrow()
@@ -256,7 +256,7 @@ where
         self.map_borrow()
     }
 }
-impl<T, B> IntoReRef<T> for ReBorrow<B>
+impl<T, B> IntoReRef<T> for DynObsBorrow<B>
 where
     T: ?Sized + 'static,
     B: ?Sized + Borrow<T>,
@@ -265,7 +265,7 @@ where
         self.as_ref().map_borrow()
     }
 }
-impl<T> IntoReRef<T> for &ReBorrow<T>
+impl<T> IntoReRef<T> for &DynObsBorrow<T>
 where
     T: ?Sized + 'static,
 {
@@ -294,7 +294,7 @@ impl IntoReRef<str> for &ReRef<String> {
         self.map_borrow()
     }
 }
-impl IntoReRef<str> for &ReBorrow<String> {
+impl IntoReRef<str> for &DynObsBorrow<String> {
     fn into_re_ref(self) -> ReRef<str> {
         self.as_ref().map_borrow()
     }

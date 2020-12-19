@@ -127,8 +127,8 @@ impl<T: 'static> ReRefCell<T> {
             modified: false,
         }
     }
-    pub fn re_borrow(&self) -> ReBorrow<T> {
-        ReBorrow::from_dyn_source(self.0.clone())
+    pub fn re_borrow(&self) -> DynObsBorrow<T> {
+        DynObsBorrow::from_dyn_source(self.0.clone())
     }
     pub fn re_ref(&self) -> ReRef<T> {
         self.re_borrow().as_ref()

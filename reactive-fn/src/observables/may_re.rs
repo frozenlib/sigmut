@@ -95,12 +95,12 @@ impl<T: Copy + 'static> IntoMayRe<T> for &ReRef<T> {
         self.cloned().into_may_re()
     }
 }
-impl<T: Copy + 'static> IntoMayRe<T> for ReBorrow<T> {
+impl<T: Copy + 'static> IntoMayRe<T> for DynObsBorrow<T> {
     fn into_may_re(self) -> MayRe<T> {
         self.cloned().into_may_re()
     }
 }
-impl<T: Copy + 'static> IntoMayRe<T> for &ReBorrow<T> {
+impl<T: Copy + 'static> IntoMayRe<T> for &DynObsBorrow<T> {
     fn into_may_re(self) -> MayRe<T> {
         self.cloned().into_may_re()
     }

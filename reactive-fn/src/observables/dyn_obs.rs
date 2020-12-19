@@ -59,21 +59,21 @@ impl<T: 'static> DynObs<T> {
         &self,
         f: impl Fn(T) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> ReBorrow<Poll<Fut::Output>>
+    ) -> DynObsBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,
     {
         self.ops().map_async_with(f, sp).re_borrow()
     }
 
-    pub fn cached(&self) -> ReBorrow<T> {
+    pub fn cached(&self) -> DynObsBorrow<T> {
         self.ops().cached().re_borrow()
     }
     pub fn scan<St: 'static>(
         &self,
         initial_state: St,
         f: impl Fn(St, T) -> St + 'static,
-    ) -> ReBorrow<St> {
+    ) -> DynObsBorrow<St> {
         self.ops().scan(initial_state, f).re_borrow()
     }
     pub fn filter_scan<St: 'static>(
@@ -81,20 +81,20 @@ impl<T: 'static> DynObs<T> {
         initial_state: St,
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl Fn(St, T) -> St + 'static,
-    ) -> ReBorrow<St> {
+    ) -> DynObsBorrow<St> {
         self.ops()
             .filter_scan(initial_state, predicate, f)
             .re_borrow()
     }
 
-    pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> ReBorrow<T> {
+    pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObsBorrow<T> {
         self.ops().dedup_by(eq).re_borrow()
     }
-    pub fn dedup_by_key<K: PartialEq>(&self, to_key: impl Fn(&T) -> K + 'static) -> ReBorrow<T> {
+    pub fn dedup_by_key<K: PartialEq>(&self, to_key: impl Fn(&T) -> K + 'static) -> DynObsBorrow<T> {
         self.ops().dedup_by_key(to_key).re_borrow()
     }
 
-    pub fn dedup(&self) -> ReBorrow<T>
+    pub fn dedup(&self) -> DynObsBorrow<T>
     where
         T: PartialEq,
     {
