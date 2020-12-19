@@ -6,12 +6,12 @@ mod dyn_obs_ref;
 mod hot;
 mod into_stream;
 mod map_async;
-mod value_obs;
 mod obs;
 mod obs_borrow;
 mod obs_ref;
 mod scan;
 mod tail;
+mod value_obs;
 
 pub use self::{
     cell::{ObsCell, ObsRefCell},
@@ -19,11 +19,11 @@ pub use self::{
     dyn_obs::*,
     dyn_obs_borrow::*,
     dyn_obs_ref::*,
-    value_obs::*,
     obs::*,
     obs_borrow::*,
     obs_ref::*,
     tail::*,
+    value_obs::*,
 };
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
 use crate::{bind::*, BindScope, NotifyScope};

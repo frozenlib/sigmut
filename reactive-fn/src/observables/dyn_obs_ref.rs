@@ -170,10 +170,10 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     {
         self.ops().collect_vec()
     }
-    pub fn for_each(&self, f: impl FnMut(&T) + 'static) -> Subscription {
-        self.ops().for_each(f)
+    pub fn subscribe(&self, f: impl FnMut(&T) + 'static) -> Subscription {
+        self.ops().subscribe(f)
     }
-    pub fn for_each_async_with<Fut>(
+    pub fn subscribe_async_with<Fut>(
         &self,
         f: impl FnMut(&T) -> Fut + 'static,
         sp: impl LocalSpawn,
@@ -181,7 +181,7 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.ops().for_each_async_with(f, sp)
+        self.ops().subscribe_async_with(f, sp)
     }
 
     pub fn hot(&self) -> Self {

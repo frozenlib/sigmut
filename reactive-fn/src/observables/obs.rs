@@ -169,14 +169,14 @@ impl<S: Observable> Obs<S> {
     pub fn collect_vec(self) -> Fold<Vec<S::Item>> {
         self.collect()
     }
-    pub fn for_each(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
+    pub fn subscribe(self, f: impl Observer<S::Item> + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
-            f(x);
+            f.next(x);
             f
         })
         .into()
     }
-    pub fn for_each_async_with<Fut>(
+    pub fn subscribe_async_with<Fut>(
         self,
         f: impl FnMut(S::Item) -> Fut + 'static,
         sp: impl LocalSpawn,

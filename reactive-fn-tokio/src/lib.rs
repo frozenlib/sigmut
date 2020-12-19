@@ -35,11 +35,11 @@ impl<T: 'static> DynObs<T> {
         self.map_async_with(f, LocalSpawner)
     }
 
-    fn for_each_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
+    fn subscribe_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.for_each_async_with(f, LocalSpawner)
+        self.subscribe_async_with(f, LocalSpawner)
     }
 }
 
@@ -52,11 +52,11 @@ impl<T: 'static> DynObsRef<T> {
         self.map_async_with(f, LocalSpawner)
     }
 
-    fn for_each_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
+    fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.for_each_async_with(f, LocalSpawner)
+        self.subscribe_async_with(f, LocalSpawner)
     }
 }
 
@@ -69,10 +69,10 @@ impl<T: 'static> DynObsBorrow<T> {
         self.map_async_with(f, LocalSpawner)
     }
 
-    fn for_each_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
+    fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.for_each_async_with(f, LocalSpawner)
+        self.subscribe_async_with(f, LocalSpawner)
     }
 }

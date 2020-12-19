@@ -13,8 +13,8 @@ impl<T> DynTail<T> {
         Self(Tail::empty())
     }
 
-    pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
-        self.0.for_each(f)
+    pub fn subscribe(self, f: impl FnMut(T) + 'static) -> Subscription {
+        self.0.subscribe(f)
     }
     pub fn fold<St: 'static>(
         self,
@@ -53,7 +53,7 @@ impl<S: Observable> Tail<S> {
         Self(None)
     }
 
-    pub fn for_each(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
+    pub fn subscribe(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
             f(x);
             f
@@ -113,7 +113,7 @@ impl<T: ?Sized + 'static> DynTailRef<T> {
         Self(TailRef::empty())
     }
 
-    pub fn for_each(self, f: impl FnMut(&T) + 'static) -> Subscription {
+    pub fn subscribe(self, f: impl FnMut(&T) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
             f(x);
             f
@@ -179,7 +179,7 @@ impl<S: ObservableRef> TailRef<S> {
         Self(None)
     }
 
-    pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
+    pub fn subscribe(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
             f(x);
             f

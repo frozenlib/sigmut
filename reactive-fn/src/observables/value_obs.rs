@@ -43,14 +43,14 @@ impl<T: 'static> ValueObs<T> {
         self.collect()
     }
 
-    pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
+    pub fn subscribe(self, f: impl FnMut(T) + 'static) -> Subscription {
         match self {
             ValueObs::Constant(x) => {
                 let mut f = f;
                 f(x);
                 Subscription::empty()
             }
-            ValueObs::Obs(obs) => obs.for_each(f),
+            ValueObs::Obs(obs) => obs.subscribe(f),
         }
     }
 }

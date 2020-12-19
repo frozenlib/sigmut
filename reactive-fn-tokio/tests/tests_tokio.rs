@@ -137,12 +137,12 @@ fn re_map_async_cancel() {
 }
 
 #[test]
-fn re_for_each() {
+fn re_subscribe() {
     run(async {
         let cell = ObsCell::new(1);
         let (s, r) = channel();
 
-        let _s = cell.as_dyn().for_each_async(move |x| {
+        let _s = cell.as_dyn().subscribe_async(move |x| {
             let s = s.clone();
             spawn(async move {
                 s.send(x).unwrap();
@@ -178,12 +178,12 @@ fn obs_ref_map_async() {
 }
 
 #[test]
-fn obs_ref_for_each() {
+fn obs_ref_subscribe() {
     run(async {
         let cell = ObsRefCell::new(1);
         let (s, r) = channel();
 
-        let _s = cell.as_dyn_ref().for_each_async(move |&x| {
+        let _s = cell.as_dyn_ref().subscribe_async(move |&x| {
             let s = s.clone();
             spawn(async move {
                 s.send(x).unwrap();

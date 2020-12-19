@@ -148,7 +148,7 @@ fn obs_ref_collect_vec() {
 }
 
 #[test]
-fn obs_ref_for_each() {
+fn obs_ref_subscribe() {
     use std::cell::RefCell;
     use std::rc::Rc;
     let cell = ObsRefCell::new(0);
@@ -156,7 +156,7 @@ fn obs_ref_for_each() {
 
     let vs_send = vs.clone();
 
-    let r = cell.as_dyn_ref().for_each(move |&x| {
+    let r = cell.as_dyn_ref().subscribe(move |&x| {
         vs_send.borrow_mut().push(x);
     });
 

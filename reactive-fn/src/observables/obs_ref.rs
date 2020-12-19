@@ -253,14 +253,14 @@ impl<S: ObservableRef> ObsRef<S> {
     {
         self.collect()
     }
-    pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
+    pub fn subscribe(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
             f(x);
             f
         })
         .into()
     }
-    pub fn for_each_async_with<Fut>(
+    pub fn subscribe_async_with<Fut>(
         self,
         f: impl FnMut(&S::Item) -> Fut + 'static,
         sp: impl LocalSpawn,

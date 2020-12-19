@@ -180,10 +180,10 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         self.collect()
     }
 
-    pub fn for_each(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
-        self.as_ref().for_each(f)
+    pub fn subscribe(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
+        self.as_ref().subscribe(f)
     }
-    pub fn for_each_async_with<Fut>(
+    pub fn subscribe_async_with<Fut>(
         self,
         f: impl FnMut(&S::Item) -> Fut + 'static,
         sp: impl LocalSpawn,
@@ -191,7 +191,7 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.as_ref().for_each_async_with(f, sp)
+        self.as_ref().subscribe_async_with(f, sp)
     }
     pub fn hot(self) -> ObsBorrow<impl ObservableBorrow<Item = S::Item>> {
         ObsBorrow(Hot::new(self))

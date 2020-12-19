@@ -227,7 +227,7 @@ fn re_collect_vec() {
 }
 
 #[test]
-fn re_for_each() {
+fn re_subscribe() {
     use std::cell::RefCell;
     use std::rc::Rc;
     let cell = ObsCell::new(0);
@@ -235,7 +235,7 @@ fn re_for_each() {
 
     let vs_send = vs.clone();
 
-    let r = cell.as_dyn().for_each(move |x| {
+    let r = cell.as_dyn().subscribe(move |x| {
         vs_send.borrow_mut().push(x);
     });
 
