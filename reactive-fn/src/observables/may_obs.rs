@@ -3,7 +3,7 @@ use super::*;
 #[derive(Clone)]
 pub enum MayObs<T: 'static> {
     Constant(T),
-    Re(DynObs<T>),
+    Obs(DynObs<T>),
 }
 
 impl<T: 'static> MayObs<T> {
@@ -13,7 +13,7 @@ impl<T: 'static> MayObs<T> {
     pub fn head_tail_with(self, scope: &BindScope) -> (T, Tail<T>) {
         match self {
             MayObs::Constant(x) => (x, Tail::empty()),
-            MayObs::Re(obs) => obs.head_tail_with(scope),
+            MayObs::Obs(obs) => obs.head_tail_with(scope),
         }
     }
     pub fn fold<St: 'static>(
@@ -23,7 +23,7 @@ impl<T: 'static> MayObs<T> {
     ) -> Fold<St> {
         match self {
             MayObs::Constant(x) => Fold::constant(f(initial_state, x)),
-            MayObs::Re(obs) => obs.fold(initial_state, f),
+            MayObs::Obs(obs) => obs.fold(initial_state, f),
         }
     }
     pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
@@ -33,7 +33,7 @@ impl<T: 'static> MayObs<T> {
                 e.extend(once(x));
                 Fold::constant(e)
             }
-            MayObs::Re(obs) => obs.collect_to(e),
+            MayObs::Obs(obs) => obs.collect_to(e),
         }
     }
     pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
@@ -50,7 +50,7 @@ impl<T: 'static> MayObs<T> {
                 f(x);
                 Subscription::empty()
             }
-            MayObs::Re(obs) => obs.for_each(f),
+            MayObs::Obs(obs) => obs.for_each(f),
         }
     }
 }
@@ -77,12 +77,12 @@ impl<T: Copy> IntoMayObs<T> for &T {
 
 impl<T> IntoMayObs<T> for DynObs<T> {
     fn into_may_obs(self) -> MayObs<T> {
-        MayObs::Re(self)
+        MayObs::Obs(self)
     }
 }
 impl<T> IntoMayObs<T> for &DynObs<T> {
     fn into_may_obs(self) -> MayObs<T> {
-        MayObs::Re(self.clone())
+        MayObs::Obs(self.clone())
     }
 }
 impl<T: Copy + 'static> IntoMayObs<T> for DynObsRef<T> {
