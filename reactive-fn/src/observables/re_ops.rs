@@ -39,10 +39,10 @@ impl<S: Observable> ReOps<S> {
         ReOps(self.re())
     }
     pub fn re(self) -> DynObs<S::Item> {
-        self.0.into_re()
+        self.0.into_dyn()
     }
     pub fn re_ref(self) -> DynObsRef<S::Item> {
-        self.0.into_re().as_ref()
+        self.0.into_dyn().as_ref()
     }
 
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Observable<Item = T>> {
@@ -208,11 +208,11 @@ impl<S: Observable> Observable for ReOps<S> {
     fn get(&self, cx: &BindContext) -> Self::Item {
         self.0.get(cx)
     }
-    fn into_re(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {
-        self.0.into_re()
+        self.0.into_dyn()
     }
 }
 
@@ -223,7 +223,7 @@ impl<S: Observable> ObservableRef for ReRefByRe<S> {
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
-    fn into_re_ref(self) -> DynObsRef<Self::Item>
+    fn into_dyn_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {

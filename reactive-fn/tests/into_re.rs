@@ -17,14 +17,14 @@ fn into_may_re_int() {
 }
 
 #[test]
-fn into_re_ref_str() {
-    fn func_into_re_ref_str(_: impl IntoDynObsRef<str>) {}
-    func_into_re_ref_str("abc");
-    func_into_re_ref_str(String::from("abc"));
-    func_into_re_ref_str(DynObs::constant(String::from("abc")));
-    func_into_re_ref_str(&DynObs::constant(String::from("abc")));
-    func_into_re_ref_str(DynObsRef::constant(String::from("abc")));
-    func_into_re_ref_str(&DynObsRef::constant(String::from("abc")));
-    func_into_re_ref_str(DynObsBorrow::constant(String::from("abc")));
-    func_into_re_ref_str(&DynObsBorrow::constant(String::from("abc")));
+fn into_dyn_ref_str() {
+    fn func_into_dyn_ref_str(_: impl IntoDynObsRef<str>) {}
+    func_into_dyn_ref_str("abc");
+    func_into_dyn_ref_str(String::from("abc"));
+    func_into_dyn_ref_str(DynObs::constant(String::from("abc")));
+    func_into_dyn_ref_str(&DynObs::constant(String::from("abc")));
+    func_into_dyn_ref_str(DynObsRef::constant(String::from("abc")));
+    func_into_dyn_ref_str(&DynObsRef::constant(String::from("abc")));
+    func_into_dyn_ref_str(DynObsBorrow::constant(String::from("abc")));
+    func_into_dyn_ref_str(&DynObsBorrow::constant(String::from("abc")));
 }

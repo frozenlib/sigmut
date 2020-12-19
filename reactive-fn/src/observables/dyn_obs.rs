@@ -90,7 +90,10 @@ impl<T: 'static> DynObs<T> {
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObsBorrow<T> {
         self.ops().dedup_by(eq).re_borrow()
     }
-    pub fn dedup_by_key<K: PartialEq>(&self, to_key: impl Fn(&T) -> K + 'static) -> DynObsBorrow<T> {
+    pub fn dedup_by_key<K: PartialEq>(
+        &self,
+        to_key: impl Fn(&T) -> K + 'static,
+    ) -> DynObsBorrow<T> {
         self.ops().dedup_by_key(to_key).re_borrow()
     }
 
@@ -152,7 +155,7 @@ impl<T> Observable for DynObs<T> {
     fn get(&self, cx: &BindContext) -> Self::Item {
         DynObs::get(self, cx)
     }
-    fn into_re(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {
