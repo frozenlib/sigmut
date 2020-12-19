@@ -38,6 +38,9 @@ impl<T: 'static> DynObs<T> {
     pub(super) fn from_dyn(inner: impl DynamicObservable<Item = T>) -> Self {
         Self(DynObsData::Dyn(Rc::new(inner)))
     }
+    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicObservableSource<Item = T>>) -> Self {
+        Self(DynObsData::DynSource(rc))
+    }
 
     pub fn as_ref(&self) -> DynObsRef<T> {
         match self.0.clone() {

@@ -9,7 +9,7 @@ pub trait Collect: 'static {
     fn insert(&mut self, value: Self::Input) -> (Self::Key, bool);
     fn remove(&mut self, key: Self::Key) -> bool;
     fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool);
-    fn borrow(&self) -> &Self::Output;
+    fn collect(&self) -> Self::Output;
 }
 
 pub trait ObservableCollect {
@@ -30,23 +30,23 @@ pub struct ObsCollectorObserver<T: Collect> {
     key: Option<T::Key>,
 }
 impl<T: Collect> ObsCollector<T> {
-    pub fn as_dyn(&self) -> DynObsBorrow<T::Output> {
-        DynObsBorrow::from_dyn_source(self.0.clone())
+    pub fn as_dyn(&self) -> DynObs<T::Output> {
+        DynObs::from_dyn_source(self.0.clone())
     }
     pub fn as_dyn_ref(&self) -> DynObsRef<T::Output> {
         self.as_dyn().as_ref()
     }
-    pub fn obs(&self) -> ObsBorrow<impl ObservableBorrow<Item = T::Output> + Clone> {
-        ObsBorrow(self.clone())
+    pub fn obs(&self) -> Obs<impl Observable<Item = T::Output> + Clone> {
+        Obs(self.clone())
     }
     pub fn obs_ref(&self) -> ObsRef<impl ObservableRef<Item = T::Output> + Clone> {
         self.obs().as_ref()
     }
 }
-impl<T: Collect> ObservableBorrow for ObsCollector<T> {
+impl<T: Collect> Observable for ObsCollector<T> {
     type Item = T::Output;
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        self.0.borrow(cx)
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        self.0.clone().get(cx)
     }
 }
 
@@ -69,34 +69,27 @@ impl<T> Clone for ObsCollector<T> {
         Self(self.0.clone())
     }
 }
-
 impl<T: Collect> ObsCollectorData<T> {
-    pub fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, T::Output> {
+    pub fn get(self: Rc<Self>, cx: &BindContext) -> T::Output {
+        let value = self.collector.borrow().collect();
         cx.bind(self.clone());
-        Ref::map(self.collector.borrow(), |c| c.borrow())
+        value
     }
 }
-impl<T: Collect> DynamicObservableBorrowSource for ObsCollectorData<T> {
+impl<T: Collect> DynamicObservableSource for ObsCollectorData<T> {
     type Item = T::Output;
-    fn dyn_borrow<'a>(
-        &'a self,
-        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext<'a>,
-    ) -> Ref<'a, Self::Item> {
-        cx.bind(Self::downcast(rc_self));
-        Ref::map(self.collector.borrow(), |d| d.borrow())
-    }
-    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
+
+    fn dyn_get(self: Rc<Self>, cx: &BindContext) -> Self::Item {
+        self.get(cx)
     }
     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
-        todo!()
+        self
     }
 }
 impl<T: Collect> DynamicObservableRefSource for ObsCollectorData<T> {
     type Item = T::Output;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
-        f(&self.borrow(cx), cx)
+        f(&self.get(cx), cx)
     }
 }
 impl<T: 'static> BindSource for ObsCollectorData<T> {
@@ -131,49 +124,42 @@ impl<T: Collect> Drop for ObsCollectorObserver<T> {
     }
 }
 
-// struct AnyCollecter {
-//     count: usize,
-//     count_base: usize,
-//     result: bool,
-// }
-// impl Collect for AnyCollecter {
-//     type Input = bool;
-//     type Output = bool;
-//     type Key = bool;
+pub type ObsAnyCollector = ObsCollector<AnyCollector>;
+pub struct AnyCollector {
+    count: usize,
+}
+impl Collect for AnyCollector {
+    type Input = bool;
+    type Output = bool;
+    type Key = bool;
 
-//     fn insert(&mut self, value: Self::Input) -> Self::Key {
-//         if value {
-//             self.count += 1;
-//         }
-//         value
-//     }
+    fn insert(&mut self, value: Self::Input) -> (Self::Key, bool) {
+        if value {
+            self.count += 1;
+            (true, self.count == 1)
+        } else {
+            (false, false)
+        }
+    }
 
-//     fn remove(&mut self, key: Self::Key) {
-//         if key {
-//             self.count -= 1;
-//         }
-//     }
+    fn remove(&mut self, key: Self::Key) -> bool {
+        if key {
+            self.count -= 1;
+            self.count == 0
+        } else {
+            false
+        }
+    }
 
-//     fn update(&mut self, key: &mut Self::Key, value: Self::Input) {
-//         if *key {
-//             self.count -= 1;
-//         }
-//         if value {
-//             self.count += 1;
-//         }
-//         *key = value
-//     }
+    fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool) {
+        match (key, value) {
+            (true, false) => (false, self.remove(key)),
+            (false, true) => self.insert(true),
+            _ => (false, value),
+        }
+    }
 
-//     fn is_modified(&self) -> bool {
-//         self.count_base == self.count
-//     }
-
-//     fn collect(&mut self) -> bool {
-//         let old = self.result;
-//         self.result = self.count != 0;
-//         self.result != old
-//     }
-//     fn result(&self) -> &Self::Output {
-//         &self.result
-//     }
-// }
+    fn collect(&self) -> Self::Output {
+        self.count != 0
+    }
+}
