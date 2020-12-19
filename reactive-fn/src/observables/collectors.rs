@@ -1,3 +1,5 @@
+use slabmap::SlabMap;
+
 use super::*;
 use crate::*;
 use std::{cell::RefCell, rc::Rc};
@@ -161,5 +163,47 @@ impl Collect for AnyCollector {
 
     fn collect(&self) -> Self::Output {
         self.count != 0
+    }
+}
+
+pub struct SomeCollector<T>(SlabMap<T>);
+
+impl<T: Clone + 'static> SomeCollector<T> {
+    fn is_result(&self, key: usize) -> bool {
+        self.0.keys().next() == Some(key)
+    }
+}
+impl<T: Clone + 'static> Collect for SomeCollector<T> {
+    type Input = Option<T>;
+    type Output = Option<T>;
+    type Key = Option<usize>;
+
+    fn insert(&mut self, value: Self::Input) -> (Self::Key, bool) {
+        if let Some(value) = value {
+            let key = self.0.insert(value);
+            (Some(key), self.is_result(key))
+        } else {
+            (None, false)
+        }
+    }
+
+    fn remove(&mut self, key: Self::Key) -> bool {
+        if let Some(key) = key {
+            let is_modified = self.is_result(key);
+            self.0.remove(key);
+            is_modified
+        } else {
+            false
+        }
+    }
+
+    fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool) {
+        let is_modified0 = self.remove(key);
+        let (key, is_modified1) = self.insert(value);
+        (key, is_modified0 | is_modified1)
+    }
+
+    fn collect(&self) -> Self::Output {
+        self.0.values().next().cloned()
     }
 }
