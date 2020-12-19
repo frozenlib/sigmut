@@ -1,8 +1,8 @@
 use super::*;
 
-pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
+pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Observable<Item = T>> {
     struct ReFn<F>(F);
-    impl<F: Fn(&BindContext) -> T + 'static, T> Reactive for ReFn<F> {
+    impl<F: Fn(&BindContext) -> T + 'static, T> Observable for ReFn<F> {
         type Item = T;
         fn get(&self, cx: &BindContext) -> Self::Item {
             (self.0)(cx)
@@ -11,14 +11,14 @@ pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Reactive<I
 
     ReOps(ReFn(get))
 }
-pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Reactive<Item = T>> {
+pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Observable<Item = T>> {
     re(move |_| value.clone())
 }
 
 #[derive(Clone)]
 pub struct ReOps<S>(pub(super) S);
 
-impl<S: Reactive> ReOps<S> {
+impl<S: Observable> ReOps<S> {
     pub fn get(&self, cx: &BindContext) -> S::Item {
         self.0.get(cx)
     }
@@ -45,18 +45,18 @@ impl<S: Reactive> ReOps<S> {
         self.0.into_re().as_ref()
     }
 
-    pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
+    pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Observable<Item = T>> {
         re(move |cx| f(self.get(cx)))
     }
-    pub fn flat_map<T: Reactive>(
+    pub fn flat_map<T: Observable>(
         self,
         f: impl Fn(S::Item) -> T + 'static,
-    ) -> ReOps<impl Reactive<Item = T::Item>> {
+    ) -> ReOps<impl Observable<Item = T::Item>> {
         re(move |cx| f(self.get(cx)).get(cx))
     }
-    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>>
+    pub fn flatten(self) -> ReOps<impl Observable<Item = <S::Item as Observable>::Item>>
     where
-        S::Item: Reactive,
+        S::Item: Observable,
     {
         re(move |cx| self.get(cx).get(cx))
     }
@@ -64,14 +64,14 @@ impl<S: Reactive> ReOps<S> {
         self,
         f: impl Fn(S::Item) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = Poll<Fut::Output>> + Clone>
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = Poll<Fut::Output>> + Clone>
     where
         Fut: Future + 'static,
     {
         ReBorrowOps(Rc::new(MapAsync::new(self.map(f), sp)))
     }
 
-    pub fn cached(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
+    pub fn cached(self) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
             (),
             scan_op(move |_, cx| self.get(cx), |_| (), |x| x),
@@ -81,7 +81,7 @@ impl<S: Reactive> ReOps<S> {
         self,
         initial_state: St,
         f: impl Fn(St, S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
             initial_state,
             scan_op(move |st, cx| f(st, self.get(cx)), |st| st, |st| st),
@@ -92,7 +92,7 @@ impl<S: Reactive> ReOps<S> {
         initial_state: St,
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl Fn(St, S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
             initial_state,
             filter_scan_op(
@@ -110,7 +110,7 @@ impl<S: Reactive> ReOps<S> {
     pub fn dedup_by(
         self,
         eq: impl Fn(&S::Item, &S::Item) -> bool + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
             None,
             filter_scan_op(
@@ -137,10 +137,10 @@ impl<S: Reactive> ReOps<S> {
     pub fn dedup_by_key<K: PartialEq>(
         self,
         to_key: impl Fn(&S::Item) -> K + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item> + Clone> {
         self.dedup_by(move |l, r| to_key(l) == to_key(r))
     }
-    pub fn dedup(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item> + Clone>
+    pub fn dedup(self) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item> + Clone>
     where
         S::Item: PartialEq,
     {
@@ -195,7 +195,7 @@ impl<S: Reactive> ReOps<S> {
         ))
         .into()
     }
-    pub fn hot(self) -> ReOps<impl Reactive<Item = S::Item>> {
+    pub fn hot(self) -> ReOps<impl Observable<Item = S::Item>> {
         ReOps(Hot::new(self))
     }
 
@@ -203,7 +203,7 @@ impl<S: Reactive> ReOps<S> {
         IntoStream::new(self)
     }
 }
-impl<S: Reactive> Reactive for ReOps<S> {
+impl<S: Observable> Observable for ReOps<S> {
     type Item = S::Item;
     fn get(&self, cx: &BindContext) -> Self::Item {
         self.0.get(cx)
@@ -218,7 +218,7 @@ impl<S: Reactive> Reactive for ReOps<S> {
 
 #[derive(Clone)]
 pub struct ReRefByRe<S>(ReOps<S>);
-impl<S: Reactive> ReactiveRef for ReRefByRe<S> {
+impl<S: Observable> ObservableRef for ReRefByRe<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)

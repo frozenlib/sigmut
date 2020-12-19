@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn re_ref<S, T, F>(this: S, f: F) -> ReRefOps<impl ReactiveRef<Item = T>>
+pub fn re_ref<S, T, F>(this: S, f: F) -> ReRefOps<impl ObservableRef<Item = T>>
 where
     S: 'static,
     T: 'static + ?Sized,
@@ -11,7 +11,7 @@ where
         f: F,
         _phantom: PhantomData<fn(&Self) -> &T>,
     }
-    impl<S, T, F> ReactiveRef for ReRefFn<S, T, F>
+    impl<S, T, F> ObservableRef for ReRefFn<S, T, F>
     where
         S: 'static,
         T: 'static + ?Sized,
@@ -39,9 +39,9 @@ where
     })
 }
 
-pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ReactiveRef<Item = T>> {
+pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ObservableRef<Item = T>> {
     struct ReRefConstant<T>(T);
-    impl<T: 'static> ReactiveRef for ReRefConstant<T> {
+    impl<T: 'static> ObservableRef for ReRefConstant<T> {
         type Item = T;
         fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
             f(&self.0, cx)
@@ -49,9 +49,9 @@ pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ReactiveRef<Item =
     }
     ReRefOps(ReRefConstant(value))
 }
-pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ReactiveRef<Item = T>> {
+pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ObservableRef<Item = T>> {
     struct ReRefStatic<T: 'static>(&'static T);
-    impl<T: 'static> ReactiveRef for ReRefStatic<T> {
+    impl<T: 'static> ObservableRef for ReRefStatic<T> {
         type Item = T;
         fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
             f(self.0, cx)
@@ -63,7 +63,7 @@ pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ReactiveRef<Item = T
 #[derive(Clone)]
 pub struct ReRefOps<S>(pub(super) S);
 
-impl<S: ReactiveRef> ReRefOps<S> {
+impl<S: ObservableRef> ReRefOps<S> {
     pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
@@ -79,20 +79,20 @@ impl<S: ReactiveRef> ReRefOps<S> {
     pub fn map<T: 'static>(
         self,
         f: impl Fn(&S::Item) -> T + 'static,
-    ) -> ReOps<impl Reactive<Item = T>> {
+    ) -> ReOps<impl Observable<Item = T>> {
         re(move |cx| self.with(|x, _| f(x), cx))
     }
     pub fn map_ref<T: ?Sized>(
         self,
         f: impl Fn(&S::Item) -> &T + 'static,
-    ) -> ReRefOps<impl ReactiveRef<Item = T>> {
+    ) -> ReRefOps<impl ObservableRef<Item = T>> {
         struct MapRef<S, F> {
             source: S,
             f: F,
         }
-        impl<S, F, T> ReactiveRef for MapRef<S, F>
+        impl<S, F, T> ObservableRef for MapRef<S, F>
         where
-            S: ReactiveRef,
+            S: ObservableRef,
             F: Fn(&S::Item) -> &T + 'static,
             T: ?Sized,
         {
@@ -108,22 +108,22 @@ impl<S: ReactiveRef> ReRefOps<S> {
         ReRefOps(MapRef { source: self.0, f })
     }
 
-    pub fn map_borrow<B: ?Sized + 'static>(self) -> ReRefOps<impl ReactiveRef<Item = B>>
+    pub fn map_borrow<B: ?Sized + 'static>(self) -> ReRefOps<impl ObservableRef<Item = B>>
     where
         S::Item: Borrow<B>,
     {
         struct MapBorrow<S, B>
         where
-            S: ReactiveRef,
+            S: ObservableRef,
             S::Item: Borrow<B>,
             B: ?Sized + 'static,
         {
             source: S,
             _phantom: PhantomData<fn(&S::Item) -> &B>,
         };
-        impl<S, B> ReactiveRef for MapBorrow<S, B>
+        impl<S, B> ObservableRef for MapBorrow<S, B>
         where
-            S: ReactiveRef,
+            S: ObservableRef,
             S::Item: Borrow<B>,
             B: ?Sized + 'static,
         {
@@ -150,15 +150,15 @@ impl<S: ReactiveRef> ReRefOps<S> {
         })
     }
 
-    pub fn flat_map<U: Reactive>(
+    pub fn flat_map<U: Observable>(
         self,
         f: impl Fn(&S::Item) -> U + 'static,
-    ) -> ReOps<impl Reactive<Item = U::Item>> {
+    ) -> ReOps<impl Observable<Item = U::Item>> {
         self.map(f).flatten()
     }
-    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>>
+    pub fn flatten(self) -> ReOps<impl Observable<Item = <S::Item as Observable>::Item>>
     where
-        S::Item: Reactive,
+        S::Item: Observable,
     {
         re(move |cx| self.with(|value, cx| value.get(cx), cx))
     }
@@ -166,7 +166,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
         self,
         f: impl Fn(&S::Item) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = Poll<Fut::Output>> + Clone>
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = Poll<Fut::Output>> + Clone>
     where
         Fut: Future + 'static,
     {
@@ -176,7 +176,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
         self,
         initial_state: St,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(Scan::new(
             initial_state,
             scan_op(
@@ -194,7 +194,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
         initial_state: St,
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
         ReBorrowOps(Rc::new(FilterScan::new(
             initial_state,
             filter_scan_op(
@@ -214,7 +214,7 @@ impl<S: ReactiveRef> ReRefOps<S> {
         )))
     }
 
-    pub fn cloned(self) -> ReOps<impl Reactive<Item = S::Item>>
+    pub fn cloned(self) -> ReOps<impl Observable<Item = S::Item>>
     where
         S::Item: Clone,
     {
@@ -280,11 +280,11 @@ impl<S: ReactiveRef> ReRefOps<S> {
         .into()
     }
 
-    pub fn hot(self) -> ReRefOps<impl ReactiveRef<Item = S::Item>> {
+    pub fn hot(self) -> ReRefOps<impl ObservableRef<Item = S::Item>> {
         ReRefOps(Hot::new(self))
     }
 }
-impl<S: ReactiveRef> ReactiveRef for ReRefOps<S> {
+impl<S: ObservableRef> ObservableRef for ReRefOps<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)

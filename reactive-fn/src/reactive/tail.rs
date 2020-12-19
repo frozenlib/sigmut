@@ -36,7 +36,7 @@ impl<T> Tail<T> {
 
 pub struct TailOps<S>(Option<TailData<S>>);
 
-impl<S: Reactive> TailOps<S> {
+impl<S: Observable> TailOps<S> {
     pub(super) fn new(source: S, scope: &BindScope) -> (S::Item, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();
@@ -143,7 +143,7 @@ impl<T: ?Sized + 'static> TailRef<T> {
 
 pub struct TailRefOps<S>(Option<TailData<S>>);
 
-impl<S: ReactiveRef> TailRefOps<S> {
+impl<S: ObservableRef> TailRefOps<S> {
     pub(super) fn new(source: S, scope: &BindScope, f: impl FnOnce(&S::Item)) -> Self {
         let state = TailState::new();
         let mut b = state.borrow_mut();
@@ -156,7 +156,7 @@ impl<S: ReactiveRef> TailRefOps<S> {
             Self(Some(TailData { source, state }))
         }
     }
-    pub(super) fn new_borrow<'a, B: ReactiveBorrow<Item = S::Item>>(
+    pub(super) fn new_borrow<'a, B: ObservableBorrow<Item = S::Item>>(
         source: &'a B,
         scope: &'a BindScope,
         to_ref: impl Fn(&B) -> S,

@@ -4,7 +4,7 @@ use std::cell::Ref;
 pub fn re_borrow<S, T>(
     this: S,
     borrow: impl for<'a> Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
-) -> ReBorrowOps<impl ReactiveBorrow<Item = T>>
+) -> ReBorrowOps<impl ObservableBorrow<Item = T>>
 where
     T: 'static + ?Sized,
     S: 'static,
@@ -13,7 +13,7 @@ where
         this: S,
         borrow: F,
     }
-    impl<T, S, F> ReactiveBorrow for ReBorrowFn<S, F>
+    impl<T, S, F> ObservableBorrow for ReBorrowFn<S, F>
     where
         T: 'static + ?Sized,
         S: 'static,
@@ -27,14 +27,14 @@ where
 
     ReBorrowOps(ReBorrowFn { this, borrow })
 }
-pub fn re_borrow_constant<T: 'static>(value: T) -> ReBorrowOps<impl ReactiveBorrow<Item = T>> {
+pub fn re_borrow_constant<T: 'static>(value: T) -> ReBorrowOps<impl ObservableBorrow<Item = T>> {
     re_borrow(RefCell::new(value), |this, _| this.borrow())
 }
 
 #[derive(Clone)]
 pub struct ReBorrowOps<S>(pub(super) S);
 
-impl<S: ReactiveBorrow> ReBorrowOps<S> {
+impl<S: ObservableBorrow> ReBorrowOps<S> {
     pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, S::Item> {
         self.0.borrow(cx)
     }
@@ -46,7 +46,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         scope: &'a BindScope,
     ) -> (
         Ref<'a, S::Item>,
-        TailRefOps<impl ReactiveRef<Item = S::Item>>,
+        TailRefOps<impl ObservableRef<Item = S::Item>>,
     )
     where
         S: Clone,
@@ -66,31 +66,31 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     pub fn re_ref(self) -> ReRef<S::Item> {
         self.re_borrow().as_ref()
     }
-    pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> ReOps<impl Reactive<Item = T>> {
+    pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> ReOps<impl Observable<Item = T>> {
         re(move |cx| f(&self.borrow(cx)))
     }
     pub fn map_ref<T: ?Sized + 'static>(
         self,
         f: impl Fn(&S::Item) -> &T + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = T>> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = T>> {
         re_borrow(self, move |this, cx| Ref::map(this.borrow(cx), &f))
     }
-    pub fn map_borrow<B: ?Sized + 'static>(self) -> ReBorrowOps<impl ReactiveBorrow<Item = B>>
+    pub fn map_borrow<B: ?Sized + 'static>(self) -> ReBorrowOps<impl ObservableBorrow<Item = B>>
     where
         S::Item: Borrow<B>,
     {
         struct MapBorrow<S, B>
         where
-            S: ReactiveBorrow,
+            S: ObservableBorrow,
             S::Item: Borrow<B>,
             B: ?Sized + 'static,
         {
             source: S,
             _phantom: PhantomData<fn(&S::Item) -> &B>,
         };
-        impl<S, B> ReactiveBorrow for MapBorrow<S, B>
+        impl<S, B> ObservableBorrow for MapBorrow<S, B>
         where
-            S: ReactiveBorrow,
+            S: ObservableBorrow,
             S::Item: Borrow<B>,
             B: ?Sized + 'static,
         {
@@ -111,16 +111,16 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
             _phantom: PhantomData,
         })
     }
-    pub fn flat_map<U: Reactive>(
+    pub fn flat_map<U: Observable>(
         self,
         f: impl Fn(&S::Item) -> U + 'static,
-    ) -> ReOps<impl Reactive<Item = U::Item>> {
+    ) -> ReOps<impl Observable<Item = U::Item>> {
         re(move |cx| f(&self.borrow(cx)).get(cx))
     }
 
-    pub fn flatten(self) -> ReOps<impl Reactive<Item = <S::Item as Reactive>::Item>>
+    pub fn flatten(self) -> ReOps<impl Observable<Item = <S::Item as Observable>::Item>>
     where
-        S::Item: Reactive,
+        S::Item: Observable,
     {
         re(move |cx| self.borrow(cx).get(cx))
     }
@@ -129,13 +129,13 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         self,
         f: impl Fn(&S::Item) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = Poll<Fut::Output>> + Clone>
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = Poll<Fut::Output>> + Clone>
     where
         Fut: Future + 'static,
     {
         self.as_ref().map_async_with(f, sp)
     }
-    pub fn cloned(self) -> ReOps<impl Reactive<Item = S::Item>>
+    pub fn cloned(self) -> ReOps<impl Observable<Item = S::Item>>
     where
         S::Item: Clone,
     {
@@ -145,7 +145,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         self,
         initial_state: St,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
         self.as_ref().scan(initial_state, f)
     }
     pub fn filter_scan<St: 'static>(
@@ -153,7 +153,7 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
         initial_state: St,
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ReactiveBorrow<Item = St> + Clone> {
+    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
         self.as_ref().filter_scan(initial_state, predicate, f)
     }
 
@@ -193,12 +193,12 @@ impl<S: ReactiveBorrow> ReBorrowOps<S> {
     {
         self.as_ref().for_each_async_with(f, sp)
     }
-    pub fn hot(self) -> ReBorrowOps<impl ReactiveBorrow<Item = S::Item>> {
+    pub fn hot(self) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item>> {
         ReBorrowOps(Hot::new(self))
     }
 }
 
-impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
+impl<S: ObservableBorrow> ObservableBorrow for ReBorrowOps<S> {
     type Item = S::Item;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.0.borrow(cx)
@@ -213,7 +213,7 @@ impl<S: ReactiveBorrow> ReactiveBorrow for ReBorrowOps<S> {
 
 #[derive(Clone)]
 pub struct ReRefByReBorrow<S>(ReBorrowOps<S>);
-impl<S: ReactiveBorrow> ReactiveRef for ReRefByReBorrow<S> {
+impl<S: ObservableBorrow> ObservableRef for ReRefByReBorrow<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)

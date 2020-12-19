@@ -106,13 +106,13 @@ fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
         ops: ReOps<S>,
         n: usize,
     }
-    fn new_runner(n: usize) -> Runner<impl Reactive<Item = usize>> {
+    fn new_runner(n: usize) -> Runner<impl Observable<Item = usize>> {
         let cell = ReCell::new(0usize);
         let ops = cell.ops();
         Runner { cell, ops, n }
     }
-    impl<S: Reactive<Item = usize>> Runner<S> {
-        fn try_run(self) -> Result<Runner<impl Reactive<Item = usize>>, usize> {
+    impl<S: Observable<Item = usize>> Runner<S> {
+        fn try_run(self) -> Result<Runner<impl Observable<Item = usize>>, usize> {
             if self.n == 0 {
                 self.cell.set(0);
                 let fold = self.ops.fold(0, |s, x| s + x);

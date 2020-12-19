@@ -8,10 +8,10 @@ use std::{
 
 use crate::{
     BindContext, BindScope, BindSink, BindSinks, BindSource, BindTask, Bindings, NotifyScope,
-    ReactiveBorrow,
+    ObservableBorrow,
 };
 
-use super::{DynamicFold, DynamicReactiveBorrowSource, DynamicReactiveRefSource};
+use super::{DynamicFold, DynamicObservableBorrowSource, DynamicObservableRefSource};
 
 pub trait ScanOp: 'static {
     type LoadSt;
@@ -335,19 +335,19 @@ impl<Op: ScanOp> Scan<Op> {
         Ref::map(d, |d| d.get())
     }
 }
-impl<Op: ScanOp> ReactiveBorrow for Rc<Scan<Op>> {
+impl<Op: ScanOp> ObservableBorrow for Rc<Scan<Op>> {
     type Item = Op::Value;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.borrow(cx)
     }
 }
 
-impl<Op: ScanOp> DynamicReactiveBorrowSource for Scan<Op> {
+impl<Op: ScanOp> DynamicObservableBorrowSource for Scan<Op> {
     type Item = Op::Value;
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
         cx: &BindContext<'a>,
     ) -> Ref<'a, Self::Item> {
         let rc_self = Self::downcast(rc_self);
@@ -363,12 +363,12 @@ impl<Op: ScanOp> DynamicReactiveBorrowSource for Scan<Op> {
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
         self
     }
 }
 
-impl<Op: ScanOp> DynamicReactiveRefSource for Scan<Op> {
+impl<Op: ScanOp> DynamicObservableRefSource for Scan<Op> {
     type Item = Op::Value;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.borrow(cx), cx)
@@ -431,7 +431,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
     }
 }
 
-impl<Op: FilterScanOp> ReactiveBorrow for Rc<FilterScan<Op>> {
+impl<Op: FilterScanOp> ObservableBorrow for Rc<FilterScan<Op>> {
     type Item = Op::Value;
 
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
@@ -439,12 +439,12 @@ impl<Op: FilterScanOp> ReactiveBorrow for Rc<FilterScan<Op>> {
     }
 }
 
-impl<Op: FilterScanOp> DynamicReactiveBorrowSource for FilterScan<Op> {
+impl<Op: FilterScanOp> DynamicObservableBorrowSource for FilterScan<Op> {
     type Item = Op::Value;
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
         cx: &BindContext<'a>,
     ) -> Ref<'a, Self::Item> {
         let rc_self = Self::downcast(rc_self);
@@ -460,11 +460,11 @@ impl<Op: FilterScanOp> DynamicReactiveBorrowSource for FilterScan<Op> {
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
         self
     }
 }
-impl<Op: FilterScanOp> DynamicReactiveRefSource for FilterScan<Op> {
+impl<Op: FilterScanOp> DynamicObservableRefSource for FilterScan<Op> {
     type Item = Op::Value;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.borrow(cx), cx)

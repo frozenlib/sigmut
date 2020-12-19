@@ -7,8 +7,8 @@ pub struct ReBorrow<T: 'static + ?Sized>(ReBorrowData<T>);
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
 enum ReBorrowData<T: 'static + ?Sized> {
-    Dyn(Rc<dyn DynamicReactiveBorrow<Item = T>>),
-    DynSource(Rc<dyn DynamicReactiveBorrowSource<Item = T>>),
+    Dyn(Rc<dyn DynamicObservableBorrow<Item = T>>),
+    DynSource(Rc<dyn DynamicObservableBorrowSource<Item = T>>),
 }
 
 impl<T: 'static + ?Sized> ReBorrow<T> {
@@ -36,10 +36,10 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         re_borrow(this, borrow).re_borrow()
     }
 
-    pub(super) fn from_dyn(rc: Rc<dyn DynamicReactiveBorrow<Item = T>>) -> Self {
+    pub(super) fn from_dyn(rc: Rc<dyn DynamicObservableBorrow<Item = T>>) -> Self {
         Self(ReBorrowData::Dyn(rc))
     }
-    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicReactiveBorrowSource<Item = T>>) -> Self {
+    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicObservableBorrowSource<Item = T>>) -> Self {
         Self(ReBorrowData::DynSource(rc))
     }
 
@@ -153,7 +153,7 @@ impl<T: 'static> ReBorrow<Re<T>> {
     }
 }
 
-impl<T: ?Sized> ReactiveBorrow for ReBorrow<T> {
+impl<T: ?Sized> ObservableBorrow for ReBorrow<T> {
     type Item = T;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         ReBorrow::borrow(self, cx)

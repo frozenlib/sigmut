@@ -10,7 +10,7 @@ use std::{
 
 pub struct MapAsync<S, Fut, Sp>
 where
-    S: Reactive<Item = Fut>,
+    S: Observable<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -27,7 +27,7 @@ struct MapAsyncState<T, H> {
 
 impl<S, Fut, Sp> MapAsync<S, Fut, Sp>
 where
-    S: Reactive<Item = Fut>,
+    S: Observable<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -74,9 +74,9 @@ where
         Ref::map(s, |o| &o.value)
     }
 }
-impl<S, Fut, Sp> ReactiveBorrow for Rc<MapAsync<S, Fut, Sp>>
+impl<S, Fut, Sp> ObservableBorrow for Rc<MapAsync<S, Fut, Sp>>
 where
-    S: Reactive<Item = Fut>,
+    S: Observable<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -86,9 +86,9 @@ where
     }
 }
 
-impl<S, Fut, Sp> DynamicReactiveBorrowSource for MapAsync<S, Fut, Sp>
+impl<S, Fut, Sp> DynamicObservableBorrowSource for MapAsync<S, Fut, Sp>
 where
-    S: Reactive<Item = Fut>,
+    S: Observable<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -96,7 +96,7 @@ where
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
         cx: &BindContext<'a>,
     ) -> Ref<Self::Item> {
         self.borrow_with(Self::downcast(rc_self), cx)
@@ -104,13 +104,13 @@ where
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
         self
     }
 }
-impl<S, Fut, Sp> DynamicReactiveRefSource for MapAsync<S, Fut, Sp>
+impl<S, Fut, Sp> DynamicObservableRefSource for MapAsync<S, Fut, Sp>
 where
-    S: Reactive<Item = Fut>,
+    S: Observable<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -122,7 +122,7 @@ where
 
 impl<S, Fut, Sp> BindSource for MapAsync<S, Fut, Sp>
 where
-    S: Reactive<Item = Fut>,
+    S: Observable<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -142,7 +142,7 @@ where
 
 impl<S, Fut, Sp> BindSink for MapAsync<S, Fut, Sp>
 where
-    S: Reactive<Item = Fut>,
+    S: Observable<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {
@@ -162,7 +162,7 @@ where
 }
 impl<S, Fut, Sp> BindTask for MapAsync<S, Fut, Sp>
 where
-    S: Reactive<Item = Fut>,
+    S: Observable<Item = Fut>,
     Fut: Future + 'static,
     Sp: LocalSpawn,
 {

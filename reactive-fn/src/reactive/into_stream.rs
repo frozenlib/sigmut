@@ -30,7 +30,7 @@ impl<S> IntoStream<S> {
     }
 }
 
-impl<S: Reactive> BindSink for IntoStreamData<S> {
+impl<S: Observable> BindSink for IntoStreamData<S> {
     fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         let waker = {
             let mut b = self.state.borrow_mut();
@@ -42,7 +42,7 @@ impl<S: Reactive> BindSink for IntoStreamData<S> {
         }
     }
 }
-impl<S: Reactive> Stream for IntoStream<S> {
+impl<S: Observable> Stream for IntoStream<S> {
     type Item = S::Item;
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
         let this = &self.as_ref().0;

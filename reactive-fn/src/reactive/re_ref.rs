@@ -8,8 +8,8 @@ pub struct ReRef<T: 'static + ?Sized>(ReRefData<T>);
 #[derivative(Clone(bound = ""))]
 enum ReRefData<T: 'static + ?Sized> {
     StaticRef(&'static T),
-    Dyn(Rc<dyn DynamicReactiveRef<Item = T>>),
-    DynSource(Rc<dyn DynamicReactiveRefSource<Item = T>>),
+    Dyn(Rc<dyn DynamicObservableRef<Item = T>>),
+    DynSource(Rc<dyn DynamicObservableRefSource<Item = T>>),
 }
 
 impl<T: 'static + ?Sized> ReRef<T> {
@@ -53,7 +53,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
             f: F,
             _phantom: PhantomData<fn(&Self) -> &T>,
         }
-        impl<S, T, F> DynamicReactiveRef for ReRefFn<S, T, F>
+        impl<S, T, F> DynamicObservableRef for ReRefFn<S, T, F>
         where
             S: 'static,
             T: 'static + ?Sized,
@@ -85,11 +85,11 @@ impl<T: 'static + ?Sized> ReRef<T> {
         ReRefOps(self.clone())
     }
 
-    pub(super) fn from_dyn(rc: Rc<dyn DynamicReactiveRef<Item = T>>) -> Self {
+    pub(super) fn from_dyn(rc: Rc<dyn DynamicObservableRef<Item = T>>) -> Self {
         Self(ReRefData::Dyn(rc))
     }
 
-    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicReactiveRefSource<Item = T>>) -> Self {
+    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicObservableRefSource<Item = T>>) -> Self {
         Self(ReRefData::DynSource(rc))
     }
 
@@ -193,7 +193,7 @@ impl<T: 'static> ReRef<Re<T>> {
         self.ops().flatten().re()
     }
 }
-impl<T: ?Sized> ReactiveRef for ReRef<T> {
+impl<T: ?Sized> ObservableRef for ReRef<T> {
     type Item = T;
 
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {

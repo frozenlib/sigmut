@@ -7,8 +7,8 @@ pub struct Re<T: 'static + ?Sized>(pub(super) ReData<T>);
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
 pub(super) enum ReData<T: 'static + ?Sized> {
-    Dyn(Rc<dyn DynamicReactive<Item = T>>),
-    DynSource(Rc<dyn DynamicReactiveSource<Item = T>>),
+    Dyn(Rc<dyn DynamicObservable<Item = T>>),
+    DynSource(Rc<dyn DynamicObservableSource<Item = T>>),
 }
 
 impl<T: 'static> Re<T> {
@@ -35,7 +35,7 @@ impl<T: 'static> Re<T> {
         re_constant(value).re()
     }
 
-    pub(super) fn from_dyn(inner: impl DynamicReactive<Item = T>) -> Self {
+    pub(super) fn from_dyn(inner: impl DynamicObservable<Item = T>) -> Self {
         Self(ReData::Dyn(Rc::new(inner)))
     }
 
@@ -146,7 +146,7 @@ impl<T: 'static> Re<Re<T>> {
     }
 }
 
-impl<T> Reactive for Re<T> {
+impl<T> Observable for Re<T> {
     type Item = T;
 
     fn get(&self, cx: &BindContext) -> Self::Item {

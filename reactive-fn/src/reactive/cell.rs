@@ -5,7 +5,7 @@ use std::{any::Any, rc::Rc};
 
 use super::*;
 
-/// A `Cell` like type that implement `Reactive`.
+/// A `Cell` like type that implement `Observable`.
 pub struct ReCell<T: Copy>(Rc<ReCellData<T>>);
 
 struct ReCellData<T: Copy> {
@@ -40,10 +40,10 @@ impl<T: Copy + 'static> ReCell<T> {
     pub fn re(&self) -> Re<T> {
         Re(ReData::DynSource(self.0.clone()))
     }
-    pub fn ops(&self) -> ReOps<impl Reactive<Item = T> + Clone> {
+    pub fn ops(&self) -> ReOps<impl Observable<Item = T> + Clone> {
         ReOps(self.clone())
     }
-    pub fn ops_ref(&self) -> ReRefOps<impl ReactiveRef<Item = T> + Clone> {
+    pub fn ops_ref(&self) -> ReRefOps<impl ObservableRef<Item = T> + Clone> {
         self.ops().as_ref()
     }
 }
@@ -53,23 +53,23 @@ impl<T: Copy + 'static> ReCellData<T> {
         self.value.get()
     }
 }
-impl<T: Copy + 'static> Reactive for ReCell<T> {
+impl<T: Copy + 'static> Observable for ReCell<T> {
     type Item = T;
     fn get(&self, cx: &BindContext) -> Self::Item {
         self.0.get(cx)
     }
 }
 
-impl<T: Copy + 'static> DynamicReactiveSource for ReCellData<T> {
+impl<T: Copy + 'static> DynamicObservableSource for ReCellData<T> {
     type Item = T;
     fn dyn_get(self: Rc<Self>, cx: &BindContext) -> Self::Item {
         self.get(cx)
     }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
         self
     }
 }
-impl<T: Copy + 'static> DynamicReactiveRefSource for ReCellData<T> {
+impl<T: Copy + 'static> DynamicObservableRefSource for ReCellData<T> {
     type Item = T;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.get(cx), cx)
@@ -92,7 +92,7 @@ impl<T: Copy + std::fmt::Debug> std::fmt::Debug for ReCell<T> {
     }
 }
 
-/// A `RefCell` like type that implement `ReactiveRef`.
+/// A `RefCell` like type that implement `ObservableRef`.
 pub struct ReRefCell<T>(Rc<ReRefCellData<T>>);
 struct ReRefCellData<T> {
     value: RefCell<T>,
@@ -133,10 +133,10 @@ impl<T: 'static> ReRefCell<T> {
     pub fn re_ref(&self) -> ReRef<T> {
         self.re_borrow().as_ref()
     }
-    pub fn ops(&self) -> ReBorrowOps<impl ReactiveBorrow<Item = T> + Clone> {
+    pub fn ops(&self) -> ReBorrowOps<impl ObservableBorrow<Item = T> + Clone> {
         ReBorrowOps(self.clone())
     }
-    pub fn ops_ref(&self) -> ReRefOps<impl ReactiveRef<Item = T> + Clone> {
+    pub fn ops_ref(&self) -> ReRefOps<impl ObservableRef<Item = T> + Clone> {
         self.ops().as_ref()
     }
 }
@@ -147,19 +147,19 @@ impl<T: 'static> ReRefCellData<T> {
     }
 }
 
-impl<T: 'static> ReactiveBorrow for ReRefCell<T> {
+impl<T: 'static> ObservableBorrow for ReRefCell<T> {
     type Item = T;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.0.borrow(cx)
     }
 }
 
-impl<T: 'static> DynamicReactiveBorrowSource for ReRefCellData<T> {
+impl<T: 'static> DynamicObservableBorrowSource for ReRefCellData<T> {
     type Item = T;
 
     fn dyn_borrow<'a>(
         &'a self,
-        rc_self: &Rc<dyn DynamicReactiveBorrowSource<Item = Self::Item>>,
+        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
         cx: &BindContext<'a>,
     ) -> Ref<'a, Self::Item> {
         cx.bind(Self::downcast(rc_self));
@@ -169,11 +169,11 @@ impl<T: 'static> DynamicReactiveBorrowSource for ReRefCellData<T> {
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicReactiveRefSource<Item = Self::Item>> {
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
         self
     }
 }
-impl<T: 'static> DynamicReactiveRefSource for ReRefCellData<T> {
+impl<T: 'static> DynamicObservableRefSource for ReRefCellData<T> {
     type Item = T;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.borrow(cx), cx)
