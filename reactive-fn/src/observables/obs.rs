@@ -64,15 +64,15 @@ impl<S: Observable> Obs<S> {
         self,
         f: impl Fn(S::Item) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> ReBorrowOps<impl ObservableBorrow<Item = Poll<Fut::Output>> + Clone>
+    ) -> ObsBorrow<impl ObservableBorrow<Item = Poll<Fut::Output>> + Clone>
     where
         Fut: Future + 'static,
     {
-        ReBorrowOps(Rc::new(MapAsync::new(self.map(f), sp)))
+        ObsBorrow(Rc::new(MapAsync::new(self.map(f), sp)))
     }
 
-    pub fn cached(self) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item> + Clone> {
-        ReBorrowOps(Rc::new(Scan::new(
+    pub fn cached(self) -> ObsBorrow<impl ObservableBorrow<Item = S::Item> + Clone> {
+        ObsBorrow(Rc::new(Scan::new(
             (),
             scan_op(move |_, cx| self.get(cx), |_| (), |x| x),
         )))
@@ -81,8 +81,8 @@ impl<S: Observable> Obs<S> {
         self,
         initial_state: St,
         f: impl Fn(St, S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
-        ReBorrowOps(Rc::new(Scan::new(
+    ) -> ObsBorrow<impl ObservableBorrow<Item = St> + Clone> {
+        ObsBorrow(Rc::new(Scan::new(
             initial_state,
             scan_op(move |st, cx| f(st, self.get(cx)), |st| st, |st| st),
         )))
@@ -92,8 +92,8 @@ impl<S: Observable> Obs<S> {
         initial_state: St,
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl Fn(St, S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
-        ReBorrowOps(Rc::new(FilterScan::new(
+    ) -> ObsBorrow<impl ObservableBorrow<Item = St> + Clone> {
+        ObsBorrow(Rc::new(FilterScan::new(
             initial_state,
             filter_scan_op(
                 move |state, cx| {
@@ -110,8 +110,8 @@ impl<S: Observable> Obs<S> {
     pub fn dedup_by(
         self,
         eq: impl Fn(&S::Item, &S::Item) -> bool + 'static,
-    ) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item> + Clone> {
-        ReBorrowOps(Rc::new(FilterScan::new(
+    ) -> ObsBorrow<impl ObservableBorrow<Item = S::Item> + Clone> {
+        ObsBorrow(Rc::new(FilterScan::new(
             None,
             filter_scan_op(
                 move |state, cx| {
@@ -137,10 +137,10 @@ impl<S: Observable> Obs<S> {
     pub fn dedup_by_key<K: PartialEq>(
         self,
         to_key: impl Fn(&S::Item) -> K + 'static,
-    ) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item> + Clone> {
+    ) -> ObsBorrow<impl ObservableBorrow<Item = S::Item> + Clone> {
         self.dedup_by(move |l, r| to_key(l) == to_key(r))
     }
-    pub fn dedup(self) -> ReBorrowOps<impl ObservableBorrow<Item = S::Item> + Clone>
+    pub fn dedup(self) -> ObsBorrow<impl ObservableBorrow<Item = S::Item> + Clone>
     where
         S::Item: PartialEq,
     {

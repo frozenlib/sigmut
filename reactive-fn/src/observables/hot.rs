@@ -65,7 +65,7 @@ impl<T: 'static + ?Sized> HotReady for Hot<DynObsBorrow<T>> {
         });
     }
 }
-impl<S: ObservableBorrow> HotReady for Hot<ReBorrowOps<S>> {
+impl<S: ObservableBorrow> HotReady for Hot<ObsBorrow<S>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings.borrow_mut().update(scope, &this, |cx| {
@@ -97,7 +97,7 @@ impl<S: Observable> Observable for Rc<Hot<Obs<S>>> {
         self.source.get(cx)
     }
 }
-impl<S: ObservableBorrow> ObservableBorrow for Rc<Hot<ReBorrowOps<S>>> {
+impl<S: ObservableBorrow> ObservableBorrow for Rc<Hot<ObsBorrow<S>>> {
     type Item = S::Item;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.source.borrow(cx)
@@ -126,7 +126,7 @@ impl<S: Observable> DynamicObservableRef for Hot<Obs<S>> {
         f(&self.source.get(cx), cx)
     }
 }
-impl<S: ObservableBorrow> DynamicObservableBorrow for Hot<ReBorrowOps<S>> {
+impl<S: ObservableBorrow> DynamicObservableBorrow for Hot<ObsBorrow<S>> {
     type Item = S::Item;
     fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.source.borrow(cx)
@@ -135,7 +135,7 @@ impl<S: ObservableBorrow> DynamicObservableBorrow for Hot<ReBorrowOps<S>> {
         self
     }
 }
-impl<S: ObservableBorrow> DynamicObservableRef for Hot<ReBorrowOps<S>> {
+impl<S: ObservableBorrow> DynamicObservableRef for Hot<ObsBorrow<S>> {
     type Item = S::Item;
     fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.source.borrow(cx), cx)

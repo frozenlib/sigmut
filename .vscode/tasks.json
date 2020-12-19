@@ -7,10 +7,15 @@
       "type": "shell",
       "label": "cargo test",
       "command": "cargo",
-      "args": ["test", "--all-features"],
-      "problemMatcher": ["$rustc"],
+      "args": [
+        "test",
+        "--all-features"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
       "group": {
-        "kind": "build",
+        "kind": "test",
         "isDefault": true
       },
       "presentation": {
@@ -27,8 +32,16 @@
       "type": "shell",
       "label": "cargo build",
       "command": "cargo",
-      "args": ["build"],
-      "problemMatcher": ["$rustc"],
+      "args": [
+        "build"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "presentation": {
         "panel": "dedicated",
         "clear": true
@@ -43,8 +56,12 @@
       "type": "shell",
       "label": "cargo bench",
       "command": "cargo",
-      "args": ["bench"],
-      "problemMatcher": ["$rustc"],
+      "args": [
+        "bench"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
       "group": {
         "kind": "test",
         "isDefault": true
@@ -74,8 +91,15 @@
       "type": "shell",
       "label": "cargo doc open",
       "command": "cargo",
-      "args": ["doc", "--open", "--no-deps", "--all-features"],
-      "problemMatcher": ["$rustc"],
+      "args": [
+        "doc",
+        "--open",
+        "--no-deps",
+        "--all-features"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
       "presentation": {
         "panel": "dedicated",
         "clear": true
@@ -85,8 +109,16 @@
       "type": "shell",
       "label": "cargo clippy",
       "command": "cargo",
-      "args": ["clippy", "--all-features", "--", "-W", "clippy::all"],
-      "problemMatcher": ["$rustc"],
+      "args": [
+        "clippy",
+        "--all-features",
+        "--",
+        "-W",
+        "clippy::all"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
       "presentation": {
         "panel": "dedicated",
         "clear": true

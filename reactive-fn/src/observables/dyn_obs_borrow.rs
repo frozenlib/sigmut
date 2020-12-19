@@ -26,14 +26,14 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     where
         T: Sized,
     {
-        re_borrow_constant(value).re_borrow()
+        obs_borrow_constant(value).re_borrow()
     }
     pub fn new<S, F>(this: S, borrow: F) -> Self
     where
         S: 'static,
         for<'a> F: Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
     {
-        re_borrow(this, borrow).re_borrow()
+        obs_borrow(this, borrow).re_borrow()
     }
 
     pub(super) fn from_dyn(rc: Rc<dyn DynamicObservableBorrow<Item = T>>) -> Self {
@@ -49,8 +49,8 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
             DynObsBorrowData::DynSource(rc) => DynObsRef::from_dyn_source(rc.as_ref()),
         }
     }
-    pub fn ops(&self) -> ReBorrowOps<Self> {
-        ReBorrowOps(self.clone())
+    pub fn ops(&self) -> ObsBorrow<Self> {
+        ObsBorrow(self.clone())
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {

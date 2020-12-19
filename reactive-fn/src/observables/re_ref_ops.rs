@@ -166,18 +166,18 @@ impl<S: ObservableRef> ReRefOps<S> {
         self,
         f: impl Fn(&S::Item) -> Fut + 'static,
         sp: impl LocalSpawn,
-    ) -> ReBorrowOps<impl ObservableBorrow<Item = Poll<Fut::Output>> + Clone>
+    ) -> ObsBorrow<impl ObservableBorrow<Item = Poll<Fut::Output>> + Clone>
     where
         Fut: Future + 'static,
     {
-        ReBorrowOps(Rc::new(MapAsync::new(self.map(f), sp)))
+        ObsBorrow(Rc::new(MapAsync::new(self.map(f), sp)))
     }
     pub fn scan<St: 'static>(
         self,
         initial_state: St,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
-        ReBorrowOps(Rc::new(Scan::new(
+    ) -> ObsBorrow<impl ObservableBorrow<Item = St> + Clone> {
+        ObsBorrow(Rc::new(Scan::new(
             initial_state,
             scan_op(
                 move |st, cx| {
@@ -194,8 +194,8 @@ impl<S: ObservableRef> ReRefOps<S> {
         initial_state: St,
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl Fn(St, &S::Item) -> St + 'static,
-    ) -> ReBorrowOps<impl ObservableBorrow<Item = St> + Clone> {
-        ReBorrowOps(Rc::new(FilterScan::new(
+    ) -> ObsBorrow<impl ObservableBorrow<Item = St> + Clone> {
+        ObsBorrow(Rc::new(FilterScan::new(
             initial_state,
             filter_scan_op(
                 move |state, cx| {
