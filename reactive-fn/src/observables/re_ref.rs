@@ -2,19 +2,19 @@ use super::*;
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ReRef<T: 'static + ?Sized>(ReRefData<T>);
+pub struct DynObsRef<T: 'static + ?Sized>(DynObsRefData<T>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-enum ReRefData<T: 'static + ?Sized> {
+enum DynObsRefData<T: 'static + ?Sized> {
     StaticRef(&'static T),
     Dyn(Rc<dyn DynamicObservableRef<Item = T>>),
     DynSource(Rc<dyn DynamicObservableRefSource<Item = T>>),
 }
 
-impl<T: 'static + ?Sized> ReRef<T> {
+impl<T: 'static + ?Sized> DynObsRef<T> {
     pub fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
-        if let ReRefData::StaticRef(x) = &self.0 {
+        if let DynObsRefData::StaticRef(x) = &self.0 {
             f(x, cx)
         } else {
             let mut output = None;
@@ -28,9 +28,9 @@ impl<T: 'static + ?Sized> ReRef<T> {
     }
     fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), cx: &BindContext) {
         match &self.0 {
-            ReRefData::StaticRef(x) => f(x, cx),
-            ReRefData::Dyn(rc) => rc.dyn_with(f, cx),
-            ReRefData::DynSource(rc) => rc.clone().dyn_with(f, cx),
+            DynObsRefData::StaticRef(x) => f(x, cx),
+            DynObsRefData::Dyn(rc) => rc.dyn_with(f, cx),
+            DynObsRefData::DynSource(rc) => rc.clone().dyn_with(f, cx),
         }
     }
 
@@ -38,7 +38,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         BindScope::with(|scope| self.head_tail_with(scope, f))
     }
     pub fn head_tail_with(&self, scope: &BindScope, f: impl FnOnce(&T)) -> TailRef<T> {
-        if let ReRefData::StaticRef(x) = &self.0 {
+        if let DynObsRefData::StaticRef(x) = &self.0 {
             f(x);
             return TailRef::empty();
         }
@@ -78,7 +78,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         Self::new(value, |value, f, cx| f(value, cx))
     }
     pub fn static_ref(value: &'static T) -> Self {
-        Self(ReRefData::StaticRef(value))
+        Self(DynObsRefData::StaticRef(value))
     }
 
     pub fn ops(&self) -> ReRefOps<Self> {
@@ -86,28 +86,28 @@ impl<T: 'static + ?Sized> ReRef<T> {
     }
 
     pub(super) fn from_dyn(rc: Rc<dyn DynamicObservableRef<Item = T>>) -> Self {
-        Self(ReRefData::Dyn(rc))
+        Self(DynObsRefData::Dyn(rc))
     }
 
     pub(super) fn from_dyn_source(rc: Rc<dyn DynamicObservableRefSource<Item = T>>) -> Self {
-        Self(ReRefData::DynSource(rc))
+        Self(DynObsRefData::DynSource(rc))
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
         self.ops().map(f).re()
     }
-    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReRef<U> {
-        if let ReRefData::StaticRef(x) = &self.0 {
-            ReRef::static_ref(f(x))
+    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObsRef<U> {
+        if let DynObsRefData::StaticRef(x) = &self.0 {
+            DynObsRef::static_ref(f(x))
         } else {
             self.ops().map_ref(f).re_ref()
         }
     }
-    pub fn map_borrow<B: ?Sized>(&self) -> ReRef<B>
+    pub fn map_borrow<B: ?Sized>(&self) -> DynObsRef<B>
     where
         T: Borrow<B>,
     {
-        if let Some(b) = Any::downcast_ref::<ReRef<B>>(self) {
+        if let Some(b) = Any::downcast_ref::<DynObsRef<B>>(self) {
             b.clone()
         } else {
             self.map_ref(|x| x.borrow())
@@ -188,18 +188,18 @@ impl<T: 'static + ?Sized> ReRef<T> {
         self.ops().hot().re_ref()
     }
 }
-impl<T: 'static> ReRef<DynObs<T>> {
+impl<T: 'static> DynObsRef<DynObs<T>> {
     pub fn flatten(&self) -> DynObs<T> {
         self.ops().flatten().re()
     }
 }
-impl<T: ?Sized> ObservableRef for ReRef<T> {
+impl<T: ?Sized> ObservableRef for DynObsRef<T> {
     type Item = T;
 
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
-        ReRef::with(self, f, cx)
+        DynObsRef::with(self, f, cx)
     }
-    fn into_re_ref(self) -> ReRef<Self::Item>
+    fn into_re_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {
@@ -207,95 +207,95 @@ impl<T: ?Sized> ObservableRef for ReRef<T> {
     }
 }
 
-pub trait IntoReRef<T: ?Sized> {
-    fn into_re_ref(self) -> ReRef<T>;
+pub trait IntoDynObsRef<T: ?Sized> {
+    fn into_re_ref(self) -> DynObsRef<T>;
 }
 
-impl<T> IntoReRef<T> for &'static T
+impl<T> IntoDynObsRef<T> for &'static T
 where
     T: ?Sized + 'static,
 {
-    fn into_re_ref(self) -> ReRef<T> {
-        ReRef::static_ref(self)
+    fn into_re_ref(self) -> DynObsRef<T> {
+        DynObsRef::static_ref(self)
     }
 }
 
-impl<T, B> IntoReRef<T> for DynObs<B>
+impl<T, B> IntoDynObsRef<T> for DynObs<B>
 where
     T: ?Sized + 'static,
     B: Borrow<T>,
 {
-    fn into_re_ref(self) -> ReRef<T> {
+    fn into_re_ref(self) -> DynObsRef<T> {
         self.as_ref().map_borrow()
     }
 }
-impl<T> IntoReRef<T> for &DynObs<T>
+impl<T> IntoDynObsRef<T> for &DynObs<T>
 where
     T: 'static,
 {
-    fn into_re_ref(self) -> ReRef<T> {
+    fn into_re_ref(self) -> DynObsRef<T> {
         self.as_ref()
     }
 }
 
-impl<T, B> IntoReRef<T> for ReRef<B>
+impl<T, B> IntoDynObsRef<T> for DynObsRef<B>
 where
     T: ?Sized + 'static,
     B: ?Sized + Borrow<T>,
 {
-    fn into_re_ref(self) -> ReRef<T> {
+    fn into_re_ref(self) -> DynObsRef<T> {
         self.map_borrow()
     }
 }
 
-impl<T> IntoReRef<T> for &ReRef<T>
+impl<T> IntoDynObsRef<T> for &DynObsRef<T>
 where
     T: ?Sized + 'static,
 {
-    fn into_re_ref(self) -> ReRef<T> {
+    fn into_re_ref(self) -> DynObsRef<T> {
         self.map_borrow()
     }
 }
-impl<T, B> IntoReRef<T> for DynObsBorrow<B>
+impl<T, B> IntoDynObsRef<T> for DynObsBorrow<B>
 where
     T: ?Sized + 'static,
     B: ?Sized + Borrow<T>,
 {
-    fn into_re_ref(self) -> ReRef<T> {
+    fn into_re_ref(self) -> DynObsRef<T> {
         self.as_ref().map_borrow()
     }
 }
-impl<T> IntoReRef<T> for &DynObsBorrow<T>
+impl<T> IntoDynObsRef<T> for &DynObsBorrow<T>
 where
     T: ?Sized + 'static,
 {
-    fn into_re_ref(self) -> ReRef<T> {
+    fn into_re_ref(self) -> DynObsRef<T> {
         self.as_ref()
     }
 }
 
-impl IntoReRef<str> for String {
-    fn into_re_ref(self) -> ReRef<str> {
+impl IntoDynObsRef<str> for String {
+    fn into_re_ref(self) -> DynObsRef<str> {
         if self.is_empty() {
-            ReRef::static_ref("")
+            DynObsRef::static_ref("")
         } else {
-            ReRef::constant(self).map_borrow()
+            DynObsRef::constant(self).map_borrow()
         }
     }
 }
-impl IntoReRef<str> for &DynObs<String> {
-    fn into_re_ref(self) -> ReRef<str> {
+impl IntoDynObsRef<str> for &DynObs<String> {
+    fn into_re_ref(self) -> DynObsRef<str> {
         self.as_ref().map_borrow()
     }
 }
 
-impl IntoReRef<str> for &ReRef<String> {
-    fn into_re_ref(self) -> ReRef<str> {
+impl IntoDynObsRef<str> for &DynObsRef<String> {
+    fn into_re_ref(self) -> DynObsRef<str> {
         self.map_borrow()
     }
 }
-impl IntoReRef<str> for &DynObsBorrow<String> {
-    fn into_re_ref(self) -> ReRef<str> {
+impl IntoDynObsRef<str> for &DynObsBorrow<String> {
+    fn into_re_ref(self) -> DynObsRef<str> {
         self.as_ref().map_borrow()
     }
 }

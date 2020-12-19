@@ -63,7 +63,7 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
     pub fn re_borrow(self) -> DynObsBorrow<S::Item> {
         self.0.into_re_borrow()
     }
-    pub fn re_ref(self) -> ReRef<S::Item> {
+    pub fn re_ref(self) -> DynObsRef<S::Item> {
         self.re_borrow().as_ref()
     }
     pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> ReOps<impl Observable<Item = T>> {
@@ -218,7 +218,7 @@ impl<S: ObservableBorrow> ObservableRef for ReRefByReBorrow<S> {
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
-    fn into_re_ref(self) -> ReRef<Self::Item>
+    fn into_re_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {

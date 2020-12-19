@@ -130,7 +130,7 @@ impl<T: 'static> ReRefCell<T> {
     pub fn re_borrow(&self) -> DynObsBorrow<T> {
         DynObsBorrow::from_dyn_source(self.0.clone())
     }
-    pub fn re_ref(&self) -> ReRef<T> {
+    pub fn re_ref(&self) -> DynObsRef<T> {
         self.re_borrow().as_ref()
     }
     pub fn ops(&self) -> ReBorrowOps<impl ObservableBorrow<Item = T> + Clone> {

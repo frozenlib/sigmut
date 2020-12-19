@@ -25,7 +25,7 @@ fn re_ref_new_cell2() {
     let cell1 = ReCell::new(1);
     let cell2 = ReCell::new(2);
 
-    let r = ReRef::new(
+    let r = DynObsRef::new(
         (cell1.clone(), cell2.clone()),
         move |(cell1, cell2), f, cx| {
             let value = cell1.get(cx) + cell2.get(cx);

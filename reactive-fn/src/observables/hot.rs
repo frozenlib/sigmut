@@ -74,7 +74,7 @@ impl<S: ObservableBorrow> HotReady for Hot<ReBorrowOps<S>> {
     }
 }
 
-impl<T: 'static + ?Sized> HotReady for Hot<ReRef<T>> {
+impl<T: 'static + ?Sized> HotReady for Hot<DynObsRef<T>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings

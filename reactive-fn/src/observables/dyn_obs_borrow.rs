@@ -43,10 +43,10 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
         Self(DynObsBorrowData::DynSource(rc))
     }
 
-    pub fn as_ref(&self) -> ReRef<T> {
+    pub fn as_ref(&self) -> DynObsRef<T> {
         match self.0.clone() {
-            DynObsBorrowData::Dyn(rc) => ReRef::from_dyn(rc.as_ref()),
-            DynObsBorrowData::DynSource(rc) => ReRef::from_dyn_source(rc.as_ref()),
+            DynObsBorrowData::Dyn(rc) => DynObsRef::from_dyn(rc.as_ref()),
+            DynObsBorrowData::DynSource(rc) => DynObsRef::from_dyn_source(rc.as_ref()),
         }
     }
     pub fn ops(&self) -> ReBorrowOps<Self> {

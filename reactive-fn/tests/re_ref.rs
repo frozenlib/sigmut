@@ -2,13 +2,13 @@ use reactive_fn::*;
 
 #[test]
 fn re_ref_constant() {
-    let r = ReRef::constant(2).collect_vec();
+    let r = DynObsRef::constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
 fn re_ref_new() {
     let a = ReCell::new(2);
-    let r = ReRef::new(a.clone(), move |a, f, cx| {
+    let r = DynObsRef::new(a.clone(), move |a, f, cx| {
         let value = a.get(cx);
         f(&value, cx)
     })
@@ -25,7 +25,7 @@ fn re_ref_new_cell2() {
     let cell1 = ReCell::new(1);
     let cell2 = ReCell::new(2);
 
-    let r = ReRef::new(
+    let r = DynObsRef::new(
         (cell1.clone(), cell2.clone()),
         move |(cell1, cell2), f, cx| {
             let value = cell1.get(cx) + cell2.get(cx);

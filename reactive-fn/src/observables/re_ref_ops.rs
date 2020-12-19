@@ -73,7 +73,7 @@ impl<S: ObservableRef> ReRefOps<S> {
     pub fn head_tail_with(self, scope: &BindScope, f: impl FnOnce(&S::Item)) -> TailRefOps<S> {
         TailRefOps::new(self.0, scope, f)
     }
-    pub fn re_ref(self) -> ReRef<S::Item> {
+    pub fn re_ref(self) -> DynObsRef<S::Item> {
         self.0.into_re_ref()
     }
     pub fn map<T: 'static>(
@@ -137,7 +137,7 @@ impl<S: ObservableRef> ReRefOps<S> {
                 self.source.with(|value, cx| f(value.borrow(), cx), cx)
             }
 
-            fn into_re_ref(self) -> ReRef<Self::Item>
+            fn into_re_ref(self) -> DynObsRef<Self::Item>
             where
                 Self: Sized,
             {
@@ -289,7 +289,7 @@ impl<S: ObservableRef> ObservableRef for ReRefOps<S> {
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
-    fn into_re_ref(self) -> ReRef<Self::Item>
+    fn into_re_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {

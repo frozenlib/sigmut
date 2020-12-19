@@ -44,7 +44,7 @@ impl<T: 'static> DynObs<T> {
 }
 
 #[ext(pub)]
-impl<T: 'static> ReRef<T> {
+impl<T: 'static> DynObsRef<T> {
     fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,

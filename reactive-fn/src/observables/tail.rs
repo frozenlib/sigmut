@@ -96,10 +96,10 @@ impl<S: Observable> TailOps<S> {
     }
 }
 
-pub struct TailRef<T: ?Sized + 'static>(TailRefOps<ReRef<T>>);
+pub struct TailRef<T: ?Sized + 'static>(TailRefOps<DynObsRef<T>>);
 
 impl<T: ?Sized + 'static> TailRef<T> {
-    pub(super) fn new(source: ReRef<T>, scope: &BindScope, f: impl FnOnce(&T)) -> Self {
+    pub(super) fn new(source: DynObsRef<T>, scope: &BindScope, f: impl FnOnce(&T)) -> Self {
         Self(TailRefOps::new(source, scope, f))
     }
     pub(super) fn new_borrow<'a>(

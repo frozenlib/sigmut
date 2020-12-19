@@ -39,10 +39,10 @@ impl<T: 'static> DynObs<T> {
         Self(DynObsData::Dyn(Rc::new(inner)))
     }
 
-    pub fn as_ref(&self) -> ReRef<T> {
+    pub fn as_ref(&self) -> DynObsRef<T> {
         match self.0.clone() {
-            DynObsData::Dyn(rc) => ReRef::from_dyn(rc.as_ref()),
-            DynObsData::DynSource(rc) => ReRef::from_dyn_source(rc.as_ref()),
+            DynObsData::Dyn(rc) => DynObsRef::from_dyn(rc.as_ref()),
+            DynObsData::DynSource(rc) => DynObsRef::from_dyn_source(rc.as_ref()),
         }
     }
     pub fn ops(&self) -> ReOps<Self> {

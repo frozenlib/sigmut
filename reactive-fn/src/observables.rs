@@ -90,7 +90,7 @@ pub trait ObservableRef: 'static {
     type Item: ?Sized;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U;
 
-    fn into_re_ref(self) -> ReRef<Self::Item>
+    fn into_re_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {
@@ -101,7 +101,7 @@ pub trait ObservableRef: 'static {
                 self.0.with(f, cx)
             }
         }
-        ReRef::from_dyn(Rc::new(IntoDyn(self)))
+        DynObsRef::from_dyn(Rc::new(IntoDyn(self)))
     }
 }
 trait DynamicObservable: 'static {
