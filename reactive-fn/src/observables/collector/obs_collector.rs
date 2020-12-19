@@ -1,7 +1,10 @@
 use crate::*;
 use std::{cell::RefCell, rc::Rc};
 
+#[derive(Default)]
 pub struct ObsCollector<T>(Rc<ObsCollectorData<T>>);
+
+#[derive(Default)]
 struct ObsCollectorData<T> {
     collector: RefCell<T>,
     sinks: BindSinks,
@@ -21,6 +24,13 @@ pub struct ObsCollectorObserver<T: Collect> {
     key: Option<T::Key>,
 }
 impl<T: Collect> ObsCollector<T> {
+    pub fn new() -> Self
+    where
+        T: Default,
+    {
+        Default::default()
+    }
+
     pub fn as_dyn(&self) -> DynObs<T::Output> {
         DynObs::from_dyn_source(self.0.clone())
     }

@@ -123,6 +123,7 @@ impl Bindings {
 }
 
 /// A collection of `BindSink`.
+#[derive(Default)]
 pub struct BindSinks {
     sinks: RefCell<SlabMap<Weak<dyn BindSink>>>,
     detach_idxs: RefCell<Vec<usize>>,
@@ -130,10 +131,7 @@ pub struct BindSinks {
 
 impl BindSinks {
     pub fn new() -> Self {
-        Self {
-            sinks: RefCell::new(SlabMap::new()),
-            detach_idxs: RefCell::new(Vec::new()),
-        }
+        Default::default()
     }
     pub fn notify(&self, scope: &NotifyScope) {
         let mut sinks = self.sinks.borrow_mut();

@@ -2,6 +2,7 @@ use super::*;
 use slabmap::SlabMap;
 
 pub type ObsAnyCollector = ObsCollector<AnyCollector>;
+#[derive(Debug, Default)]
 pub struct AnyCollector {
     count: usize,
 }
@@ -39,6 +40,8 @@ impl Collect for AnyCollector {
     }
 }
 pub type ObsSomeCollector<T> = ObsCollector<SomeCollector<T>>;
+
+#[derive(Debug, Default)]
 pub struct SomeCollector<T>(SlabMap<T>);
 
 impl<T: Clone + 'static> SomeCollector<T> {
