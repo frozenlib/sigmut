@@ -41,7 +41,7 @@ where
     }
 }
 
-impl<T: 'static> HotReady for Hot<Re<T>> {
+impl<T: 'static> HotReady for Hot<DynObs<T>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings

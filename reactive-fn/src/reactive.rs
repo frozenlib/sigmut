@@ -34,7 +34,7 @@ pub trait Observable: 'static {
     type Item;
     fn get(&self, cx: &BindContext) -> Self::Item;
 
-    fn into_re(self) -> Re<Self::Item>
+    fn into_re(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {
@@ -54,7 +54,7 @@ pub trait Observable: 'static {
                 f(&self.0.get(cx), cx)
             }
         }
-        Re::from_dyn(IntoDyn(self))
+        DynObs::from_dyn(IntoDyn(self))
     }
 }
 

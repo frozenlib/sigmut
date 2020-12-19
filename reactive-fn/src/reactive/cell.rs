@@ -37,8 +37,8 @@ impl<T: Copy + 'static> ReCell<T> {
         Runtime::notify_defer(self.0.clone());
     }
 
-    pub fn re(&self) -> Re<T> {
-        Re(ReData::DynSource(self.0.clone()))
+    pub fn re(&self) -> DynObs<T> {
+        DynObs(DynObsData::DynSource(self.0.clone()))
     }
     pub fn ops(&self) -> ReOps<impl Observable<Item = T> + Clone> {
         ReOps(self.clone())

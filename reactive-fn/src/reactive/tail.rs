@@ -2,10 +2,10 @@ use super::*;
 use crate::bind::*;
 use std::{cell::RefCell, iter::once, rc::Rc};
 
-pub struct Tail<T: 'static>(TailOps<Re<T>>);
+pub struct Tail<T: 'static>(TailOps<DynObs<T>>);
 
 impl<T> Tail<T> {
-    pub(super) fn new(source: Re<T>, scope: &BindScope) -> (T, Self) {
+    pub(super) fn new(source: DynObs<T>, scope: &BindScope) -> (T, Self) {
         let (value, s) = TailOps::new(source, scope);
         (value, Self(s))
     }

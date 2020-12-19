@@ -53,7 +53,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         ReBorrowOps(self.clone())
     }
 
-    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
+    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
         self.ops().map(f).re()
     }
     pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReBorrow<U> {
@@ -70,7 +70,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         }
     }
 
-    pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
+    pub fn flat_map<U>(&self, f: impl Fn(&T) -> DynObs<U> + 'static) -> DynObs<U> {
         self.ops().flat_map(f).re()
     }
     pub fn map_async_with<Fut>(
@@ -84,7 +84,7 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         self.ops().map_async_with(f, sp).re_borrow()
     }
 
-    pub fn cloned(&self) -> Re<T>
+    pub fn cloned(&self) -> DynObs<T>
     where
         T: Clone,
     {
@@ -147,8 +147,8 @@ impl<T: 'static + ?Sized> ReBorrow<T> {
         self.ops().hot().re_borrow()
     }
 }
-impl<T: 'static> ReBorrow<Re<T>> {
-    pub fn flatten(&self) -> Re<T> {
+impl<T: 'static> ReBorrow<DynObs<T>> {
+    pub fn flatten(&self) -> DynObs<T> {
         self.ops().flatten().re()
     }
 }

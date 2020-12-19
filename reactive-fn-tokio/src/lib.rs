@@ -27,7 +27,7 @@ impl LocalSpawn for LocalSpawner {
 }
 
 #[ext(pub)]
-impl<T: 'static> Re<T> {
+impl<T: 'static> DynObs<T> {
     fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> ReBorrow<Poll<Fut::Output>>
     where
         Fut: Future + 'static,

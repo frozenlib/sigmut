@@ -3,7 +3,7 @@ use super::*;
 #[derive(Clone)]
 pub enum MayRe<T: 'static> {
     Constant(T),
-    Re(Re<T>),
+    Re(DynObs<T>),
 }
 
 impl<T: 'static> MayRe<T> {
@@ -75,12 +75,12 @@ impl<T: Copy> IntoMayRe<T> for &T {
     }
 }
 
-impl<T> IntoMayRe<T> for Re<T> {
+impl<T> IntoMayRe<T> for DynObs<T> {
     fn into_may_re(self) -> MayRe<T> {
         MayRe::Re(self)
     }
 }
-impl<T> IntoMayRe<T> for &Re<T> {
+impl<T> IntoMayRe<T> for &DynObs<T> {
     fn into_may_re(self) -> MayRe<T> {
         MayRe::Re(self.clone())
     }

@@ -170,9 +170,9 @@ fn re_flatten_inputs() -> Vec<usize> {
 }
 fn re_flatten_ops(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
-        let s = ReRefCell::new(Re::constant(0));
-        let s1 = Re::constant(1);
-        let s2 = Re::constant(2);
+        let s = ReRefCell::new(DynObs::constant(0));
+        let s1 = DynObs::constant(1);
+        let s2 = DynObs::constant(2);
         let f = s.ops().flatten().fold(0, |s, x| s + x);
 
         for _ in 0..update_count {
@@ -184,9 +184,9 @@ fn re_flatten_ops(b: &mut Bencher, update_count: usize) {
 }
 fn re_flatten_dyn(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
-        let s = ReRefCell::new(Re::constant(0));
-        let s1 = Re::constant(1);
-        let s2 = Re::constant(2);
+        let s = ReRefCell::new(DynObs::constant(0));
+        let s1 = DynObs::constant(1);
+        let s2 = DynObs::constant(2);
         let f = s.re_borrow().flatten().fold(0, |s, x| s + x);
 
         for _ in 0..update_count {
@@ -235,7 +235,7 @@ fn many_source_dyn(b: &mut Bencher, source_count: usize) {
 
         let f = {
             let ss = ss.clone();
-            Re::new(move |cx| {
+            DynObs::new(move |cx| {
                 let mut sum = 0;
                 for s in &ss {
                     sum += s.get(cx)
@@ -342,7 +342,7 @@ fn many_source_sink_dyn(b: &mut Bencher, count: usize) {
         for _ in 0..count {
             let f = {
                 let ss = ss.clone();
-                Re::new(move |cx| {
+                DynObs::new(move |cx| {
                     let mut sum = 0;
                     for s in &ss {
                         sum += s.get(cx)

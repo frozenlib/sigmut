@@ -93,7 +93,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         Self(ReRefData::DynSource(rc))
     }
 
-    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Re<U> {
+    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
         self.ops().map(f).re()
     }
     pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ReRef<U> {
@@ -114,7 +114,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
         }
     }
 
-    pub fn flat_map<U>(&self, f: impl Fn(&T) -> Re<U> + 'static) -> Re<U> {
+    pub fn flat_map<U>(&self, f: impl Fn(&T) -> DynObs<U> + 'static) -> DynObs<U> {
         self.ops().flat_map(f).re()
     }
     pub fn map_async_with<Fut>(
@@ -145,7 +145,7 @@ impl<T: 'static + ?Sized> ReRef<T> {
             .re_borrow()
     }
 
-    pub fn cloned(&self) -> Re<T>
+    pub fn cloned(&self) -> DynObs<T>
     where
         T: Clone,
     {
@@ -188,8 +188,8 @@ impl<T: 'static + ?Sized> ReRef<T> {
         self.ops().hot().re_ref()
     }
 }
-impl<T: 'static> ReRef<Re<T>> {
-    pub fn flatten(&self) -> Re<T> {
+impl<T: 'static> ReRef<DynObs<T>> {
+    pub fn flatten(&self) -> DynObs<T> {
         self.ops().flatten().re()
     }
 }
@@ -220,7 +220,7 @@ where
     }
 }
 
-impl<T, B> IntoReRef<T> for Re<B>
+impl<T, B> IntoReRef<T> for DynObs<B>
 where
     T: ?Sized + 'static,
     B: Borrow<T>,
@@ -229,7 +229,7 @@ where
         self.as_ref().map_borrow()
     }
 }
-impl<T> IntoReRef<T> for &Re<T>
+impl<T> IntoReRef<T> for &DynObs<T>
 where
     T: 'static,
 {
@@ -283,7 +283,7 @@ impl IntoReRef<str> for String {
         }
     }
 }
-impl IntoReRef<str> for &Re<String> {
+impl IntoReRef<str> for &DynObs<String> {
     fn into_re_ref(self) -> ReRef<str> {
         self.as_ref().map_borrow()
     }

@@ -2,20 +2,20 @@ use super::*;
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct Re<T: 'static + ?Sized>(pub(super) ReData<T>);
+pub struct DynObs<T: 'static + ?Sized>(pub(super) DynObsData<T>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub(super) enum ReData<T: 'static + ?Sized> {
+pub(super) enum DynObsData<T: 'static + ?Sized> {
     Dyn(Rc<dyn DynamicObservable<Item = T>>),
     DynSource(Rc<dyn DynamicObservableSource<Item = T>>),
 }
 
-impl<T: 'static> Re<T> {
+impl<T: 'static> DynObs<T> {
     pub fn get(&self, cx: &BindContext) -> T {
         match &self.0 {
-            ReData::Dyn(rc) => rc.dyn_get(cx),
-            ReData::DynSource(rc) => rc.clone().dyn_get(cx),
+            DynObsData::Dyn(rc) => rc.dyn_get(cx),
+            DynObsData::DynSource(rc) => rc.clone().dyn_get(cx),
         }
     }
     pub fn head_tail(&self) -> (T, Tail<T>) {
@@ -36,23 +36,23 @@ impl<T: 'static> Re<T> {
     }
 
     pub(super) fn from_dyn(inner: impl DynamicObservable<Item = T>) -> Self {
-        Self(ReData::Dyn(Rc::new(inner)))
+        Self(DynObsData::Dyn(Rc::new(inner)))
     }
 
     pub fn as_ref(&self) -> ReRef<T> {
         match self.0.clone() {
-            ReData::Dyn(rc) => ReRef::from_dyn(rc.as_ref()),
-            ReData::DynSource(rc) => ReRef::from_dyn_source(rc.as_ref()),
+            DynObsData::Dyn(rc) => ReRef::from_dyn(rc.as_ref()),
+            DynObsData::DynSource(rc) => ReRef::from_dyn_source(rc.as_ref()),
         }
     }
     pub fn ops(&self) -> ReOps<Self> {
         ReOps(self.clone())
     }
 
-    pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> Re<U> {
+    pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> DynObs<U> {
         self.ops().map(f).re()
     }
-    pub fn flat_map<U>(&self, f: impl Fn(T) -> Re<U> + 'static) -> Re<U> {
+    pub fn flat_map<U>(&self, f: impl Fn(T) -> DynObs<U> + 'static) -> DynObs<U> {
         self.ops().flat_map(f).re()
     }
     pub fn map_async_with<Fut>(
@@ -140,19 +140,19 @@ impl<T: 'static> Re<T> {
         self.ops().stream()
     }
 }
-impl<T: 'static> Re<Re<T>> {
-    pub fn flatten(&self) -> Re<T> {
+impl<T: 'static> DynObs<DynObs<T>> {
+    pub fn flatten(&self) -> DynObs<T> {
         self.ops().flatten().re()
     }
 }
 
-impl<T> Observable for Re<T> {
+impl<T> Observable for DynObs<T> {
     type Item = T;
 
     fn get(&self, cx: &BindContext) -> Self::Item {
-        Re::get(self, cx)
+        DynObs::get(self, cx)
     }
-    fn into_re(self) -> Re<Self::Item>
+    fn into_re(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {

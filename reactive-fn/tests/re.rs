@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 #[test]
 fn re_constant() {
-    let r = Re::constant(2).collect_vec();
+    let r = DynObs::constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 
@@ -11,7 +11,7 @@ fn re_constant() {
 fn re_new() {
     let a = ReCell::new(2);
     let a_ = a.clone();
-    let r = Re::new(move |cx| a_.get(cx)).collect_vec();
+    let r = DynObs::new(move |cx| a_.get(cx)).collect_vec();
 
     a.set(5);
     a.set(7);
@@ -27,7 +27,7 @@ fn re_new_cell2() {
     let r = {
         let cell1 = cell1.clone();
         let cell2 = cell2.clone();
-        Re::new(move |cx| cell1.get(cx) + cell2.get(cx)).collect_vec()
+        DynObs::new(move |cx| cell1.get(cx) + cell2.get(cx)).collect_vec()
     };
 
     cell1.set(5);
@@ -275,14 +275,14 @@ fn re_hot_no() {
 
 #[test]
 fn re_flatten() {
-    let cell = ReRefCell::new(Re::constant(1));
+    let cell = ReRefCell::new(DynObs::constant(1));
 
     let vs = cell.re_borrow().cloned().flatten().collect_vec();
 
-    cell.set(Re::constant(2));
-    cell.set(Re::constant(3));
-    cell.set(Re::constant(4));
-    cell.set(Re::constant(5));
+    cell.set(DynObs::constant(2));
+    cell.set(DynObs::constant(3));
+    cell.set(DynObs::constant(4));
+    cell.set(DynObs::constant(5));
 
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }

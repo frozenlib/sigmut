@@ -35,10 +35,10 @@ impl<S: Observable> ReOps<S> {
     pub fn as_ref(self) -> ReRefOps<ReRefByRe<S>> {
         ReRefOps(ReRefByRe(self))
     }
-    pub fn as_any(self) -> ReOps<Re<S::Item>> {
+    pub fn as_any(self) -> ReOps<DynObs<S::Item>> {
         ReOps(self.re())
     }
-    pub fn re(self) -> Re<S::Item> {
+    pub fn re(self) -> DynObs<S::Item> {
         self.0.into_re()
     }
     pub fn re_ref(self) -> ReRef<S::Item> {
@@ -208,7 +208,7 @@ impl<S: Observable> Observable for ReOps<S> {
     fn get(&self, cx: &BindContext) -> Self::Item {
         self.0.get(cx)
     }
-    fn into_re(self) -> Re<Self::Item>
+    fn into_re(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {

@@ -193,14 +193,14 @@ fn re_ref_hot_no() {
 
 #[test]
 fn re_ref_flatten() {
-    let cell = ReRefCell::new(Re::constant(1));
+    let cell = ReRefCell::new(DynObs::constant(1));
 
     let vs = cell.ops_ref().flatten().collect_vec();
 
-    cell.set(Re::constant(2));
-    cell.set(Re::constant(3));
-    cell.set(Re::constant(4));
-    cell.set(Re::constant(5));
+    cell.set(DynObs::constant(2));
+    cell.set(DynObs::constant(3));
+    cell.set(DynObs::constant(4));
+    cell.set(DynObs::constant(5));
 
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }
