@@ -151,9 +151,13 @@ trait DynamicObservableRefSource: 'static {
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
 }
 
-pub trait Observer {
-    type Item;
-    fn next(&mut self, value: Self::Item);
+pub trait Observer<T> {
+    fn next(&mut self, value: T);
+}
+impl<F: FnMut(T), T> Observer<T> for F {
+    fn next(&mut self, value: T) {
+        self(value)
+    }
 }
 
 #[must_use]

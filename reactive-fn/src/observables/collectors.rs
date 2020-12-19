@@ -13,7 +13,7 @@ pub trait Collect: 'static {
 }
 
 pub trait ObservableCollect {
-    type Observer: Observer<Item = Self::Item>;
+    type Observer: Observer<Self::Item>;
     type Item;
 
     fn insert(&self, value: Self::Item) -> Self::Observer;
@@ -105,10 +105,8 @@ impl<T: 'static> BindSource for ObsCollectorData<T> {
     }
 }
 
-impl<T: Collect> Observer for ObsCollectorObserver<T> {
-    type Item = T::Input;
-
-    fn next(&mut self, value: Self::Item) {
+impl<T: Collect> Observer<T::Input> for ObsCollectorObserver<T> {
+    fn next(&mut self, value: T::Input) {
         let (key, is_modified) = self
             .collector
             .collector
