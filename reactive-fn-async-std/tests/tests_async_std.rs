@@ -28,7 +28,7 @@ fn run(f: impl Future<Output = ()>) {
 
 const DUR: Duration = Duration::from_millis(300);
 
-fn send_values<T: 'static + Copy>(cell: &ReCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
+fn send_values<T: 'static + Copy>(cell: &ObsCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
     let cell = cell.clone();
     local(async move {
         for value in values {
@@ -38,7 +38,7 @@ fn send_values<T: 'static + Copy>(cell: &ReCell<T>, values: Vec<T>, dur: Duratio
     })
 }
 
-fn send_values_ref<T: 'static>(cell: &ReRefCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
+fn send_values_ref<T: 'static>(cell: &ObsRefCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
     let cell = cell.clone();
     local(async move {
         for value in values {
@@ -81,18 +81,18 @@ where
 #[test]
 fn re_to_stream() {
     run(async {
-        let cell = ReCell::new(1);
+        let cell = ObsCell::new(1);
         let _task = send_values(&cell, vec![5, 6], DUR);
-        assert_values(cell.re(), vec![1, 5, 6], DUR * 2).await;
+        assert_values(cell.as_dyn(), vec![1, 5, 6], DUR * 2).await;
     });
 }
 
 #[test]
 fn re_map_async() {
     run(async {
-        let cell = ReCell::new(1);
+        let cell = ObsCell::new(1);
         let r = cell
-            .re()
+            .as_dyn()
             .map_async(|x| async move {
                 sleep(DUR / 2).await;
                 x + 2
@@ -114,9 +114,9 @@ fn re_map_async() {
 #[test]
 fn re_map_async_cancel() {
     run(async {
-        let cell = ReCell::new(1);
+        let cell = ObsCell::new(1);
         let r = cell
-            .re()
+            .as_dyn()
             .map_async(|x| async move {
                 sleep(DUR).await;
                 x + 2
@@ -131,10 +131,10 @@ fn re_map_async_cancel() {
 #[test]
 fn re_for_each() {
     run(async {
-        let cell = ReCell::new(1);
+        let cell = ObsCell::new(1);
         let (s, r) = channel();
 
-        let _s = cell.re().for_each_async(move |x| {
+        let _s = cell.as_dyn().for_each_async(move |x| {
             let s = s.clone();
             spawn(async move {
                 s.send(x).unwrap();
@@ -148,9 +148,9 @@ fn re_for_each() {
 #[test]
 fn re_ref_map_async() {
     run(async {
-        let cell = ReRefCell::new(1);
+        let cell = ObsRefCell::new(1);
         let r = cell
-            .re_ref()
+            .as_dyn_ref()
             .map_async(|&x| async move {
                 sleep(DUR / 2).await;
                 x + 2
@@ -172,10 +172,10 @@ fn re_ref_map_async() {
 #[test]
 fn re_ref_for_each() {
     run(async {
-        let cell = ReRefCell::new(1);
+        let cell = ObsRefCell::new(1);
         let (s, r) = channel();
 
-        let _s = cell.re_ref().for_each_async(move |&x| {
+        let _s = cell.as_dyn_ref().for_each_async(move |&x| {
             let s = s.clone();
             spawn(async move {
                 s.send(x).unwrap();

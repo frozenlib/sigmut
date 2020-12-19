@@ -6,15 +6,15 @@ use std::{any::Any, rc::Rc};
 use super::*;
 
 /// A `Cell` like type that implement `Observable`.
-pub struct ReCell<T: Copy>(Rc<ReCellData<T>>);
+pub struct ObsCell<T: Copy>(Rc<ObsCellData<T>>);
 
-struct ReCellData<T: Copy> {
+struct ObsCellData<T: Copy> {
     value: Cell<T>,
     sinks: BindSinks,
 }
-impl<T: Copy + 'static> ReCell<T> {
+impl<T: Copy + 'static> ObsCell<T> {
     pub fn new(value: T) -> Self {
-        Self(Rc::new(ReCellData {
+        Self(Rc::new(ObsCellData {
             value: Cell::new(value),
             sinks: BindSinks::new(),
         }))
@@ -37,30 +37,33 @@ impl<T: Copy + 'static> ReCell<T> {
         Runtime::notify_defer(self.0.clone());
     }
 
-    pub fn re(&self) -> DynObs<T> {
+    pub fn as_dyn(&self) -> DynObs<T> {
         DynObs(DynObsData::DynSource(self.0.clone()))
     }
-    pub fn ops(&self) -> Obs<impl Observable<Item = T> + Clone> {
+    pub fn as_dyn_ref(&self) -> DynObsRef<T> {
+        self.as_dyn().as_ref()
+    }
+    pub fn obs(&self) -> Obs<impl Observable<Item = T> + Clone> {
         Obs(self.clone())
     }
-    pub fn ops_ref(&self) -> ObsRef<impl ObservableRef<Item = T> + Clone> {
-        self.ops().as_ref()
+    pub fn obs_ref(&self) -> ObsRef<impl ObservableRef<Item = T> + Clone> {
+        self.obs().as_ref()
     }
 }
-impl<T: Copy + 'static> ReCellData<T> {
+impl<T: Copy + 'static> ObsCellData<T> {
     fn get(self: &Rc<Self>, cx: &BindContext) -> T {
         cx.bind(self.clone());
         self.value.get()
     }
 }
-impl<T: Copy + 'static> Observable for ReCell<T> {
+impl<T: Copy + 'static> Observable for ObsCell<T> {
     type Item = T;
     fn get(&self, cx: &BindContext) -> Self::Item {
         self.0.get(cx)
     }
 }
 
-impl<T: Copy + 'static> DynamicObservableSource for ReCellData<T> {
+impl<T: Copy + 'static> DynamicObservableSource for ObsCellData<T> {
     type Item = T;
     fn dyn_get(self: Rc<Self>, cx: &BindContext) -> Self::Item {
         self.get(cx)
@@ -69,38 +72,38 @@ impl<T: Copy + 'static> DynamicObservableSource for ReCellData<T> {
         self
     }
 }
-impl<T: Copy + 'static> DynamicObservableRefSource for ReCellData<T> {
+impl<T: Copy + 'static> DynamicObservableRefSource for ObsCellData<T> {
     type Item = T;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.get(cx), cx)
     }
 }
 
-impl<T: Copy + 'static> BindSource for ReCellData<T> {
+impl<T: Copy + 'static> BindSource for ObsCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<T: Copy> Clone for ReCell<T> {
+impl<T: Copy> Clone for ObsCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
-impl<T: Copy + std::fmt::Debug> std::fmt::Debug for ReCell<T> {
+impl<T: Copy + std::fmt::Debug> std::fmt::Debug for ObsCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.0.value, f)
     }
 }
 
 /// A `RefCell` like type that implement `ObservableRef`.
-pub struct ReRefCell<T>(Rc<ReRefCellData<T>>);
-struct ReRefCellData<T> {
+pub struct ObsRefCell<T>(Rc<ObsRefCellData<T>>);
+struct ObsRefCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,
 }
-impl<T: 'static> ReRefCell<T> {
+impl<T: 'static> ObsRefCell<T> {
     pub fn new(value: T) -> Self {
-        Self(Rc::new(ReRefCellData {
+        Self(Rc::new(ObsRefCellData {
             value: RefCell::new(value),
             sinks: BindSinks::new(),
         }))
@@ -127,34 +130,34 @@ impl<T: 'static> ReRefCell<T> {
             modified: false,
         }
     }
-    pub fn re_borrow(&self) -> DynObsBorrow<T> {
+    pub fn as_dyn(&self) -> DynObsBorrow<T> {
         DynObsBorrow::from_dyn_source(self.0.clone())
     }
-    pub fn re_ref(&self) -> DynObsRef<T> {
-        self.re_borrow().as_ref()
+    pub fn as_dyn_ref(&self) -> DynObsRef<T> {
+        self.as_dyn().as_ref()
     }
-    pub fn ops(&self) -> ObsBorrow<impl ObservableBorrow<Item = T> + Clone> {
+    pub fn obs(&self) -> ObsBorrow<impl ObservableBorrow<Item = T> + Clone> {
         ObsBorrow(self.clone())
     }
-    pub fn ops_ref(&self) -> ObsRef<impl ObservableRef<Item = T> + Clone> {
-        self.ops().as_ref()
+    pub fn obs_ref(&self) -> ObsRef<impl ObservableRef<Item = T> + Clone> {
+        self.obs().as_ref()
     }
 }
-impl<T: 'static> ReRefCellData<T> {
+impl<T: 'static> ObsRefCellData<T> {
     pub fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, T> {
         cx.bind(self.clone());
         self.value.borrow()
     }
 }
 
-impl<T: 'static> ObservableBorrow for ReRefCell<T> {
+impl<T: 'static> ObservableBorrow for ObsRefCell<T> {
     type Item = T;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.0.borrow(cx)
     }
 }
 
-impl<T: 'static> DynamicObservableBorrowSource for ReRefCellData<T> {
+impl<T: 'static> DynamicObservableBorrowSource for ObsRefCellData<T> {
     type Item = T;
 
     fn dyn_borrow<'a>(
@@ -173,24 +176,24 @@ impl<T: 'static> DynamicObservableBorrowSource for ReRefCellData<T> {
         self
     }
 }
-impl<T: 'static> DynamicObservableRefSource for ReRefCellData<T> {
+impl<T: 'static> DynamicObservableRefSource for ObsRefCellData<T> {
     type Item = T;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.borrow(cx), cx)
     }
 }
 
-impl<T: 'static> BindSource for ReRefCellData<T> {
+impl<T: 'static> BindSource for ObsRefCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<T> Clone for ReRefCell<T> {
+impl<T> Clone for ObsRefCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
-impl<T: std::fmt::Debug> std::fmt::Debug for ReRefCell<T> {
+impl<T: std::fmt::Debug> std::fmt::Debug for ObsRefCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.0.value, f)
     }

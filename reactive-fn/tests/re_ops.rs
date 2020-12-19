@@ -9,7 +9,7 @@ fn re_constant_test() {
 
 #[test]
 fn re_new() {
-    let a = ReCell::new(2);
+    let a = ObsCell::new(2);
     let a_ = a.clone();
     let r = obs(move |cx| a_.get(cx)).collect_vec();
 
@@ -21,8 +21,8 @@ fn re_new() {
 
 #[test]
 fn re_new_cell2() {
-    let cell1 = ReCell::new(1);
-    let cell2 = ReCell::new(2);
+    let cell1 = ObsCell::new(1);
+    let cell2 = ObsCell::new(2);
 
     let r = {
         let cell1 = cell1.clone();
@@ -38,8 +38,8 @@ fn re_new_cell2() {
 
 #[test]
 fn re_map() {
-    let a = ReCell::new(2);
-    let r = a.ops().map(|x| x * 2).collect_vec();
+    let a = ObsCell::new(2);
+    let r = a.obs().map(|x| x * 2).collect_vec();
 
     a.set(5);
     a.set(7);
@@ -49,12 +49,12 @@ fn re_map() {
 
 #[test]
 fn re_flat_map() {
-    let a = [ReCell::new(5), ReCell::new(10)];
+    let a = [ObsCell::new(5), ObsCell::new(10)];
     let a_ = a.clone();
 
-    let b = ReCell::new(0);
+    let b = ObsCell::new(0);
 
-    let r = b.ops().flat_map(move |x| a_[x].ops()).collect_vec();
+    let r = b.obs().flat_map(move |x| a_[x].obs()).collect_vec();
 
     a[0].set(6);
     a[1].set(12);
@@ -72,8 +72,8 @@ fn re_flat_map() {
 
 #[test]
 fn re_cahced() {
-    let cell = ReCell::new(0);
-    let r = cell.ops().map(|x| x + 1).cached().collect_vec();
+    let cell = ObsCell::new(0);
+    let r = cell.obs().map(|x| x + 1).cached().collect_vec();
 
     cell.set(5);
     cell.set(10);
@@ -83,8 +83,8 @@ fn re_cahced() {
 
 #[test]
 fn re_scan() {
-    let cell = ReCell::new(2);
-    let r = cell.ops().scan(10, |s, x| s + x).collect_vec();
+    let cell = ObsCell::new(2);
+    let r = cell.obs().scan(10, |s, x| s + x).collect_vec();
 
     cell.set(3);
     cell.set(4);
@@ -94,9 +94,9 @@ fn re_scan() {
 }
 #[test]
 fn re_filter_scan() {
-    let cell = ReCell::new(2);
+    let cell = ObsCell::new(2);
     let r = cell
-        .ops()
+        .obs()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
         .collect_vec();
 
@@ -110,8 +110,8 @@ fn re_filter_scan() {
 
 #[test]
 fn re_same_value() {
-    let cell = ReCell::new(5);
-    let r = cell.ops().collect_vec();
+    let cell = ObsCell::new(5);
+    let r = cell.obs().collect_vec();
 
     cell.set(5);
     cell.set(5);
@@ -120,8 +120,8 @@ fn re_same_value() {
 }
 #[test]
 fn re_dedup() {
-    let cell = ReCell::new(5);
-    let r = cell.ops().dedup().collect_vec();
+    let cell = ObsCell::new(5);
+    let r = cell.obs().dedup().collect_vec();
 
     cell.set(5);
     cell.set(5);
@@ -134,8 +134,8 @@ fn re_dedup() {
 
 #[test]
 fn re_dedup_by_key_1() {
-    let cell = ReCell::new((5, 1));
-    let r = cell.ops().dedup_by_key(|&(x, _)| x).collect_vec();
+    let cell = ObsCell::new((5, 1));
+    let r = cell.obs().dedup_by_key(|&(x, _)| x).collect_vec();
 
     cell.set((5, 2));
     cell.set((6, 2));
@@ -148,8 +148,8 @@ fn re_dedup_by_key_1() {
 
 #[test]
 fn re_dedup_by_key_2() {
-    let cell = ReCell::new((5, 1));
-    let re = cell.ops().dedup_by_key(|&(x, _)| x);
+    let cell = ObsCell::new((5, 1));
+    let re = cell.obs().dedup_by_key(|&(x, _)| x);
 
     cell.set((5, 2));
     let r = re.collect_vec(); // current value is (5, 2), not (5, 1).
@@ -163,9 +163,9 @@ fn re_dedup_by_key_2() {
 
 #[test]
 fn re_dedup_by() {
-    let cell = ReCell::new((5, 1));
+    let cell = ObsCell::new((5, 1));
     let r = cell
-        .ops()
+        .obs()
         .dedup_by(|&(x1, _), &(x2, _)| x1 == x2)
         .collect_vec();
 
@@ -180,8 +180,8 @@ fn re_dedup_by() {
 
 #[test]
 fn re_fold() {
-    let cell = ReCell::new(1);
-    let fold = cell.ops().fold(2, |s, x| s + x);
+    let cell = ObsCell::new(1);
+    let fold = cell.obs().fold(2, |s, x| s + x);
 
     cell.set(5);
     cell.set(10);
@@ -190,8 +190,8 @@ fn re_fold() {
 }
 #[test]
 fn re_collect_to() {
-    let cell = ReCell::new(1);
-    let fold = cell.ops().collect_to(HashSet::new());
+    let cell = ObsCell::new(1);
+    let fold = cell.obs().collect_to(HashSet::new());
 
     cell.set(2);
     cell.set(1);
@@ -202,8 +202,8 @@ fn re_collect_to() {
 }
 #[test]
 fn re_collect() {
-    let cell = ReCell::new(1);
-    let fold = cell.ops().collect_to(HashSet::new());
+    let cell = ObsCell::new(1);
+    let fold = cell.obs().collect_to(HashSet::new());
 
     cell.set(2);
     cell.set(1);
@@ -216,8 +216,8 @@ fn re_collect() {
 
 #[test]
 fn re_collect_vec() {
-    let cell = ReCell::new(1);
-    let fold = cell.ops().collect_vec();
+    let cell = ObsCell::new(1);
+    let fold = cell.obs().collect_vec();
 
     cell.set(2);
     cell.set(1);
@@ -230,12 +230,12 @@ fn re_collect_vec() {
 fn re_for_each() {
     use std::cell::RefCell;
     use std::rc::Rc;
-    let cell = ReCell::new(0);
+    let cell = ObsCell::new(0);
     let vs = Rc::new(RefCell::new(Vec::new()));
 
     let vs_send = vs.clone();
 
-    let r = cell.ops().for_each(move |x| {
+    let r = cell.obs().for_each(move |x| {
         vs_send.borrow_mut().push(x);
     });
 
@@ -251,8 +251,8 @@ fn re_for_each() {
 
 #[test]
 fn re_hot() {
-    let cell = ReCell::new(1);
-    let re = cell.ops().scan(0, |s, x| s + x);
+    let cell = ObsCell::new(1);
+    let re = cell.obs().scan(0, |s, x| s + x);
 
     let hot = re.hot();
 
@@ -264,8 +264,8 @@ fn re_hot() {
 
 #[test]
 fn re_hot_no() {
-    let cell = ReCell::new(1);
-    let re = cell.ops().scan(0, |s, x| s + x);
+    let cell = ObsCell::new(1);
+    let re = cell.obs().scan(0, |s, x| s + x);
 
     cell.set(2);
     cell.set(10);
@@ -275,9 +275,9 @@ fn re_hot_no() {
 
 #[test]
 fn re_flatten() {
-    let cell = ReRefCell::new(DynObs::constant(1));
+    let cell = ObsRefCell::new(DynObs::constant(1));
 
-    let vs = cell.re_borrow().cloned().flatten().collect_vec();
+    let vs = cell.as_dyn().cloned().flatten().collect_vec();
 
     cell.set(DynObs::constant(2));
     cell.set(DynObs::constant(3));
@@ -289,8 +289,8 @@ fn re_flatten() {
 
 #[test]
 fn re_head_tail() {
-    let a = ReCell::new(2);
-    let (head, tail) = a.ops().head_tail();
+    let a = ObsCell::new(2);
+    let (head, tail) = a.obs().head_tail();
     let r = tail.collect_vec();
 
     a.set(5);

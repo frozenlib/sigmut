@@ -76,8 +76,8 @@ fn re_fold_inputs() -> Vec<usize> {
 }
 fn re_fold_ops(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
-        let cell = ReCell::new(0);
-        let fold = cell.ops().fold(0, |s, x| s + x);
+        let cell = ObsCell::new(0);
+        let fold = cell.obs().fold(0, |s, x| s + x);
 
         for i in 1..update_count {
             cell.set(i);
@@ -87,8 +87,8 @@ fn re_fold_ops(b: &mut Bencher, update_count: usize) {
 }
 fn re_fold_dyn(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
-        let cell = ReCell::new(0);
-        let fold = cell.re().fold(0, |s, x| s + x);
+        let cell = ObsCell::new(0);
+        let fold = cell.as_dyn().fold(0, |s, x| s + x);
 
         for i in 1..update_count {
             cell.set(i);
@@ -102,13 +102,13 @@ fn re_map_chain_inputs() -> Vec<usize> {
 }
 fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
     struct Runner<S> {
-        cell: ReCell<usize>,
+        cell: ObsCell<usize>,
         ops: Obs<S>,
         n: usize,
     }
     fn new_runner(n: usize) -> Runner<impl Observable<Item = usize>> {
-        let cell = ReCell::new(0usize);
-        let ops = cell.ops();
+        let cell = ObsCell::new(0usize);
+        let ops = cell.obs();
         Runner { cell, ops, n }
     }
     impl<S: Observable<Item = usize>> Runner<S> {
@@ -150,8 +150,8 @@ fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
     b.iter(|| run(chain).expect_err("unexpected input"))
 }
 fn re_map_chain_dyn(b: &mut Bencher, chain: usize) {
-    let cell = ReCell::new(0usize);
-    let mut re = cell.re();
+    let cell = ObsCell::new(0usize);
+    let mut re = cell.as_dyn();
     for _ in 0..chain {
         re = re.map(|x| x * 2);
     }
@@ -170,10 +170,10 @@ fn re_flatten_inputs() -> Vec<usize> {
 }
 fn re_flatten_ops(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
-        let s = ReRefCell::new(DynObs::constant(0));
+        let s = ObsRefCell::new(DynObs::constant(0));
         let s1 = DynObs::constant(1);
         let s2 = DynObs::constant(2);
-        let f = s.ops().flatten().fold(0, |s, x| s + x);
+        let f = s.obs().flatten().fold(0, |s, x| s + x);
 
         for _ in 0..update_count {
             s.set(s1.clone());
@@ -184,10 +184,10 @@ fn re_flatten_ops(b: &mut Bencher, update_count: usize) {
 }
 fn re_flatten_dyn(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
-        let s = ReRefCell::new(DynObs::constant(0));
+        let s = ObsRefCell::new(DynObs::constant(0));
         let s1 = DynObs::constant(1);
         let s2 = DynObs::constant(2);
-        let f = s.re_borrow().flatten().fold(0, |s, x| s + x);
+        let f = s.as_dyn().flatten().fold(0, |s, x| s + x);
 
         for _ in 0..update_count {
             s.set(s1.clone());
@@ -205,7 +205,7 @@ fn many_source_ops(b: &mut Bencher, source_count: usize) {
     b.iter(|| {
         let mut ss = Vec::new();
         for _ in 0..source_count {
-            ss.push(ReCell::new(0));
+            ss.push(ObsCell::new(0));
         }
 
         let f = {
@@ -230,7 +230,7 @@ fn many_source_dyn(b: &mut Bencher, source_count: usize) {
     b.iter(|| {
         let mut ss = Vec::new();
         for _ in 0..source_count {
-            ss.push(ReCell::new(0));
+            ss.push(ObsCell::new(0));
         }
 
         let f = {
@@ -257,11 +257,11 @@ fn many_sink_inputs() -> Vec<usize> {
 }
 fn many_sink_ops(b: &mut Bencher, sink_count: usize) {
     b.iter(|| {
-        let s = ReCell::new(0);
+        let s = ObsCell::new(0);
         let mut fs = Vec::new();
 
         for _ in 0..sink_count {
-            fs.push(s.ops().fold(0, move |s, x| s + x));
+            fs.push(s.obs().fold(0, move |s, x| s + x));
         }
         for i in 0..UPDATE_COUNT {
             s.set(i);
@@ -276,11 +276,11 @@ fn many_sink_ops(b: &mut Bencher, sink_count: usize) {
 }
 fn many_sink_dyn(b: &mut Bencher, sink_count: usize) {
     b.iter(|| {
-        let s = ReCell::new(0);
+        let s = ObsCell::new(0);
         let mut fs = Vec::new();
 
         for _ in 0..sink_count {
-            fs.push(s.re().fold(0, move |s, x| s + x));
+            fs.push(s.as_dyn().fold(0, move |s, x| s + x));
         }
         for i in 0..UPDATE_COUNT {
             s.set(i);
@@ -302,7 +302,7 @@ fn many_source_sink_ops(b: &mut Bencher, count: usize) {
     b.iter(|| {
         let mut ss = Vec::new();
         for _ in 0..count {
-            ss.push(ReCell::new(0));
+            ss.push(ObsCell::new(0));
         }
 
         let mut fs = Vec::new();
@@ -335,7 +335,7 @@ fn many_source_sink_dyn(b: &mut Bencher, count: usize) {
     b.iter(|| {
         let mut ss = Vec::new();
         for _ in 0..count {
-            ss.push(ReCell::new(0));
+            ss.push(ObsCell::new(0));
         }
 
         let mut fs = Vec::new();

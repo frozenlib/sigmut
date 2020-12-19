@@ -7,7 +7,7 @@ fn re_borrow_constant() {
 }
 #[test]
 fn re_borrow_new() {
-    let a = ReRefCell::new(2);
+    let a = ObsRefCell::new(2);
     let r = DynObsBorrow::new(a.clone(), move |a, cx| a.borrow(cx)).collect_vec();
 
     a.set(5);
@@ -18,8 +18,8 @@ fn re_borrow_new() {
 
 #[test]
 fn re_borrow_map() {
-    let a = ReRefCell::new(2);
-    let r = a.re_borrow().map(|x| x * 2).collect_vec();
+    let a = ObsRefCell::new(2);
+    let r = a.as_dyn().map(|x| x * 2).collect_vec();
 
     a.set(5);
     a.set(7);
@@ -29,8 +29,8 @@ fn re_borrow_map() {
 
 #[test]
 fn re_borrow_map_ref() {
-    let a = ReRefCell::new((2, 3));
-    let r = a.re_borrow().map_ref(|x| &x.0).collect_vec();
+    let a = ObsRefCell::new((2, 3));
+    let r = a.as_dyn().map_ref(|x| &x.0).collect_vec();
 
     a.set((5, 8));
     a.set((7, 1));
@@ -40,12 +40,12 @@ fn re_borrow_map_ref() {
 
 #[test]
 fn re_borrow_flat_map() {
-    let a = [ReCell::new(5), ReCell::new(10)];
+    let a = [ObsCell::new(5), ObsCell::new(10)];
     let a_ = a.clone();
 
-    let b = ReRefCell::new(0);
+    let b = ObsRefCell::new(0);
 
-    let r = b.re_borrow().flat_map(move |&x| a_[x].re()).collect_vec();
+    let r = b.as_dyn().flat_map(move |&x| a_[x].as_dyn()).collect_vec();
 
     a[0].set(6);
     a[1].set(12);
@@ -63,8 +63,8 @@ fn re_borrow_flat_map() {
 
 #[test]
 fn re_borrow_cloned() {
-    let cell = ReRefCell::new(2);
-    let r = cell.re_borrow().cloned().collect_vec();
+    let cell = ObsRefCell::new(2);
+    let r = cell.as_dyn().cloned().collect_vec();
 
     cell.set(3);
     cell.set(4);
@@ -75,8 +75,8 @@ fn re_borrow_cloned() {
 
 #[test]
 fn re_borrow_scan() {
-    let cell = ReRefCell::new(2);
-    let r = cell.re_borrow().scan(10, |s, x| s + x).collect_vec();
+    let cell = ObsRefCell::new(2);
+    let r = cell.as_dyn().scan(10, |s, x| s + x).collect_vec();
 
     cell.set(3);
     cell.set(4);
@@ -86,9 +86,9 @@ fn re_borrow_scan() {
 }
 #[test]
 fn re_borrow_filter_scan() {
-    let cell = ReRefCell::new(2);
+    let cell = ObsRefCell::new(2);
     let r = cell
-        .re_borrow()
+        .as_dyn()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
         .collect_vec();
 
@@ -101,8 +101,8 @@ fn re_borrow_filter_scan() {
 }
 #[test]
 fn re_borrow_fold() {
-    let cell = ReRefCell::new(1);
-    let fold = cell.re_borrow().fold(2, |s, x| s + x);
+    let cell = ObsRefCell::new(1);
+    let fold = cell.as_dyn().fold(2, |s, x| s + x);
 
     cell.set(5);
     cell.set(10);
@@ -112,8 +112,8 @@ fn re_borrow_fold() {
 
 #[test]
 fn re_borrow_collect_vec() {
-    let cell = ReRefCell::new(1);
-    let fold = cell.re_ref().collect_vec();
+    let cell = ObsRefCell::new(1);
+    let fold = cell.as_dyn_ref().collect_vec();
 
     cell.set(2);
     cell.set(1);
@@ -126,12 +126,12 @@ fn re_borrow_collect_vec() {
 fn re_borrow_for_each() {
     use std::cell::RefCell;
     use std::rc::Rc;
-    let cell = ReRefCell::new(0);
+    let cell = ObsRefCell::new(0);
     let vs = Rc::new(RefCell::new(Vec::new()));
 
     let vs_send = vs.clone();
 
-    let r = cell.re_borrow().for_each(move |&x| {
+    let r = cell.as_dyn().for_each(move |&x| {
         vs_send.borrow_mut().push(x);
     });
 
@@ -147,8 +147,8 @@ fn re_borrow_for_each() {
 
 #[test]
 fn re_borrow_hot() {
-    let cell = ReRefCell::new(1);
-    let re = cell.re_borrow().scan(0, |s, x| s + x);
+    let cell = ObsRefCell::new(1);
+    let re = cell.as_dyn().scan(0, |s, x| s + x);
 
     let hot = re.hot();
 
@@ -160,8 +160,8 @@ fn re_borrow_hot() {
 
 #[test]
 fn re_borrow_hot_no() {
-    let cell = ReRefCell::new(1);
-    let re = cell.re_borrow().scan(0, |s, x| s + x);
+    let cell = ObsRefCell::new(1);
+    let re = cell.as_dyn().scan(0, |s, x| s + x);
 
     cell.set(2);
     cell.set(10);
@@ -171,9 +171,9 @@ fn re_borrow_hot_no() {
 
 #[test]
 fn re_borrow_flatten() {
-    let cell = ReRefCell::new(DynObs::constant(1));
+    let cell = ObsRefCell::new(DynObs::constant(1));
 
-    let vs = cell.re_borrow().flatten().collect_vec();
+    let vs = cell.as_dyn().flatten().collect_vec();
 
     cell.set(DynObs::constant(2));
     cell.set(DynObs::constant(3));
@@ -185,9 +185,9 @@ fn re_borrow_flatten() {
 
 #[test]
 fn re_borrow_head_tail_with() {
-    let a = ReRefCell::new(2);
+    let a = ObsRefCell::new(2);
     let (head, tail) = BindScope::with(|scope| {
-        let r = a.re_borrow();
+        let r = a.as_dyn();
         let (head, tail) = r.head_tail_with(scope);
         (*head, tail)
     });
