@@ -61,6 +61,13 @@ impl<T: Copy + 'static> Observable for ObsCell<T> {
     fn get(&self, cx: &BindContext) -> Self::Item {
         self.0.get(cx)
     }
+
+    fn into_dyn(self) -> DynObs<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.as_dyn()
+    }
 }
 
 impl<T: Copy + 'static> DynamicObservableSource for ObsCellData<T> {
@@ -154,6 +161,13 @@ impl<T: 'static> ObservableBorrow for ObsRefCell<T> {
     type Item = T;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         self.0.borrow(cx)
+    }
+
+    fn into_dyn(self) -> DynObsBorrow<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.as_dyn()
     }
 }
 

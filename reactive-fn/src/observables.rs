@@ -1,4 +1,5 @@
 mod cell;
+pub mod collectors;
 mod dyn_obs;
 mod dyn_obs_borrow;
 mod dyn_obs_ref;
@@ -148,6 +149,11 @@ trait DynamicObservableRef: 'static {
 trait DynamicObservableRefSource: 'static {
     type Item: ?Sized;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
+}
+
+pub trait Observer {
+    type Item;
+    fn next(&mut self, value: Self::Item);
 }
 
 #[must_use]
