@@ -41,10 +41,9 @@ impl<T: Collect> Observable for ObsCollector<T> {
     }
 }
 
-impl<T: Collect> CollectObserver for ObsCollector<T> {
+impl<T: Collect> CollectObserver<T::Input> for ObsCollector<T> {
     type Observer = ObsCollectorObserver<T>;
-    type Item = T::Input;
-    fn insert(&self, value: Self::Item) -> Self::Observer {
+    fn insert(&self, value: T::Input) -> Self::Observer {
         let (key, is_modified) = self.0.collector.borrow_mut().insert(value);
         if is_modified {
             Runtime::notify_defer(self.0.clone());

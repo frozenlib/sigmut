@@ -168,11 +168,9 @@ impl<F: FnMut(T), T> Observer<T> for F {
     }
 }
 
-pub trait CollectObserver {
-    type Observer: Observer<Self::Item>;
-    type Item;
-
-    fn insert(&self, value: Self::Item) -> Self::Observer;
+pub trait CollectObserver<T> {
+    type Observer: Observer<T>;
+    fn insert(&self, value: T) -> Self::Observer;
 }
 
 #[must_use]
