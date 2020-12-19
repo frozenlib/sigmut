@@ -67,11 +67,11 @@ impl<S: ObservableRef> ObsRef<S> {
     pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
-    pub fn head_tail(self, f: impl FnOnce(&S::Item)) -> TailRefOps<S> {
+    pub fn head_tail(self, f: impl FnOnce(&S::Item)) -> TailRef<S> {
         BindScope::with(|scope| self.head_tail_with(scope, f))
     }
-    pub fn head_tail_with(self, scope: &BindScope, f: impl FnOnce(&S::Item)) -> TailRefOps<S> {
-        TailRefOps::new(self.0, scope, f)
+    pub fn head_tail_with(self, scope: &BindScope, f: impl FnOnce(&S::Item)) -> TailRef<S> {
+        TailRef::new(self.0, scope, f)
     }
     pub fn into_dyn(self) -> DynObsRef<S::Item> {
         self.0.into_dyn()

@@ -46,12 +46,12 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         scope: &'a BindScope,
     ) -> (
         Ref<'a, S::Item>,
-        TailRefOps<impl ObservableRef<Item = S::Item>>,
+        TailRef<impl ObservableRef<Item = S::Item>>,
     )
     where
         S: Clone,
     {
-        TailRefOps::new_borrow(self, scope, |s| s.clone().as_ref())
+        TailRef::new_borrow(self, scope, |s| s.clone().as_ref())
     }
 
     pub fn as_ref(self) -> ObsRef<ObsRefByObsBorrow<S>> {

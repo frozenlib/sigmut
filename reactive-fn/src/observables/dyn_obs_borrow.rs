@@ -18,8 +18,8 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
             DynObsBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, cx),
         }
     }
-    pub fn head_tail_with<'a>(&'a self, scope: &'a BindScope) -> (Ref<'a, T>, TailRef<T>) {
-        TailRef::new_borrow(&self, scope)
+    pub fn head_tail_with<'a>(&'a self, scope: &'a BindScope) -> (Ref<'a, T>, DynTailRef<T>) {
+        DynTailRef::new_borrow(&self, scope)
     }
 
     pub fn constant(value: T) -> Self

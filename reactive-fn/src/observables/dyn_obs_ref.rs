@@ -34,15 +34,15 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
         }
     }
 
-    pub fn head_tail(&self, f: impl FnOnce(&T)) -> TailRef<T> {
+    pub fn head_tail(&self, f: impl FnOnce(&T)) -> DynTailRef<T> {
         BindScope::with(|scope| self.head_tail_with(scope, f))
     }
-    pub fn head_tail_with(&self, scope: &BindScope, f: impl FnOnce(&T)) -> TailRef<T> {
+    pub fn head_tail_with(&self, scope: &BindScope, f: impl FnOnce(&T)) -> DynTailRef<T> {
         if let DynObsRefData::StaticRef(x) = &self.0 {
             f(x);
-            return TailRef::empty();
+            return DynTailRef::empty();
         }
-        TailRef::new(self.clone(), scope, f)
+        DynTailRef::new(self.clone(), scope, f)
     }
     pub fn new<S: 'static>(
         this: S,

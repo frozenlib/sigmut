@@ -96,21 +96,21 @@ impl<S: Observable> Tail<S> {
     }
 }
 
-pub struct TailRef<T: ?Sized + 'static>(TailRefOps<DynObsRef<T>>);
+pub struct DynTailRef<T: ?Sized + 'static>(TailRef<DynObsRef<T>>);
 
-impl<T: ?Sized + 'static> TailRef<T> {
+impl<T: ?Sized + 'static> DynTailRef<T> {
     pub(super) fn new(source: DynObsRef<T>, scope: &BindScope, f: impl FnOnce(&T)) -> Self {
-        Self(TailRefOps::new(source, scope, f))
+        Self(TailRef::new(source, scope, f))
     }
     pub(super) fn new_borrow<'a>(
         source: &'a DynObsBorrow<T>,
         scope: &'a BindScope,
     ) -> (Ref<'a, T>, Self) {
-        let (r, s) = TailRefOps::new_borrow(source, scope, |s| s.as_ref());
+        let (r, s) = TailRef::new_borrow(source, scope, |s| s.as_ref());
         (r, Self(s))
     }
     pub fn empty() -> Self {
-        Self(TailRefOps::empty())
+        Self(TailRef::empty())
     }
 
     pub fn for_each(self, f: impl FnMut(&T) + 'static) -> Subscription {
@@ -141,9 +141,9 @@ impl<T: ?Sized + 'static> TailRef<T> {
     }
 }
 
-pub struct TailRefOps<S>(Option<TailData<S>>);
+pub struct TailRef<S>(Option<TailData<S>>);
 
-impl<S: ObservableRef> TailRefOps<S> {
+impl<S: ObservableRef> TailRef<S> {
     pub(super) fn new(source: S, scope: &BindScope, f: impl FnOnce(&S::Item)) -> Self {
         let state = TailState::new();
         let mut b = state.borrow_mut();
@@ -165,10 +165,10 @@ impl<S: ObservableRef> TailRefOps<S> {
         let mut b = state.borrow_mut();
         let r = b.bindings.update(scope, &state, |cx| source.borrow(cx));
         let this = if b.bindings.is_empty() {
-            TailRefOps(None)
+            TailRef(None)
         } else {
             drop(b);
-            TailRefOps(Some(TailData {
+            TailRef(Some(TailData {
                 source: to_ref(&source),
                 state,
             }))
