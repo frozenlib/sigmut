@@ -79,7 +79,7 @@ impl<S: ObservableRef> ReRefOps<S> {
     pub fn map<T: 'static>(
         self,
         f: impl Fn(&S::Item) -> T + 'static,
-    ) -> ReOps<impl Observable<Item = T>> {
+    ) -> Obs<impl Observable<Item = T>> {
         re(move |cx| self.with(|x, _| f(x), cx))
     }
     pub fn map_ref<T: ?Sized>(
@@ -153,10 +153,10 @@ impl<S: ObservableRef> ReRefOps<S> {
     pub fn flat_map<U: Observable>(
         self,
         f: impl Fn(&S::Item) -> U + 'static,
-    ) -> ReOps<impl Observable<Item = U::Item>> {
+    ) -> Obs<impl Observable<Item = U::Item>> {
         self.map(f).flatten()
     }
-    pub fn flatten(self) -> ReOps<impl Observable<Item = <S::Item as Observable>::Item>>
+    pub fn flatten(self) -> Obs<impl Observable<Item = <S::Item as Observable>::Item>>
     where
         S::Item: Observable,
     {
@@ -214,7 +214,7 @@ impl<S: ObservableRef> ReRefOps<S> {
         )))
     }
 
-    pub fn cloned(self) -> ReOps<impl Observable<Item = S::Item>>
+    pub fn cloned(self) -> Obs<impl Observable<Item = S::Item>>
     where
         S::Item: Clone,
     {

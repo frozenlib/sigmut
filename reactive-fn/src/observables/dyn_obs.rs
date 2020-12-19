@@ -45,8 +45,8 @@ impl<T: 'static> DynObs<T> {
             DynObsData::DynSource(rc) => DynObsRef::from_dyn_source(rc.as_ref()),
         }
     }
-    pub fn ops(&self) -> ReOps<Self> {
-        ReOps(self.clone())
+    pub fn ops(&self) -> Obs<Self> {
+        Obs(self.clone())
     }
 
     pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> DynObs<U> {

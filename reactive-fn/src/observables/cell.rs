@@ -40,8 +40,8 @@ impl<T: Copy + 'static> ReCell<T> {
     pub fn re(&self) -> DynObs<T> {
         DynObs(DynObsData::DynSource(self.0.clone()))
     }
-    pub fn ops(&self) -> ReOps<impl Observable<Item = T> + Clone> {
-        ReOps(self.clone())
+    pub fn ops(&self) -> Obs<impl Observable<Item = T> + Clone> {
+        Obs(self.clone())
     }
     pub fn ops_ref(&self) -> ReRefOps<impl ObservableRef<Item = T> + Clone> {
         self.ops().as_ref()

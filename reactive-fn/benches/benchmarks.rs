@@ -103,7 +103,7 @@ fn re_map_chain_inputs() -> Vec<usize> {
 fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
     struct Runner<S> {
         cell: ReCell<usize>,
-        ops: ReOps<S>,
+        ops: Obs<S>,
         n: usize,
     }
     fn new_runner(n: usize) -> Runner<impl Observable<Item = usize>> {

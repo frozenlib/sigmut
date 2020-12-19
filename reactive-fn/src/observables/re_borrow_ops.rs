@@ -66,7 +66,7 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
     pub fn re_ref(self) -> DynObsRef<S::Item> {
         self.re_borrow().as_ref()
     }
-    pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> ReOps<impl Observable<Item = T>> {
+    pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> Obs<impl Observable<Item = T>> {
         re(move |cx| f(&self.borrow(cx)))
     }
     pub fn map_ref<T: ?Sized + 'static>(
@@ -114,11 +114,11 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
     pub fn flat_map<U: Observable>(
         self,
         f: impl Fn(&S::Item) -> U + 'static,
-    ) -> ReOps<impl Observable<Item = U::Item>> {
+    ) -> Obs<impl Observable<Item = U::Item>> {
         re(move |cx| f(&self.borrow(cx)).get(cx))
     }
 
-    pub fn flatten(self) -> ReOps<impl Observable<Item = <S::Item as Observable>::Item>>
+    pub fn flatten(self) -> Obs<impl Observable<Item = <S::Item as Observable>::Item>>
     where
         S::Item: Observable,
     {
@@ -135,7 +135,7 @@ impl<S: ObservableBorrow> ReBorrowOps<S> {
     {
         self.as_ref().map_async_with(f, sp)
     }
-    pub fn cloned(self) -> ReOps<impl Observable<Item = S::Item>>
+    pub fn cloned(self) -> Obs<impl Observable<Item = S::Item>>
     where
         S::Item: Clone,
     {

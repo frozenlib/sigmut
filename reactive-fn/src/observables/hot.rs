@@ -49,7 +49,7 @@ impl<T: 'static> HotReady for Hot<DynObs<T>> {
             .update(scope, &this, |cx| self.source.get(cx));
     }
 }
-impl<S: Observable> HotReady for Hot<ReOps<S>> {
+impl<S: Observable> HotReady for Hot<Obs<S>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings
@@ -91,7 +91,7 @@ impl<S: ObservableRef> HotReady for Hot<ReRefOps<S>> {
     }
 }
 
-impl<S: Observable> Observable for Rc<Hot<ReOps<S>>> {
+impl<S: Observable> Observable for Rc<Hot<Obs<S>>> {
     type Item = S::Item;
     fn get(&self, cx: &BindContext) -> Self::Item {
         self.source.get(cx)
@@ -110,7 +110,7 @@ impl<S: ObservableRef> ObservableRef for Rc<Hot<ReRefOps<S>>> {
     }
 }
 
-impl<S: Observable> DynamicObservable for Hot<ReOps<S>> {
+impl<S: Observable> DynamicObservable for Hot<Obs<S>> {
     type Item = S::Item;
     fn dyn_get(&self, cx: &BindContext) -> Self::Item {
         self.source.get(cx)
@@ -120,7 +120,7 @@ impl<S: Observable> DynamicObservable for Hot<ReOps<S>> {
     }
 }
 
-impl<S: Observable> DynamicObservableRef for Hot<ReOps<S>> {
+impl<S: Observable> DynamicObservableRef for Hot<Obs<S>> {
     type Item = S::Item;
     fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.source.get(cx), cx)

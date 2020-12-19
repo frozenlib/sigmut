@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Observable<Item = T>> {
+pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> Obs<impl Observable<Item = T>> {
     struct ReFn<F>(F);
     impl<F: Fn(&BindContext) -> T + 'static, T> Observable for ReFn<F> {
         type Item = T;
@@ -9,16 +9,16 @@ pub fn re<T>(get: impl Fn(&BindContext) -> T + 'static) -> ReOps<impl Observable
         }
     }
 
-    ReOps(ReFn(get))
+    Obs(ReFn(get))
 }
-pub fn re_constant<T: 'static + Clone>(value: T) -> ReOps<impl Observable<Item = T>> {
+pub fn re_constant<T: 'static + Clone>(value: T) -> Obs<impl Observable<Item = T>> {
     re(move |_| value.clone())
 }
 
 #[derive(Clone)]
-pub struct ReOps<S>(pub(super) S);
+pub struct Obs<S>(pub(super) S);
 
-impl<S: Observable> ReOps<S> {
+impl<S: Observable> Obs<S> {
     pub fn get(&self, cx: &BindContext) -> S::Item {
         self.0.get(cx)
     }
@@ -35,8 +35,8 @@ impl<S: Observable> ReOps<S> {
     pub fn as_ref(self) -> ReRefOps<ReRefByRe<S>> {
         ReRefOps(ReRefByRe(self))
     }
-    pub fn as_any(self) -> ReOps<DynObs<S::Item>> {
-        ReOps(self.re())
+    pub fn as_any(self) -> Obs<DynObs<S::Item>> {
+        Obs(self.re())
     }
     pub fn re(self) -> DynObs<S::Item> {
         self.0.into_dyn()
@@ -45,16 +45,16 @@ impl<S: Observable> ReOps<S> {
         self.0.into_dyn().as_ref()
     }
 
-    pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> ReOps<impl Observable<Item = T>> {
+    pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> Obs<impl Observable<Item = T>> {
         re(move |cx| f(self.get(cx)))
     }
     pub fn flat_map<T: Observable>(
         self,
         f: impl Fn(S::Item) -> T + 'static,
-    ) -> ReOps<impl Observable<Item = T::Item>> {
+    ) -> Obs<impl Observable<Item = T::Item>> {
         re(move |cx| f(self.get(cx)).get(cx))
     }
-    pub fn flatten(self) -> ReOps<impl Observable<Item = <S::Item as Observable>::Item>>
+    pub fn flatten(self) -> Obs<impl Observable<Item = <S::Item as Observable>::Item>>
     where
         S::Item: Observable,
     {
@@ -195,15 +195,15 @@ impl<S: Observable> ReOps<S> {
         ))
         .into()
     }
-    pub fn hot(self) -> ReOps<impl Observable<Item = S::Item>> {
-        ReOps(Hot::new(self))
+    pub fn hot(self) -> Obs<impl Observable<Item = S::Item>> {
+        Obs(Hot::new(self))
     }
 
     pub fn stream(self) -> impl futures::Stream<Item = S::Item> {
         IntoStream::new(self)
     }
 }
-impl<S: Observable> Observable for ReOps<S> {
+impl<S: Observable> Observable for Obs<S> {
     type Item = S::Item;
     fn get(&self, cx: &BindContext) -> Self::Item {
         self.0.get(cx)
@@ -217,7 +217,7 @@ impl<S: Observable> Observable for ReOps<S> {
 }
 
 #[derive(Clone)]
-pub struct ReRefByRe<S>(ReOps<S>);
+pub struct ReRefByRe<S>(Obs<S>);
 impl<S: Observable> ObservableRef for ReRefByRe<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
