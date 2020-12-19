@@ -6,7 +6,7 @@ mod dyn_obs_ref;
 mod hot;
 mod into_stream;
 mod map_async;
-mod may_obs;
+mod value_obs;
 mod obs;
 mod obs_borrow;
 mod obs_ref;
@@ -19,7 +19,7 @@ pub use self::{
     dyn_obs::*,
     dyn_obs_borrow::*,
     dyn_obs_ref::*,
-    may_obs::*,
+    value_obs::*,
     obs::*,
     obs_borrow::*,
     obs_ref::*,
