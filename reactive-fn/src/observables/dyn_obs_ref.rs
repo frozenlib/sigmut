@@ -81,8 +81,8 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
         Self(DynObsRefData::StaticRef(value))
     }
 
-    pub fn ops(&self) -> ReRefOps<Self> {
-        ReRefOps(self.clone())
+    pub fn ops(&self) -> ObsRef<Self> {
+        ObsRef(self.clone())
     }
 
     pub(super) fn from_dyn(rc: Rc<dyn DynamicObservableRef<Item = T>>) -> Self {

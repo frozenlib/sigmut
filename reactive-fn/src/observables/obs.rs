@@ -32,8 +32,8 @@ impl<S: Observable> Obs<S> {
         TailOps::new(self.0, scope)
     }
 
-    pub fn as_ref(self) -> ReRefOps<ReRefByRe<S>> {
-        ReRefOps(ReRefByRe(self))
+    pub fn as_ref(self) -> ObsRef<ReRefByRe<S>> {
+        ObsRef(ReRefByRe(self))
     }
     pub fn as_any(self) -> Obs<DynObs<S::Item>> {
         Obs(self.re())

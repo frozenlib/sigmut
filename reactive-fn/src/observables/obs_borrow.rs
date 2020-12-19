@@ -54,8 +54,8 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         TailRefOps::new_borrow(self, scope, |s| s.clone().as_ref())
     }
 
-    pub fn as_ref(self) -> ReRefOps<ReRefByReBorrow<S>> {
-        ReRefOps(ReRefByReBorrow(self))
+    pub fn as_ref(self) -> ObsRef<ReRefByReBorrow<S>> {
+        ObsRef(ReRefByReBorrow(self))
     }
     pub fn as_any(self) -> ObsBorrow<DynObsBorrow<S::Item>> {
         ObsBorrow(self.re_borrow())

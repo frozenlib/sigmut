@@ -2,13 +2,13 @@ use reactive_fn::*;
 
 #[test]
 fn re_ref_constant_test() {
-    let r = re_ref_constant(2).collect_vec();
+    let r = obs_ref_constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 #[test]
 fn re_ref_new() {
     let a = ReCell::new(2);
-    let r = re_ref(a.clone(), move |a, f, cx| {
+    let r = obs_ref(a.clone(), move |a, f, cx| {
         let value = a.get(cx);
         f(&value, cx)
     })

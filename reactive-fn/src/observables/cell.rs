@@ -43,7 +43,7 @@ impl<T: Copy + 'static> ReCell<T> {
     pub fn ops(&self) -> Obs<impl Observable<Item = T> + Clone> {
         Obs(self.clone())
     }
-    pub fn ops_ref(&self) -> ReRefOps<impl ObservableRef<Item = T> + Clone> {
+    pub fn ops_ref(&self) -> ObsRef<impl ObservableRef<Item = T> + Clone> {
         self.ops().as_ref()
     }
 }
@@ -136,7 +136,7 @@ impl<T: 'static> ReRefCell<T> {
     pub fn ops(&self) -> ObsBorrow<impl ObservableBorrow<Item = T> + Clone> {
         ObsBorrow(self.clone())
     }
-    pub fn ops_ref(&self) -> ReRefOps<impl ObservableRef<Item = T> + Clone> {
+    pub fn ops_ref(&self) -> ObsRef<impl ObservableRef<Item = T> + Clone> {
         self.ops().as_ref()
     }
 }

@@ -8,13 +8,13 @@ mod map_async;
 mod may_re;
 mod obs;
 mod obs_borrow;
-mod re_ref_ops;
+mod obs_ref;
 mod scan;
 mod tail;
 
 pub use self::{
     cell::*, dyn_obs::*, dyn_obs_borrow::*, dyn_obs_ref::*, may_re::*, obs::*, obs_borrow::*,
-    re_ref_ops::*, tail::*,
+    obs_ref::*, tail::*,
 };
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
 use crate::{bind::*, BindScope, NotifyScope};

@@ -82,7 +82,7 @@ impl<T: 'static + ?Sized> HotReady for Hot<DynObsRef<T>> {
             .update(scope, &this, |cx| self.source.with(|_, _| {}, cx));
     }
 }
-impl<S: ObservableRef> HotReady for Hot<ReRefOps<S>> {
+impl<S: ObservableRef> HotReady for Hot<ObsRef<S>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings
@@ -103,7 +103,7 @@ impl<S: ObservableBorrow> ObservableBorrow for Rc<Hot<ObsBorrow<S>>> {
         self.source.borrow(cx)
     }
 }
-impl<S: ObservableRef> ObservableRef for Rc<Hot<ReRefOps<S>>> {
+impl<S: ObservableRef> ObservableRef for Rc<Hot<ObsRef<S>>> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.source.with(f, cx)
@@ -142,7 +142,7 @@ impl<S: ObservableBorrow> DynamicObservableRef for Hot<ObsBorrow<S>> {
     }
 }
 
-impl<S: ObservableRef> DynamicObservableRef for Hot<ReRefOps<S>> {
+impl<S: ObservableRef> DynamicObservableRef for Hot<ObsRef<S>> {
     type Item = S::Item;
     fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         self.source.with(f, cx)

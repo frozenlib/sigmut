@@ -1,6 +1,6 @@
 use super::*;
 
-pub fn re_ref<S, T, F>(this: S, f: F) -> ReRefOps<impl ObservableRef<Item = T>>
+pub fn obs_ref<S, T, F>(this: S, f: F) -> ObsRef<impl ObservableRef<Item = T>>
 where
     S: 'static,
     T: 'static + ?Sized,
@@ -32,14 +32,14 @@ where
             result.unwrap()
         }
     }
-    ReRefOps(ReRefFn {
+    ObsRef(ReRefFn {
         this,
         f,
         _phantom: PhantomData,
     })
 }
 
-pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ObservableRef<Item = T>> {
+pub fn obs_ref_constant<T: 'static>(value: T) -> ObsRef<impl ObservableRef<Item = T>> {
     struct ReRefConstant<T>(T);
     impl<T: 'static> ObservableRef for ReRefConstant<T> {
         type Item = T;
@@ -47,9 +47,9 @@ pub fn re_ref_constant<T: 'static>(value: T) -> ReRefOps<impl ObservableRef<Item
             f(&self.0, cx)
         }
     }
-    ReRefOps(ReRefConstant(value))
+    ObsRef(ReRefConstant(value))
 }
-pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ObservableRef<Item = T>> {
+pub fn re_ref_static<T>(value: &'static T) -> ObsRef<impl ObservableRef<Item = T>> {
     struct ReRefStatic<T: 'static>(&'static T);
     impl<T: 'static> ObservableRef for ReRefStatic<T> {
         type Item = T;
@@ -57,13 +57,13 @@ pub fn re_ref_static<T>(value: &'static T) -> ReRefOps<impl ObservableRef<Item =
             f(self.0, cx)
         }
     }
-    ReRefOps(ReRefStatic(value))
+    ObsRef(ReRefStatic(value))
 }
 
 #[derive(Clone)]
-pub struct ReRefOps<S>(pub(super) S);
+pub struct ObsRef<S>(pub(super) S);
 
-impl<S: ObservableRef> ReRefOps<S> {
+impl<S: ObservableRef> ObsRef<S> {
     pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
@@ -85,7 +85,7 @@ impl<S: ObservableRef> ReRefOps<S> {
     pub fn map_ref<T: ?Sized>(
         self,
         f: impl Fn(&S::Item) -> &T + 'static,
-    ) -> ReRefOps<impl ObservableRef<Item = T>> {
+    ) -> ObsRef<impl ObservableRef<Item = T>> {
         struct MapRef<S, F> {
             source: S,
             f: F,
@@ -105,10 +105,10 @@ impl<S: ObservableRef> ReRefOps<S> {
                 self.source.with(|value, cx| f((self.f)(value), cx), cx)
             }
         }
-        ReRefOps(MapRef { source: self.0, f })
+        ObsRef(MapRef { source: self.0, f })
     }
 
-    pub fn map_borrow<B: ?Sized + 'static>(self) -> ReRefOps<impl ObservableRef<Item = B>>
+    pub fn map_borrow<B: ?Sized + 'static>(self) -> ObsRef<impl ObservableRef<Item = B>>
     where
         S::Item: Borrow<B>,
     {
@@ -144,7 +144,7 @@ impl<S: ObservableRef> ReRefOps<S> {
                 self.source.into_dyn().map_borrow()
             }
         }
-        ReRefOps(MapBorrow {
+        ObsRef(MapBorrow {
             source: self.0,
             _phantom: PhantomData,
         })
@@ -280,11 +280,11 @@ impl<S: ObservableRef> ReRefOps<S> {
         .into()
     }
 
-    pub fn hot(self) -> ReRefOps<impl ObservableRef<Item = S::Item>> {
-        ReRefOps(Hot::new(self))
+    pub fn hot(self) -> ObsRef<impl ObservableRef<Item = S::Item>> {
+        ObsRef(Hot::new(self))
     }
 }
-impl<S: ObservableRef> ObservableRef for ReRefOps<S> {
+impl<S: ObservableRef> ObservableRef for ObsRef<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
