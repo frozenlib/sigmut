@@ -10,13 +10,8 @@ impl Collect for AnyCollector {
     type Output = bool;
     type Key = bool;
 
-    fn insert(&mut self, value: Self::Input) -> (Self::Key, bool) {
-        if value {
-            self.count += 1;
-            (true, self.count == 1)
-        } else {
-            (false, false)
-        }
+    fn insert(&mut self) -> (Self::Key, bool) {
+        (false, false)
     }
 
     fn remove(&mut self, key: Self::Key) -> bool {
@@ -31,7 +26,10 @@ impl Collect for AnyCollector {
     fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool) {
         match (key, value) {
             (true, false) => (false, self.remove(key)),
-            (false, true) => self.insert(true),
+            (false, true) => {
+                self.count += 1;
+                (true, self.count == 1)
+            }
             _ => (false, value),
         }
     }
@@ -53,13 +51,8 @@ impl<T: Clone + 'static> Collect for SomeCollector<T> {
     type Output = Option<T>;
     type Key = Option<usize>;
 
-    fn insert(&mut self, value: Self::Input) -> (Self::Key, bool) {
-        if let Some(value) = value {
-            let key = self.0.insert(value);
-            (Some(key), self.is_result(key))
-        } else {
-            (None, false)
-        }
+    fn insert(&mut self) -> (Self::Key, bool) {
+        (None, false)
     }
 
     fn remove(&mut self, key: Self::Key) -> bool {
@@ -73,9 +66,13 @@ impl<T: Clone + 'static> Collect for SomeCollector<T> {
     }
 
     fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool) {
-        let is_modified0 = self.remove(key);
-        let (key, is_modified1) = self.insert(value);
-        (key, is_modified0 | is_modified1)
+        let is_modified = self.remove(key);
+        if let Some(value) = value {
+            let key = self.0.insert(value);
+            (Some(key), is_modified || self.is_result(key))
+        } else {
+            (None, is_modified)
+        }
     }
 
     fn collect(&self) -> Self::Output {

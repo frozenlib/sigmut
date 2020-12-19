@@ -65,6 +65,12 @@ pub trait Observable: 'static {
         }
         DynObs::from_dyn(IntoDyn(self))
     }
+    fn into_obs(self) -> Obs<Self>
+    where
+        Self: Sized,
+    {
+        Obs(self)
+    }
 }
 
 pub trait ObservableBorrow: 'static {
@@ -159,10 +165,10 @@ pub(crate) trait DynamicObservableRefSource: 'static {
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
 }
 
-pub trait Observer<T> {
+pub trait Observer<T>: 'static {
     fn next(&mut self, value: T);
 }
-impl<F: FnMut(T), T> Observer<T> for F {
+impl<F: FnMut(T) + 'static, T> Observer<T> for F {
     fn next(&mut self, value: T) {
         self(value)
     }
@@ -170,7 +176,11 @@ impl<F: FnMut(T), T> Observer<T> for F {
 
 pub trait CollectObserver<T> {
     type Observer: Observer<T>;
-    fn insert(&self, value: T) -> Self::Observer;
+    fn insert(&self) -> Self::Observer;
+
+    fn insert_obs(&self, obs: impl Observable<Item = T>) -> Subscription {
+        obs.into_obs().subscribe(self.insert())
+    }
 }
 
 #[must_use]

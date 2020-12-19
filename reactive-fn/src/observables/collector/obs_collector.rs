@@ -10,7 +10,7 @@ pub trait Collect: 'static {
     type Input;
     type Output;
     type Key;
-    fn insert(&mut self, value: Self::Input) -> (Self::Key, bool);
+    fn insert(&mut self) -> (Self::Key, bool);
     fn remove(&mut self, key: Self::Key) -> bool;
     fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool);
     fn collect(&self) -> Self::Output;
@@ -43,8 +43,8 @@ impl<T: Collect> Observable for ObsCollector<T> {
 
 impl<T: Collect> CollectObserver<T::Input> for ObsCollector<T> {
     type Observer = ObsCollectorObserver<T>;
-    fn insert(&self, value: T::Input) -> Self::Observer {
-        let (key, is_modified) = self.0.collector.borrow_mut().insert(value);
+    fn insert(&self) -> Self::Observer {
+        let (key, is_modified) = self.0.collector.borrow_mut().insert();
         if is_modified {
             Runtime::notify_defer(self.0.clone());
         }
