@@ -2,15 +2,15 @@ use super::*;
 use crate::bind::*;
 use std::{cell::RefCell, iter::once, rc::Rc};
 
-pub struct Tail<T: 'static>(TailOps<DynObs<T>>);
+pub struct DynTail<T: 'static>(Tail<DynObs<T>>);
 
-impl<T> Tail<T> {
+impl<T> DynTail<T> {
     pub(super) fn new(source: DynObs<T>, scope: &BindScope) -> (T, Self) {
-        let (value, s) = TailOps::new(source, scope);
+        let (value, s) = Tail::new(source, scope);
         (value, Self(s))
     }
     pub fn empty() -> Self {
-        Self(TailOps::empty())
+        Self(Tail::empty())
     }
 
     pub fn for_each(self, f: impl FnMut(T) + 'static) -> Subscription {
@@ -34,9 +34,9 @@ impl<T> Tail<T> {
     }
 }
 
-pub struct TailOps<S>(Option<TailData<S>>);
+pub struct Tail<S>(Option<TailData<S>>);
 
-impl<S: Observable> TailOps<S> {
+impl<S: Observable> Tail<S> {
     pub(super) fn new(source: S, scope: &BindScope) -> (S::Item, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();

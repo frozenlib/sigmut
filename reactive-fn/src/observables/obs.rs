@@ -25,11 +25,11 @@ impl<S: Observable> Obs<S> {
     pub fn with<T>(&self, f: impl FnOnce(&S::Item, &BindContext) -> T, cx: &BindContext) -> T {
         f(&self.get(cx), cx)
     }
-    pub fn head_tail(self) -> (S::Item, TailOps<S>) {
+    pub fn head_tail(self) -> (S::Item, Tail<S>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }
-    pub fn head_tail_with(self, scope: &BindScope) -> (S::Item, TailOps<S>) {
-        TailOps::new(self.0, scope)
+    pub fn head_tail_with(self, scope: &BindScope) -> (S::Item, Tail<S>) {
+        Tail::new(self.0, scope)
     }
 
     pub fn as_ref(self) -> ObsRef<ObsRefByObs<S>> {

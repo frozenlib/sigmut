@@ -7,12 +7,12 @@ pub enum MayObs<T: 'static> {
 }
 
 impl<T: 'static> MayObs<T> {
-    pub fn head_tail(self) -> (T, Tail<T>) {
+    pub fn head_tail(self) -> (T, DynTail<T>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }
-    pub fn head_tail_with(self, scope: &BindScope) -> (T, Tail<T>) {
+    pub fn head_tail_with(self, scope: &BindScope) -> (T, DynTail<T>) {
         match self {
-            MayObs::Constant(x) => (x, Tail::empty()),
+            MayObs::Constant(x) => (x, DynTail::empty()),
             MayObs::Obs(obs) => obs.head_tail_with(scope),
         }
     }

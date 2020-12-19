@@ -18,11 +18,11 @@ impl<T: 'static> DynObs<T> {
             DynObsData::DynSource(rc) => rc.clone().dyn_get(cx),
         }
     }
-    pub fn head_tail(&self) -> (T, Tail<T>) {
+    pub fn head_tail(&self) -> (T, DynTail<T>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }
-    pub fn head_tail_with(&self, scope: &BindScope) -> (T, Tail<T>) {
-        Tail::new(self.clone(), scope)
+    pub fn head_tail_with(&self, scope: &BindScope) -> (T, DynTail<T>) {
+        DynTail::new(self.clone(), scope)
     }
 
     pub fn new(get: impl Fn(&BindContext) -> T + 'static) -> Self {
