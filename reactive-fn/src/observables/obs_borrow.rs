@@ -9,11 +9,11 @@ where
     T: 'static + ?Sized,
     S: 'static,
 {
-    struct ReBorrowFn<S, F> {
+    struct ObsBorrowFn<S, F> {
         this: S,
         borrow: F,
     }
-    impl<T, S, F> ObservableBorrow for ReBorrowFn<S, F>
+    impl<T, S, F> ObservableBorrow for ObsBorrowFn<S, F>
     where
         T: 'static + ?Sized,
         S: 'static,
@@ -25,7 +25,7 @@ where
         }
     }
 
-    ObsBorrow(ReBorrowFn { this, borrow })
+    ObsBorrow(ObsBorrowFn { this, borrow })
 }
 pub fn obs_borrow_constant<T: 'static>(value: T) -> ObsBorrow<impl ObservableBorrow<Item = T>> {
     obs_borrow(RefCell::new(value), |this, _| this.borrow())
