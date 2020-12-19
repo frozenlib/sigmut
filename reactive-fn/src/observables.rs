@@ -5,7 +5,7 @@ mod dyn_obs_ref;
 mod hot;
 mod into_stream;
 mod map_async;
-mod may_re;
+mod may_obs;
 mod obs;
 mod obs_borrow;
 mod obs_ref;
@@ -13,7 +13,7 @@ mod scan;
 mod tail;
 
 pub use self::{
-    cell::*, dyn_obs::*, dyn_obs_borrow::*, dyn_obs_ref::*, may_re::*, obs::*, obs_borrow::*,
+    cell::*, dyn_obs::*, dyn_obs_borrow::*, dyn_obs_ref::*, may_obs::*, obs::*, obs_borrow::*,
     obs_ref::*, tail::*,
 };
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
