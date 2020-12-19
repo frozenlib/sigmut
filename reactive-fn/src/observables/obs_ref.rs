@@ -6,12 +6,12 @@ where
     T: 'static + ?Sized,
     F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
 {
-    struct ReRefFn<S, T: ?Sized, F> {
+    struct ObsRefFn<S, T: ?Sized, F> {
         this: S,
         f: F,
         _phantom: PhantomData<fn(&Self) -> &T>,
     }
-    impl<S, T, F> ObservableRef for ReRefFn<S, T, F>
+    impl<S, T, F> ObservableRef for ObsRefFn<S, T, F>
     where
         S: 'static,
         T: 'static + ?Sized,
@@ -32,7 +32,7 @@ where
             result.unwrap()
         }
     }
-    ObsRef(ReRefFn {
+    ObsRef(ObsRefFn {
         this,
         f,
         _phantom: PhantomData,
@@ -40,24 +40,24 @@ where
 }
 
 pub fn obs_ref_constant<T: 'static>(value: T) -> ObsRef<impl ObservableRef<Item = T>> {
-    struct ReRefConstant<T>(T);
-    impl<T: 'static> ObservableRef for ReRefConstant<T> {
+    struct ObsRefConstant<T>(T);
+    impl<T: 'static> ObservableRef for ObsRefConstant<T> {
         type Item = T;
         fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
             f(&self.0, cx)
         }
     }
-    ObsRef(ReRefConstant(value))
+    ObsRef(ObsRefConstant(value))
 }
 pub fn obs_ref_static<T>(value: &'static T) -> ObsRef<impl ObservableRef<Item = T>> {
-    struct ReRefStatic<T: 'static>(&'static T);
-    impl<T: 'static> ObservableRef for ReRefStatic<T> {
+    struct ObsRefStatic<T: 'static>(&'static T);
+    impl<T: 'static> ObservableRef for ObsRefStatic<T> {
         type Item = T;
         fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
             f(self.0, cx)
         }
     }
-    ObsRef(ReRefStatic(value))
+    ObsRef(ObsRefStatic(value))
 }
 
 #[derive(Clone)]

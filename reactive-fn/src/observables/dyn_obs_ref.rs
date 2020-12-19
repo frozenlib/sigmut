@@ -48,12 +48,12 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
         this: S,
         f: impl Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
     ) -> Self {
-        struct ReRefFn<S, T: ?Sized, F> {
+        struct ObsRefFn<S, T: ?Sized, F> {
             this: S,
             f: F,
             _phantom: PhantomData<fn(&Self) -> &T>,
         }
-        impl<S, T, F> DynamicObservableRef for ReRefFn<S, T, F>
+        impl<S, T, F> DynamicObservableRef for ObsRefFn<S, T, F>
         where
             S: 'static,
             T: 'static + ?Sized,
@@ -65,7 +65,7 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
                 (self.f)(&self.this, f, cx)
             }
         }
-        Self::from_dyn(Rc::new(ReRefFn {
+        Self::from_dyn(Rc::new(ObsRefFn {
             this,
             f,
             _phantom: PhantomData,

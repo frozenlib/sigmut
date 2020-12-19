@@ -32,8 +32,8 @@ impl<S: Observable> Obs<S> {
         TailOps::new(self.0, scope)
     }
 
-    pub fn as_ref(self) -> ObsRef<ReRefByRe<S>> {
-        ObsRef(ReRefByRe(self))
+    pub fn as_ref(self) -> ObsRef<ObsRefByObs<S>> {
+        ObsRef(ObsRefByObs(self))
     }
     pub fn as_any(self) -> Obs<DynObs<S::Item>> {
         Obs(self.into_dyn())
@@ -217,8 +217,8 @@ impl<S: Observable> Observable for Obs<S> {
 }
 
 #[derive(Clone)]
-pub struct ReRefByRe<S>(Obs<S>);
-impl<S: Observable> ObservableRef for ReRefByRe<S> {
+pub struct ObsRefByObs<S>(Obs<S>);
+impl<S: Observable> ObservableRef for ObsRefByObs<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)

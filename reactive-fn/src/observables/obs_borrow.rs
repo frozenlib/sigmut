@@ -54,8 +54,8 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         TailRefOps::new_borrow(self, scope, |s| s.clone().as_ref())
     }
 
-    pub fn as_ref(self) -> ObsRef<ReRefByReBorrow<S>> {
-        ObsRef(ReRefByReBorrow(self))
+    pub fn as_ref(self) -> ObsRef<ObsRefByObsBorrow<S>> {
+        ObsRef(ObsRefByObsBorrow(self))
     }
     pub fn as_any(self) -> ObsBorrow<DynObsBorrow<S::Item>> {
         ObsBorrow(self.into_dyn())
@@ -212,8 +212,8 @@ impl<S: ObservableBorrow> ObservableBorrow for ObsBorrow<S> {
 }
 
 #[derive(Clone)]
-pub struct ReRefByReBorrow<S>(ObsBorrow<S>);
-impl<S: ObservableBorrow> ObservableRef for ReRefByReBorrow<S> {
+pub struct ObsRefByObsBorrow<S>(ObsBorrow<S>);
+impl<S: ObservableBorrow> ObservableRef for ObsRefByObsBorrow<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
