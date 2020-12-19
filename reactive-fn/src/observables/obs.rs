@@ -16,7 +16,7 @@ pub fn obs_constant<T: 'static + Clone>(value: T) -> Obs<impl Observable<Item = 
 }
 
 #[derive(Clone)]
-pub struct Obs<S>(pub(super) S);
+pub struct Obs<S>(pub(crate) S);
 
 impl<S: Observable> Obs<S> {
     pub fn get(&self, cx: &BindContext) -> S::Item {
