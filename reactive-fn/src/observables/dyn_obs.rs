@@ -26,13 +26,13 @@ impl<T: 'static> DynObs<T> {
     }
 
     pub fn new(get: impl Fn(&BindContext) -> T + 'static) -> Self {
-        obs(get).re()
+        obs(get).into_dyn()
     }
     pub fn constant(value: T) -> Self
     where
         T: Clone,
     {
-        obs_constant(value).re()
+        obs_constant(value).into_dyn()
     }
 
     pub(super) fn from_dyn(inner: impl DynamicObservable<Item = T>) -> Self {
@@ -50,10 +50,10 @@ impl<T: 'static> DynObs<T> {
     }
 
     pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> DynObs<U> {
-        self.ops().map(f).re()
+        self.ops().map(f).into_dyn()
     }
     pub fn flat_map<U>(&self, f: impl Fn(T) -> DynObs<U> + 'static) -> DynObs<U> {
-        self.ops().flat_map(f).re()
+        self.ops().flat_map(f).into_dyn()
     }
     pub fn map_async_with<Fut>(
         &self,
@@ -63,18 +63,18 @@ impl<T: 'static> DynObs<T> {
     where
         Fut: Future + 'static,
     {
-        self.ops().map_async_with(f, sp).re_borrow()
+        self.ops().map_async_with(f, sp).into_dyn()
     }
 
     pub fn cached(&self) -> DynObsBorrow<T> {
-        self.ops().cached().re_borrow()
+        self.ops().cached().into_dyn()
     }
     pub fn scan<St: 'static>(
         &self,
         initial_state: St,
         f: impl Fn(St, T) -> St + 'static,
     ) -> DynObsBorrow<St> {
-        self.ops().scan(initial_state, f).re_borrow()
+        self.ops().scan(initial_state, f).into_dyn()
     }
     pub fn filter_scan<St: 'static>(
         &self,
@@ -84,24 +84,24 @@ impl<T: 'static> DynObs<T> {
     ) -> DynObsBorrow<St> {
         self.ops()
             .filter_scan(initial_state, predicate, f)
-            .re_borrow()
+            .into_dyn()
     }
 
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObsBorrow<T> {
-        self.ops().dedup_by(eq).re_borrow()
+        self.ops().dedup_by(eq).into_dyn()
     }
     pub fn dedup_by_key<K: PartialEq>(
         &self,
         to_key: impl Fn(&T) -> K + 'static,
     ) -> DynObsBorrow<T> {
-        self.ops().dedup_by_key(to_key).re_borrow()
+        self.ops().dedup_by_key(to_key).into_dyn()
     }
 
     pub fn dedup(&self) -> DynObsBorrow<T>
     where
         T: PartialEq,
     {
-        self.ops().dedup().re_borrow()
+        self.ops().dedup().into_dyn()
     }
 
     pub fn fold<St: 'static>(
@@ -136,7 +136,7 @@ impl<T: 'static> DynObs<T> {
     }
 
     pub fn hot(&self) -> Self {
-        self.ops().hot().re()
+        self.ops().hot().into_dyn()
     }
 
     pub fn stream(&self) -> impl futures::Stream<Item = T> {
@@ -145,7 +145,7 @@ impl<T: 'static> DynObs<T> {
 }
 impl<T: 'static> DynObs<DynObs<T>> {
     pub fn flatten(&self) -> DynObs<T> {
-        self.ops().flatten().re()
+        self.ops().flatten().into_dyn()
     }
 }
 

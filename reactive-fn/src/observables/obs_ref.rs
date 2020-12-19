@@ -73,7 +73,7 @@ impl<S: ObservableRef> ObsRef<S> {
     pub fn head_tail_with(self, scope: &BindScope, f: impl FnOnce(&S::Item)) -> TailRefOps<S> {
         TailRefOps::new(self.0, scope, f)
     }
-    pub fn re_ref(self) -> DynObsRef<S::Item> {
+    pub fn into_dyn(self) -> DynObsRef<S::Item> {
         self.0.into_dyn()
     }
     pub fn map<T: 'static>(

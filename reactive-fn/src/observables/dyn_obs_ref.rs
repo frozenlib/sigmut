@@ -94,13 +94,13 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
-        self.ops().map(f).re()
+        self.ops().map(f).into_dyn()
     }
     pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObsRef<U> {
         if let DynObsRefData::StaticRef(x) = &self.0 {
             DynObsRef::static_ref(f(x))
         } else {
-            self.ops().map_ref(f).re_ref()
+            self.ops().map_ref(f).into_dyn()
         }
     }
     pub fn map_borrow<B: ?Sized>(&self) -> DynObsRef<B>
@@ -115,7 +115,7 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     }
 
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> DynObs<U> + 'static) -> DynObs<U> {
-        self.ops().flat_map(f).re()
+        self.ops().flat_map(f).into_dyn()
     }
     pub fn map_async_with<Fut>(
         &self,
@@ -125,14 +125,14 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     where
         Fut: Future + 'static,
     {
-        self.ops().map_async_with(f, sp).re_borrow()
+        self.ops().map_async_with(f, sp).into_dyn()
     }
     pub fn scan<St: 'static>(
         &self,
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> DynObsBorrow<St> {
-        self.ops().scan(initial_state, f).re_borrow()
+        self.ops().scan(initial_state, f).into_dyn()
     }
     pub fn filter_scan<St: 'static>(
         &self,
@@ -142,14 +142,14 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     ) -> DynObsBorrow<St> {
         self.ops()
             .filter_scan(initial_state, predicate, f)
-            .re_borrow()
+            .into_dyn()
     }
 
     pub fn cloned(&self) -> DynObs<T>
     where
         T: Clone,
     {
-        self.ops().cloned().re()
+        self.ops().cloned().into_dyn()
     }
     pub fn fold<St: 'static>(
         &self,
@@ -185,12 +185,12 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     }
 
     pub fn hot(&self) -> Self {
-        self.ops().hot().re_ref()
+        self.ops().hot().into_dyn()
     }
 }
 impl<T: 'static> DynObsRef<DynObs<T>> {
     pub fn flatten(&self) -> DynObs<T> {
-        self.ops().flatten().re()
+        self.ops().flatten().into_dyn()
     }
 }
 impl<T: ?Sized> ObservableRef for DynObsRef<T> {

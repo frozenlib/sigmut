@@ -36,12 +36,12 @@ impl<S: Observable> Obs<S> {
         ObsRef(ReRefByRe(self))
     }
     pub fn as_any(self) -> Obs<DynObs<S::Item>> {
-        Obs(self.re())
+        Obs(self.into_dyn())
     }
-    pub fn re(self) -> DynObs<S::Item> {
+    pub fn into_dyn(self) -> DynObs<S::Item> {
         self.0.into_dyn()
     }
-    pub fn re_ref(self) -> DynObsRef<S::Item> {
+    pub fn into_dyn_ref(self) -> DynObsRef<S::Item> {
         self.0.into_dyn().as_ref()
     }
 
@@ -227,6 +227,6 @@ impl<S: Observable> ObservableRef for ReRefByRe<S> {
     where
         Self: Sized,
     {
-        self.0.re_ref()
+        self.0.into_dyn_ref()
     }
 }

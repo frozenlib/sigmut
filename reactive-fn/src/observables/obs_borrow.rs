@@ -58,13 +58,13 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         ObsRef(ReRefByReBorrow(self))
     }
     pub fn as_any(self) -> ObsBorrow<DynObsBorrow<S::Item>> {
-        ObsBorrow(self.re_borrow())
+        ObsBorrow(self.into_dyn())
     }
-    pub fn re_borrow(self) -> DynObsBorrow<S::Item> {
+    pub fn into_dyn(self) -> DynObsBorrow<S::Item> {
         self.0.into_dyn()
     }
-    pub fn re_ref(self) -> DynObsRef<S::Item> {
-        self.re_borrow().as_ref()
+    pub fn into_dyn_ref(self) -> DynObsRef<S::Item> {
+        self.into_dyn().as_ref()
     }
     pub fn map<T>(self, f: impl Fn(&S::Item) -> T + 'static) -> Obs<impl Observable<Item = T>> {
         obs(move |cx| f(&self.borrow(cx)))
@@ -222,6 +222,6 @@ impl<S: ObservableBorrow> ObservableRef for ReRefByReBorrow<S> {
     where
         Self: Sized,
     {
-        self.0.re_ref()
+        self.0.into_dyn_ref()
     }
 }
