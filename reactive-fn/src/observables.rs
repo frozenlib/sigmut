@@ -6,14 +6,14 @@ mod hot;
 mod into_stream;
 mod map_async;
 mod may_re;
+mod obs;
 mod re_borrow_ops;
-mod re_ops;
 mod re_ref_ops;
 mod scan;
 mod tail;
 
 pub use self::{
-    cell::*, dyn_obs::*, dyn_obs_borrow::*, dyn_obs_ref::*, may_re::*, re_borrow_ops::*, re_ops::*,
+    cell::*, dyn_obs::*, dyn_obs_borrow::*, dyn_obs_ref::*, may_re::*, obs::*, re_borrow_ops::*,
     re_ref_ops::*, tail::*,
 };
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
