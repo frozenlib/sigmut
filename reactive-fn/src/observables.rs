@@ -239,7 +239,7 @@ impl<T> From<Fold<T>> for Subscription {
     }
 }
 
-pub fn spawn(mut f: impl FnMut(&BindContext) + 'static) -> Subscription {
+pub fn subscribe(mut f: impl FnMut(&BindContext) + 'static) -> Subscription {
     Subscription(Some(FoldBy::new(
         (),
         fold_by_op(
