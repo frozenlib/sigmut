@@ -32,6 +32,14 @@ TODO
 | `ToList`               | `collect_to_vec` |
 | `Where`                | `filter`         |
 
+## A classified type list
+
+| trait              | static      | dynamic        | cell         | how to make  |
+| ------------------ | ----------- | -------------- | ------------ | ------------ |
+| `Observable`       | `Obs`       | `DynObs`       | `ObsCell`    | `obs`        |
+| `ObservableBorrow` | `ObsBorrow` | `DynObsBorrow` | `ObsRefCell` | `obs_borrow` |
+| `ObservableRef`    | `ObsRef`    | `DynObsRef`    |              | `obs_ref`    |
+
 ## License
 
 This project is dual licensed under Apache-2.0/MIT. See the two LICENSE-\* files for details.
