@@ -34,7 +34,7 @@ impl<T: Copy + 'static> ObsCell<T> {
 
     pub fn set(&self, value: T) {
         self.0.value.set(value);
-        Runtime::notify_defer(self.0.clone());
+        Runtime::spawn_notify(self.0.clone());
     }
 
     pub fn as_dyn(&self) -> DynObs<T> {

@@ -23,7 +23,7 @@ impl BindScope {
             )
         })
     }
-    pub fn notify_defer(&self, task: Rc<dyn NotifyTask>) {
+    pub fn defer_notify(&self, task: Rc<dyn NotifyTask>) {
         (self.0).0.borrow_mut().notify_tasks.push(task);
     }
 }
@@ -40,7 +40,7 @@ impl NotifyScope {
             )
         })
     }
-    pub fn bind_defer(&self, task: Rc<dyn BindTask>) {
+    pub fn defer_bind(&self, task: Rc<dyn BindTask>) {
         self.0.borrow_mut().bind_tasks.push(task);
     }
 }
@@ -61,7 +61,7 @@ impl Runtime {
             notify_tasks: Vec::new(),
         }))))
     }
-    pub fn bind_defer(task: Rc<dyn BindTask>) {
+    pub fn spawn_bind(task: Rc<dyn BindTask>) {
         Runtime::with(|rt| {
             rt.try_bind(
                 task,
@@ -70,7 +70,7 @@ impl Runtime {
             )
         })
     }
-    pub fn notify_defer(task: Rc<dyn NotifyTask>) {
+    pub fn spawn_notify(task: Rc<dyn NotifyTask>) {
         Runtime::with(|rt| {
             rt.try_notify(
                 task,

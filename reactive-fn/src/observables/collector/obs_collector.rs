@@ -56,7 +56,7 @@ impl<T: Collect> CollectObserver<T::Input> for ObsCollector<T> {
     fn insert(&self) -> Self::Observer {
         let (key, is_modified) = self.0.collector.borrow_mut().insert();
         if is_modified {
-            Runtime::notify_defer(self.0.clone());
+            Runtime::spawn_notify(self.0.clone());
         }
         ObsCollectorObserver {
             collector: self.0.clone(),
@@ -107,7 +107,7 @@ impl<T: Collect> Observer<T::Input> for ObsCollectorObserver<T> {
             .set(self.key.take().unwrap(), value);
         self.key = Some(key);
         if is_modified {
-            Runtime::notify_defer(self.collector.clone());
+            Runtime::spawn_notify(self.collector.clone());
         }
     }
 }
@@ -119,7 +119,7 @@ impl<T: Collect> Drop for ObsCollectorObserver<T> {
             .borrow_mut()
             .remove(self.key.take().unwrap())
         {
-            Runtime::notify_defer(self.collector.clone());
+            Runtime::spawn_notify(self.collector.clone());
         }
     }
 }

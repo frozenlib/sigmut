@@ -416,7 +416,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
 
     fn ready(self: &Rc<Self>, scope: &BindScope) {
         if self.data.borrow_mut().load(scope, self) {
-            scope.notify_defer(self.clone());
+            scope.defer_notify(self.clone());
         }
     }
     fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, Op::Value> {
@@ -488,7 +488,7 @@ impl<Op: FilterScanOp> BindSource for FilterScan<Op> {
 impl<Op: FilterScanOp> BindSink for FilterScan<Op> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if self.data.borrow_mut().unload() && !self.sinks.is_empty() {
-            scope.bind_defer(self);
+            scope.defer_bind(self);
         }
     }
 }
@@ -541,7 +541,7 @@ impl<Op: FoldByOp> DynamicFold for FoldBy<Op> {
 impl<Op: FoldByOp> BindSink for FoldBy<Op> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if self.0.borrow_mut().unload() {
-            scope.bind_defer(self);
+            scope.defer_bind(self);
         }
     }
 }

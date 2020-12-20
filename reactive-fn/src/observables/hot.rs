@@ -29,7 +29,7 @@ where
     Self: HotReady,
 {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
-        scope.bind_defer(self);
+        scope.defer_bind(self);
     }
 }
 impl<S> BindTask for Hot<S>
