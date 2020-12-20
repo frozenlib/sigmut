@@ -15,7 +15,7 @@ TODO
 | `IObserver`       | `Observer`              |
 | `BehaviorSubject` | `ObsCell`, `ObsRefCell` |
 
-### Obserable methods
+### Obsrevable methods
 
 | Rx                     | reactive-fn      |
 | ---------------------- | ---------------- |
