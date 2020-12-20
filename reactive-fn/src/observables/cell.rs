@@ -5,7 +5,7 @@ use std::{any::Any, rc::Rc};
 
 use super::*;
 
-/// A `Cell` like type that implement `Observable`.
+/// A `Rc<Cell>` like type that implement [`Observable`].
 pub struct ObsCell<T: Copy>(Rc<ObsCellData<T>>);
 
 struct ObsCellData<T: Copy> {
@@ -107,7 +107,7 @@ impl<T: Copy + 'static> Observer<T> for ObsCell<T> {
     }
 }
 
-/// A `RefCell` like type that implement `ObservableRef`.
+/// A `Rc<RefCell>` like type that implement [`ObservableRef`].
 pub struct ObsRefCell<T>(Rc<ObsRefCellData<T>>);
 struct ObsRefCellData<T> {
     value: RefCell<T>,
@@ -218,7 +218,7 @@ impl<T: std::fmt::Debug> std::fmt::Debug for ObsRefCell<T> {
     }
 }
 
-/// A wrapper type for a mutably borrowed value from a `BindRefCell<T>`.
+/// A wrapper type for a mutably borrowed value from a [`ObsRefCell`].
 pub struct RefMut<'a, T> {
     cx: &'a NotifyScope,
     b: std::cell::RefMut<'a, T>,
