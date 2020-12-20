@@ -1,3 +1,5 @@
+use observables::IntoObserver;
+
 use crate::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -31,6 +33,17 @@ impl<T: Collect> ObsCollector<T> {
         Default::default()
     }
 
+    pub fn insert(&self) -> ObsCollectorObserver<T> {
+        let (key, is_modified) = self.0.collector.borrow_mut().insert();
+        if is_modified {
+            Runtime::spawn_notify(self.0.clone());
+        }
+        ObsCollectorObserver {
+            collector: self.0.clone(),
+            key: Some(key),
+        }
+    }
+
     pub fn as_dyn(&self) -> DynObs<T::Output> {
         DynObs::from_dyn_source(self.0.clone())
     }
@@ -50,25 +63,20 @@ impl<T: Collect> Observable for ObsCollector<T> {
         self.0.clone().get(cx)
     }
 }
-
-impl<T: Collect> CollectObserver<T::Input> for ObsCollector<T> {
-    type Observer = ObsCollectorObserver<T>;
-    fn insert(&self) -> Self::Observer {
-        let (key, is_modified) = self.0.collector.borrow_mut().insert();
-        if is_modified {
-            Runtime::spawn_notify(self.0.clone());
-        }
-        ObsCollectorObserver {
-            collector: self.0.clone(),
-            key: Some(key),
-        }
-    }
-}
 impl<T> Clone for ObsCollector<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
+impl<T: Collect> IntoObserver for &ObsCollector<T> {
+    type Observer = ObsCollectorObserver<T>;
+    type Item = T::Input;
+
+    fn into_observer(self) -> Self::Observer {
+        self.insert()
+    }
+}
+
 impl<T: Collect> ObsCollectorData<T> {
     pub fn get(self: Rc<Self>, cx: &BindContext) -> T::Output {
         let value = self.collector.borrow().collect();
@@ -98,7 +106,8 @@ impl<T: 'static> BindSource for ObsCollectorData<T> {
     }
 }
 
-impl<T: Collect> Observer<T::Input> for ObsCollectorObserver<T> {
+impl<T: Collect> Observer for ObsCollectorObserver<T> {
+    type Item = T::Input;
     fn next(&mut self, value: T::Input) {
         let (key, is_modified) = self
             .collector

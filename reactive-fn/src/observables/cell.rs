@@ -101,7 +101,8 @@ impl<T: Copy + std::fmt::Debug> std::fmt::Debug for ObsCell<T> {
         std::fmt::Debug::fmt(&self.0.value, f)
     }
 }
-impl<T: Copy + 'static> Observer<T> for ObsCell<T> {
+impl<T: Copy + 'static> Observer for ObsCell<T> {
+    type Item = T;
     fn next(&mut self, value: T) {
         self.set(value)
     }

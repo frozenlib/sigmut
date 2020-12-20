@@ -165,21 +165,39 @@ pub(crate) trait DynamicObservableRefSource: 'static {
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
 }
 
-pub trait Observer<T>: 'static {
-    fn next(&mut self, value: T);
+pub trait Observer: 'static {
+    type Item;
+    fn next(&mut self, value: Self::Item);
 }
-impl<F: FnMut(T) + 'static, T> Observer<T> for F {
-    fn next(&mut self, value: T) {
-        self(value)
+pub fn observer<T: 'static>(f: impl FnMut(T) + 'static) -> impl Observer<Item = T> {
+    struct FnObserver<T, F> {
+        f: F,
+        _phantom: PhantomData<fn(T)>,
+    }
+    impl<T: 'static, F: FnMut(T) + 'static> Observer for FnObserver<T, F> {
+        type Item = T;
+        fn next(&mut self, value: Self::Item) {
+            (self.f)(value)
+        }
+    }
+    FnObserver {
+        f,
+        _phantom: PhantomData,
     }
 }
 
-pub trait CollectObserver<T> {
-    type Observer: Observer<T>;
-    fn insert(&self) -> Self::Observer;
+pub trait IntoObserver {
+    type Observer: Observer<Item = Self::Item>;
+    type Item;
 
-    fn insert_obs(&self, obs: impl Observable<Item = T>) -> Subscription {
-        obs.into_obs().subscribe(self.insert())
+    fn into_observer(self) -> Self::Observer;
+}
+impl<O: Observer> IntoObserver for O {
+    type Observer = Self;
+    type Item = <Self as Observer>::Item;
+
+    fn into_observer(self) -> Self::Observer {
+        self
     }
 }
 

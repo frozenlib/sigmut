@@ -169,9 +169,9 @@ impl<S: Observable> Obs<S> {
     pub fn collect_vec(self) -> Fold<Vec<S::Item>> {
         self.collect()
     }
-    pub fn subscribe(self, f: impl Observer<S::Item>) -> Subscription {
+    pub fn subscribe(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
         self.fold(f, move |mut f, x| {
-            f.next(x);
+            f(x);
             f
         })
         .into()
