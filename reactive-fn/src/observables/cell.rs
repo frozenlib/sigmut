@@ -135,11 +135,10 @@ impl<T: 'static> ObsRefCell<T> {
     pub fn borrow_head(&self) -> Ref<T> {
         self.0.value.borrow()
     }
-    pub fn borrow_mut<'a>(&'a self, cx: &'a NotifyScope) -> RefMut<'a, T> {
+    pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
         RefMut {
-            cx,
             b: self.0.value.borrow_mut(),
-            sinks: &self.0.sinks,
+            s: Some(self.clone()),
             modified: false,
         }
     }
@@ -220,10 +219,9 @@ impl<T: std::fmt::Debug> std::fmt::Debug for ObsRefCell<T> {
 }
 
 /// A wrapper type for a mutably borrowed value from a [`ObsRefCell`].
-pub struct RefMut<'a, T> {
-    cx: &'a NotifyScope,
+pub struct RefMut<'a, T: 'static> {
     b: std::cell::RefMut<'a, T>,
-    sinks: &'a BindSinks,
+    s: Option<ObsRefCell<T>>,
     modified: bool,
 }
 
@@ -242,7 +240,7 @@ impl<'a, T> DerefMut for RefMut<'a, T> {
 impl<'a, T> Drop for RefMut<'a, T> {
     fn drop(&mut self) {
         if self.modified {
-            self.sinks.notify(self.cx);
+            Runtime::spawn_notify(self.s.take().unwrap().0);
         }
     }
 }
