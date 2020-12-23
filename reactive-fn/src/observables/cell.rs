@@ -26,12 +26,6 @@ impl<T: Copy + 'static> ObsCell<T> {
     pub fn get_head(&self) -> T {
         self.0.value.get()
     }
-
-    pub fn set_with(&self, value: T, scope: &NotifyScope) {
-        self.0.value.set(value);
-        self.0.sinks.notify(scope);
-    }
-
     pub fn set(&self, value: T) {
         self.0.value.set(value);
         Runtime::spawn_notify(self.0.clone());
