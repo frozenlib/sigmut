@@ -128,7 +128,8 @@ impl<T: 'static> ObsRefCell<T> {
         self.0.sinks.notify(scope);
     }
     pub fn set(&self, value: T) {
-        NotifyScope::with(|scope| self.set_with(value, scope));
+        *self.0.value.borrow_mut() = value;
+        Runtime::spawn_notify(self.0.clone());
     }
 
     pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
