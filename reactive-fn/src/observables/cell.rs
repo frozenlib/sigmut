@@ -127,6 +127,16 @@ impl<T: 'static> ObsRefCell<T> {
         *self.0.value.borrow_mut() = value;
         Runtime::spawn_notify(self.0.clone());
     }
+    pub fn set_if_ne(&self, value: T)
+    where
+        T: PartialEq,
+    {
+        let mut b = self.0.value.borrow_mut();
+        if *b != value {
+            *b = value;
+            Runtime::spawn_notify(self.0.clone());
+        }
+    }
 
     pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
         self.0.borrow(cx)
