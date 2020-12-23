@@ -30,6 +30,14 @@ impl<T: Copy + 'static> ObsCell<T> {
         self.0.value.set(value);
         Runtime::spawn_notify(self.0.clone());
     }
+    pub fn set_if_ne(&self, value: T)
+    where
+        T: PartialEq,
+    {
+        if self.get_head() != value {
+            self.set(value);
+        }
+    }
 
     pub fn as_dyn(&self) -> DynObs<T> {
         DynObs(DynObsData::DynSource(self.0.clone()))
