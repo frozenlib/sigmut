@@ -23,7 +23,7 @@ impl<T: Copy + 'static> ObsCell<T> {
     pub fn get(&self, cx: &BindContext) -> T {
         self.0.get(cx)
     }
-    pub fn get_direct(&self) -> T {
+    pub fn get_head(&self) -> T {
         self.0.value.get()
     }
 
@@ -132,7 +132,7 @@ impl<T: 'static> ObsRefCell<T> {
     pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
         self.0.borrow(cx)
     }
-    pub fn borrow_direct(&self) -> Ref<T> {
+    pub fn borrow_head(&self) -> Ref<T> {
         self.0.value.borrow()
     }
     pub fn borrow_mut<'a>(&'a self, cx: &'a NotifyScope) -> RefMut<'a, T> {
