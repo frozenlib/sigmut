@@ -123,10 +123,6 @@ impl<T: 'static> ObsRefCell<T> {
             sinks: BindSinks::new(),
         }))
     }
-    pub fn set_with(&self, value: T, scope: &NotifyScope) {
-        *self.0.value.borrow_mut() = value;
-        self.0.sinks.notify(scope);
-    }
     pub fn set(&self, value: T) {
         *self.0.value.borrow_mut() = value;
         Runtime::spawn_notify(self.0.clone());
