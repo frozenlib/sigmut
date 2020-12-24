@@ -64,6 +64,12 @@ pub fn obs_ref_static<T>(value: &'static T) -> ObsRef<impl ObservableRef<Item = 
 pub struct ObsRef<S>(pub(super) S);
 
 impl<S: ObservableRef> ObsRef<S> {
+    pub fn get(&self, cx: &BindContext) -> S::Item
+    where
+        S::Item: Copy,
+    {
+        self.with(|value, _| *value, cx)
+    }
     pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
@@ -284,10 +290,20 @@ impl<S: ObservableRef> ObsRef<S> {
         ObsRef(Hot::new(self))
     }
 }
+impl<S: ObservableRef> Observable for ObsRef<S>
+where
+    S::Item: Copy,
+{
+    type Item = S::Item;
+
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        ObsRef::get(self, cx)
+    }
+}
 impl<S: ObservableRef> ObservableRef for ObsRef<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
-        self.0.with(f, cx)
+        ObsRef::with(self, f, cx)
     }
     fn into_dyn(self) -> DynObsRef<Self::Item>
     where
