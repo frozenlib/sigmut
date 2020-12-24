@@ -119,11 +119,29 @@ impl<S: Observable> DynamicObservable for Hot<Obs<S>> {
         self
     }
 }
-
 impl<S: Observable> DynamicObservableRef for Hot<Obs<S>> {
     type Item = S::Item;
     fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.source.get(cx), cx)
+    }
+
+    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
+    where
+        Self::Item: Copy,
+    {
+        self
+    }
+}
+impl<S: ObservableBorrow> DynamicObservable for Hot<ObsBorrow<S>>
+where
+    S::Item: Copy,
+{
+    type Item = S::Item;
+    fn dyn_get(&self, cx: &BindContext) -> Self::Item {
+        *self.dyn_borrow(cx)
+    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
+        self
     }
 }
 impl<S: ObservableBorrow> DynamicObservableBorrow for Hot<ObsBorrow<S>> {
@@ -140,11 +158,38 @@ impl<S: ObservableBorrow> DynamicObservableRef for Hot<ObsBorrow<S>> {
     fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         f(&self.source.borrow(cx), cx)
     }
+    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
+    where
+        Self::Item: Copy,
+    {
+        self
+    }
 }
 
+impl<S: ObservableRef> DynamicObservable for Hot<ObsRef<S>>
+where
+    S::Item: Copy,
+{
+    type Item = S::Item;
+    fn dyn_get(&self, cx: &BindContext) -> Self::Item {
+        let mut result = None;
+        self.dyn_with(&mut |value, _| result = Some(*value), cx);
+        result.unwrap()
+    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
+        self
+    }
+}
 impl<S: ObservableRef> DynamicObservableRef for Hot<ObsRef<S>> {
     type Item = S::Item;
     fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
         self.source.with(f, cx)
+    }
+
+    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
+    where
+        Self::Item: Copy,
+    {
+        self
     }
 }

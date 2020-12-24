@@ -48,24 +48,8 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
         this: S,
         f: impl Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
     ) -> Self {
-        struct ObsRefFn<S, T: ?Sized, F> {
-            this: S,
-            f: F,
-            _phantom: PhantomData<fn(&Self) -> &T>,
-        }
-        impl<S, T, F> DynamicObservableRef for ObsRefFn<S, T, F>
-        where
-            S: 'static,
-            T: 'static + ?Sized,
-            F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
-        {
-            type Item = T;
-
-            fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), cx: &BindContext) {
-                (self.f)(&self.this, f, cx)
-            }
-        }
-        Self::from_dyn(Rc::new(ObsRefFn {
+        // `DynamicObsRefByFn` is more optimized than `obs_ref(this,f)`.
+        Self::from_dyn(Rc::new(DynamicObsRefByFn {
             this,
             f,
             _phantom: PhantomData,
@@ -202,6 +186,48 @@ impl<T: ?Sized> ObservableRef for DynObsRef<T> {
     fn into_dyn(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
+    {
+        self
+    }
+}
+
+struct DynamicObsRefByFn<S, T: ?Sized, F> {
+    this: S,
+    f: F,
+    _phantom: PhantomData<fn(&Self) -> &T>,
+}
+impl<S, T, F> DynamicObservable for DynamicObsRefByFn<S, T, F>
+where
+    S: 'static,
+    T: 'static + Copy,
+    F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
+{
+    type Item = T;
+
+    fn dyn_get(&self, cx: &BindContext) -> T {
+        let mut result = None;
+        self.dyn_with(&mut |value, _| result = Some(*value), cx);
+        result.unwrap()
+    }
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
+        self
+    }
+}
+impl<S, T, F> DynamicObservableRef for DynamicObsRefByFn<S, T, F>
+where
+    S: 'static,
+    T: 'static + ?Sized,
+    F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
+{
+    type Item = T;
+
+    fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), cx: &BindContext) {
+        (self.f)(&self.this, f, cx)
+    }
+
+    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
+    where
+        Self::Item: Copy,
     {
         self
     }

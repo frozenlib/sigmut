@@ -3,6 +3,7 @@ pub mod collector;
 mod dyn_obs;
 mod dyn_obs_borrow;
 mod dyn_obs_ref;
+mod dynamic_obs;
 mod hot;
 mod into_stream;
 mod map_async;
@@ -13,6 +14,7 @@ mod scan;
 mod tail;
 mod value_obs;
 
+pub(crate) use self::dynamic_obs::*;
 pub use self::{
     cell::{ObsCell, ObsRefCell},
     collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector},
@@ -25,6 +27,7 @@ pub use self::{
     tail::*,
     value_obs::*,
 };
+
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
 use crate::{bind::*, BindScope, NotifyScope};
 use derivative::Derivative;
@@ -47,23 +50,7 @@ pub trait Observable: 'static {
     where
         Self: Sized,
     {
-        struct IntoDyn<S>(S);
-        impl<S: Observable> DynamicObservable for IntoDyn<S> {
-            type Item = S::Item;
-            fn dyn_get(&self, cx: &BindContext) -> Self::Item {
-                self.0.get(cx)
-            }
-            fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
-                self
-            }
-        }
-        impl<S: Observable> DynamicObservableRef for IntoDyn<S> {
-            type Item = S::Item;
-            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
-                f(&self.0.get(cx), cx)
-            }
-        }
-        DynObs::from_dyn(IntoDyn(self))
+        DynObs::from_dyn(DynamicObs(self))
     }
     fn into_obs(self) -> Obs<Self>
     where
@@ -81,26 +68,9 @@ pub trait ObservableBorrow: 'static {
     where
         Self: Sized,
     {
-        struct IntoDyn<S>(S);
-        impl<S: ObservableBorrow> DynamicObservableBorrow for IntoDyn<S> {
-            type Item = S::Item;
-            fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-                self.0.borrow(cx)
-            }
-            fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
-                self
-            }
-        }
-        impl<S: ObservableBorrow> DynamicObservableRef for IntoDyn<S> {
-            type Item = S::Item;
-            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
-                f(&self.0.borrow(cx), cx)
-            }
-        }
-        DynObsBorrow::from_dyn(Rc::new(IntoDyn(self)))
+        DynObsBorrow::from_dyn(Rc::new(DynamicObsBorrow(self)))
     }
 }
-
 pub trait ObservableRef: 'static {
     type Item: ?Sized;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U;
@@ -109,60 +79,8 @@ pub trait ObservableRef: 'static {
     where
         Self: Sized,
     {
-        struct IntoDyn<S>(S);
-        impl<S: ObservableRef> DynamicObservableRef for IntoDyn<S> {
-            type Item = S::Item;
-            fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
-                self.0.with(f, cx)
-            }
-        }
-        DynObsRef::from_dyn(Rc::new(IntoDyn(self)))
+        DynObsRef::from_dyn(Rc::new(DynamicObsRef(self)))
     }
-}
-pub(crate) trait DynamicObservable: 'static {
-    type Item;
-    fn dyn_get(&self, cx: &BindContext) -> Self::Item;
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>>;
-}
-
-pub(crate) trait DynamicObservableSource: 'static {
-    type Item;
-    fn dyn_get(self: Rc<Self>, cx: &BindContext) -> Self::Item;
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>>;
-}
-
-pub(crate) trait DynamicObservableBorrow: 'static {
-    type Item: ?Sized;
-    fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item>;
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>>;
-}
-pub(crate) trait DynamicObservableBorrowSource: Any + 'static {
-    type Item: ?Sized;
-
-    fn dyn_borrow<'a>(
-        &'a self,
-        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext<'a>,
-    ) -> Ref<'a, Self::Item>;
-    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
-
-    fn downcast(rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>) -> Rc<Self>
-    where
-        Self: Sized,
-    {
-        rc_self.clone().as_rc_any().downcast::<Self>().unwrap()
-    }
-
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>>;
-}
-
-pub(crate) trait DynamicObservableRef: 'static {
-    type Item: ?Sized;
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
-}
-pub(crate) trait DynamicObservableRefSource: 'static {
-    type Item: ?Sized;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
 }
 
 pub trait Observer: 'static {
