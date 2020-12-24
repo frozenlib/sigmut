@@ -18,6 +18,9 @@ impl<T: 'static> DynObs<T> {
             DynObsData::DynSource(rc) => rc.clone().dyn_get(cx),
         }
     }
+    pub fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
+        f(&self.get(cx), cx)
+    }
     pub fn head_tail(&self) -> (T, DynTail<T>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }
@@ -163,5 +166,12 @@ impl<T> Observable for DynObs<T> {
         Self: Sized,
     {
         self
+    }
+}
+impl<T> ObservableRef for DynObs<T> {
+    type Item = T;
+
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        DynObs::with(self, f, cx)
     }
 }
