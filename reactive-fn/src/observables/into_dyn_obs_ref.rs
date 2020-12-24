@@ -61,29 +61,3 @@ where
         self.as_ref().map_borrow()
     }
 }
-
-// impl IntoDynObsRef<str> for String {
-//     fn into_dyn_obs_ref(self) -> DynObsRef<str> {
-//         if self.is_empty() {
-//             DynObsRef::static_ref("")
-//         } else {
-//             DynObsRef::constant(self).map_borrow()
-//         }
-//     }
-// }
-// impl IntoDynObsRef<str> for &DynObs<String> {
-//     fn into_dyn_obs_ref(self) -> DynObsRef<str> {
-//         self.as_ref().map_borrow()
-//     }
-// }
-
-// impl IntoDynObsRef<str> for &DynObsRef<String> {
-//     fn into_dyn_obs_ref(self) -> DynObsRef<str> {
-//         self.map_borrow()
-//     }
-// }
-// impl IntoDynObsRef<str> for &DynObsBorrow<String> {
-//     fn into_dyn_obs_ref(self) -> DynObsRef<str> {
-//         self.as_ref().map_borrow()
-//     }
-// }
