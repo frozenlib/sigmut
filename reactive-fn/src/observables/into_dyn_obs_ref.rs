@@ -1,6 +1,5 @@
-use std::borrow::Borrow;
-
 use crate::*;
+use std::borrow::Borrow;
 pub trait IntoDynObsRef<T: ?Sized> {
     fn into_dyn_obs_ref(self) -> DynObsRef<T>;
 }
