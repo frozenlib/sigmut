@@ -12,6 +12,12 @@ enum DynObsBorrowData<T: 'static + ?Sized> {
 }
 
 impl<T: 'static + ?Sized> DynObsBorrow<T> {
+    pub fn get(&self, cx: &BindContext) -> T
+    where
+        T: Copy,
+    {
+        *self.borrow(cx)
+    }
     pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
         match &self.0 {
             DynObsBorrowData::Dyn(rc) => rc.dyn_borrow(cx),
@@ -156,12 +162,17 @@ impl<T: 'static> DynObsBorrow<DynObs<T>> {
     }
 }
 
+impl<T: Copy> Observable for DynObsBorrow<T> {
+    type Item = T;
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        DynObsBorrow::get(self, cx)
+    }
+}
 impl<T: ?Sized> ObservableBorrow for DynObsBorrow<T> {
     type Item = T;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
         DynObsBorrow::borrow(self, cx)
     }
-
     fn into_dyn(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
@@ -171,7 +182,6 @@ impl<T: ?Sized> ObservableBorrow for DynObsBorrow<T> {
 }
 impl<T: ?Sized> ObservableRef for DynObsBorrow<T> {
     type Item = T;
-
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
         DynObsBorrow::with(self, f, cx)
     }
