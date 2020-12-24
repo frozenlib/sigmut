@@ -61,3 +61,19 @@ where
         self.as_ref().map_borrow()
     }
 }
+
+impl<S: Observable> IntoDynObsRef<S::Item> for Obs<S> {
+    fn into_dyn_obs_ref(self) -> DynObsRef<S::Item> {
+        Obs::into_dyn_ref(self)
+    }
+}
+impl<S: ObservableBorrow> IntoDynObsRef<S::Item> for ObsBorrow<S> {
+    fn into_dyn_obs_ref(self) -> DynObsRef<S::Item> {
+        ObsBorrow::into_dyn_ref(self)
+    }
+}
+impl<S: ObservableRef> IntoDynObsRef<S::Item> for ObsRef<S> {
+    fn into_dyn_obs_ref(self) -> DynObsRef<S::Item> {
+        ObsRef::into_dyn(self)
+    }
+}
