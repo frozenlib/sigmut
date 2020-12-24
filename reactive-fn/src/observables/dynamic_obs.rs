@@ -74,3 +74,21 @@ impl<T: ?Sized, S: ObservableRef<Item = T>> DynamicObservableRef for DynamicObs<
         self.0.with(f, cx)
     }
 }
+impl<S: Observable> Observable for DynamicObs<S> {
+    type Item = S::Item;
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        self.0.get(cx)
+    }
+}
+impl<S: ObservableBorrow> ObservableBorrow for DynamicObs<S> {
+    type Item = S::Item;
+    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.0.borrow(cx)
+    }
+}
+impl<S: ObservableRef> ObservableRef for DynamicObs<S> {
+    type Item = S::Item;
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        self.0.with(f, cx)
+    }
+}

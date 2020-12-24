@@ -38,6 +38,7 @@ use std::{
     future::Future,
     iter::once,
     marker::PhantomData,
+    ops::Deref,
     rc::Rc,
     task::Poll,
 };
@@ -80,6 +81,28 @@ pub trait ObservableRef: 'static {
         Self: Sized,
     {
         DynObsRef::from_dyn(Rc::new(DynamicObs(ObsRef(self))))
+    }
+}
+
+impl<S: Observable> Observable for Rc<S> {
+    type Item = S::Item;
+
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        self.deref().get(cx)
+    }
+}
+impl<S: ObservableBorrow> ObservableBorrow for Rc<S> {
+    type Item = S::Item;
+
+    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+        self.deref().borrow(cx)
+    }
+}
+impl<S: ObservableRef> ObservableRef for Rc<S> {
+    type Item = S::Item;
+
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        self.deref().with(f, cx)
     }
 }
 
