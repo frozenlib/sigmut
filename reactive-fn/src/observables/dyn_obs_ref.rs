@@ -224,13 +224,6 @@ where
     fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), cx: &BindContext) {
         (self.f)(&self.this, f, cx)
     }
-
-    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
-    where
-        Self::Item: Copy,
-    {
-        self
-    }
 }
 
 pub trait IntoDynObsRef<T: ?Sized> {

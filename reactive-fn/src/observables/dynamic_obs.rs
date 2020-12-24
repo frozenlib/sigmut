@@ -41,99 +41,36 @@ pub trait DynamicObservableBorrowSource: Any + 'static {
 pub trait DynamicObservableRef: 'static {
     type Item: ?Sized;
     fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
-    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
-    where
-        Self::Item: Copy;
 }
 pub trait DynamicObservableRefSource: 'static {
     type Item: ?Sized;
     fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext);
-    // fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservableSource<Item = Self::Item>>
-    // where
-    //     Self::Item: Copy;
 }
 pub struct DynamicObs<S>(pub S);
-impl<S: Observable> DynamicObservable for DynamicObs<S> {
-    type Item = S::Item;
-    fn dyn_get(&self, cx: &BindContext) -> Self::Item {
+impl<T, S: Observable<Item = T> + ObservableRef<Item = T>> DynamicObservable for DynamicObs<S> {
+    type Item = T;
+    fn dyn_get(&self, cx: &BindContext) -> T {
         self.0.get(cx)
     }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = T>> {
         self
     }
 }
-impl<S: Observable> DynamicObservableRef for DynamicObs<S> {
-    type Item = S::Item;
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
-        f(&self.0.get(cx), cx)
-    }
-    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
-    where
-        Self::Item: Copy,
-    {
-        self
-    }
-}
-
-pub struct DynamicObsBorrow<S>(pub S);
-impl<S: ObservableBorrow> DynamicObservable for DynamicObsBorrow<S>
-where
-    S::Item: Copy,
+impl<T: ?Sized, S: ObservableBorrow<Item = T> + ObservableRef<Item = T>> DynamicObservableBorrow
+    for DynamicObs<S>
 {
-    type Item = S::Item;
-
-    fn dyn_get(&self, cx: &BindContext) -> Self::Item {
-        *self.0.borrow(cx)
-    }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
-        self
-    }
-}
-impl<S: ObservableBorrow> DynamicObservableBorrow for DynamicObsBorrow<S> {
-    type Item = S::Item;
-    fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    type Item = T;
+    fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
         self.0.borrow(cx)
     }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
-        self
-    }
-}
-impl<S: ObservableBorrow> DynamicObservableRef for DynamicObsBorrow<S> {
-    type Item = S::Item;
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
-        f(&self.0.borrow(cx), cx)
-    }
-    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
-    where
-        Self::Item: Copy,
-    {
+    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = T>> {
         self
     }
 }
 
-pub struct DynamicObsRef<S>(pub S);
-impl<S: ObservableRef> DynamicObservable for DynamicObsRef<S>
-where
-    S::Item: Copy,
-{
-    type Item = S::Item;
-    fn dyn_get(&self, cx: &BindContext) -> Self::Item {
-        self.0.with(|value, _| *value, cx)
-    }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
-        self
-    }
-}
-impl<S: ObservableRef> DynamicObservableRef for DynamicObsRef<S> {
-    type Item = S::Item;
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+impl<T: ?Sized, S: ObservableRef<Item = T>> DynamicObservableRef for DynamicObs<S> {
+    type Item = T;
+    fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), cx: &BindContext) {
         self.0.with(f, cx)
-    }
-
-    fn copied(self: Rc<Self>) -> Rc<dyn DynamicObservable<Item = Self::Item>>
-    where
-        Self::Item: Copy,
-    {
-        self
     }
 }

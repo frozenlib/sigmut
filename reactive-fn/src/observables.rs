@@ -50,7 +50,7 @@ pub trait Observable: 'static {
     where
         Self: Sized,
     {
-        DynObs::from_dyn(DynamicObs(self))
+        DynObs::from_dyn(DynamicObs(Obs(self)))
     }
     fn into_obs(self) -> Obs<Self>
     where
@@ -68,7 +68,7 @@ pub trait ObservableBorrow: 'static {
     where
         Self: Sized,
     {
-        DynObsBorrow::from_dyn(Rc::new(DynamicObsBorrow(self)))
+        DynObsBorrow::from_dyn(Rc::new(DynamicObs(ObsBorrow(self))))
     }
 }
 pub trait ObservableRef: 'static {
@@ -79,7 +79,7 @@ pub trait ObservableRef: 'static {
     where
         Self: Sized,
     {
-        DynObsRef::from_dyn(Rc::new(DynamicObsRef(self)))
+        DynObsRef::from_dyn(Rc::new(DynamicObs(ObsRef(self))))
     }
 }
 
