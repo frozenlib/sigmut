@@ -216,7 +216,6 @@ where
     F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
 {
     type Item = T;
-
     fn dyn_get(&self, cx: &BindContext) -> T {
         let mut result = None;
         self.dyn_with(&mut |value, _| result = Some(*value), cx);
@@ -233,7 +232,6 @@ where
     F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
 {
     type Item = T;
-
     fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), cx: &BindContext) {
         (self.f)(&self.this, f, cx)
     }
