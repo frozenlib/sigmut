@@ -54,7 +54,7 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
         this: S,
         f: impl Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
     ) -> Self {
-        // `DynamicObsRefByFn` is more optimized than `obs_ref(this,f)`.
+        // `DynamicObsRefByFn` is more optimized than `obs_ref(this,f).into_dyn()`.
         Self::from_dyn(Rc::new(DynamicObsRefByFn {
             this,
             f,
@@ -203,6 +203,7 @@ impl<T: ?Sized> ObservableRef for DynObsRef<T> {
     }
 }
 
+// `DynamicObsRefByFn` is more optimized than `obs_ref(this,f).into_dyn()`.
 struct DynamicObsRefByFn<S, T: ?Sized, F> {
     this: S,
     f: F,
