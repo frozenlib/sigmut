@@ -18,6 +18,9 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
             DynObsBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, cx),
         }
     }
+    pub fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
+        f(&self.borrow(cx), cx)
+    }
     pub fn head_tail_with<'a>(&'a self, scope: &'a BindScope) -> (Ref<'a, T>, DynTailRef<T>) {
         DynTailRef::new_borrow(&self, scope)
     }
@@ -164,5 +167,12 @@ impl<T: ?Sized> ObservableBorrow for DynObsBorrow<T> {
         Self: Sized,
     {
         self
+    }
+}
+impl<T: ?Sized> ObservableRef for DynObsBorrow<T> {
+    type Item = T;
+
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        DynObsBorrow::with(self, f, cx)
     }
 }
