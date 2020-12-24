@@ -19,8 +19,6 @@ fn into_may_obs_int() {
 #[test]
 fn into_dyn_str() {
     fn func_into_dyn_str(_: impl IntoDynObsRef<str>) {}
-    func_into_dyn_str("abc");
-    func_into_dyn_str(String::from("abc"));
     func_into_dyn_str(DynObs::constant(String::from("abc")));
     func_into_dyn_str(&DynObs::constant(String::from("abc")));
     func_into_dyn_str(DynObsRef::constant(String::from("abc")));
