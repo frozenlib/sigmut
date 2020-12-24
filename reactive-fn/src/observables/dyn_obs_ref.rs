@@ -13,6 +13,12 @@ enum DynObsRefData<T: 'static + ?Sized> {
 }
 
 impl<T: 'static + ?Sized> DynObsRef<T> {
+    pub fn get(&self, cx: &BindContext) -> T
+    where
+        T: Copy,
+    {
+        self.with(|value, _| *value, cx)
+    }
     pub fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
         if let DynObsRefData::StaticRef(x) = &self.0 {
             f(x, cx)
@@ -175,6 +181,12 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
 impl<T: 'static> DynObsRef<DynObs<T>> {
     pub fn flatten(&self) -> DynObs<T> {
         self.ops().flatten().into_dyn()
+    }
+}
+impl<T: Copy> Observable for DynObsRef<T> {
+    type Item = T;
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        DynObsRef::get(self, cx)
     }
 }
 impl<T: ?Sized> ObservableRef for DynObsRef<T> {
