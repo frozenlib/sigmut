@@ -35,6 +35,12 @@ pub fn obs_borrow_constant<T: 'static>(value: T) -> ObsBorrow<impl ObservableBor
 pub struct ObsBorrow<S>(pub(super) S);
 
 impl<S: ObservableBorrow> ObsBorrow<S> {
+    pub fn get(&self, cx: &BindContext) -> S::Item
+    where
+        S::Item: Copy,
+    {
+        *self.0.borrow(cx)
+    }
     pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, S::Item> {
         self.0.borrow(cx)
     }
@@ -198,10 +204,20 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
     }
 }
 
+impl<S: ObservableBorrow> Observable for ObsBorrow<S>
+where
+    S::Item: Copy,
+{
+    type Item = S::Item;
+
+    fn get(&self, cx: &BindContext) -> Self::Item {
+        ObsBorrow::get(self, cx)
+    }
+}
 impl<S: ObservableBorrow> ObservableBorrow for ObsBorrow<S> {
     type Item = S::Item;
     fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
-        self.0.borrow(cx)
+        ObsBorrow::borrow(self, cx)
     }
     fn into_dyn(self) -> DynObsBorrow<Self::Item>
     where
@@ -210,7 +226,6 @@ impl<S: ObservableBorrow> ObservableBorrow for ObsBorrow<S> {
         self.0.into_dyn()
     }
 }
-
 impl<S: ObservableBorrow> ObservableRef for ObsBorrow<S> {
     type Item = S::Item;
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
