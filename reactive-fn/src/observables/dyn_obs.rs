@@ -58,6 +58,15 @@ impl<T: 'static> DynObs<T> {
     pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> DynObs<U> {
         self.ops().map(f).into_dyn()
     }
+    pub fn map_ref<U>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObsRef<U> {
+        self.as_ref().map_ref(f)
+    }
+    pub fn map_borrow<B>(&self) -> DynObsRef<B>
+    where
+        T: Borrow<B>,
+    {
+        self.as_ref().map_borrow()
+    }
     pub fn flat_map<U>(&self, f: impl Fn(T) -> DynObs<U> + 'static) -> DynObs<U> {
         self.ops().flat_map(f).into_dyn()
     }
