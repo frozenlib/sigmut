@@ -48,13 +48,13 @@ impl<S: Observable> Obs<S> {
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> Obs<impl Observable<Item = T>> {
         obs(move |cx| f(self.get(cx)))
     }
-    pub fn map_ref<T>(
+    pub fn map_ref<T: ?Sized>(
         self,
         f: impl Fn(&S::Item) -> &T + 'static,
     ) -> ObsRef<impl ObservableRef<Item = T>> {
         self.as_ref().map_ref(f)
     }
-    pub fn map_borrow<T: 'static>(self) -> ObsRef<impl ObservableRef<Item = T>>
+    pub fn map_borrow<T: ?Sized + 'static>(self) -> ObsRef<impl ObservableRef<Item = T>>
     where
         S::Item: Borrow<T>,
     {
