@@ -54,11 +54,11 @@ impl<S: Observable> Obs<S> {
     ) -> ObsRef<impl ObservableRef<Item = T>> {
         self.as_ref().map_ref(f)
     }
-    pub fn map_borrow<T>(self) -> ObsRef<impl ObservableRef<Item = T>>
+    pub fn map_borrow<T: 'static>(self) -> ObsRef<impl ObservableRef<Item = T>>
     where
         S::Item: Borrow<T>,
     {
-        self.map_ref(|value| value.borrow())
+        self.as_ref().map_borrow()
     }
     pub fn flat_map<T: Observable>(
         self,
