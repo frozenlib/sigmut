@@ -61,59 +61,75 @@ where
     }
 }
 
-impl<S, B> IntoDynObsRef<B> for Obs<S>
+impl<S, T> IntoDynObsRef<T> for Obs<S>
 where
-    S: Observable<Item = B>,
-    B: Borrow<S::Item>,
+    S: Observable,
+    S::Item: Borrow<T>,
+    T: ?Sized,
 {
-    fn into_dyn_obs_ref(self) -> DynObsRef<B> {
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
         Obs::into_dyn_ref(self).map_borrow()
     }
 }
-impl<S, B> IntoDynObsRef<B> for &Obs<S>
+impl<S, T> IntoDynObsRef<T> for &Obs<S>
 where
-    S: Observable<Item = B> + Clone,
-    B: Borrow<S::Item>,
+    S: Observable + Clone,
+    S::Item: Borrow<T>,
+    T: ?Sized,
 {
-    fn into_dyn_obs_ref(self) -> DynObsRef<B> {
-        Obs::into_dyn_ref(self.clone()).map_borrow()
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.clone().into_dyn_obs_ref()
     }
 }
 
-impl<S, B> IntoDynObsRef<S::Item> for ObsBorrow<S>
+impl<S, T> IntoDynObsRef<T> for ObsBorrow<S>
 where
-    S: ObservableBorrow<Item = B>,
-    B: ?Sized + Borrow<S::Item>,
+    S: ObservableBorrow,
+    S::Item: Borrow<T>,
+    T: ?Sized,
 {
-    fn into_dyn_obs_ref(self) -> DynObsRef<S::Item> {
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
         ObsBorrow::into_dyn_ref(self).map_borrow()
     }
 }
-impl<S, B> IntoDynObsRef<S::Item> for &ObsBorrow<S>
+impl<S, T> IntoDynObsRef<T> for &ObsBorrow<S>
 where
-    S: ObservableBorrow<Item = B> + Clone,
-    B: ?Sized + Borrow<S::Item>,
+    S: ObservableBorrow + Clone,
+    S::Item: Borrow<T>,
+    T: ?Sized,
 {
-    fn into_dyn_obs_ref(self) -> DynObsRef<S::Item> {
-        ObsBorrow::into_dyn_ref(self.clone()).map_borrow()
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.clone().into_dyn_obs_ref()
     }
 }
 
-impl<S, B> IntoDynObsRef<S::Item> for ObsRef<S>
+impl<S, T> IntoDynObsRef<T> for ObsRef<S>
 where
-    S: ObservableRef<Item = B>,
-    B: ?Sized + Borrow<S::Item>,
+    S: ObservableRef,
+    S::Item: Borrow<T>,
+    T: ?Sized,
 {
-    fn into_dyn_obs_ref(self) -> DynObsRef<S::Item> {
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
         ObsRef::into_dyn(self).map_borrow()
     }
 }
-impl<S, B> IntoDynObsRef<S::Item> for &ObsRef<S>
+impl<S, T> IntoDynObsRef<T> for &ObsRef<S>
 where
-    S: ObservableRef<Item = B> + Clone,
-    B: ?Sized + Borrow<S::Item>,
+    S: ObservableRef + Clone,
+    S::Item: Borrow<T>,
+    T: ?Sized,
 {
-    fn into_dyn_obs_ref(self) -> DynObsRef<S::Item> {
-        ObsRef::into_dyn(self.clone()).map_borrow()
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.clone().into_dyn_obs_ref()
+    }
+}
+
+impl<T, B> IntoDynObsRef<T> for ObsCell<B>
+where
+    T: ?Sized,
+    B: Borrow<T> + Copy + 'static,
+{
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.obs().into_dyn_obs_ref()
     }
 }
