@@ -133,3 +133,54 @@ where
         self.obs().into_dyn_obs_ref()
     }
 }
+
+impl<T, B> IntoDynObsRef<T> for &ObsCell<B>
+where
+    T: ?Sized,
+    B: Borrow<T> + Copy + 'static,
+{
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.obs().into_dyn_obs_ref()
+    }
+}
+
+impl<T, B> IntoDynObsRef<T> for ObsRefCell<B>
+where
+    T: ?Sized,
+    B: Borrow<T> + 'static,
+{
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.obs().into_dyn_obs_ref()
+    }
+}
+
+impl<T, B> IntoDynObsRef<T> for &ObsRefCell<B>
+where
+    T: ?Sized,
+    B: Borrow<T> + 'static,
+{
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.obs().into_dyn_obs_ref()
+    }
+}
+
+impl<S, T> IntoDynObsRef<T> for ObsCollector<S>
+where
+    S: Collect,
+    S::Output: Borrow<T>,
+    T: ?Sized,
+{
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.obs().into_dyn_obs_ref()
+    }
+}
+impl<S, T> IntoDynObsRef<T> for &ObsCollector<S>
+where
+    S: Collect,
+    S::Output: Borrow<T>,
+    T: ?Sized,
+{
+    fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        self.obs().into_dyn_obs_ref()
+    }
+}
