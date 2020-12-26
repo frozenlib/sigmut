@@ -184,3 +184,14 @@ where
         self.obs().into_dyn_obs_ref()
     }
 }
+
+impl IntoDynObsRef<str> for &'static str {
+    fn into_dyn_obs_ref(self) -> DynObsRef<str> {
+        DynObsRef::static_ref(self)
+    }
+}
+impl IntoDynObsRef<str> for String {
+    fn into_dyn_obs_ref(self) -> DynObsRef<str> {
+        DynObsRef::<str>::constant_map(self, |s| &s)
+    }
+}

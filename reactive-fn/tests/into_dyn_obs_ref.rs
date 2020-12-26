@@ -17,8 +17,11 @@ use reactive_fn::*;
 // }
 
 #[test]
-fn into_dyn_str() {
+fn into_str() {
     fn func_into_dyn_str(_: impl IntoDynObsRef<str>) {}
+    func_into_dyn_str("acc");
+    func_into_dyn_str(String::from("acb"));
+
     func_into_dyn_str(DynObs::constant(String::from("abc")));
     func_into_dyn_str(&DynObs::constant(String::from("abc")));
     func_into_dyn_str(DynObsRef::constant(String::from("abc")));
@@ -28,4 +31,7 @@ fn into_dyn_str() {
 
     func_into_dyn_str(obs_constant(String::from("abc")));
     func_into_dyn_str(obs_ref_static("abc"));
+
+    func_into_dyn_str(ObsRefCell::new(String::from("abc")));
+    func_into_dyn_str(&ObsRefCell::new(String::from("abc")));
 }
