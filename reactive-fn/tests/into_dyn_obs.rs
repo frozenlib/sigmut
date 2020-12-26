@@ -27,4 +27,5 @@ fn into_dyn_str() {
     func_into_dyn_str(&DynObsBorrow::constant(String::from("abc")));
 
     func_into_dyn_str(obs_constant(String::from("abc")));
+    func_into_dyn_str(obs_ref_static("abc"));
 }

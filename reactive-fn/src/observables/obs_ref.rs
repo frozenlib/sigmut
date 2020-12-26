@@ -56,12 +56,12 @@ pub fn obs_ref_constant_map<S: 'static, T>(
     obs_ref_constant(value).map_ref(f)
 }
 
-pub fn obs_ref_static<T>(value: &'static T) -> ObsRef<impl ObservableRef<Item = T>> {
-    struct ObsRefStatic<T: 'static>(&'static T);
-    impl<T: 'static> ObservableRef for ObsRefStatic<T> {
+pub fn obs_ref_static<T: ?Sized>(value: &'static T) -> ObsRef<impl ObservableRef<Item = T>> {
+    struct ObsRefStatic<T: ?Sized + 'static>(&'static T);
+    impl<T: ?Sized + 'static> ObservableRef for ObsRefStatic<T> {
         type Item = T;
         fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
-            f(self.0, cx)
+            f(&self.0, cx)
         }
     }
     ObsRef(ObsRefStatic(value))
