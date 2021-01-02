@@ -12,6 +12,9 @@ impl<T> DynTail<T> {
     pub fn empty() -> Self {
         Self(Tail::empty())
     }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
 
     pub fn subscribe(self, f: impl FnMut(T) + 'static) -> Subscription {
         self.0.subscribe(f)
@@ -51,6 +54,9 @@ impl<S: Observable> Tail<S> {
     }
     pub fn empty() -> Self {
         Self(None)
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_none()
     }
 
     pub fn subscribe(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
@@ -111,6 +117,9 @@ impl<T: ?Sized + 'static> DynTailRef<T> {
     }
     pub fn empty() -> Self {
         Self(TailRef::empty())
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 
     pub fn subscribe(self, f: impl FnMut(&T) + 'static) -> Subscription {
@@ -177,6 +186,9 @@ impl<S: ObservableRef> TailRef<S> {
     }
     pub fn empty() -> Self {
         Self(None)
+    }
+    pub fn is_empty(&self) -> bool {
+        self.0.is_none()
     }
 
     pub fn subscribe(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
