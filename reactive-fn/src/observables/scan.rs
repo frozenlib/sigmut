@@ -594,3 +594,13 @@ where
         RefMut::map((self.0).0.borrow_mut(), |x| &mut x.op.o)
     }
 }
+
+impl<S, O> From<Subscriber<S, O>> for Subscription
+where
+    S: Observable,
+    O: Observer<Item = S::Item>,
+{
+    fn from(s: Subscriber<S, O>) -> Self {
+        Self(Some(s.0))
+    }
+}
