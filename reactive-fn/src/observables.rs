@@ -25,6 +25,7 @@ pub use self::{
     obs::*,
     obs_borrow::*,
     obs_ref::*,
+    scan::Subscriber,
     source::*,
     source_ref::*,
     tail::*,

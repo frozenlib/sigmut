@@ -1,14 +1,10 @@
+use crate::*;
 use std::{
     any::Any,
-    cell::{Ref, RefCell},
+    cell::{Ref, RefCell, RefMut},
     marker::PhantomData,
     mem::take,
     rc::Rc,
-};
-
-use crate::{
-    BindContext, BindScope, BindSink, BindSinks, BindSource, BindTask, Bindings, NotifyScope,
-    ObservableBorrow,
 };
 
 use super::{DynamicFold, DynamicObservableBorrowSource, DynamicObservableRefSource};
@@ -554,5 +550,47 @@ impl<Op: FoldByOp> BindTask for FoldBy<Op> {
 impl<Op: FoldByOp> Drop for FoldBy<Op> {
     fn drop(&mut self) {
         self.0.borrow_mut().unload();
+    }
+}
+
+struct ObserverOp<S, O> {
+    s: S,
+    o: O,
+}
+impl<S, O> FoldByOp for ObserverOp<S, O>
+where
+    S: Observable,
+    O: Observer<Item = S::Item>,
+{
+    type LoadSt = ();
+    type UnloadSt = ();
+    type Value = ();
+
+    fn load(&mut self, _state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+        self.o.next(self.s.get(cx))
+    }
+    fn unload(&mut self, _state: Self::LoadSt) -> Self::UnloadSt {}
+    fn get(&self, _state: Self::LoadSt) -> Self::Value {}
+}
+
+pub struct Subscriber<S, O>(Rc<FoldBy<ObserverOp<S, O>>>)
+where
+    S: Observable,
+    O: Observer<Item = S::Item>;
+
+impl<S, O> Subscriber<S, O>
+where
+    S: Observable,
+    O: Observer<Item = S::Item>,
+{
+    pub fn new(s: S, o: O) -> Self {
+        Self(FoldBy::new((), ObserverOp { s, o }))
+    }
+
+    pub fn borrow(&self) -> Ref<O> {
+        Ref::map((self.0).0.borrow(), |x| &x.op.o)
+    }
+    pub fn borrow_mut(&self) -> RefMut<O> {
+        RefMut::map((self.0).0.borrow_mut(), |x| &mut x.op.o)
     }
 }
