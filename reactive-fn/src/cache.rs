@@ -1,9 +1,8 @@
+use crate::*;
 use std::{
     cell::{Ref, RefCell},
     rc::Rc,
 };
-
-use crate::*;
 pub struct Cache<T>(Rc<CacheData<T>>);
 
 struct CacheData<T> {
