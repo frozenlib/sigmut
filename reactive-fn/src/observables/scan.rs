@@ -572,14 +572,14 @@ impl<O: 'static> DynSubscriber<O> {
 }
 impl<O: 'static> From<DynSubscriber<O>> for Subscription {
     fn from(s: DynSubscriber<O>) -> Self {
-        Self(Some(s.0.as_any()))
+        Self(Some(s.0.as_rc_any()))
     }
 }
 
 trait InnerSubscriber<O>: 'static {
     fn borrow(&self) -> Ref<O>;
     fn borrow_mut(&self) -> RefMut<O>;
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 }
 struct OuterSubscriber<I>(Rc<I>);
 
@@ -660,7 +660,7 @@ where
     fn borrow_mut(&self) -> RefMut<O> {
         RefMut::map(self.0.borrow_mut(), |x| &mut x.op.o)
     }
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
+    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 }
