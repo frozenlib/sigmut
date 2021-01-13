@@ -188,8 +188,8 @@ impl<S: Observable> Obs<S> {
         })
         .into()
     }
-    pub fn subscribe_to<O: Observer<S::Item>>(self, o: O) -> Subscriber<Self, O> {
-        Subscriber::new(self, o)
+    pub fn subscribe_to<O: Observer<S::Item> + 'static>(self, o: O) -> impl Subscriber<O> {
+        subscribe_value(self, o)
     }
 
     pub fn subscribe_async_with<Fut>(

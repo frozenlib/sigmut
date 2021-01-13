@@ -554,56 +554,64 @@ impl<Op: FoldByOp> Drop for FoldBy<Op> {
     }
 }
 
-pub struct DynSubscriber<O>(Rc<dyn InnerSubscriber<O>>);
-
-impl<O> DynSubscriber<O> {
-    pub fn borrow(&self) -> Ref<O> {
-        self.0.borrow()
-    }
-    pub fn borrow_mut(&self) -> RefMut<O> {
-        self.0.borrow_mut()
-    }
-}
-
-trait InnerSubscriber<O> {
+pub trait Subscriber<O> {
     fn borrow(&self) -> Ref<O>;
     fn borrow_mut(&self) -> RefMut<O>;
+    fn as_dyn(&self) -> DynSubscriber<O>;
+    fn as_subscription(&self) -> Subscription;
 }
 
-pub struct Subscriber<S, O>(Rc<FoldBy<ObserverOp<S, O>>>)
-where
-    S: Observable,
-    O: Observer<S::Item> + 'static;
+pub struct DynSubscriber<O>(Rc<dyn InnerSubscriber<O>>);
 
-impl<S, O> Subscriber<S, O>
-where
-    S: Observable,
-    O: Observer<S::Item> + 'static,
-{
-    pub fn new(s: S, o: O) -> Self {
-        Self(FoldBy::new((), ObserverOp { s, o }))
-    }
-
+impl<O: 'static> DynSubscriber<O> {
     pub fn borrow(&self) -> Ref<O> {
         self.0.borrow()
     }
     pub fn borrow_mut(&self) -> RefMut<O> {
         self.0.borrow_mut()
     }
-
-    pub fn as_dyn(&self) -> DynSubscriber<O> {
-        DynSubscriber(self.0.clone())
+}
+impl<O: 'static> From<DynSubscriber<O>> for Subscription {
+    fn from(s: DynSubscriber<O>) -> Self {
+        Self(Some(s.0.as_any()))
     }
 }
 
-impl<S, O> From<Subscriber<S, O>> for Subscription
+trait InnerSubscriber<O>: 'static {
+    fn borrow(&self) -> Ref<O>;
+    fn borrow_mut(&self) -> RefMut<O>;
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any>;
+}
+struct OuterSubscriber<I>(Rc<I>);
+
+impl<I: InnerSubscriber<O>, O: 'static> Subscriber<O> for OuterSubscriber<I> {
+    fn borrow(&self) -> Ref<O> {
+        self.0.borrow()
+    }
+    fn borrow_mut(&self) -> RefMut<O> {
+        self.0.borrow_mut()
+    }
+    fn as_dyn(&self) -> DynSubscriber<O> {
+        DynSubscriber(self.0.clone())
+    }
+    fn as_subscription(&self) -> Subscription {
+        self.as_dyn().into()
+    }
+}
+
+pub(crate) fn subscribe_value<S, O>(s: S, o: O) -> impl Subscriber<O>
 where
     S: Observable,
     O: Observer<S::Item> + 'static,
 {
-    fn from(s: Subscriber<S, O>) -> Self {
-        Self(Some(s.0))
-    }
+    OuterSubscriber(FoldBy::new((), ObserverOp { s, o }))
+}
+pub(crate) fn subscribe_ref<S, O>(s: S, o: O) -> impl Subscriber<O>
+where
+    S: ObservableRef,
+    for<'a> O: Observer<&'a S::Item> + 'static,
+{
+    OuterSubscriber(FoldBy::new((), RefObserverOp { s, o }))
 }
 
 struct ObserverOp<S, O> {
@@ -634,45 +642,11 @@ where
     fn borrow(&self) -> Ref<O> {
         Ref::map(self.0.borrow(), |x| &x.op.o)
     }
-
     fn borrow_mut(&self) -> RefMut<O> {
         RefMut::map(self.0.borrow_mut(), |x| &mut x.op.o)
     }
-}
-
-pub struct RefSubscriber<S, O>(Rc<FoldBy<RefObserverOp<S, O>>>)
-where
-    S: ObservableRef,
-    for<'a> O: Observer<&'a S::Item> + 'static;
-
-impl<S, O> RefSubscriber<S, O>
-where
-    S: ObservableRef,
-    for<'a> O: Observer<&'a S::Item> + 'static,
-{
-    pub fn new(s: S, o: O) -> Self {
-        Self(FoldBy::new((), RefObserverOp { s, o }))
-    }
-
-    pub fn borrow(&self) -> Ref<O> {
-        self.0.borrow()
-    }
-    pub fn borrow_mut(&self) -> RefMut<O> {
-        self.0.borrow_mut()
-    }
-
-    pub fn as_dyn(&self) -> DynSubscriber<O> {
-        DynSubscriber(self.0.clone())
-    }
-}
-
-impl<S, O> From<RefSubscriber<S, O>> for Subscription
-where
-    S: ObservableRef,
-    for<'a> O: Observer<&'a S::Item> + 'static,
-{
-    fn from(s: RefSubscriber<S, O>) -> Self {
-        Self(Some(s.0))
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
     }
 }
 
@@ -707,5 +681,8 @@ where
     }
     fn borrow_mut(&self) -> RefMut<O> {
         RefMut::map(self.0.borrow_mut(), |x| &mut x.op.o)
+    }
+    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
     }
 }
