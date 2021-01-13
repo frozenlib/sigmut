@@ -4,7 +4,6 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     marker::PhantomData,
     mem::take,
-    ops::DerefMut,
     rc::Rc,
 };
 
