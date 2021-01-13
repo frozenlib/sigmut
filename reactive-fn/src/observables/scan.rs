@@ -554,6 +554,22 @@ impl<Op: FoldByOp> Drop for FoldBy<Op> {
     }
 }
 
+pub struct DynSubscriber<O>(Rc<dyn InnerSubscriber<O>>);
+
+impl<O> DynSubscriber<O> {
+    pub fn borrow(&self) -> Ref<O> {
+        self.0.borrow()
+    }
+    pub fn borrow_mut(&self) -> RefMut<O> {
+        self.0.borrow_mut()
+    }
+}
+
+trait InnerSubscriber<O> {
+    fn borrow(&self) -> Ref<O>;
+    fn borrow_mut(&self) -> RefMut<O>;
+}
+
 pub struct Subscriber<S, O>(Rc<FoldBy<ObserverOp<S, O>>>)
 where
     S: Observable,
@@ -610,22 +626,7 @@ where
     fn get(&self, _state: Self::LoadSt) -> Self::Value {}
 }
 
-pub struct DynSubscriber<O>(Rc<dyn FoldByObserverOp<O>>);
-
-impl<O> DynSubscriber<O> {
-    pub fn borrow(&self) -> Ref<O> {
-        self.0.borrow()
-    }
-    pub fn borrow_mut(&self) -> RefMut<O> {
-        self.0.borrow_mut()
-    }
-}
-
-trait FoldByObserverOp<O> {
-    fn borrow(&self) -> Ref<O>;
-    fn borrow_mut(&self) -> RefMut<O>;
-}
-impl<S, O> FoldByObserverOp<O> for FoldBy<ObserverOp<S, O>>
+impl<S, O> InnerSubscriber<O> for FoldBy<ObserverOp<S, O>>
 where
     S: Observable,
     O: Observer<S::Item> + 'static,
@@ -634,6 +635,76 @@ where
         Ref::map(self.0.borrow(), |x| &x.op.o)
     }
 
+    fn borrow_mut(&self) -> RefMut<O> {
+        RefMut::map(self.0.borrow_mut(), |x| &mut x.op.o)
+    }
+}
+
+pub struct RefSubscriber<S, O>(Rc<FoldBy<RefObserverOp<S, O>>>)
+where
+    S: ObservableRef,
+    for<'a> O: Observer<&'a S::Item> + 'static;
+
+impl<S, O> RefSubscriber<S, O>
+where
+    S: ObservableRef,
+    for<'a> O: Observer<&'a S::Item> + 'static,
+{
+    pub fn new(s: S, o: O) -> Self {
+        Self(FoldBy::new((), RefObserverOp { s, o }))
+    }
+
+    pub fn borrow(&self) -> Ref<O> {
+        self.0.borrow()
+    }
+    pub fn borrow_mut(&self) -> RefMut<O> {
+        self.0.borrow_mut()
+    }
+
+    pub fn as_dyn(&self) -> DynSubscriber<O> {
+        DynSubscriber(self.0.clone())
+    }
+}
+
+impl<S, O> From<RefSubscriber<S, O>> for Subscription
+where
+    S: ObservableRef,
+    for<'a> O: Observer<&'a S::Item> + 'static,
+{
+    fn from(s: RefSubscriber<S, O>) -> Self {
+        Self(Some(s.0))
+    }
+}
+
+struct RefObserverOp<S, O> {
+    s: S,
+    o: O,
+}
+impl<S, O> FoldByOp for RefObserverOp<S, O>
+where
+    S: ObservableRef,
+    for<'a> O: Observer<&'a S::Item> + 'static,
+{
+    type LoadSt = ();
+    type UnloadSt = ();
+    type Value = ();
+
+    fn load(&mut self, _state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+        let o = &mut self.o;
+        self.s.with(|value, _cx| o.next(value), cx)
+    }
+    fn unload(&mut self, _state: Self::LoadSt) -> Self::UnloadSt {}
+    fn get(&self, _state: Self::LoadSt) -> Self::Value {}
+}
+
+impl<S, O> InnerSubscriber<O> for FoldBy<RefObserverOp<S, O>>
+where
+    S: ObservableRef,
+    for<'a> O: Observer<&'a S::Item> + 'static,
+{
+    fn borrow(&self) -> Ref<O> {
+        Ref::map(self.0.borrow(), |x| &x.op.o)
+    }
     fn borrow_mut(&self) -> RefMut<O> {
         RefMut::map(self.0.borrow_mut(), |x| &mut x.op.o)
     }
