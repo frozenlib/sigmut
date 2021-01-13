@@ -121,39 +121,12 @@ impl<S: ObservableRef> ObservableRef for Rc<S> {
     }
 }
 
-pub trait Observer: 'static {
-    type Item;
-    fn next(&mut self, value: Self::Item);
+pub trait Observer<T> {
+    fn next(&mut self, value: T);
 }
-pub fn observer<T: 'static>(f: impl FnMut(T) + 'static) -> impl Observer<Item = T> {
-    struct FnObserver<T, F> {
-        f: F,
-        _phantom: PhantomData<fn(T)>,
-    }
-    impl<T: 'static, F: FnMut(T) + 'static> Observer for FnObserver<T, F> {
-        type Item = T;
-        fn next(&mut self, value: Self::Item) {
-            (self.f)(value)
-        }
-    }
-    FnObserver {
-        f,
-        _phantom: PhantomData,
-    }
-}
-
-pub trait IntoObserver {
-    type Observer: Observer<Item = Self::Item>;
-    type Item;
-
-    fn into_observer(self) -> Self::Observer;
-}
-impl<O: Observer> IntoObserver for O {
-    type Observer = Self;
-    type Item = <Self as Observer>::Item;
-
-    fn into_observer(self) -> Self::Observer {
-        self
+impl<T, F: FnMut(T) -> ()> Observer<T> for F {
+    fn next(&mut self, value: T) {
+        self(value)
     }
 }
 

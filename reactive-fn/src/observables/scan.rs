@@ -553,35 +553,15 @@ impl<Op: FoldByOp> Drop for FoldBy<Op> {
     }
 }
 
-struct ObserverOp<S, O> {
-    s: S,
-    o: O,
-}
-impl<S, O> FoldByOp for ObserverOp<S, O>
-where
-    S: Observable,
-    O: Observer<Item = S::Item>,
-{
-    type LoadSt = ();
-    type UnloadSt = ();
-    type Value = ();
-
-    fn load(&mut self, _state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
-        self.o.next(self.s.get(cx))
-    }
-    fn unload(&mut self, _state: Self::LoadSt) -> Self::UnloadSt {}
-    fn get(&self, _state: Self::LoadSt) -> Self::Value {}
-}
-
 pub struct Subscriber<S, O>(Rc<FoldBy<ObserverOp<S, O>>>)
 where
     S: Observable,
-    O: Observer<Item = S::Item>;
+    O: Observer<S::Item> + 'static;
 
 impl<S, O> Subscriber<S, O>
 where
     S: Observable,
-    O: Observer<Item = S::Item>,
+    O: Observer<S::Item> + 'static,
 {
     pub fn new(s: S, o: O) -> Self {
         Self(FoldBy::new((), ObserverOp { s, o }))
@@ -598,9 +578,29 @@ where
 impl<S, O> From<Subscriber<S, O>> for Subscription
 where
     S: Observable,
-    O: Observer<Item = S::Item>,
+    O: Observer<S::Item> + 'static,
 {
     fn from(s: Subscriber<S, O>) -> Self {
         Self(Some(s.0))
     }
+}
+
+struct ObserverOp<S, O> {
+    s: S,
+    o: O,
+}
+impl<S, O> FoldByOp for ObserverOp<S, O>
+where
+    S: Observable,
+    O: Observer<S::Item> + 'static,
+{
+    type LoadSt = ();
+    type UnloadSt = ();
+    type Value = ();
+
+    fn load(&mut self, _state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+        self.o.next(self.s.get(cx))
+    }
+    fn unload(&mut self, _state: Self::LoadSt) -> Self::UnloadSt {}
+    fn get(&self, _state: Self::LoadSt) -> Self::Value {}
 }

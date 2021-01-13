@@ -188,7 +188,7 @@ impl<S: Observable> Obs<S> {
         })
         .into()
     }
-    pub fn subscribe_to<O: Observer<Item = S::Item>>(self, o: O) -> Subscriber<Self, O> {
+    pub fn subscribe_to<O: Observer<S::Item>>(self, o: O) -> Subscriber<Self, O> {
         Subscriber::new(self, o)
     }
 

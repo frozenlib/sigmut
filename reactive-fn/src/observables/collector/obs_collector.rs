@@ -1,5 +1,3 @@
-use observables::IntoObserver;
-
 use crate::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -68,14 +66,6 @@ impl<T> Clone for ObsCollector<T> {
         Self(self.0.clone())
     }
 }
-impl<T: Collect> IntoObserver for &ObsCollector<T> {
-    type Observer = ObsCollectorObserver<T>;
-    type Item = T::Input;
-
-    fn into_observer(self) -> Self::Observer {
-        self.insert()
-    }
-}
 
 impl<T: Collect> ObsCollectorData<T> {
     pub fn get(self: Rc<Self>, cx: &BindContext) -> T::Output {
@@ -106,8 +96,7 @@ impl<T: 'static> BindSource for ObsCollectorData<T> {
     }
 }
 
-impl<T: Collect> Observer for ObsCollectorObserver<T> {
-    type Item = T::Input;
+impl<T: Collect> Observer<T::Input> for ObsCollectorObserver<T> {
     fn next(&mut self, value: T::Input) {
         let (key, is_modified) = self
             .collector
