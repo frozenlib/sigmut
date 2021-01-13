@@ -634,22 +634,6 @@ where
     fn get(&self, _state: Self::LoadSt) -> Self::Value {}
 }
 
-impl<S, O> InnerSubscriber<O> for FoldBy<ObserverOp<Obs<S>, O>>
-where
-    S: Observable,
-    O: Observer<S::Item> + 'static,
-{
-    fn borrow(&self) -> Ref<O> {
-        Ref::map(self.0.borrow(), |x| &x.op.o)
-    }
-    fn borrow_mut(&self) -> RefMut<O> {
-        RefMut::map(self.0.borrow_mut(), |x| &mut x.op.o)
-    }
-    fn as_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-}
-
 impl<S, O> FoldByOp for ObserverOp<ObsRef<S>, O>
 where
     S: ObservableRef,
@@ -667,10 +651,9 @@ where
     fn get(&self, _state: Self::LoadSt) -> Self::Value {}
 }
 
-impl<S, O> InnerSubscriber<O> for FoldBy<ObserverOp<ObsRef<S>, O>>
+impl<S, O> InnerSubscriber<O> for FoldBy<ObserverOp<S, O>>
 where
-    S: ObservableRef,
-    for<'a> O: Observer<&'a S::Item> + 'static,
+    ObserverOp<S, O>: FoldByOp,
 {
     fn borrow(&self) -> Ref<O> {
         Ref::map(self.0.borrow(), |x| &x.op.o)
