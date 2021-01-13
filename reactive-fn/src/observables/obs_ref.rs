@@ -275,7 +275,7 @@ impl<S: ObservableRef> ObsRef<S> {
     }
     pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<O>
     where
-        for<'a> O: Observer<&'a S::Item> + 'static,
+        for<'a> O: Observer<&'a S::Item>,
     {
         subscribe_ref(self, o)
     }

@@ -121,10 +121,10 @@ impl<S: ObservableRef> ObservableRef for Rc<S> {
     }
 }
 
-pub trait Observer<T> {
+pub trait Observer<T>: 'static {
     fn next(&mut self, value: T);
 }
-impl<T, F: FnMut(T) -> ()> Observer<T> for F {
+impl<T, F: FnMut(T) -> () + 'static> Observer<T> for F {
     fn next(&mut self, value: T) {
         self(value)
     }

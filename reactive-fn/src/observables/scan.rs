@@ -602,14 +602,14 @@ impl<I: InnerSubscriber<O>, O: 'static> Subscriber<O> for OuterSubscriber<I> {
 pub(crate) fn subscribe_value<S, O>(s: Obs<S>, o: O) -> impl Subscriber<O>
 where
     S: Observable,
-    O: Observer<S::Item> + 'static,
+    O: Observer<S::Item>,
 {
     OuterSubscriber(FoldBy::new((), ObserverOp { s, o }))
 }
 pub(crate) fn subscribe_ref<S, O>(s: ObsRef<S>, o: O) -> impl Subscriber<O>
 where
     S: ObservableRef,
-    for<'a> O: Observer<&'a S::Item> + 'static,
+    for<'a> O: Observer<&'a S::Item>,
 {
     OuterSubscriber(FoldBy::new((), ObserverOp { s, o }))
 }
@@ -621,7 +621,7 @@ struct ObserverOp<S, O> {
 impl<S, O> FoldByOp for ObserverOp<Obs<S>, O>
 where
     S: Observable,
-    O: Observer<S::Item> + 'static,
+    O: Observer<S::Item>,
 {
     type LoadSt = ();
     type UnloadSt = ();
@@ -637,7 +637,7 @@ where
 impl<S, O> FoldByOp for ObserverOp<ObsRef<S>, O>
 where
     S: ObservableRef,
-    for<'a> O: Observer<&'a S::Item> + 'static,
+    for<'a> O: Observer<&'a S::Item>,
 {
     type LoadSt = ();
     type UnloadSt = ();

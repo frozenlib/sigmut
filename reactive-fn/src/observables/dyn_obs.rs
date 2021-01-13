@@ -139,7 +139,7 @@ impl<T: 'static> DynObs<T> {
     pub fn subscribe(&self, f: impl FnMut(T) + 'static) -> Subscription {
         self.obs().subscribe(f)
     }
-    pub fn subscribe_to<O: Observer<T> + 'static>(self, o: O) -> DynSubscriber<O> {
+    pub fn subscribe_to<O: Observer<T>>(self, o: O) -> DynSubscriber<O> {
         self.obs().subscribe_to(o).as_dyn()
     }
 
