@@ -273,6 +273,12 @@ impl<S: ObservableRef> ObsRef<S> {
         })
         .into()
     }
+    pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<O>
+    where
+        for<'a> O: Observer<&'a S::Item> + 'static,
+    {
+        subscribe_ref(self, o)
+    }
     pub fn subscribe_async_with<Fut>(
         self,
         f: impl FnMut(&S::Item) -> Fut + 'static,
