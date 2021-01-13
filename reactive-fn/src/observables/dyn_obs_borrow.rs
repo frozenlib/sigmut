@@ -58,15 +58,15 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
             DynObsBorrowData::DynSource(rc) => DynObsRef::from_dyn_source(rc.as_ref()),
         }
     }
-    pub fn ops(&self) -> ObsBorrow<Self> {
+    pub fn obs(&self) -> ObsBorrow<Self> {
         ObsBorrow(self.clone())
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
-        self.ops().map(f).into_dyn()
+        self.obs().map(f).into_dyn()
     }
     pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObsBorrow<U> {
-        self.ops().map_ref(f).into_dyn()
+        self.obs().map_ref(f).into_dyn()
     }
     pub fn map_borrow<B: ?Sized>(&self) -> DynObsBorrow<B>
     where
@@ -80,7 +80,7 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     }
 
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> DynObs<U> + 'static) -> DynObs<U> {
-        self.ops().flat_map(f).into_dyn()
+        self.obs().flat_map(f).into_dyn()
     }
     pub fn map_async_with<Fut>(
         &self,
@@ -90,14 +90,14 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     where
         Fut: Future + 'static,
     {
-        self.ops().map_async_with(f, sp).into_dyn()
+        self.obs().map_async_with(f, sp).into_dyn()
     }
 
     pub fn cloned(&self) -> DynObs<T>
     where
         T: Clone,
     {
-        self.ops().cloned().into_dyn()
+        self.obs().cloned().into_dyn()
     }
 
     pub fn scan<St: 'static>(
@@ -105,7 +105,7 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> DynObsBorrow<St> {
-        self.ops().scan(initial_state, f).into_dyn()
+        self.obs().scan(initial_state, f).into_dyn()
     }
     pub fn filter_scan<St: 'static>(
         &self,
@@ -113,7 +113,7 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> DynObsBorrow<St> {
-        self.ops()
+        self.obs()
             .filter_scan(initial_state, predicate, f)
             .into_dyn()
     }
@@ -123,23 +123,23 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
         initial_state: St,
         f: impl Fn(St, &T) -> St + 'static,
     ) -> Fold<St> {
-        self.ops().fold(initial_state, f)
+        self.obs().fold(initial_state, f)
     }
     pub fn collect_to<E: for<'a> Extend<&'a T> + 'static>(&self, e: E) -> Fold<E> {
-        self.ops().collect_to(e)
+        self.obs().collect_to(e)
     }
     pub fn collect<E: for<'a> Extend<&'a T> + Default + 'static>(&self) -> Fold<E> {
-        self.ops().collect()
+        self.obs().collect()
     }
     pub fn collect_vec(&self) -> Fold<Vec<T>>
     where
         T: Copy,
     {
-        self.ops().collect_vec()
+        self.obs().collect_vec()
     }
 
     pub fn subscribe(&self, f: impl FnMut(&T) + 'static) -> Subscription {
-        self.ops().subscribe(f)
+        self.obs().subscribe(f)
     }
     pub fn subscribe_async_with<Fut>(
         &self,
@@ -149,16 +149,16 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.ops().subscribe_async_with(f, sp)
+        self.obs().subscribe_async_with(f, sp)
     }
 
     pub fn hot(&self) -> Self {
-        self.ops().hot().into_dyn()
+        self.obs().hot().into_dyn()
     }
 }
 impl<T: 'static> DynObsBorrow<DynObs<T>> {
     pub fn flatten(&self) -> DynObs<T> {
-        self.ops().flatten().into_dyn()
+        self.obs().flatten().into_dyn()
     }
 }
 
