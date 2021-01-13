@@ -599,26 +599,26 @@ impl<I: InnerSubscriber<O>, O: 'static> Subscriber<O> for OuterSubscriber<I> {
     }
 }
 
-pub(crate) fn subscribe_value<S, O>(s: S, o: O) -> impl Subscriber<O>
+pub(crate) fn subscribe_value<S, O>(s: Obs<S>, o: O) -> impl Subscriber<O>
 where
     S: Observable,
     O: Observer<S::Item> + 'static,
 {
     OuterSubscriber(FoldBy::new((), ObserverOp { s, o }))
 }
-pub(crate) fn subscribe_ref<S, O>(s: S, o: O) -> impl Subscriber<O>
+pub(crate) fn subscribe_ref<S, O>(s: ObsRef<S>, o: O) -> impl Subscriber<O>
 where
     S: ObservableRef,
     for<'a> O: Observer<&'a S::Item> + 'static,
 {
-    OuterSubscriber(FoldBy::new((), RefObserverOp { s, o }))
+    OuterSubscriber(FoldBy::new((), ObserverOp { s, o }))
 }
 
 struct ObserverOp<S, O> {
     s: S,
     o: O,
 }
-impl<S, O> FoldByOp for ObserverOp<S, O>
+impl<S, O> FoldByOp for ObserverOp<Obs<S>, O>
 where
     S: Observable,
     O: Observer<S::Item> + 'static,
@@ -634,7 +634,7 @@ where
     fn get(&self, _state: Self::LoadSt) -> Self::Value {}
 }
 
-impl<S, O> InnerSubscriber<O> for FoldBy<ObserverOp<S, O>>
+impl<S, O> InnerSubscriber<O> for FoldBy<ObserverOp<Obs<S>, O>>
 where
     S: Observable,
     O: Observer<S::Item> + 'static,
@@ -650,11 +650,7 @@ where
     }
 }
 
-struct RefObserverOp<S, O> {
-    s: S,
-    o: O,
-}
-impl<S, O> FoldByOp for RefObserverOp<S, O>
+impl<S, O> FoldByOp for ObserverOp<ObsRef<S>, O>
 where
     S: ObservableRef,
     for<'a> O: Observer<&'a S::Item> + 'static,
@@ -671,7 +667,7 @@ where
     fn get(&self, _state: Self::LoadSt) -> Self::Value {}
 }
 
-impl<S, O> InnerSubscriber<O> for FoldBy<RefObserverOp<S, O>>
+impl<S, O> InnerSubscriber<O> for FoldBy<ObserverOp<ObsRef<S>, O>>
 where
     S: ObservableRef,
     for<'a> O: Observer<&'a S::Item> + 'static,
