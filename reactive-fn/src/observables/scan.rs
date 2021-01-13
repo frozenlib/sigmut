@@ -562,12 +562,23 @@ pub trait Subscriber<O> {
 
 pub struct DynSubscriber<O>(Rc<dyn InnerSubscriber<O>>);
 
-impl<O: 'static> DynSubscriber<O> {
-    pub fn borrow(&self) -> Ref<O> {
+impl<O: 'static> Subscriber<O> for DynSubscriber<O> {
+    fn borrow(&self) -> Ref<O> {
         self.0.borrow()
     }
-    pub fn borrow_mut(&self) -> RefMut<O> {
+    fn borrow_mut(&self) -> RefMut<O> {
         self.0.borrow_mut()
+    }
+    fn as_dyn(&self) -> DynSubscriber<O> {
+        self.clone()
+    }
+    fn as_subscription(&self) -> Subscription {
+        self.clone().into()
+    }
+}
+impl<O: 'static> Clone for DynSubscriber<O> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
 impl<O: 'static> From<DynSubscriber<O>> for Subscription {
