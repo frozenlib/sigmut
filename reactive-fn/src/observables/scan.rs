@@ -553,75 +553,19 @@ impl<Op: FoldByOp> Drop for FoldBy<Op> {
     }
 }
 
-pub trait Subscriber<O> {
-    fn borrow(&self) -> Ref<O>;
-    fn borrow_mut(&self) -> RefMut<O>;
-    fn as_dyn(&self) -> DynSubscriber<O>;
-    fn as_subscription(&self) -> Subscription;
-}
-
-pub struct DynSubscriber<O>(Rc<dyn InnerSubscriber<O>>);
-
-impl<O: 'static> Subscriber<O> for DynSubscriber<O> {
-    fn borrow(&self) -> Ref<O> {
-        self.0.borrow()
-    }
-    fn borrow_mut(&self) -> RefMut<O> {
-        self.0.borrow_mut()
-    }
-    fn as_dyn(&self) -> DynSubscriber<O> {
-        self.clone()
-    }
-    fn as_subscription(&self) -> Subscription {
-        self.clone().into()
-    }
-}
-impl<O: 'static> Clone for DynSubscriber<O> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-impl<O: 'static> From<DynSubscriber<O>> for Subscription {
-    fn from(s: DynSubscriber<O>) -> Self {
-        Self(Some(s.0.as_rc_any()))
-    }
-}
-
-trait InnerSubscriber<O>: 'static {
-    fn borrow(&self) -> Ref<O>;
-    fn borrow_mut(&self) -> RefMut<O>;
-    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
-}
-struct OuterSubscriber<I>(Rc<I>);
-
-impl<I: InnerSubscriber<O>, O: 'static> Subscriber<O> for OuterSubscriber<I> {
-    fn borrow(&self) -> Ref<O> {
-        self.0.borrow()
-    }
-    fn borrow_mut(&self) -> RefMut<O> {
-        self.0.borrow_mut()
-    }
-    fn as_dyn(&self) -> DynSubscriber<O> {
-        DynSubscriber(self.0.clone())
-    }
-    fn as_subscription(&self) -> Subscription {
-        self.as_dyn().into()
-    }
-}
-
 pub(crate) fn subscribe_value<S, O>(s: Obs<S>, o: O) -> impl Subscriber<O>
 where
     S: Observable,
     O: Observer<S::Item>,
 {
-    OuterSubscriber(FoldBy::new((), ObserverOp { s, o }))
+    subscriber(FoldBy::new((), ObserverOp { s, o }))
 }
 pub(crate) fn subscribe_ref<S, O>(s: ObsRef<S>, o: O) -> impl Subscriber<O>
 where
     S: ObservableRef,
     for<'a> O: Observer<&'a S::Item>,
 {
-    OuterSubscriber(FoldBy::new((), ObserverOp { s, o }))
+    subscriber(FoldBy::new((), ObserverOp { s, o }))
 }
 
 struct ObserverOp<S, O> {

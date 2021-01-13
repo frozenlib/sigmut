@@ -25,14 +25,12 @@ pub use self::{
     obs::*,
     obs_borrow::*,
     obs_ref::*,
-    scan::{DynSubscriber, Subscriber},
     source::*,
     source_ref::*,
     tail::*,
 };
-
 use self::{hot::*, into_stream::*, map_async::*, scan::*};
-use crate::{bind::*, BindScope, NotifyScope};
+use crate::*;
 use derivative::Derivative;
 use std::{
     any::Any,
@@ -132,7 +130,7 @@ impl<T, F: FnMut(T) -> () + 'static> Observer<T> for F {
 
 #[must_use]
 #[derive(Clone, Default)]
-pub struct Subscription(Option<Rc<dyn Any>>);
+pub struct Subscription(pub(crate) Option<Rc<dyn Any>>);
 
 impl Subscription {
     pub fn empty() -> Self {
