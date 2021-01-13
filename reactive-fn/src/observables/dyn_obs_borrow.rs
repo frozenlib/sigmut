@@ -141,6 +141,13 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     pub fn subscribe(&self, f: impl FnMut(&T) + 'static) -> Subscription {
         self.obs().subscribe(f)
     }
+    pub fn subscribe_to<O>(self, o: O) -> DynSubscriber<O>
+    where
+        for<'a> O: Observer<&'a T>,
+    {
+        self.as_ref().subscribe_to(o)
+    }
+
     pub fn subscribe_async_with<Fut>(
         &self,
         f: impl FnMut(&T) -> Fut + 'static,

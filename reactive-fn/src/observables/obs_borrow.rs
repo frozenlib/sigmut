@@ -189,6 +189,13 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
     pub fn subscribe(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
         self.as_ref().subscribe(f)
     }
+    pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<O>
+    where
+        for<'a> O: Observer<&'a S::Item>,
+    {
+        self.as_ref().subscribe_to(o)
+    }
+
     pub fn subscribe_async_with<Fut>(
         self,
         f: impl FnMut(&S::Item) -> Fut + 'static,
