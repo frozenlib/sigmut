@@ -4,6 +4,7 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     marker::PhantomData,
     mem::take,
+    ops::DerefMut,
     rc::Rc,
 };
 
@@ -568,10 +569,14 @@ where
     }
 
     pub fn borrow(&self) -> Ref<O> {
-        Ref::map((self.0).0.borrow(), |x| &x.op.o)
+        self.0.borrow()
     }
     pub fn borrow_mut(&self) -> RefMut<O> {
-        RefMut::map((self.0).0.borrow_mut(), |x| &mut x.op.o)
+        self.0.borrow_mut()
+    }
+
+    pub fn as_dyn(&self) -> DynSubscriber<O> {
+        DynSubscriber(self.0.clone())
     }
 }
 
@@ -603,4 +608,33 @@ where
     }
     fn unload(&mut self, _state: Self::LoadSt) -> Self::UnloadSt {}
     fn get(&self, _state: Self::LoadSt) -> Self::Value {}
+}
+
+pub struct DynSubscriber<O>(Rc<dyn FoldByObserverOp<O>>);
+
+impl<O> DynSubscriber<O> {
+    pub fn borrow(&self) -> Ref<O> {
+        self.0.borrow()
+    }
+    pub fn borrow_mut(&self) -> RefMut<O> {
+        self.0.borrow_mut()
+    }
+}
+
+trait FoldByObserverOp<O> {
+    fn borrow(&self) -> Ref<O>;
+    fn borrow_mut(&self) -> RefMut<O>;
+}
+impl<S, O> FoldByObserverOp<O> for FoldBy<ObserverOp<S, O>>
+where
+    S: Observable,
+    O: Observer<S::Item> + 'static,
+{
+    fn borrow(&self) -> Ref<O> {
+        Ref::map(self.0.borrow(), |x| &x.op.o)
+    }
+
+    fn borrow_mut(&self) -> RefMut<O> {
+        RefMut::map(self.0.borrow_mut(), |x| &mut x.op.o)
+    }
 }
