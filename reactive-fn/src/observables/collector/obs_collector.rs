@@ -121,3 +121,15 @@ impl<T: Collect> Drop for ObsCollectorObserver<T> {
         }
     }
 }
+impl<T: Collect> Sink<T::Input> for ObsCollector<T> {
+    fn connect(self, value: T::Input) -> DynObserver<T::Input> {
+        (&self).connect(value)
+    }
+}
+impl<T: Collect> Sink<T::Input> for &ObsCollector<T> {
+    fn connect(self, value: T::Input) -> DynObserver<T::Input> {
+        let mut o = self.insert();
+        o.next(value);
+        o.into_dyn()
+    }
+}
