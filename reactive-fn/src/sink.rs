@@ -20,6 +20,17 @@ where
         }
     }
 }
+impl<T, S> Sink<T> for &Obs<S>
+where
+    T: Clone + 'static,
+    S: Observable + Clone,
+    S::Item: Sink<T>,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        self.clone().connect(value)
+    }
+}
+
 impl<T, S> Sink<T> for ObsBorrow<S>
 where
     T: Clone + 'static,
@@ -28,6 +39,16 @@ where
 {
     fn connect(self, value: T) -> DynObserver<T> {
         self.as_ref().connect(value)
+    }
+}
+impl<T, S> Sink<T> for &ObsBorrow<S>
+where
+    T: Clone + 'static,
+    S: ObservableBorrow + Clone,
+    for<'a> &'a S::Item: Sink<T>,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        self.clone().connect(value)
     }
 }
 
@@ -44,6 +65,16 @@ where
         } else {
             OuterObserver(tail.subscribe_to(InnerObserver { o, value })).into_dyn()
         }
+    }
+}
+impl<T, S> Sink<T> for &ObsRef<S>
+where
+    T: Clone + 'static,
+    S: ObservableRef + Clone,
+    for<'a> &'a S::Item: Sink<T>,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        self.clone().connect(value)
     }
 }
 
