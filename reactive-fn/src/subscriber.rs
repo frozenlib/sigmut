@@ -4,7 +4,7 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     rc::Rc,
 };
-pub trait Subscriber<O> {
+pub trait Subscriber<O>: 'static {
     fn borrow(&self) -> Ref<O>;
     fn borrow_mut(&self) -> RefMut<O>;
     fn into_dyn(self) -> DynSubscriber<O>;

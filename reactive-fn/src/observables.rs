@@ -119,15 +119,6 @@ impl<S: ObservableRef> ObservableRef for Rc<S> {
     }
 }
 
-pub trait Observer<T>: 'static {
-    fn next(&mut self, value: T);
-}
-impl<T, F: FnMut(T) -> () + 'static> Observer<T> for F {
-    fn next(&mut self, value: T) {
-        self(value)
-    }
-}
-
 #[must_use]
 #[derive(Clone, Default)]
 pub struct Subscription(pub(crate) Option<Rc<dyn Any>>);
