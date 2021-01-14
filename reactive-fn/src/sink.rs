@@ -47,9 +47,10 @@ where
     }
 }
 
-impl<T, S: Sink<T>> Sink<T> for DynObs<S>
+impl<T, S> Sink<T> for DynObs<S>
 where
     T: Clone + 'static,
+    S: Sink<T>,
 {
     fn connect(self, value: T) -> DynObserver<T> {
         self.obs().connect(value)
