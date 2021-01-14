@@ -140,7 +140,7 @@ impl<T: 'static> DynObs<T> {
         self.obs().subscribe(f)
     }
     pub fn subscribe_to<O: Observer<T>>(self, o: O) -> DynSubscriber<O> {
-        self.obs().subscribe_to(o).as_dyn()
+        self.obs().subscribe_to(o).into_dyn()
     }
 
     pub fn subscribe_async_with<Fut>(

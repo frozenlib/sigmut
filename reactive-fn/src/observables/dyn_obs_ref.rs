@@ -170,7 +170,7 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     where
         for<'a> O: Observer<&'a T>,
     {
-        self.obs().subscribe_to(o).as_dyn()
+        self.obs().subscribe_to(o).into_dyn()
     }
 
     pub fn subscribe_async_with<Fut>(

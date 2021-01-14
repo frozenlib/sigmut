@@ -562,6 +562,18 @@ impl<S, O> ObserverOp<S, O> {
         Self { s, o }
     }
 }
+pub trait AsObserver<O> {
+    fn as_observer(&self) -> &O;
+    fn as_observer_mut(&mut self) -> &mut O;
+}
+impl<S, O> AsObserver<O> for ObserverOp<S, O> {
+    fn as_observer(&self) -> &O {
+        &self.o
+    }
+    fn as_observer_mut(&mut self) -> &mut O {
+        &mut self.o
+    }
+}
 
 impl<S, O> FoldByOp for ObserverOp<Obs<S>, O>
 where
@@ -596,15 +608,15 @@ where
     fn get(&self, _state: Self::LoadSt) -> Self::Value {}
 }
 
-impl<S, O> InnerSubscriber<O> for FoldBy<ObserverOp<S, O>>
+impl<Op, O> InnerSubscriber<O> for FoldBy<Op>
 where
-    ObserverOp<S, O>: FoldByOp,
+    Op: FoldByOp + AsObserver<O>,
 {
     fn borrow(&self) -> Ref<O> {
-        Ref::map(self.0.borrow(), |x| &x.op.o)
+        Ref::map(self.0.borrow(), |x| x.op.as_observer())
     }
     fn borrow_mut(&self) -> RefMut<O> {
-        RefMut::map(self.0.borrow_mut(), |x| &mut x.op.o)
+        RefMut::map(self.0.borrow_mut(), |x| x.op.as_observer_mut())
     }
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self

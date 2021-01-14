@@ -66,6 +66,18 @@ impl<S: Observable> Tail<S> {
         })
         .into()
     }
+    pub fn subscribe_to<O: Observer<S::Item>>(self, o: O) -> impl Subscriber<O> {
+        if let Some(this) = self.0 {
+            let source = Obs(this.source);
+            let fold = TailState::connect(this.state, (), |s| {
+                FoldBy::new_with_state(s, TailFoldByOp(ObserverOp::new(source, o)))
+            });
+            MayConstantSubscriber::Subscriber(subscriber(fold))
+        } else {
+            MayConstantSubscriber::Constant(RefCell::new(o))
+        }
+    }
+
     pub fn fold<St: 'static>(
         self,
         initial_state: St,
@@ -280,5 +292,31 @@ impl BindSink for RefCell<TailState> {
         if let Some(sink) = b.sink.take() {
             sink.notify(scope);
         }
+    }
+}
+struct TailFoldByOp<Op>(Op);
+
+impl<Op: FoldByOp> FoldByOp for TailFoldByOp<Op> {
+    type LoadSt = (Op::LoadSt, Option<Rc<RefCell<TailState>>>);
+    type UnloadSt = Op::UnloadSt;
+    type Value = Op::Value;
+
+    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+        (self.0.load(state, cx), None)
+    }
+
+    fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt {
+        self.0.unload(state.0)
+    }
+    fn get(&self, state: Self::LoadSt) -> Self::Value {
+        self.0.get(state.0)
+    }
+}
+impl<Op: AsObserver<O>, O> AsObserver<O> for TailFoldByOp<Op> {
+    fn as_observer(&self) -> &O {
+        self.0.as_observer()
+    }
+    fn as_observer_mut(&mut self) -> &mut O {
+        self.0.as_observer_mut()
     }
 }
