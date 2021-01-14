@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 
 pub trait Sink<T> {
     fn connect(self, value: T) -> DynObserver<T>;

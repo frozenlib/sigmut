@@ -1,4 +1,6 @@
 use super::*;
+use futures::Future;
+use std::{borrow::Borrow, rc::Rc, task::Poll};
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
@@ -38,10 +40,10 @@ impl<T: 'static> DynObs<T> {
         obs_constant(value).into_dyn()
     }
 
-    pub(super) fn from_dyn(inner: impl DynamicObservable<Item = T>) -> Self {
+    pub(crate) fn from_dyn(inner: impl DynamicObservable<Item = T>) -> Self {
         Self(DynObsData::Dyn(Rc::new(inner)))
     }
-    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicObservableSource<Item = T>>) -> Self {
+    pub(crate) fn from_dyn_source(rc: Rc<dyn DynamicObservableSource<Item = T>>) -> Self {
         Self(DynObsData::DynSource(rc))
     }
 

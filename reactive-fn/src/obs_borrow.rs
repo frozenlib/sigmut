@@ -1,5 +1,13 @@
 use super::*;
-use std::cell::Ref;
+use crate::hot::*;
+use futures::Future;
+use std::{
+    borrow::Borrow,
+    cell::{Ref, RefCell},
+    iter::once,
+    marker::PhantomData,
+    task::Poll,
+};
 
 pub fn obs_borrow<S, T>(
     this: S,
@@ -32,7 +40,7 @@ pub fn obs_borrow_constant<T: 'static>(value: T) -> ObsBorrow<impl ObservableBor
 }
 
 #[derive(Clone)]
-pub struct ObsBorrow<S>(pub(super) S);
+pub struct ObsBorrow<S>(pub(crate) S);
 
 impl<S: ObservableBorrow> ObsBorrow<S> {
     pub fn get(&self, cx: &BindContext) -> S::Item

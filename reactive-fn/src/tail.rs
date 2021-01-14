@@ -1,11 +1,15 @@
 use super::*;
-use crate::bind::*;
-use std::{cell::RefCell, iter::once, rc::Rc};
+use crate::{bind::*, scan::*};
+use std::{
+    cell::{Ref, RefCell},
+    iter::once,
+    rc::Rc,
+};
 
 pub struct DynTail<T: 'static>(Tail<DynObs<T>>);
 
 impl<T> DynTail<T> {
-    pub(super) fn new(source: DynObs<T>, scope: &BindScope) -> (T, Self) {
+    pub(crate) fn new(source: DynObs<T>, scope: &BindScope) -> (T, Self) {
         let (value, s) = Tail::new(source, scope);
         (value, Self(s))
     }

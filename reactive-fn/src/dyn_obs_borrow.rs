@@ -1,5 +1,7 @@
 use super::*;
-use std::cell::Ref;
+use futures::Future;
+use std::{any::Any, borrow::Borrow, cell::Ref, rc::Rc, task::Poll};
+
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
 pub struct DynObsBorrow<T: 'static + ?Sized>(DynObsBorrowData<T>);
@@ -45,10 +47,10 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
         obs_borrow(this, borrow).into_dyn()
     }
 
-    pub(super) fn from_dyn(rc: Rc<dyn DynamicObservableBorrow<Item = T>>) -> Self {
+    pub(crate) fn from_dyn(rc: Rc<dyn DynamicObservableBorrow<Item = T>>) -> Self {
         Self(DynObsBorrowData::Dyn(rc))
     }
-    pub(super) fn from_dyn_source(rc: Rc<dyn DynamicObservableBorrowSource<Item = T>>) -> Self {
+    pub(crate) fn from_dyn_source(rc: Rc<dyn DynamicObservableBorrowSource<Item = T>>) -> Self {
         Self(DynObsBorrowData::DynSource(rc))
     }
 

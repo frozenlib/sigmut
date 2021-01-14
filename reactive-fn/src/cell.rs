@@ -1,9 +1,10 @@
-use crate::Runtime;
-use std::cell::{Cell, RefCell};
-use std::ops::{Deref, DerefMut};
-use std::{any::Any, rc::Rc};
-
 use super::*;
+use std::{
+    any::Any,
+    cell::{Cell, Ref, RefCell},
+    ops::{Deref, DerefMut},
+    rc::Rc,
+};
 
 /// A `Rc<Cell>` like type that implement [`Observable`].
 pub struct ObsCell<T: Copy>(Rc<ObsCellData<T>>);
@@ -40,7 +41,7 @@ impl<T: Copy + 'static> ObsCell<T> {
     }
 
     pub fn as_dyn(&self) -> DynObs<T> {
-        DynObs(DynObsData::DynSource(self.0.clone()))
+        DynObs::from_dyn_source(self.0.clone())
     }
     pub fn as_dyn_ref(&self) -> DynObsRef<T> {
         self.as_dyn().as_ref()

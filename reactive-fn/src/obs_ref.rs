@@ -1,3 +1,7 @@
+use crate::{hot::*, map_async::*, scan::*};
+use futures::Future;
+use std::{borrow::Borrow, iter::once, marker::PhantomData, rc::Rc, task::Poll};
+
 use super::*;
 
 pub fn obs_ref<S, T, F>(this: S, f: F) -> ObsRef<impl ObservableRef<Item = T>>

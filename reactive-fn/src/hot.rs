@@ -1,6 +1,9 @@
 use super::*;
-use crate::{bind::*, BindTask};
-use std::{cell::RefCell, rc::Rc};
+use crate::dynamic_obs::*;
+use std::{
+    cell::{Ref, RefCell},
+    rc::Rc,
+};
 
 pub struct Hot<S> {
     source: S,

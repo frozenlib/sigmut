@@ -1,6 +1,5 @@
-use std::sync::Arc;
-
 use super::*;
+use std::{iter::once, rc::Rc, sync::Arc};
 
 #[derive(Clone)]
 pub enum Source<T: 'static> {

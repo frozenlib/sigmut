@@ -1,7 +1,9 @@
 use super::*;
 use futures::Stream;
 use std::{
+    cell::RefCell,
     pin::Pin,
+    rc::Rc,
     task::{Context, Poll, Waker},
 };
 

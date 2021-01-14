@@ -1,4 +1,4 @@
-use crate::*;
+use super::*;
 use std::{any::Any, cell::Ref, rc::Rc};
 
 pub trait DynamicObservable: 'static {
