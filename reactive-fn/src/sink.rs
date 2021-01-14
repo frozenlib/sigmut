@@ -20,26 +20,54 @@ where
         }
     }
 }
-// impl<T, S> Sink<T> for ObsRef<S>
-// where
-//     T: Clone + 'static,
-//     S: ObservableRef,
-//     S::Item: Sink<T>,
-// {
-//     fn connect(self, value: T) -> DynObserver<T> {
-//         let (head, tail) = self.head_tail();
-//         let o = head.connect(value.clone());
-//         if tail.is_empty() {
-//             o
-//         } else {
-//             OuterObserver(tail.subscribe_to(InnerObserver { o, value })).into_dyn()
-//         }
-//     }
-// }
+impl<T, S> Sink<T> for ObsBorrow<S>
+where
+    T: Clone + 'static,
+    S: ObservableBorrow,
+    for<'a> &'a S::Item: Sink<T>,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        self.as_ref().connect(value)
+    }
+}
+
+impl<T, S> Sink<T> for ObsRef<S>
+where
+    T: Clone + 'static,
+    S: ObservableRef,
+    for<'a> &'a S::Item: Sink<T>,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        let (o, tail) = self.head_tail(|head| head.connect(value.clone()));
+        if tail.is_empty() {
+            o
+        } else {
+            OuterObserver(tail.subscribe_to(InnerObserver { o, value })).into_dyn()
+        }
+    }
+}
 
 impl<T, S: Sink<T>> Sink<T> for DynObs<S>
 where
     T: Clone + 'static,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        self.obs().connect(value)
+    }
+}
+impl<T> Sink<T> for DynObsBorrow<T>
+where
+    T: Clone + 'static,
+    for<'a> &'a T: Sink<T>,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        self.as_ref().connect(value)
+    }
+}
+impl<T> Sink<T> for DynObsRef<T>
+where
+    T: Clone + 'static,
+    for<'a> &'a T: Sink<T>,
 {
     fn connect(self, value: T) -> DynObserver<T> {
         self.obs().connect(value)
