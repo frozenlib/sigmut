@@ -54,3 +54,64 @@ impl<T: 'static> Source<T> {
         }
     }
 }
+
+pub trait IntoSource<T: 'static> {
+    fn into_source(self) -> Source<T>;
+}
+
+impl<T: 'static, S: Observable<Item = T>> IntoSource<T> for Obs<S> {
+    fn into_source(self) -> Source<T> {
+        self.into_dyn().into_source()
+    }
+}
+impl<T: Copy + 'static, S: ObservableBorrow<Item = T>> IntoSource<T> for ObsBorrow<S> {
+    fn into_source(self) -> Source<T> {
+        self.cloned().into_source()
+    }
+}
+impl<T: Copy + 'static, S: ObservableRef<Item = T>> IntoSource<T> for ObsRef<S> {
+    fn into_source(self) -> Source<T> {
+        self.cloned().into_source()
+    }
+}
+
+impl<T: 'static> IntoSource<T> for DynObs<T> {
+    fn into_source(self) -> Source<T> {
+        Source::Obs(self)
+    }
+}
+impl<T: 'static> IntoSource<T> for &DynObs<T> {
+    fn into_source(self) -> Source<T> {
+        self.clone().into_source()
+    }
+}
+impl<T: Copy + 'static> IntoSource<T> for DynObsBorrow<T> {
+    fn into_source(self) -> Source<T> {
+        Source::Obs(self.cloned())
+    }
+}
+impl<T: Copy + 'static> IntoSource<T> for &DynObsBorrow<T> {
+    fn into_source(self) -> Source<T> {
+        Source::Obs(self.cloned())
+    }
+}
+impl<T: Copy + 'static> IntoSource<T> for DynObsRef<T> {
+    fn into_source(self) -> Source<T> {
+        Source::Obs(self.cloned())
+    }
+}
+impl<T: Copy + 'static> IntoSource<T> for &DynObsRef<T> {
+    fn into_source(self) -> Source<T> {
+        Source::Obs(self.cloned())
+    }
+}
+impl<T> IntoSource<T> for Source<T> {
+    fn into_source(self) -> Source<T> {
+        self
+    }
+}
+impl<T: Copy + 'static> IntoSource<T> for T {
+    fn into_source(self) -> Source<T> {
+        Source::Constant(self)
+    }
+}
