@@ -277,7 +277,7 @@ impl<S: ObservableRef> ObsRef<S> {
     where
         for<'a> O: Observer<&'a S::Item>,
     {
-        subscribe_ref(self, o)
+        subscriber(FoldBy::new((), ObserverOp::new(self, o)))
     }
     pub fn subscribe_async_with<Fut>(
         self,

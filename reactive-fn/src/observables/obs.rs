@@ -189,7 +189,7 @@ impl<S: Observable> Obs<S> {
         .into()
     }
     pub fn subscribe_to<O: Observer<S::Item>>(self, o: O) -> impl Subscriber<O> {
-        subscribe_value(self, o)
+        subscriber(FoldBy::new((), ObserverOp::new(self, o)))
     }
 
     pub fn subscribe_async_with<Fut>(

@@ -553,25 +553,16 @@ impl<Op: FoldByOp> Drop for FoldBy<Op> {
     }
 }
 
-pub(crate) fn subscribe_value<S, O>(s: Obs<S>, o: O) -> impl Subscriber<O>
-where
-    S: Observable,
-    O: Observer<S::Item>,
-{
-    subscriber(FoldBy::new((), ObserverOp { s, o }))
-}
-pub(crate) fn subscribe_ref<S, O>(s: ObsRef<S>, o: O) -> impl Subscriber<O>
-where
-    S: ObservableRef,
-    for<'a> O: Observer<&'a S::Item>,
-{
-    subscriber(FoldBy::new((), ObserverOp { s, o }))
-}
-
-struct ObserverOp<S, O> {
+pub struct ObserverOp<S, O> {
     s: S,
     o: O,
 }
+impl<S, O> ObserverOp<S, O> {
+    pub fn new(s: S, o: O) -> Self {
+        Self { s, o }
+    }
+}
+
 impl<S, O> FoldByOp for ObserverOp<Obs<S>, O>
 where
     S: Observable,
