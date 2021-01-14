@@ -19,7 +19,7 @@ pub trait Collect: 'static {
     fn collect(&self) -> Self::Output;
 }
 
-pub struct ObsCollectorObserver<T: Collect> {
+struct ObsCollectorObserver<T: Collect> {
     collector: Rc<ObsCollectorData<T>>,
     key: Option<T::Key>,
 }
@@ -31,7 +31,7 @@ impl<T: Collect> ObsCollector<T> {
         Default::default()
     }
 
-    pub fn insert(&self) -> ObsCollectorObserver<T> {
+    pub fn insert(&self) -> impl Observer<T::Input> {
         let (key, is_modified) = self.0.collector.borrow_mut().insert();
         if is_modified {
             Runtime::spawn_notify(self.0.clone());
