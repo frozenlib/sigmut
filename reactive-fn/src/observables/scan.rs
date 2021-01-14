@@ -304,6 +304,11 @@ pub fn fold_by_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
         get_phatnom: PhantomData,
     }
 }
+pub fn fold_op<St: 'static>(
+    load: impl FnMut(St, &BindContext) -> St + 'static,
+) -> impl FoldByOp<LoadSt = St, UnloadSt = St, Value = St> {
+    fold_by_op(load, |st| st, |st| st)
+}
 
 pub struct Scan<Op: ScanOp> {
     data: RefCell<ScanData<Op>>,

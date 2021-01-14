@@ -241,14 +241,10 @@ impl<S: ObservableRef> ObsRef<S> {
         let mut f = f;
         Fold::new(FoldBy::new(
             initial_state,
-            fold_by_op(
-                move |st, cx| {
-                    let f = &mut f;
-                    self.with(move |x, _| f(st, x), cx)
-                },
-                |st| st,
-                |st| st,
-            ),
+            fold_op(move |st, cx| {
+                let f = &mut f;
+                self.with(move |x, _| f(st, x), cx)
+            }),
         ))
     }
     pub fn collect_to<E: for<'a> Extend<&'a S::Item> + 'static>(self, e: E) -> Fold<E> {

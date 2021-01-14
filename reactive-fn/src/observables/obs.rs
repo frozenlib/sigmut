@@ -166,7 +166,7 @@ impl<S: Observable> Obs<S> {
     ) -> Fold<St> {
         Fold::new(FoldBy::new(
             initial_state,
-            fold_by_op(move |st, cx| f(st, self.get(cx)), |st| st, |st| st),
+            fold_op(move |st, cx| f(st, self.get(cx))),
         ))
     }
     pub fn collect_to<E: Extend<S::Item> + 'static>(self, e: E) -> Fold<E> {

@@ -19,6 +19,9 @@ impl<T> DynTail<T> {
     pub fn subscribe(self, f: impl FnMut(T) + 'static) -> Subscription {
         self.0.subscribe(f)
     }
+    pub fn subscribe_to<O: Observer<T>>(self, o: O) -> DynSubscriber<O> {
+        self.0.subscribe_to(o).into_dyn()
+    }
     pub fn fold<St: 'static>(
         self,
         initial_state: St,
@@ -88,11 +91,7 @@ impl<S: Observable> Tail<S> {
             let fold = TailState::connect(this.state, initial_state, |s| {
                 FoldBy::new_with_state(
                     s,
-                    fold_by_op(
-                        move |st, cx| (f(st, source.get(cx)), None),
-                        |(st, _)| st,
-                        |(st, _)| st,
-                    ),
+                    TailFoldByOp(fold_op(move |st, cx| f(st, source.get(cx)))),
                 )
             });
             Fold::new(fold)
@@ -140,6 +139,12 @@ impl<T: ?Sized + 'static> DynTailRef<T> {
             f
         })
         .into()
+    }
+    pub fn subscribe_to<O>(self, o: O) -> DynSubscriber<O>
+    where
+        for<'a> O: Observer<&'a T>,
+    {
+        self.0.subscribe_to(o).into_dyn()
     }
     pub fn fold<St: 'static>(
         self,
@@ -210,6 +215,21 @@ impl<S: ObservableRef> TailRef<S> {
         })
         .into()
     }
+    pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<O>
+    where
+        for<'a> O: Observer<&'a S::Item>,
+    {
+        if let Some(this) = self.0 {
+            let source = ObsRef(this.source);
+            let fold = TailState::connect(this.state, (), |s| {
+                FoldBy::new_with_state(s, TailFoldByOp(ObserverOp::new(source, o)))
+            });
+            MayConstantSubscriber::Subscriber(subscriber(fold))
+        } else {
+            MayConstantSubscriber::Constant(RefCell::new(o))
+        }
+    }
+
     pub fn fold<St: 'static>(
         self,
         initial_state: St,
@@ -220,11 +240,9 @@ impl<S: ObservableRef> TailRef<S> {
             let fold = TailState::connect(this.state, initial_state, |s| {
                 FoldBy::new_with_state(
                     s,
-                    fold_by_op(
-                        move |st, cx| (source.with(|value, _| f(st, value), cx), None),
-                        |(st, _)| st,
-                        |(st, _)| st,
-                    ),
+                    TailFoldByOp(fold_op(move |st, cx| {
+                        source.with(|value, _| f(st, value), cx)
+                    })),
                 )
             });
             Fold::new(fold)

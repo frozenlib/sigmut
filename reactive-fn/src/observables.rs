@@ -187,13 +187,9 @@ impl<T> From<Fold<T>> for Subscription {
 pub fn subscribe(mut f: impl FnMut(&BindContext) + 'static) -> Subscription {
     Subscription(Some(FoldBy::new(
         (),
-        fold_by_op(
-            move |st, cx| {
-                f(cx);
-                st
-            },
-            |st| st,
-            |st| st,
-        ),
+        fold_op(move |st, cx| {
+            f(cx);
+            st
+        }),
     )))
 }
