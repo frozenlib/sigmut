@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use super::*;
 
 #[derive(Clone)]
@@ -64,14 +66,29 @@ impl<T: 'static, S: Observable<Item = T>> IntoSource<T> for Obs<S> {
         self.into_dyn().into_source()
     }
 }
+impl<T: 'static, S: Observable<Item = T> + Clone> IntoSource<T> for &Obs<S> {
+    fn into_source(self) -> Source<T> {
+        self.clone().into_source()
+    }
+}
 impl<T: Copy + 'static, S: ObservableBorrow<Item = T>> IntoSource<T> for ObsBorrow<S> {
     fn into_source(self) -> Source<T> {
         self.cloned().into_source()
     }
 }
+impl<T: Copy + 'static, S: ObservableBorrow<Item = T> + Clone> IntoSource<T> for &ObsBorrow<S> {
+    fn into_source(self) -> Source<T> {
+        self.clone().into_source()
+    }
+}
 impl<T: Copy + 'static, S: ObservableRef<Item = T>> IntoSource<T> for ObsRef<S> {
     fn into_source(self) -> Source<T> {
         self.cloned().into_source()
+    }
+}
+impl<T: Copy + 'static, S: ObservableRef<Item = T> + Clone> IntoSource<T> for &ObsRef<S> {
+    fn into_source(self) -> Source<T> {
+        self.clone().into_source()
     }
 }
 
@@ -110,8 +127,41 @@ impl<T> IntoSource<T> for Source<T> {
         self
     }
 }
-impl<T: Copy + 'static> IntoSource<T> for T {
-    fn into_source(self) -> Source<T> {
+impl<T: 'static> IntoSource<Rc<T>> for Rc<T> {
+    fn into_source(self) -> Source<Rc<T>> {
         Source::Constant(self)
     }
 }
+impl<T: 'static> IntoSource<Arc<T>> for Arc<T> {
+    fn into_source(self) -> Source<Arc<T>> {
+        Source::Constant(self)
+    }
+}
+impl<T: IntoSource<T> + 'static> IntoSource<Option<T>> for Option<T> {
+    fn into_source(self) -> Source<Option<T>> {
+        Source::Constant(self)
+    }
+}
+impl<T: IntoSource<T> + 'static, E: IntoSource<E> + 'static> IntoSource<Result<T, E>>
+    for Result<T, E>
+{
+    fn into_source(self) -> Source<Result<T, E>> {
+        Source::Constant(self)
+    }
+}
+
+macro_rules! impl_into_source {
+    ($($t:ty),*) => { $(
+        impl IntoSource<$t> for $t {
+            fn into_source(self) -> Source<$t> {
+                Source::Constant(self)
+            }
+        }
+    )*
+    };
+}
+
+impl_into_source!(u8, u16, u32, u64, u128, usize);
+impl_into_source!(i8, i16, i32, i64, i128, isize);
+impl_into_source!(f32, f64);
+impl_into_source!(bool, char);
