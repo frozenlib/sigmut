@@ -208,16 +208,13 @@ fn obs_ref_flatten() {
 #[test]
 fn obs_ref_head_tail() {
     let a = ObsRefCell::new(2);
-    let mut head = None;
-    let tail = a.obs_ref().head_tail(|&value| {
-        head = Some(value);
-    });
+    let (head, tail) = a.obs_ref().head_tail(|&value| value);
 
     let r = tail.collect_vec();
 
     a.set(5);
     a.set(7);
 
-    assert_eq!(head, Some(2));
+    assert_eq!(head, 2);
     assert_eq!(r.stop(), vec![5, 7]);
 }

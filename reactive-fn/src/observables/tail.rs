@@ -116,8 +116,13 @@ impl<S: Observable> Tail<S> {
 pub struct DynTailRef<T: ?Sized + 'static>(TailRef<DynObsRef<T>>);
 
 impl<T: ?Sized + 'static> DynTailRef<T> {
-    pub(super) fn new(source: DynObsRef<T>, scope: &BindScope, f: impl FnOnce(&T)) -> Self {
-        Self(TailRef::new(source, scope, f))
+    pub(super) fn new<U>(
+        source: DynObsRef<T>,
+        scope: &BindScope,
+        f: impl FnOnce(&T) -> U,
+    ) -> (U, Self) {
+        let (head, tail) = TailRef::new(source, scope, f);
+        (head, Self(tail))
     }
     pub(super) fn new_borrow<'a>(
         source: &'a DynObsBorrow<T>,
@@ -170,17 +175,19 @@ impl<T: ?Sized + 'static> DynTailRef<T> {
 pub struct TailRef<S>(Option<TailData<S>>);
 
 impl<S: ObservableRef> TailRef<S> {
-    pub(super) fn new(source: S, scope: &BindScope, f: impl FnOnce(&S::Item)) -> Self {
+    pub(super) fn new<U>(source: S, scope: &BindScope, f: impl FnOnce(&S::Item) -> U) -> (U, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();
-        b.bindings
+        let head = b
+            .bindings
             .update(scope, &state, |cx| source.with(|value, _| f(value), cx));
-        if b.bindings.is_empty() {
+        let tail = if b.bindings.is_empty() {
             Self(None)
         } else {
             drop(b);
             Self(Some(TailData { source, state }))
-        }
+        };
+        (head, tail)
     }
     pub(super) fn new_borrow<'a, B: ObservableBorrow<Item = S::Item>>(
         source: &'a B,
