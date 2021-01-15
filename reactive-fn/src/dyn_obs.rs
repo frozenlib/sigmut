@@ -23,6 +23,9 @@ impl<T: 'static> DynObs<T> {
     pub fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
         f(&self.get(cx), cx)
     }
+    pub fn head(&self) -> T {
+        BindContext::with_no_sink(|cx| self.get(cx))
+    }
     pub fn head_tail(&self) -> (T, DynTail<T>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }

@@ -28,6 +28,9 @@ impl<S: Observable> Obs<S> {
     pub fn with<T>(&self, f: impl FnOnce(&S::Item, &BindContext) -> T, cx: &BindContext) -> T {
         f(&self.get(cx), cx)
     }
+    pub fn head(&self) -> S::Item {
+        BindContext::with_no_sink(|cx| self.get(cx))
+    }
     pub fn head_tail(self) -> (S::Item, Tail<S>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }

@@ -84,6 +84,9 @@ impl<S: ObservableRef> ObsRef<S> {
     pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
         self.0.with(f, cx)
     }
+    pub fn head<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U) -> U {
+        BindContext::with_no_sink(|cx| self.with(f, cx))
+    }
     pub fn head_tail<U>(self, f: impl FnOnce(&S::Item) -> U) -> (U, TailRef<S>) {
         BindScope::with(|scope| self.head_tail_with(scope, f))
     }
