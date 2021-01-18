@@ -29,6 +29,12 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         f(&self.borrow(cx), cx)
     }
+    pub fn head(&self) -> Ref<T> {
+        BindContext::with_no_sink(|cx| self.borrow(cx))
+    }
+    pub fn head_tail(&self) -> (Ref<T>, DynTailRef<T>) {
+        BindScope::with(|scope| self.head_tail_with(scope))
+    }
     pub fn head_tail_with(&self, scope: &BindScope) -> (Ref<T>, DynTailRef<T>) {
         DynTailRef::new_borrow(&self, scope)
     }

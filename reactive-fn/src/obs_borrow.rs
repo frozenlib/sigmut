@@ -59,7 +59,18 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
     ) -> U {
         f(&self.borrow(cx), cx)
     }
-    pub fn head_tail_with<'a>(
+
+    pub fn head(&self) -> Ref<S::Item> {
+        BindContext::with_no_sink(|cx| self.borrow(cx))
+    }
+    pub fn head_tail(&self) -> (Ref<S::Item>, TailRef<impl ObservableRef<Item = S::Item>>)
+    where
+        S: Clone,
+    {
+        BindScope::with(|scope| self.head_tail_with(scope))
+    }
+
+    pub fn head_tail_with(
         &self,
         scope: &BindScope,
     ) -> (Ref<S::Item>, TailRef<impl ObservableRef<Item = S::Item>>)
