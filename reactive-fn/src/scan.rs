@@ -13,7 +13,7 @@ pub trait ScanOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
-    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt;
+    fn load(&mut self, state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt;
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt;
     fn get<'a>(&self, state: &'a Self::LoadSt) -> &'a Self::Value;
 }
@@ -21,7 +21,8 @@ pub trait FilterScanOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
-    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> FilterScanLoad<Self::LoadSt>;
+    fn load(&mut self, state: Self::UnloadSt, cx: &mut BindContext)
+        -> FilterScanLoad<Self::LoadSt>;
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt;
     fn get<'a>(&self, state: &'a Self::LoadSt) -> &'a Self::Value;
 }
@@ -29,7 +30,7 @@ pub trait FoldByOp: 'static {
     type LoadSt;
     type UnloadSt;
     type Value;
-    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt;
+    fn load(&mut self, state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt;
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt;
     fn get(&self, state: Self::LoadSt) -> Self::Value;
 }
@@ -71,7 +72,7 @@ impl<LoadSt, UnloadSt> ScanState<LoadSt, UnloadSt> {
         bindings: &mut Bindings,
         scope: &BindScope,
         sink: &Rc<impl BindSink>,
-        load: impl FnOnce(UnloadSt, &BindContext) -> LoadSt,
+        load: impl FnOnce(UnloadSt, &mut BindContext) -> LoadSt,
     ) -> bool {
         if let Self::Unloaded(_) = self {
             if let Self::Unloaded(state) = take(self) {
@@ -163,7 +164,7 @@ impl<Op: FoldByOp> FoldByData<Op> {
 
 struct AnonymousScanOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
-    Load: FnMut(UnloadSt, &BindContext) -> LoadSt,
+    Load: FnMut(UnloadSt, &mut BindContext) -> LoadSt,
     Unload: FnMut(LoadSt) -> UnloadSt,
     Get: Fn(&LoadSt) -> &Value,
 {
@@ -175,7 +176,7 @@ where
 impl<LoadSt, UnloadSt, Value, Load, Unload, Get> ScanOp
     for AnonymousScanOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
-    Load: FnMut(UnloadSt, &BindContext) -> LoadSt + 'static,
+    Load: FnMut(UnloadSt, &mut BindContext) -> LoadSt + 'static,
     Unload: FnMut(LoadSt) -> UnloadSt + 'static,
     Get: Fn(&LoadSt) -> &Value + 'static,
     LoadSt: 'static,
@@ -186,7 +187,7 @@ where
     type UnloadSt = UnloadSt;
     type Value = Value;
 
-    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+    fn load(&mut self, state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt {
         (self.load)(state, cx)
     }
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt {
@@ -197,7 +198,7 @@ where
     }
 }
 pub fn scan_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
-    load: impl FnMut(UnloadSt, &BindContext) -> LoadSt + 'static,
+    load: impl FnMut(UnloadSt, &mut BindContext) -> LoadSt + 'static,
     unload: impl FnMut(LoadSt) -> UnloadSt + 'static,
     get: impl Fn(&LoadSt) -> &Value + 'static,
 ) -> impl ScanOp<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
@@ -211,7 +212,7 @@ pub fn scan_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
 
 struct AnonymousFilterScanOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
-    Load: FnMut(UnloadSt, &BindContext) -> FilterScanLoad<LoadSt>,
+    Load: FnMut(UnloadSt, &mut BindContext) -> FilterScanLoad<LoadSt>,
     Unload: FnMut(LoadSt) -> UnloadSt,
     Get: Fn(&LoadSt) -> &Value,
 {
@@ -223,7 +224,7 @@ where
 impl<LoadSt, UnloadSt, Value, Load, Unload, Get> FilterScanOp
     for AnonymousFilterScanOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
-    Load: FnMut(UnloadSt, &BindContext) -> FilterScanLoad<LoadSt> + 'static,
+    Load: FnMut(UnloadSt, &mut BindContext) -> FilterScanLoad<LoadSt> + 'static,
     Unload: FnMut(LoadSt) -> UnloadSt + 'static,
     Get: Fn(&LoadSt) -> &Value + 'static,
     LoadSt: 'static,
@@ -234,7 +235,11 @@ where
     type UnloadSt = UnloadSt;
     type Value = Value;
 
-    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> FilterScanLoad<Self::LoadSt> {
+    fn load(
+        &mut self,
+        state: Self::UnloadSt,
+        cx: &mut BindContext,
+    ) -> FilterScanLoad<Self::LoadSt> {
         (self.load)(state, cx)
     }
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt {
@@ -245,7 +250,7 @@ where
     }
 }
 pub fn filter_scan_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
-    load: impl FnMut(UnloadSt, &BindContext) -> FilterScanLoad<LoadSt> + 'static,
+    load: impl FnMut(UnloadSt, &mut BindContext) -> FilterScanLoad<LoadSt> + 'static,
     unload: impl FnMut(LoadSt) -> UnloadSt + 'static,
     get: impl Fn(&LoadSt) -> &Value + 'static,
 ) -> impl FilterScanOp<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
@@ -259,7 +264,7 @@ pub fn filter_scan_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
 
 struct AnonymousFoldByOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
-    Load: FnMut(UnloadSt, &BindContext) -> LoadSt,
+    Load: FnMut(UnloadSt, &mut BindContext) -> LoadSt,
     Unload: FnMut(LoadSt) -> UnloadSt,
     Get: Fn(LoadSt) -> Value,
 {
@@ -271,7 +276,7 @@ where
 impl<LoadSt, UnloadSt, Value, Load, Unload, Get> FoldByOp
     for AnonymousFoldByOp<LoadSt, UnloadSt, Value, Load, Unload, Get>
 where
-    Load: FnMut(UnloadSt, &BindContext) -> LoadSt + 'static,
+    Load: FnMut(UnloadSt, &mut BindContext) -> LoadSt + 'static,
     Unload: FnMut(LoadSt) -> UnloadSt + 'static,
     Get: Fn(LoadSt) -> Value + 'static,
     LoadSt: 'static,
@@ -282,7 +287,7 @@ where
     type UnloadSt = UnloadSt;
     type Value = Value;
 
-    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+    fn load(&mut self, state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt {
         (self.load)(state, cx)
     }
     fn unload(&mut self, state: Self::LoadSt) -> Self::UnloadSt {
@@ -293,7 +298,7 @@ where
     }
 }
 pub fn fold_by_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
-    load: impl FnMut(UnloadSt, &BindContext) -> LoadSt + 'static,
+    load: impl FnMut(UnloadSt, &mut BindContext) -> LoadSt + 'static,
     unload: impl FnMut(LoadSt) -> UnloadSt + 'static,
     get: impl Fn(LoadSt) -> Value + 'static,
 ) -> impl FoldByOp<LoadSt = LoadSt, UnloadSt = UnloadSt, Value = Value> {
@@ -305,7 +310,7 @@ pub fn fold_by_op<LoadSt: 'static, UnloadSt: 'static, Value: 'static>(
     }
 }
 pub fn fold_op<St: 'static>(
-    load: impl FnMut(St, &BindContext) -> St + 'static,
+    load: impl FnMut(St, &mut BindContext) -> St + 'static,
 ) -> impl FoldByOp<LoadSt = St, UnloadSt = St, Value = St> {
     fold_by_op(load, |st| st, |st| st)
 }
@@ -325,7 +330,7 @@ impl<Op: ScanOp> Scan<Op> {
             sinks: BindSinks::new(),
         }
     }
-    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext) -> Ref<'a, Op::Value> {
+    fn borrow<'a>(self: &'a Rc<Self>, cx: &mut BindContext) -> Ref<'a, Op::Value> {
         cx.bind(self.clone());
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
@@ -338,7 +343,7 @@ impl<Op: ScanOp> Scan<Op> {
 }
 impl<Op: ScanOp> ObservableBorrow for Rc<Scan<Op>> {
     type Item = Op::Value;
-    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
         self.borrow(cx)
     }
 }
@@ -349,7 +354,7 @@ impl<Op: ScanOp> DynamicObservableBorrowSource for Scan<Op> {
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext,
+        cx: &mut BindContext,
     ) -> Ref<'a, Self::Item> {
         let rc_self = Self::downcast(rc_self);
         cx.bind(rc_self.clone());
@@ -371,7 +376,11 @@ impl<Op: ScanOp> DynamicObservableBorrowSource for Scan<Op> {
 
 impl<Op: ScanOp> DynamicObservableRefSource for Scan<Op> {
     type Item = Op::Value;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+    fn dyn_with(
+        self: Rc<Self>,
+        f: &mut dyn FnMut(&Self::Item, &mut BindContext),
+        cx: &mut BindContext,
+    ) {
         f(&self.borrow(cx), cx)
     }
 }
@@ -420,7 +429,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
             scope.defer_notify(self.clone());
         }
     }
-    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext) -> Ref<'a, Op::Value> {
+    fn borrow<'a>(self: &'a Rc<Self>, cx: &mut BindContext) -> Ref<'a, Op::Value> {
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
             drop(d);
@@ -435,7 +444,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
 impl<Op: FilterScanOp> ObservableBorrow for Rc<FilterScan<Op>> {
     type Item = Op::Value;
 
-    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
         self.borrow(cx)
     }
 }
@@ -446,7 +455,7 @@ impl<Op: FilterScanOp> DynamicObservableBorrowSource for FilterScan<Op> {
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext,
+        cx: &mut BindContext,
     ) -> Ref<'a, Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut d = self.data.borrow();
@@ -467,7 +476,11 @@ impl<Op: FilterScanOp> DynamicObservableBorrowSource for FilterScan<Op> {
 }
 impl<Op: FilterScanOp> DynamicObservableRefSource for FilterScan<Op> {
     type Item = Op::Value;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+    fn dyn_with(
+        self: Rc<Self>,
+        f: &mut dyn FnMut(&Self::Item, &mut BindContext),
+        cx: &mut BindContext,
+    ) {
         f(&self.borrow(cx), cx)
     }
 }
@@ -589,7 +602,7 @@ where
     type UnloadSt = ();
     type Value = ();
 
-    fn load(&mut self, _state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+    fn load(&mut self, _state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt {
         self.o.next(self.s.get(cx))
     }
     fn unload(&mut self, _state: Self::LoadSt) -> Self::UnloadSt {}
@@ -605,7 +618,7 @@ where
     type UnloadSt = ();
     type Value = ();
 
-    fn load(&mut self, _state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+    fn load(&mut self, _state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt {
         let o = &mut self.o;
         self.s.with(|value, _cx| o.next(value), cx)
     }

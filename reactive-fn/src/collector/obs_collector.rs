@@ -57,7 +57,7 @@ impl<T: Collect> ObsCollector<T> {
 }
 impl<T: Collect> Observable for ObsCollector<T> {
     type Item = T::Output;
-    fn get(&self, cx: &BindContext) -> Self::Item {
+    fn get(&self, cx: &mut BindContext) -> Self::Item {
         self.0.clone().get(cx)
     }
 }
@@ -68,7 +68,7 @@ impl<T> Clone for ObsCollector<T> {
 }
 
 impl<T: Collect> ObsCollectorData<T> {
-    pub fn get(self: Rc<Self>, cx: &BindContext) -> T::Output {
+    pub fn get(self: Rc<Self>, cx: &mut BindContext) -> T::Output {
         let value = self.collector.borrow().collect();
         cx.bind(self.clone());
         value
@@ -77,7 +77,7 @@ impl<T: Collect> ObsCollectorData<T> {
 impl<T: Collect> DynamicObservableSource for ObsCollectorData<T> {
     type Item = T::Output;
 
-    fn dyn_get(self: Rc<Self>, cx: &BindContext) -> Self::Item {
+    fn dyn_get(self: Rc<Self>, cx: &mut BindContext) -> Self::Item {
         self.get(cx)
     }
     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
@@ -86,7 +86,7 @@ impl<T: Collect> DynamicObservableSource for ObsCollectorData<T> {
 }
 impl<T: Collect> DynamicObservableRefSource for ObsCollectorData<T> {
     type Item = T::Output;
-    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &BindContext), cx: &BindContext) {
+    fn dyn_with(self: Rc<Self>, f: &mut dyn FnMut(&Self::Item, &mut BindContext), cx: &mut BindContext) {
         f(&self.get(cx), cx)
     }
 }

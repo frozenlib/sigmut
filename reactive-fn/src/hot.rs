@@ -83,20 +83,20 @@ impl<S: ObservableRef> HotReady for DynamicObs<Hot<ObsRef<S>>> {
 
 impl<S: Observable> Observable for Hot<S> {
     type Item = S::Item;
-    fn get(&self, cx: &BindContext) -> Self::Item {
+    fn get(&self, cx: &mut BindContext) -> Self::Item {
         self.source.get(cx)
     }
 }
 impl<S: ObservableBorrow> ObservableBorrow for Hot<S> {
     type Item = S::Item;
-    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
         self.source.borrow(cx)
     }
 }
 
 impl<S: ObservableRef> ObservableRef for Hot<S> {
     type Item = S::Item;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         self.source.with(f, cx)
     }
 }

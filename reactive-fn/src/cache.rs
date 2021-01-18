@@ -29,7 +29,7 @@ impl<T: 'static> Cache<T> {
     pub fn is_cached(&self) -> bool {
         self.0.state.borrow().value.is_some()
     }
-    pub fn borrow(&mut self, f: impl Fn(&BindContext) -> T, cx: &BindContext) -> Ref<T> {
+    pub fn borrow(&mut self, f: impl Fn(&mut BindContext) -> T, cx: &mut BindContext) -> Ref<T> {
         if let Some(r) = self.try_borrow(cx) {
             return r;
         }
@@ -40,7 +40,7 @@ impl<T: 'static> Cache<T> {
         drop(b);
         self.try_borrow(cx).unwrap()
     }
-    pub fn try_borrow(&self, cx: &BindContext) -> Option<Ref<T>> {
+    pub fn try_borrow(&self, cx: &mut BindContext) -> Option<Ref<T>> {
         cx.bind(self.0.clone());
         let r = Ref::map(self.0.state.borrow(), |x| &x.value);
         if r.is_some() {

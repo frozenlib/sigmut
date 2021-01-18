@@ -15,13 +15,13 @@ enum DynObsRefData<T: 'static + ?Sized> {
 }
 
 impl<T: 'static + ?Sized> DynObsRef<T> {
-    pub fn get(&self, cx: &BindContext) -> T
+    pub fn get(&self, cx: &mut BindContext) -> T
     where
         T: Copy,
     {
         self.with(|value, _| *value, cx)
     }
-    pub fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
+    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         if let DynObsRefData::StaticRef(x) = &self.0 {
             f(x, cx)
         } else {
@@ -34,7 +34,7 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
             output.unwrap()
         }
     }
-    fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), cx: &BindContext) {
+    fn dyn_with(&self, f: &mut dyn FnMut(&T, &mut BindContext), cx: &mut BindContext) {
         match &self.0 {
             DynObsRefData::StaticRef(x) => f(x, cx),
             DynObsRefData::Dyn(rc) => rc.dyn_with(f, cx),
@@ -42,7 +42,7 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
         }
     }
 
-    pub fn head<U>(&self, f: impl FnOnce(&T, &BindContext) -> U) -> U {
+    pub fn head<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U) -> U {
         BindContext::with_no_sink(|cx| self.with(f, cx))
     }
     pub fn head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTailRef<T>) {
@@ -61,7 +61,7 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     }
     pub fn new<S: 'static>(
         this: S,
-        f: impl Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
+        f: impl Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
     ) -> Self {
         // `DynamicObsRefByFn` is more optimized than `obs_ref(this,f).into_dyn()`.
         Self::from_dyn(Rc::new(DynamicObsRefByFn {
@@ -204,14 +204,18 @@ impl<T: 'static> DynObsRef<DynObs<T>> {
 }
 impl<T: Copy> Observable for DynObsRef<T> {
     type Item = T;
-    fn get(&self, cx: &BindContext) -> Self::Item {
+    fn get(&self, cx: &mut BindContext) -> Self::Item {
         DynObsRef::get(self, cx)
     }
 }
 impl<T: ?Sized> ObservableRef for DynObsRef<T> {
     type Item = T;
 
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
         DynObsRef::with(self, f, cx)
     }
     fn into_dyn(self) -> DynObsRef<Self::Item>
@@ -232,10 +236,10 @@ impl<S, T, F> DynamicObservable for DynamicObsRefByFn<S, T, F>
 where
     S: 'static,
     T: 'static + Copy,
-    F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
+    F: Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
 {
     type Item = T;
-    fn dyn_get(&self, cx: &BindContext) -> T {
+    fn dyn_get(&self, cx: &mut BindContext) -> T {
         let mut result = None;
         self.dyn_with(&mut |value, _| result = Some(*value), cx);
         result.unwrap()
@@ -248,10 +252,10 @@ impl<S, T, F> DynamicObservableRef for DynamicObsRefByFn<S, T, F>
 where
     S: 'static,
     T: 'static + ?Sized,
-    F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
+    F: Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
 {
     type Item = T;
-    fn dyn_with(&self, f: &mut dyn FnMut(&T, &BindContext), cx: &BindContext) {
+    fn dyn_with(&self, f: &mut dyn FnMut(&T, &mut BindContext), cx: &mut BindContext) {
         (self.f)(&self.this, f, cx)
     }
 }

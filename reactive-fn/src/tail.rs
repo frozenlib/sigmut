@@ -330,7 +330,7 @@ impl<Op: FoldByOp> FoldByOp for TailFoldByOp<Op> {
     type UnloadSt = Op::UnloadSt;
     type Value = Op::Value;
 
-    fn load(&mut self, state: Self::UnloadSt, cx: &BindContext) -> Self::LoadSt {
+    fn load(&mut self, state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt {
         (self.0.load(state, cx), None)
     }
 

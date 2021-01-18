@@ -8,7 +8,7 @@ pub fn obs_ref<S, T, F>(this: S, f: F) -> ObsRef<impl ObservableRef<Item = T>>
 where
     S: 'static,
     T: 'static + ?Sized,
-    F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
+    F: Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
 {
     struct ObsRefFn<S, T: ?Sized, F> {
         this: S,
@@ -19,11 +19,11 @@ where
     where
         S: 'static,
         T: 'static + ?Sized,
-        F: Fn(&S, &mut dyn FnMut(&T, &BindContext), &BindContext) + 'static,
+        F: Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
     {
         type Item = T;
 
-        fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
+        fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
             let mut result = None;
             let mut f = Some(f);
             (self.f)(
@@ -47,7 +47,7 @@ pub fn obs_ref_constant<T: 'static>(value: T) -> ObsRef<impl ObservableRef<Item 
     struct ObsRefConstant<T>(T);
     impl<T: 'static> ObservableRef for ObsRefConstant<T> {
         type Item = T;
-        fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut BindContext) -> U, cx: &mut BindContext) -> U {
             f(&self.0, cx)
         }
     }
@@ -64,7 +64,7 @@ pub fn obs_ref_static<T: ?Sized>(value: &'static T) -> ObsRef<impl ObservableRef
     struct ObsRefStatic<T: ?Sized + 'static>(&'static T);
     impl<T: ?Sized + 'static> ObservableRef for ObsRefStatic<T> {
         type Item = T;
-        fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+        fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut BindContext) -> U, cx: &mut BindContext) -> U {
             f(&self.0, cx)
         }
     }
@@ -75,16 +75,16 @@ pub fn obs_ref_static<T: ?Sized>(value: &'static T) -> ObsRef<impl ObservableRef
 pub struct ObsRef<S>(pub(super) S);
 
 impl<S: ObservableRef> ObsRef<S> {
-    pub fn get(&self, cx: &BindContext) -> S::Item
+    pub fn get(&self, cx: &mut BindContext) -> S::Item
     where
         S::Item: Copy,
     {
         self.with(|value, _| *value, cx)
     }
-    pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
+    pub fn with<U>(&self, f: impl FnOnce(&S::Item, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         self.0.with(f, cx)
     }
-    pub fn head<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U) -> U {
+    pub fn head<U>(&self, f: impl FnOnce(&S::Item, &mut BindContext) -> U) -> U {
         BindContext::with_no_sink(|cx| self.with(f, cx))
     }
     pub fn head_tail<U>(self, f: impl FnOnce(&S::Item) -> U) -> (U, TailRef<S>) {
@@ -123,8 +123,8 @@ impl<S: ObservableRef> ObsRef<S> {
             type Item = T;
             fn with<U>(
                 &self,
-                f: impl FnOnce(&Self::Item, &BindContext) -> U,
-                cx: &BindContext,
+                f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+                cx: &mut BindContext,
             ) -> U {
                 self.source.with(|value, cx| f((self.f)(value), cx), cx)
             }
@@ -155,8 +155,8 @@ impl<S: ObservableRef> ObsRef<S> {
 
             fn with<U>(
                 &self,
-                f: impl FnOnce(&Self::Item, &BindContext) -> U,
-                cx: &BindContext,
+                f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+                cx: &mut BindContext,
             ) -> U {
                 self.source.with(|value, cx| f(value.borrow(), cx), cx)
             }
@@ -316,13 +316,13 @@ where
 {
     type Item = S::Item;
 
-    fn get(&self, cx: &BindContext) -> Self::Item {
+    fn get(&self, cx: &mut BindContext) -> Self::Item {
         ObsRef::get(self, cx)
     }
 }
 impl<S: ObservableRef> ObservableRef for ObsRef<S> {
     type Item = S::Item;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         ObsRef::with(self, f, cx)
     }
     fn into_dyn(self) -> DynObsRef<Self::Item>

@@ -4,7 +4,7 @@ use std::{any::Any, cell::Ref, future::Future, ops::Deref, rc::Rc};
 
 pub trait Observable: 'static {
     type Item;
-    fn get(&self, cx: &BindContext) -> Self::Item;
+    fn get(&self, cx: &mut BindContext) -> Self::Item;
 
     fn into_dyn(self) -> DynObs<Self::Item>
     where
@@ -22,7 +22,7 @@ pub trait Observable: 'static {
 
 pub trait ObservableBorrow: 'static {
     type Item: ?Sized;
-    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item>;
+    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item>;
 
     fn into_dyn(self) -> DynObsBorrow<Self::Item>
     where
@@ -39,7 +39,11 @@ pub trait ObservableBorrow: 'static {
 }
 pub trait ObservableRef: 'static {
     type Item: ?Sized;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U;
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U;
 
     fn into_dyn(self) -> DynObsRef<Self::Item>
     where
@@ -58,21 +62,25 @@ pub trait ObservableRef: 'static {
 impl<S: Observable> Observable for Rc<S> {
     type Item = S::Item;
 
-    fn get(&self, cx: &BindContext) -> Self::Item {
+    fn get(&self, cx: &mut BindContext) -> Self::Item {
         self.deref().get(cx)
     }
 }
 impl<S: ObservableBorrow> ObservableBorrow for Rc<S> {
     type Item = S::Item;
 
-    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
         self.deref().borrow(cx)
     }
 }
 impl<S: ObservableRef> ObservableRef for Rc<S> {
     type Item = S::Item;
 
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
         self.deref().with(f, cx)
     }
 }
@@ -92,7 +100,7 @@ pub trait LocalSpawn: 'static {
     fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle;
 }
 
-pub fn subscribe(mut f: impl FnMut(&BindContext) + 'static) -> Subscription {
+pub fn subscribe(mut f: impl FnMut(&mut BindContext) + 'static) -> Subscription {
     Subscription(Some(FoldBy::new(
         (),
         fold_op(move |st, cx| {

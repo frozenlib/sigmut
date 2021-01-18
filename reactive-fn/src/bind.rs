@@ -6,20 +6,20 @@ use std::rc::{Rc, Weak};
 
 pub struct BindContext<'a> {
     scope: &'a BindScope,
-    bb: Option<RefCell<BindingsBuilder>>,
+    bb: Option<BindingsBuilder>,
 }
 
 impl<'a> BindContext<'a> {
-    pub fn bind(&self, source: Rc<impl BindSource>) {
-        if let Some(bb) = &self.bb {
-            bb.borrow_mut().bind(source);
+    pub fn bind(&mut self, source: Rc<impl BindSource>) {
+        if let Some(bb) = &mut self.bb {
+            bb.bind(source);
         }
     }
     pub fn scope(&self) -> &BindScope {
         &self.scope
     }
-    pub fn with_no_sink<T>(f: impl FnOnce(&BindContext) -> T) -> T {
-        BindScope::with(|scope| f(&BindContext { scope, bb: None }))
+    pub fn with_no_sink<T>(f: impl FnOnce(&mut BindContext) -> T) -> T {
+        BindScope::with(|scope| f(&mut BindContext { scope, bb: None }))
     }
 }
 struct BindingsBuilder {
@@ -99,18 +99,18 @@ impl Bindings {
         &mut self,
         scope: &'a BindScope,
         sink: &Rc<impl BindSink>,
-        f: impl FnOnce(&BindContext<'a>) -> T,
+        f: impl FnOnce(&mut BindContext<'a>) -> T,
     ) -> T {
         let bindings = replace(&mut self.0, Vec::new());
-        let cx = BindContext {
+        let mut cx = BindContext {
             scope,
-            bb: Some(RefCell::new(BindingsBuilder::new(
+            bb: Some(BindingsBuilder::new(
                 Rc::downgrade(sink) as Weak<dyn BindSink>,
                 bindings,
-            ))),
+            )),
         };
-        let value = f(&cx);
-        self.0 = cx.bb.unwrap().into_inner().build();
+        let value = f(&mut cx);
+        self.0 = cx.bb.unwrap().build();
         value
     }
 

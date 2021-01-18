@@ -14,13 +14,13 @@ pub(super) enum DynObsData<T: 'static + ?Sized> {
 }
 
 impl<T: 'static> DynObs<T> {
-    pub fn get(&self, cx: &BindContext) -> T {
+    pub fn get(&self, cx: &mut BindContext) -> T {
         match &self.0 {
             DynObsData::Dyn(rc) => rc.dyn_get(cx),
             DynObsData::DynSource(rc) => rc.clone().dyn_get(cx),
         }
     }
-    pub fn with<U>(&self, f: impl FnOnce(&T, &BindContext) -> U, cx: &BindContext) -> U {
+    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         f(&self.get(cx), cx)
     }
     pub fn head(&self) -> T {
@@ -33,7 +33,7 @@ impl<T: 'static> DynObs<T> {
         DynTail::new(self.clone(), scope)
     }
 
-    pub fn new(get: impl Fn(&BindContext) -> T + 'static) -> Self {
+    pub fn new(get: impl Fn(&mut BindContext) -> T + 'static) -> Self {
         obs(get).into_dyn()
     }
     pub fn constant(value: T) -> Self
@@ -176,7 +176,7 @@ impl<T: 'static> DynObs<DynObs<T>> {
 impl<T> Observable for DynObs<T> {
     type Item = T;
 
-    fn get(&self, cx: &BindContext) -> Self::Item {
+    fn get(&self, cx: &mut BindContext) -> Self::Item {
         DynObs::get(self, cx)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -189,7 +189,7 @@ impl<T> Observable for DynObs<T> {
 impl<T> ObservableRef for DynObs<T> {
     type Item = T;
 
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         DynObs::with(self, f, cx)
     }
 }

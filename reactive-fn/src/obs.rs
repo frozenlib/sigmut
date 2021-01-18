@@ -3,11 +3,11 @@ use crate::{hot::*, into_stream::*, map_async::*, scan::*};
 use futures::Future;
 use std::{borrow::Borrow, iter::once, rc::Rc, task::Poll};
 
-pub fn obs<T>(get: impl Fn(&BindContext) -> T + 'static) -> Obs<impl Observable<Item = T>> {
+pub fn obs<T>(get: impl Fn(&mut BindContext) -> T + 'static) -> Obs<impl Observable<Item = T>> {
     struct ObsFn<F>(F);
-    impl<F: Fn(&BindContext) -> T + 'static, T> Observable for ObsFn<F> {
+    impl<F: Fn(&mut BindContext) -> T + 'static, T> Observable for ObsFn<F> {
         type Item = T;
-        fn get(&self, cx: &BindContext) -> Self::Item {
+        fn get(&self, cx: &mut BindContext) -> Self::Item {
             (self.0)(cx)
         }
     }
@@ -22,10 +22,14 @@ pub fn obs_constant<T: 'static + Clone>(value: T) -> Obs<impl Observable<Item = 
 pub struct Obs<S>(pub(crate) S);
 
 impl<S: Observable> Obs<S> {
-    pub fn get(&self, cx: &BindContext) -> S::Item {
+    pub fn get(&self, cx: &mut BindContext) -> S::Item {
         self.0.get(cx)
     }
-    pub fn with<T>(&self, f: impl FnOnce(&S::Item, &BindContext) -> T, cx: &BindContext) -> T {
+    pub fn with<T>(
+        &self,
+        f: impl FnOnce(&S::Item, &mut BindContext) -> T,
+        cx: &mut BindContext,
+    ) -> T {
         f(&self.get(cx), cx)
     }
     pub fn head(&self) -> S::Item {
@@ -227,7 +231,7 @@ impl<S: Observable> Obs<S> {
 }
 impl<S: Observable> Observable for Obs<S> {
     type Item = S::Item;
-    fn get(&self, cx: &BindContext) -> Self::Item {
+    fn get(&self, cx: &mut BindContext) -> Self::Item {
         self.0.get(cx)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -240,7 +244,11 @@ impl<S: Observable> Observable for Obs<S> {
 
 impl<S: Observable> ObservableRef for Obs<S> {
     type Item = S::Item;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &BindContext) -> U, cx: &BindContext) -> U {
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
         Obs::with(self, f, cx)
     }
     fn into_dyn(self) -> DynObsRef<Self::Item>
