@@ -28,7 +28,7 @@ where
         for<'a> F: Fn(&'a S, &mut BindContext) -> Ref<'a, T> + 'static,
     {
         type Item = T;
-        fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, T> {
+        fn borrow(&self, cx: &mut BindContext) -> Ref<T> {
             (self.borrow)(&self.this, cx)
         }
     }
@@ -49,7 +49,7 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
     {
         *self.0.borrow(cx)
     }
-    pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, S::Item> {
+    pub fn borrow(&self, cx: &mut BindContext) -> Ref<S::Item> {
         self.0.borrow(cx)
     }
     pub fn with<U>(
@@ -60,12 +60,9 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         f(&self.borrow(cx), cx)
     }
     pub fn head_tail_with<'a>(
-        &'a self,
-        scope: &'a BindScope,
-    ) -> (
-        Ref<'a, S::Item>,
-        TailRef<impl ObservableRef<Item = S::Item>>,
-    )
+        &self,
+        scope: &BindScope,
+    ) -> (Ref<S::Item>, TailRef<impl ObservableRef<Item = S::Item>>)
     where
         S: Clone,
     {
@@ -114,7 +111,7 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         {
             type Item = B;
 
-            fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
+            fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
                 Ref::map(self.source.borrow(cx), |x| x.borrow())
             }
             fn into_dyn(self) -> DynObsBorrow<Self::Item>
@@ -235,7 +232,7 @@ where
 }
 impl<S: ObservableBorrow> ObservableBorrow for ObsBorrow<S> {
     type Item = S::Item;
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
+    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
         ObsBorrow::borrow(self, cx)
     }
     fn into_dyn(self) -> DynObsBorrow<Self::Item>

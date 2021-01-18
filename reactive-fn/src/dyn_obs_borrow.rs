@@ -20,7 +20,7 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     {
         *self.borrow(cx)
     }
-    pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, T> {
+    pub fn borrow(&self, cx: &mut BindContext) -> Ref<T> {
         match &self.0 {
             DynObsBorrowData::Dyn(rc) => rc.dyn_borrow(cx),
             DynObsBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, cx),
@@ -29,7 +29,7 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         f(&self.borrow(cx), cx)
     }
-    pub fn head_tail_with<'a>(&'a self, scope: &'a BindScope) -> (Ref<'a, T>, DynTailRef<T>) {
+    pub fn head_tail_with(&self, scope: &BindScope) -> (Ref<T>, DynTailRef<T>) {
         DynTailRef::new_borrow(&self, scope)
     }
 
@@ -179,7 +179,7 @@ impl<T: Copy> Observable for DynObsBorrow<T> {
 }
 impl<T: ?Sized> ObservableBorrow for DynObsBorrow<T> {
     type Item = T;
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
+    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
         DynObsBorrow::borrow(self, cx)
     }
     fn into_dyn(self) -> DynObsBorrow<Self::Item>

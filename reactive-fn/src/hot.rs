@@ -89,14 +89,18 @@ impl<S: Observable> Observable for Hot<S> {
 }
 impl<S: ObservableBorrow> ObservableBorrow for Hot<S> {
     type Item = S::Item;
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
+    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
         self.source.borrow(cx)
     }
 }
 
 impl<S: ObservableRef> ObservableRef for Hot<S> {
     type Item = S::Item;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut BindContext) -> U, cx: &mut BindContext) -> U {
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
         self.source.with(f, cx)
     }
 }

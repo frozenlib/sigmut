@@ -130,7 +130,7 @@ impl<T: ?Sized + 'static> DynTailRef<T> {
     }
     pub(super) fn new_borrow<'a>(
         source: &'a DynObsBorrow<T>,
-        scope: &'a BindScope,
+        scope: &BindScope,
     ) -> (Ref<'a, T>, Self) {
         let (r, s) = TailRef::new_borrow(source, scope, |s| s.as_ref());
         (r, Self(s))
@@ -195,7 +195,7 @@ impl<S: ObservableRef> TailRef<S> {
     }
     pub(super) fn new_borrow<'a, B: ObservableBorrow<Item = S::Item>>(
         source: &'a B,
-        scope: &'a BindScope,
+        scope: &BindScope,
         to_ref: impl Fn(&B) -> S,
     ) -> (Ref<'a, B::Item>, Self) {
         let state = TailState::new();

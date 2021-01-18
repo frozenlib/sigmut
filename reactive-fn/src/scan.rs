@@ -343,7 +343,7 @@ impl<Op: ScanOp> Scan<Op> {
 }
 impl<Op: ScanOp> ObservableBorrow for Rc<Scan<Op>> {
     type Item = Op::Value;
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
+    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
         self.borrow(cx)
     }
 }
@@ -352,10 +352,10 @@ impl<Op: ScanOp> DynamicObservableBorrowSource for Scan<Op> {
     type Item = Op::Value;
 
     fn dyn_borrow<'a>(
-        &'a self,
+        &self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
         cx: &mut BindContext,
-    ) -> Ref<'a, Self::Item> {
+    ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         cx.bind(rc_self.clone());
         let mut d = self.data.borrow();
@@ -444,7 +444,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
 impl<Op: FilterScanOp> ObservableBorrow for Rc<FilterScan<Op>> {
     type Item = Op::Value;
 
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
+    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
         self.borrow(cx)
     }
 }
@@ -452,11 +452,11 @@ impl<Op: FilterScanOp> ObservableBorrow for Rc<FilterScan<Op>> {
 impl<Op: FilterScanOp> DynamicObservableBorrowSource for FilterScan<Op> {
     type Item = Op::Value;
 
-    fn dyn_borrow<'a>(
-        &'a self,
+    fn dyn_borrow(
+        &self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
         cx: &mut BindContext,
-    ) -> Ref<'a, Self::Item> {
+    ) -> Ref<Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {

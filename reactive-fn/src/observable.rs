@@ -22,7 +22,7 @@ pub trait Observable: 'static {
 
 pub trait ObservableBorrow: 'static {
     type Item: ?Sized;
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item>;
+    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item>;
 
     fn into_dyn(self) -> DynObsBorrow<Self::Item>
     where
@@ -69,7 +69,7 @@ impl<S: Observable> Observable for Rc<S> {
 impl<S: ObservableBorrow> ObservableBorrow for Rc<S> {
     type Item = S::Item;
 
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
+    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
         self.deref().borrow(cx)
     }
 }

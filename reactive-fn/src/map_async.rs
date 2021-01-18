@@ -58,11 +58,7 @@ where
     fn borrow<'a>(self: &'a Rc<Self>, cx: &mut BindContext) -> Ref<'a, Poll<Fut::Output>> {
         self.borrow_with(self.clone(), cx)
     }
-    fn borrow_with<'a>(
-        self: &'a Self,
-        rc_self: Rc<Self>,
-        cx: &mut BindContext,
-    ) -> Ref<'a, Poll<Fut::Output>> {
+    fn borrow_with(&self, rc_self: Rc<Self>, cx: &mut BindContext) -> Ref<Poll<Fut::Output>> {
         let mut s = self.state.borrow();
         if s.handle.is_none() {
             drop(s);
@@ -80,7 +76,7 @@ where
     Sp: LocalSpawn,
 {
     type Item = Poll<Fut::Output>;
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Ref<'a, Self::Item> {
+    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
         self.borrow(cx)
     }
 }
