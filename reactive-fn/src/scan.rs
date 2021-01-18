@@ -325,7 +325,7 @@ impl<Op: ScanOp> Scan<Op> {
             sinks: BindSinks::new(),
         }
     }
-    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, Op::Value> {
+    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext) -> Ref<'a, Op::Value> {
         cx.bind(self.clone());
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
@@ -338,7 +338,7 @@ impl<Op: ScanOp> Scan<Op> {
 }
 impl<Op: ScanOp> ObservableBorrow for Rc<Scan<Op>> {
     type Item = Op::Value;
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
         self.borrow(cx)
     }
 }
@@ -349,7 +349,7 @@ impl<Op: ScanOp> DynamicObservableBorrowSource for Scan<Op> {
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext<'a>,
+        cx: &BindContext,
     ) -> Ref<'a, Self::Item> {
         let rc_self = Self::downcast(rc_self);
         cx.bind(rc_self.clone());
@@ -420,7 +420,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
             scope.defer_notify(self.clone());
         }
     }
-    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, Op::Value> {
+    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext) -> Ref<'a, Op::Value> {
         let mut d = self.data.borrow();
         if !d.state.is_loaded() {
             drop(d);
@@ -435,7 +435,7 @@ impl<Op: FilterScanOp> FilterScan<Op> {
 impl<Op: FilterScanOp> ObservableBorrow for Rc<FilterScan<Op>> {
     type Item = Op::Value;
 
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
         self.borrow(cx)
     }
 }
@@ -446,7 +446,7 @@ impl<Op: FilterScanOp> DynamicObservableBorrowSource for FilterScan<Op> {
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext<'a>,
+        cx: &BindContext,
     ) -> Ref<'a, Self::Item> {
         let rc_self = Self::downcast(rc_self);
         let mut d = self.data.borrow();

@@ -89,7 +89,7 @@ impl<S: Observable> Observable for Hot<S> {
 }
 impl<S: ObservableBorrow> ObservableBorrow for Hot<S> {
     type Item = S::Item;
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
         self.source.borrow(cx)
     }
 }

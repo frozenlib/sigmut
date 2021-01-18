@@ -138,7 +138,7 @@ impl<T: 'static> ObsRefCell<T> {
         }
     }
 
-    pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
+    pub fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, T> {
         self.0.borrow(cx)
     }
     pub fn borrow_head(&self) -> Ref<T> {
@@ -165,7 +165,7 @@ impl<T: 'static> ObsRefCell<T> {
     }
 }
 impl<T: 'static> ObsRefCellData<T> {
-    pub fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, T> {
+    pub fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext) -> Ref<'a, T> {
         cx.bind(self.clone());
         self.value.borrow()
     }
@@ -173,7 +173,7 @@ impl<T: 'static> ObsRefCellData<T> {
 
 impl<T: 'static> ObservableBorrow for ObsRefCell<T> {
     type Item = T;
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
         self.0.borrow(cx)
     }
 
@@ -191,7 +191,7 @@ impl<T: 'static> DynamicObservableBorrowSource for ObsRefCellData<T> {
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext<'a>,
+        cx: &BindContext,
     ) -> Ref<'a, Self::Item> {
         cx.bind(Self::downcast(rc_self));
         self.value.borrow()

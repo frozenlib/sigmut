@@ -55,13 +55,13 @@ where
             }
         }));
     }
-    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext<'a>) -> Ref<'a, Poll<Fut::Output>> {
+    fn borrow<'a>(self: &'a Rc<Self>, cx: &BindContext) -> Ref<'a, Poll<Fut::Output>> {
         self.borrow_with(self.clone(), cx)
     }
     fn borrow_with<'a>(
         self: &'a Self,
         rc_self: Rc<Self>,
-        cx: &BindContext<'a>,
+        cx: &BindContext,
     ) -> Ref<'a, Poll<Fut::Output>> {
         let mut s = self.state.borrow();
         if s.handle.is_none() {
@@ -80,7 +80,7 @@ where
     Sp: LocalSpawn,
 {
     type Item = Poll<Fut::Output>;
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
         self.borrow(cx)
     }
 }
@@ -96,7 +96,7 @@ where
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext<'a>,
+        cx: &BindContext,
     ) -> Ref<Self::Item> {
         self.borrow_with(Self::downcast(rc_self), cx)
     }

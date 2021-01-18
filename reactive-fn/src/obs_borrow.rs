@@ -11,7 +11,7 @@ use std::{
 
 pub fn obs_borrow<S, T>(
     this: S,
-    borrow: impl for<'a> Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
+    borrow: impl for<'a> Fn(&'a S, &BindContext) -> Ref<'a, T> + 'static,
 ) -> ObsBorrow<impl ObservableBorrow<Item = T>>
 where
     T: 'static + ?Sized,
@@ -25,10 +25,10 @@ where
     where
         T: 'static + ?Sized,
         S: 'static,
-        for<'a> F: Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
+        for<'a> F: Fn(&'a S, &BindContext) -> Ref<'a, T> + 'static,
     {
         type Item = T;
-        fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
+        fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, T> {
             (self.borrow)(&self.this, cx)
         }
     }
@@ -49,7 +49,7 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
     {
         *self.0.borrow(cx)
     }
-    pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, S::Item> {
+    pub fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, S::Item> {
         self.0.borrow(cx)
     }
     pub fn with<U>(&self, f: impl FnOnce(&S::Item, &BindContext) -> U, cx: &BindContext) -> U {
@@ -110,7 +110,7 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         {
             type Item = B;
 
-            fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+            fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
                 Ref::map(self.source.borrow(cx), |x| x.borrow())
             }
             fn into_dyn(self) -> DynObsBorrow<Self::Item>
@@ -231,7 +231,7 @@ where
 }
 impl<S: ObservableBorrow> ObservableBorrow for ObsBorrow<S> {
     type Item = S::Item;
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
         ObsBorrow::borrow(self, cx)
     }
     fn into_dyn(self) -> DynObsBorrow<Self::Item>

@@ -15,7 +15,7 @@ pub trait DynamicObservableSource: 'static {
 
 pub trait DynamicObservableBorrow: 'static {
     type Item: ?Sized;
-    fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item>;
+    fn dyn_borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item>;
     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>>;
 }
 pub trait DynamicObservableBorrowSource: Any + 'static {
@@ -24,7 +24,7 @@ pub trait DynamicObservableBorrowSource: Any + 'static {
     fn dyn_borrow<'a>(
         &'a self,
         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &BindContext<'a>,
+        cx: &BindContext,
     ) -> Ref<'a, Self::Item>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 
@@ -60,7 +60,7 @@ impl<T: ?Sized, S: ObservableBorrow<Item = T> + ObservableRef<Item = T>> Dynamic
     for DynamicObs<S>
 {
     type Item = T;
-    fn dyn_borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
+    fn dyn_borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, T> {
         self.0.borrow(cx)
     }
     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = T>> {
@@ -82,7 +82,7 @@ impl<S: Observable> Observable for DynamicObs<S> {
 }
 impl<S: ObservableBorrow> ObservableBorrow for DynamicObs<S> {
     type Item = S::Item;
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
         self.0.borrow(cx)
     }
 }

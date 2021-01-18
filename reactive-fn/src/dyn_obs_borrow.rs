@@ -20,7 +20,7 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     {
         *self.borrow(cx)
     }
-    pub fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, T> {
+    pub fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, T> {
         match &self.0 {
             DynObsBorrowData::Dyn(rc) => rc.dyn_borrow(cx),
             DynObsBorrowData::DynSource(rc) => rc.dyn_borrow(&rc, cx),
@@ -42,7 +42,7 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
     pub fn new<S, F>(this: S, borrow: F) -> Self
     where
         S: 'static,
-        for<'a> F: Fn(&'a S, &BindContext<'a>) -> Ref<'a, T> + 'static,
+        for<'a> F: Fn(&'a S, &BindContext) -> Ref<'a, T> + 'static,
     {
         obs_borrow(this, borrow).into_dyn()
     }
@@ -179,7 +179,7 @@ impl<T: Copy> Observable for DynObsBorrow<T> {
 }
 impl<T: ?Sized> ObservableBorrow for DynObsBorrow<T> {
     type Item = T;
-    fn borrow<'a>(&'a self, cx: &BindContext<'a>) -> Ref<'a, Self::Item> {
+    fn borrow<'a>(&'a self, cx: &BindContext) -> Ref<'a, Self::Item> {
         DynObsBorrow::borrow(self, cx)
     }
     fn into_dyn(self) -> DynObsBorrow<Self::Item>
