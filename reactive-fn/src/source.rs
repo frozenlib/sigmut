@@ -8,6 +8,16 @@ pub enum Source<T: 'static> {
 }
 
 impl<T: 'static> Source<T> {
+    pub fn get(&self, cx: &mut BindContext) -> T
+    where
+        T: Copy,
+    {
+        match self {
+            Self::Constant(value) => *value,
+            Self::Obs(obs) => obs.with(|value, _cx| *value, cx),
+        }
+    }
+
     pub fn head_tail(self) -> (T, DynTail<T>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }
