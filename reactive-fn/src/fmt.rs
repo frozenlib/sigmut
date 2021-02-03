@@ -11,13 +11,6 @@ pub trait ObservableDisplay {
     {
         ObsDisplay(self)
     }
-
-    // fn to_format_arg<'a, 'b>(
-    //     &'a self,
-    //     cx: &'a RefCell<&'a mut BindContext<'b>>,
-    // ) -> ObsFormatArg<'a, 'b, Self> {
-    //     ObsFormatArg { s: self, cx }
-    // }
 }
 
 pub struct ObsDisplay<S: ?Sized>(S);
@@ -52,6 +45,24 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     }
 }
 
+struct ObsDisplayHead<'a, 'b, S> {
+    s: &'a S,
+    cx: RefCell<&'a mut BindContext<'b>>,
+}
+impl<'a, 'b, S: ObservableDisplay> ObsDisplayHead<'a, 'b, S> {
+    fn new(s: &'a S, cx: &'a mut BindContext<'b>) -> Self {
+        Self {
+            s,
+            cx: RefCell::new(cx),
+        }
+    }
+}
+impl<'a, 'b, S: ObservableDisplay> Display for ObsDisplayHead<'a, 'b, S> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        self.s.obs_fmt(f, &mut self.cx.borrow_mut())
+    }
+}
+
 pub struct ObsFormatArg<'a, 'b, S: ?Sized> {
     s: &'a S,
     cx: &'a RefCell<&'a mut BindContext<'b>>,
@@ -77,25 +88,6 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         self.s
             .with(|value, _cx| value.fmt(f), &mut self.cx.borrow_mut())
-    }
-}
-
-struct ObsDisplayHead<'a, 'b, S> {
-    s: &'a S,
-    cx: RefCell<&'a mut BindContext<'b>>,
-}
-impl<'a, 'b, S: ObservableDisplay> ObsDisplayHead<'a, 'b, S> {
-    fn new(s: &'a S, cx: &'a mut BindContext<'b>) -> Self {
-        Self {
-            s,
-            cx: RefCell::new(cx),
-        }
-    }
-}
-
-impl<'a, 'b, S: ObservableDisplay> Display for ObsDisplayHead<'a, 'b, S> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        self.s.obs_fmt(f, &mut self.cx.borrow_mut())
     }
 }
 
