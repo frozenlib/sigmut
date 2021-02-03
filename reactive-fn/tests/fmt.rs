@@ -93,6 +93,22 @@ fn test_obs_write_obs() {
     let e = vec!["abc1", "abc5", "abc10"];
     assert_eq!(&r, &e);
 }
+#[test]
+fn test_obs_write_obs2() {
+    let s0 = ObsCell::new(0);
+    let s1 = ObsCell::new(1);
+    let o = obs_display({
+        let s0 = s0.clone();
+        let s1 = s1.clone();
+        move |f, cx| obs_write!(f, cx, "abc{}-{}", s0, s1)
+    });
+    let v = o.map_string().collect_vec();
+    s0.set(5);
+    s1.set(10);
+    let r = v.stop();
+    let e = vec!["abc0-1", "abc5-1", "abc5-10"];
+    assert_eq!(&r, &e);
+}
 
 #[test]
 fn test_obs_write_obs_by_ref() {
