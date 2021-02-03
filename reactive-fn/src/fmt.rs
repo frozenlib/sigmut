@@ -1,5 +1,5 @@
 use crate::*;
-use std::fmt::{Formatter, Result, Write};
+use std::fmt::{Debug, Formatter, Result, Write};
 use std::{cell::RefCell, fmt::Display};
 
 pub trait ObservableDisplay {
@@ -12,15 +12,15 @@ pub trait ObservableDisplay {
         ObsDisplay(self)
     }
 
-    fn to_format_arg<'a, 'b>(
-        &'a self,
-        cx: &'a RefCell<&'a mut BindContext<'b>>,
-    ) -> ObsFormatArg<'a, 'b, Self> {
-        ObsFormatArg { s: self, cx }
-    }
+    // fn to_format_arg<'a, 'b>(
+    //     &'a self,
+    //     cx: &'a RefCell<&'a mut BindContext<'b>>,
+    // ) -> ObsFormatArg<'a, 'b, Self> {
+    //     ObsFormatArg { s: self, cx }
+    // }
 }
 
-pub struct ObsDisplay<S>(S);
+pub struct ObsDisplay<S: ?Sized>(S);
 impl<S: ObservableDisplay> ObsDisplay<S> {
     pub fn map_str(self) -> ObsRef<impl ObservableRef<Item = str>>
     where
@@ -56,11 +56,30 @@ pub struct ObsFormatArg<'a, 'b, S: ?Sized> {
     s: &'a S,
     cx: &'a RefCell<&'a mut BindContext<'b>>,
 }
-impl<'a, 'b, S: ?Sized + ObservableDisplay> Display for ObsFormatArg<'a, 'b, S> {
+impl<'a, 'b, S: ?Sized + ObservableDisplay> Display for ObsFormatArg<'a, 'b, ObsDisplay<S>> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        self.s.obs_fmt(f, &mut self.cx.borrow_mut())
+        self.s.0.obs_fmt(f, &mut self.cx.borrow_mut())
     }
 }
+impl<'a, 'b, S: ?Sized + ObservableRef> Display for ObsFormatArg<'a, 'b, S>
+where
+    S::Item: Display,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        self.s
+            .with(|value, _cx| value.fmt(f), &mut self.cx.borrow_mut())
+    }
+}
+impl<'a, 'b, S: ?Sized + ObservableRef> Debug for ObsFormatArg<'a, 'b, S>
+where
+    S::Item: Debug,
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        self.s
+            .with(|value, _cx| value.fmt(f), &mut self.cx.borrow_mut())
+    }
+}
+
 struct ObsDisplayHead<'a, 'b, S> {
     s: &'a S,
     cx: RefCell<&'a mut BindContext<'b>>,
@@ -89,6 +108,31 @@ struct FnObsDisplay<F>(F);
 impl<F: Fn(&mut Formatter, &mut BindContext) -> Result> ObservableDisplay for FnObsDisplay<F> {
     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
         (self.0)(f, cx)
+    }
+}
+
+pub struct ObsFormatHelper<'a, T>(pub &'a T);
+pub trait UseObsFormatArg {}
+
+impl<T> UseObsFormatArg for ObsDisplay<T> {}
+impl<S: ObservableRef> UseObsFormatArg for S {}
+
+impl<T: UseObsFormatArg> ObsFormatHelper<'_, T> {
+    pub fn to_format_arg<'a, 'b>(
+        &'a self,
+        cx: &'a RefCell<&'a mut BindContext<'b>>,
+    ) -> ObsFormatArg<'a, 'b, T> {
+        ObsFormatArg { s: &self.0, cx }
+    }
+}
+pub trait ObsFormatHelperDefault {
+    type This;
+    fn to_format_arg(&self, _cx: &RefCell<&mut BindContext>) -> &Self::This;
+}
+impl<'a, T> ObsFormatHelperDefault for ObsFormatHelper<'a, T> {
+    type This = T;
+    fn to_format_arg(&self, _cx: &RefCell<&mut BindContext>) -> &Self::This {
+        &self.0
     }
 }
 
@@ -127,6 +171,7 @@ macro_rules! obs_write_impl {
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) ()) => {
         {
             use $crate::fmt::ObservableDisplay as _;
+            use $crate::fmt::ObsFormatHelperDefault as _;
             let $cx_var : std::cell::RefCell<&mut $crate::BindContext> = std::cell::RefCell::new($cx);
             $p!($($args0)*)
         }
@@ -138,13 +183,13 @@ macro_rules! obs_write_impl {
         $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*)(, $name = $value,))
     };
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr, $($args1:tt)*)) => {
-        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*, ($name = $value).to_format_arg(&$cx_var))(, $($args1)*))
+        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*, $name = $crate::fmt::ObsFormatHelper(&$value).to_format_arg(&$cx_var))(, $($args1)*))
     };
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr)) => {
         $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*)(, $value,))
     };
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr, $($args1:tt)*)) => {
-        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*, ($value).to_format_arg(&$cx_var))(, $($args1)*))
+        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*, $crate::fmt::ObsFormatHelper(&$value).to_format_arg(&$cx_var))(, $($args1)*))
     };
 }
 

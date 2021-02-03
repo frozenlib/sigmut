@@ -1,5 +1,3 @@
-use std::cell::RefCell;
-
 use reactive_fn::*;
 
 #[test]
@@ -31,35 +29,35 @@ fn test_obs_display_map_string() {
     assert_eq!(&r, &e);
 }
 
-#[test]
-fn test_to_format_arg() {
-    let s = ObsCell::new(1);
-    let d = s.obs().into_obs_display();
-    let o = obs(move |cx| format!("abc{}", d.to_format_arg(&RefCell::new(cx))));
-    let v = o.collect_vec();
-    s.set(5);
-    s.set(10);
-    let r = v.stop();
-    let e = vec!["abc1", "abc5", "abc10"];
-    assert_eq!(&r, &e);
-}
-#[test]
-fn test_to_format_arg2() {
-    let s0 = ObsCell::new(1);
-    let s1 = ObsCell::new(1);
-    let d0 = s0.obs().into_obs_display();
-    let d1 = s1.obs().into_obs_display();
-    let o = obs(move |cx| {
-        let cx = RefCell::new(cx);
-        format!("abc{}-{}", d0.to_format_arg(&cx), d1.to_format_arg(&cx))
-    });
-    let v = o.collect_vec();
-    s0.set(5);
-    s1.set(10);
-    let r = v.stop();
-    let e = vec!["abc1-1", "abc5-1", "abc5-10"];
-    assert_eq!(&r, &e);
-}
+// #[test]
+// fn test_to_format_arg() {
+//     let s = ObsCell::new(1);
+//     let d = s.obs().into_obs_display();
+//     let o = obs(move |cx| format!("abc{}", d.to_format_arg(&RefCell::new(cx))));
+//     let v = o.collect_vec();
+//     s.set(5);
+//     s.set(10);
+//     let r = v.stop();
+//     let e = vec!["abc1", "abc5", "abc10"];
+//     assert_eq!(&r, &e);
+// }
+// #[test]
+// fn test_to_format_arg2() {
+//     let s0 = ObsCell::new(1);
+//     let s1 = ObsCell::new(1);
+//     let d0 = s0.obs().into_obs_display();
+//     let d1 = s1.obs().into_obs_display();
+//     let o = obs(move |cx| {
+//         let cx = RefCell::new(cx);
+//         format!("abc{}-{}", d0.to_format_arg(&cx), d1.to_format_arg(&cx))
+//     });
+//     let v = o.collect_vec();
+//     s0.set(5);
+//     s1.set(10);
+//     let r = v.stop();
+//     let e = vec!["abc1-1", "abc5-1", "abc5-10"];
+//     assert_eq!(&r, &e);
+// }
 
 #[test]
 fn test_obs_write_constant() {
@@ -83,7 +81,7 @@ fn test_obs_write_constant_ref() {
 fn test_obs_write_obs() {
     let s = ObsCell::new(1);
     let o = obs_display({
-        let s = s.clone();
+        let s = s.obs();
         move |f, cx| obs_write!(f, cx, "abc{}", s)
     });
     let v = o.map_string().collect_vec();
@@ -98,8 +96,8 @@ fn test_obs_write_obs2() {
     let s0 = ObsCell::new(0);
     let s1 = ObsCell::new(1);
     let o = obs_display({
-        let s0 = s0.clone();
-        let s1 = s1.clone();
+        let s0 = s0.obs();
+        let s1 = s1.obs();
         move |f, cx| obs_write!(f, cx, "abc{}-{}", s0, s1)
     });
     let v = o.map_string().collect_vec();
@@ -110,14 +108,29 @@ fn test_obs_write_obs2() {
     assert_eq!(&r, &e);
 }
 
+// #[test]
+// fn test_obs_write_obs_by_ref() {
+//     let s = ObsCell::new(1);
+//     let o = obs_display({
+//         let s = s.obs();
+//         move |f, cx| obs_write!(f, cx, "abc{}", &s)
+//     });
+//     let v = o.map_string().collect_vec();
+//     s.set(5);
+//     s.set(10);
+//     let r = v.stop();
+//     let e = vec!["abc1", "abc5", "abc10"];
+//     assert_eq!(&r, &e);
+// }
+
 #[test]
-fn test_obs_write_obs_by_ref() {
+fn test_obs_format_obs() {
     let s = ObsCell::new(1);
-    let o = obs_display({
-        let s = s.clone();
-        move |f, cx| obs_write!(f, cx, "abc{}", &s)
+    let o = obs({
+        let s = s.obs();
+        move |cx| obs_format!(cx, "abc{}", s)
     });
-    let v = o.map_string().collect_vec();
+    let v = o.collect_vec();
     s.set(5);
     s.set(10);
     let r = v.stop();
@@ -126,16 +139,16 @@ fn test_obs_write_obs_by_ref() {
 }
 
 #[test]
-fn test_obs_format_obs() {
-    let s = ObsCell::new(1);
+fn test_obs_format_debug() {
+    let s = ObsCell::new(Some(1));
     let o = obs({
-        let s = s.clone();
-        move |cx| obs_format!(cx, "abc{}", s)
+        let s = s.obs();
+        move |cx| obs_format!(cx, "abc-{:?}", s)
     });
     let v = o.collect_vec();
-    s.set(5);
-    s.set(10);
+    s.set(None);
+    s.set(Some(5));
     let r = v.stop();
-    let e = vec!["abc1", "abc5", "abc10"];
+    let e = vec!["abc-Some(1)", "abc-None", "abc-Some(5)"];
     assert_eq!(&r, &e);
 }
