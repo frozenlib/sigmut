@@ -10,9 +10,7 @@ fn test_obs_display_map_str() {
     let v = d.map_str().map(|x| x.to_string()).collect_vec();
     s.set(5);
     s.set(10);
-    let r = v.stop();
-    let e = vec!["abc1", "abc5", "abc10"];
-    assert_eq!(&r, &e);
+    assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
 #[test]
 fn test_obs_display_map_string() {
@@ -51,9 +49,7 @@ fn test_obs_write_obs() {
     let v = o.map_string().collect_vec();
     s.set(5);
     s.set(10);
-    let r = v.stop();
-    let e = vec!["abc1", "abc5", "abc10"];
-    assert_eq!(&r, &e);
+    assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
 #[test]
 fn test_obs_write_obs2() {
@@ -67,9 +63,7 @@ fn test_obs_write_obs2() {
     let v = o.map_string().collect_vec();
     s0.set(5);
     s1.set(10);
-    let r = v.stop();
-    let e = vec!["abc0-1", "abc5-1", "abc5-10"];
-    assert_eq!(&r, &e);
+    assert_eq!(v.stop(), vec!["abc0-1", "abc5-1", "abc5-10"]);
 }
 
 #[test]
@@ -82,9 +76,7 @@ fn test_obs_format_obs() {
     let v = o.collect_vec();
     s.set(5);
     s.set(10);
-    let r = v.stop();
-    let e = vec!["abc1", "abc5", "abc10"];
-    assert_eq!(&r, &e);
+    assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
 
 #[test]
@@ -97,7 +89,5 @@ fn test_obs_format_debug() {
     let v = o.collect_vec();
     s.set(None);
     s.set(Some(5));
-    let r = v.stop();
-    let e = vec!["abc-Some(1)", "abc-None", "abc-Some(5)"];
-    assert_eq!(&r, &e);
+    assert_eq!(v.stop(), vec!["abc-Some(1)", "abc-None", "abc-Some(5)"]);
 }
