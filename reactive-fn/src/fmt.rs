@@ -20,8 +20,8 @@ pub trait ObservableDisplay {
     fn to_format_arg<'a, 'b>(
         &'a self,
         cx: &'a RefCell<&'a mut BindContext<'b>>,
-    ) -> ObsDisplayFormatArg<'a, 'b, Self> {
-        ObsDisplayFormatArg { s: self, cx }
+    ) -> ObsFormatArg<'a, 'b, Self> {
+        ObsFormatArg { s: self, cx }
     }
 }
 
@@ -57,11 +57,11 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     }
 }
 
-pub struct ObsDisplayFormatArg<'a, 'b, S: ?Sized> {
+pub struct ObsFormatArg<'a, 'b, S: ?Sized> {
     s: &'a S,
     cx: &'a RefCell<&'a mut BindContext<'b>>,
 }
-impl<'a, 'b, S: ?Sized + ObservableDisplay> Display for ObsDisplayFormatArg<'a, 'b, S> {
+impl<'a, 'b, S: ?Sized + ObservableDisplay> Display for ObsFormatArg<'a, 'b, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         self.s.obs_fmt(f, &mut self.cx.borrow_mut())
     }
