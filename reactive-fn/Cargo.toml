@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3"
-derivative = "2.1"
+derivative = "2.2"
 slabmap = "0.1"
 
 [dev-dependencies]

@@ -1,5 +1,6 @@
 pub mod cell;
 pub mod collector;
+pub mod fmt;
 
 mod bind;
 mod cache;
@@ -34,6 +35,7 @@ pub use dyn_obs::*;
 pub use dyn_obs::*;
 pub use dyn_obs_borrow::*;
 pub use dyn_obs_ref::*;
+pub use fmt::{obs_display, IntoSourceStr, ObsDisplay, ObservableDisplay, SourceStr};
 pub use fold::*;
 pub use obs::*;
 pub use obs_borrow::*;
