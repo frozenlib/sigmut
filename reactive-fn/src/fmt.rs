@@ -155,15 +155,25 @@ pub enum SourceStr {
 }
 
 impl SourceStr {
-    pub fn with<U>(
-        &self,
-        f: impl FnOnce(&str, &mut BindContext<'_>) -> U,
-        cx: &mut BindContext<'_>,
-    ) -> U {
+    pub fn with<U>(&self, f: impl FnOnce(&str, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         match self {
             Self::Constant(s) => f(&s, cx),
             Self::Obs(s) => s.with(f, cx),
         }
+    }
+    pub fn into_obs(self) -> ObsRef<impl ObservableRef<Item = str>> {
+        ObsRef(self)
+    }
+}
+impl ObservableRef for SourceStr {
+    type Item = str;
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
+        SourceStr::with(f, cx)
     }
 }
 
