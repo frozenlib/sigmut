@@ -72,6 +72,24 @@ impl<T: Copy + 'static> Observable for ObsCell<T> {
         self.as_dyn()
     }
 }
+impl<T: Copy + 'static> ObservableRef for ObsCell<T> {
+    type Item = T;
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
+        self.obs().as_ref().with(f, cx)
+    }
+
+    fn into_dyn(self) -> DynObsRef<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.as_dyn().as_ref()
+    }
+}
 
 impl<T: Copy + 'static> DynamicObservableSource for ObsCellData<T> {
     type Item = T;
@@ -186,6 +204,23 @@ impl<T: 'static> ObservableBorrow for ObsRefCell<T> {
         Self: Sized,
     {
         self.as_dyn()
+    }
+}
+impl<T: 'static> ObservableRef for ObsRefCell<T> {
+    type Item = T;
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
+        self.obs().as_ref().with(f, cx)
+    }
+    fn into_dyn(self) -> DynObsRef<Self::Item>
+    where
+        Self: Sized,
+    {
+        self.as_dyn().as_ref()
     }
 }
 
