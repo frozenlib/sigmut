@@ -159,6 +159,19 @@ pub enum SourceStr {
     Obs(DynObsRef<str>),
 }
 
+impl SourceStr {
+    pub fn with<U>(
+        &self,
+        f: impl FnOnce(&str, &mut BindContext<'_>) -> U,
+        cx: &mut BindContext<'_>,
+    ) -> U {
+        match self {
+            Self::Constant(s) => f(&s, cx),
+            Self::Obs(s) => s.with(f, cx),
+        }
+    }
+}
+
 pub trait IntoSourceStr {
     fn into_source_str(self) -> SourceStr;
 }
