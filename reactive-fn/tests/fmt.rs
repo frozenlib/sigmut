@@ -124,3 +124,18 @@ fn test_obs_write_obs_by_ref() {
     let e = vec!["abc1", "abc5", "abc10"];
     assert_eq!(&r, &e);
 }
+
+#[test]
+fn test_obs_format_obs() {
+    let s = ObsCell::new(1);
+    let o = obs({
+        let s = s.clone();
+        move |cx| obs_format!(cx, "abc{}", s)
+    });
+    let v = o.collect_vec();
+    s.set(5);
+    s.set(10);
+    let r = v.stop();
+    let e = vec!["abc1", "abc5", "abc10"];
+    assert_eq!(&r, &e);
+}

@@ -103,29 +103,53 @@ macro_rules! obs_write {
         std::write!(f, fmt)
     };
     ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
-        $crate::obs_write!(@@ cx, $cx, ($f, $fmt)(, $($args)*))
+        $crate::obs_write_impl!(std::write, cx, $cx, ($f, $fmt)(, $($args)*))
     };
-    (@@ $cx_var:ident, $cx:expr, ($($args0:tt)*) ()) => {
+}
+#[macro_export]
+macro_rules! obs_writeln {
+    ($f:expr, $cx:expr, $fmt:expr) => {
+        std::writeln!(f, fmt)
+    };
+    ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
+        $crate::obs_write_impl!(std::writeln, cx, $cx, ($f, $fmt)(, $($args)*))
+    };
+}
+
+#[macro_export]
+macro_rules! obs_format {
+    ($cx:expr, $fmt:expr) => {
+        std::format!(fmt)
+    };
+    ($cx:expr, $fmt:expr, $($args:tt)*) => {
+        $crate::obs_write_impl!(std::format, cx, $cx, ($fmt)(, $($args)*))
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! obs_write_impl {
+    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) ()) => {
         {
             use $crate::fmt::ObservableDisplay as _;
             let $cx_var : std::cell::RefCell<&mut $crate::BindContext> = std::cell::RefCell::new($cx);
-            std::write!($($args0)*)
+            $p!($($args0)*)
         }
     };
-    (@@ $cx_var:ident, $cx:expr, ($($args0:tt)*) (,)) => {
-        $crate::obs_write!(@@ $cx_var, $cx, ($($args0)*)())
+    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (,)) => {
+        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*)())
     };
-    (@@ $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr)) => {
-        $crate::obs_write!(@@ $cx_var, $cx, ($($args0)*)(, $name = $value,))
+    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr)) => {
+        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*)(, $name = $value,))
     };
-    (@@ $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr, $($args1:tt)*)) => {
-        $crate::obs_write!(@@ $cx_var, $cx, ($($args0)*, ($name = $value).to_format_arg(&$cx_var))(, $($args1)*))
+    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr, $($args1:tt)*)) => {
+        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*, ($name = $value).to_format_arg(&$cx_var))(, $($args1)*))
     };
-    (@@ $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr)) => {
-        $crate::obs_write!(@@ $cx_var, $cx, ($($args0)*)(, $value,))
+    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr)) => {
+        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*)(, $value,))
     };
-    (@@ $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr, $($args1:tt)*)) => {
-        $crate::obs_write!(@@ $cx_var, $cx, ($($args0)*, ($value).to_format_arg(&$cx_var))(, $($args1)*))
+    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr, $($args1:tt)*)) => {
+        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*, ($value).to_format_arg(&$cx_var))(, $($args1)*))
     };
 }
 
