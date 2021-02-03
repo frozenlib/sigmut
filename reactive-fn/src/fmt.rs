@@ -1,10 +1,5 @@
-use crate::{
-    obs, obs_ref, BindContext, DynObs, DynObsBorrow, DynObsRef, Obs, ObsBorrow, ObsCell, ObsRef,
-    ObsRefCell, Observable, ObservableBorrow, ObservableRef,
-};
-use std::fmt::Formatter;
-use std::fmt::Result;
-use std::fmt::Write;
+use crate::*;
+use std::fmt::{Formatter, Result, Write};
 use std::{cell::RefCell, fmt::Display};
 
 pub trait ObservableDisplay {
