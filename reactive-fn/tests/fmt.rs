@@ -91,3 +91,16 @@ fn test_obs_format_debug() {
     s.set(Some(5));
     assert_eq!(v.stop(), vec!["abc-Some(1)", "abc-None", "abc-Some(5)"]);
 }
+
+#[test]
+fn test_obs_format_hex() {
+    let s = ObsCell::new(10);
+    let o = obs({
+        let s = s.clone();
+        move |cx| obs_format!(cx, "abc-{:x}", s)
+    });
+    let v = o.collect_vec();
+    s.set(16);
+    s.set(20);
+    assert_eq!(v.stop(), vec!["abc-a", "abc-10", "abc-14"]);
+}
