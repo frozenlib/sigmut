@@ -173,7 +173,7 @@ impl ObservableRef for SourceStr {
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         cx: &mut BindContext,
     ) -> U {
-        SourceStr::with(f, cx)
+        SourceStr::with(self, f, cx)
     }
 }
 
