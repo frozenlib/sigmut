@@ -164,7 +164,6 @@ macro_rules! obs_format {
 macro_rules! obs_write_impl {
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) ()) => {
         {
-            use $crate::fmt::ObservableDisplay as _;
             use $crate::fmt::ObsFormatHelperDefault as _;
             let $cx_var : std::cell::RefCell<&mut $crate::BindContext> = std::cell::RefCell::new($cx);
             $p!($($args0)*)
