@@ -63,6 +63,19 @@ impl<'a, 'b, S: ObservableDisplay> Display for ObsDisplayHead<'a, 'b, S> {
     }
 }
 
+pub fn obs_display(
+    f: impl Fn(&mut Formatter, &mut BindContext) -> Result,
+) -> ObsDisplay<impl ObservableDisplay> {
+    ObsDisplay(FnObsDisplay(f))
+}
+struct FnObsDisplay<F>(F);
+impl<F: Fn(&mut Formatter, &mut BindContext) -> Result> ObservableDisplay for FnObsDisplay<F> {
+    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
+        (self.0)(f, cx)
+    }
+}
+
+
 pub struct ObsFormatArg<'a, 'b, S: ?Sized> {
     s: &'a S,
     cx: &'a RefCell<&'a mut BindContext<'b>>,
@@ -88,18 +101,6 @@ where
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         self.s
             .with(|value, _cx| value.fmt(f), &mut self.cx.borrow_mut())
-    }
-}
-
-pub fn obs_display(
-    f: impl Fn(&mut Formatter, &mut BindContext) -> Result,
-) -> ObsDisplay<impl ObservableDisplay> {
-    ObsDisplay(FnObsDisplay(f))
-}
-struct FnObsDisplay<F>(F);
-impl<F: Fn(&mut Formatter, &mut BindContext) -> Result> ObservableDisplay for FnObsDisplay<F> {
-    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-        (self.0)(f, cx)
     }
 }
 
