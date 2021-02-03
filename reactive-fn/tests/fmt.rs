@@ -80,6 +80,21 @@ fn test_obs_format_obs() {
 }
 
 #[test]
+fn test_obs_format_name() {
+    let s0 = ObsCell::new(1);
+    let s1 = ObsCell::new(5);
+    let o = obs({
+        let s0 = s0.clone();
+        let s1 = s1.clone();
+        move |cx| obs_format!(cx, "{abc}-{def}", def = s0, abc = s1)
+    });
+    let v = o.collect_vec();
+    s0.set(7);
+    s1.set(10);
+    assert_eq!(v.stop(), vec!["5-1", "5-7", "10-7"]);
+}
+
+#[test]
 fn test_obs_format_debug() {
     let s = ObsCell::new(Some(1));
     let o = obs({
