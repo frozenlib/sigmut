@@ -26,25 +26,25 @@ fn test_obs_display_map_string() {
 }
 
 #[test]
-fn test_obs_write_constant() {
-    let o = obs_display(move |f, cx| obs_write!(f, cx, "abc{}", 10));
+fn test_bind_write_constant() {
+    let o = obs_display(move |f, cx| bind_write!(f, cx, "abc{}", 10));
     let v = o.map_string().collect_vec();
     assert_eq!(v.stop(), vec!["abc10"]);
 }
 
 #[test]
-fn test_obs_write_constant_ref() {
-    let o = obs_display(move |f, cx| obs_write!(f, cx, "abc{}", &10));
+fn test_bind_write_constant_ref() {
+    let o = obs_display(move |f, cx| bind_write!(f, cx, "abc{}", &10));
     let v = o.map_string().collect_vec();
     assert_eq!(v.stop(), vec!["abc10"]);
 }
 
 #[test]
-fn test_obs_write_obs() {
+fn test_bind_write_obs() {
     let s = ObsCell::new(1);
     let o = obs_display({
         let s = s.clone();
-        move |f, cx| obs_write!(f, cx, "abc{}", s)
+        move |f, cx| bind_write!(f, cx, "abc{}", s)
     });
     let v = o.map_string().collect_vec();
     s.set(5);
@@ -52,13 +52,13 @@ fn test_obs_write_obs() {
     assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
 #[test]
-fn test_obs_write_obs2() {
+fn test_bind_write_obs2() {
     let s0 = ObsCell::new(0);
     let s1 = ObsCell::new(1);
     let o = obs_display({
         let s0 = s0.clone();
         let s1 = s1.clone();
-        move |f, cx| obs_write!(f, cx, "abc{}-{}", s0, s1)
+        move |f, cx| bind_write!(f, cx, "abc{}-{}", s0, s1)
     });
     let v = o.map_string().collect_vec();
     s0.set(5);
@@ -67,11 +67,11 @@ fn test_obs_write_obs2() {
 }
 
 #[test]
-fn test_obs_format_obs() {
+fn test_bind_format_obs() {
     let s = ObsCell::new(1);
     let o = obs({
         let s = s.clone();
-        move |cx| obs_format!(cx, "abc{}", s)
+        move |cx| bind_format!(cx, "abc{}", s)
     });
     let v = o.collect_vec();
     s.set(5);
@@ -80,13 +80,13 @@ fn test_obs_format_obs() {
 }
 
 #[test]
-fn test_obs_format_name() {
+fn test_bind_format_name() {
     let s0 = ObsCell::new(1);
     let s1 = ObsCell::new(5);
     let o = obs({
         let s0 = s0.clone();
         let s1 = s1.clone();
-        move |cx| obs_format!(cx, "{abc}-{def}", def = s0, abc = s1)
+        move |cx| bind_format!(cx, "{abc}-{def}", def = s0, abc = s1)
     });
     let v = o.collect_vec();
     s0.set(7);
@@ -95,11 +95,11 @@ fn test_obs_format_name() {
 }
 
 #[test]
-fn test_obs_format_debug() {
+fn test_bind_format_debug() {
     let s = ObsCell::new(Some(1));
     let o = obs({
         let s = s.clone();
-        move |cx| obs_format!(cx, "abc-{:?}", s)
+        move |cx| bind_format!(cx, "abc-{:?}", s)
     });
     let v = o.collect_vec();
     s.set(None);
@@ -108,11 +108,11 @@ fn test_obs_format_debug() {
 }
 
 #[test]
-fn test_obs_format_hex() {
+fn test_bind_format_hex() {
     let s = ObsCell::new(10);
     let o = obs({
         let s = s.clone();
-        move |cx| obs_format!(cx, "abc-{:x}", s)
+        move |cx| bind_format!(cx, "abc-{:x}", s)
     });
     let v = o.collect_vec();
     s.set(16);

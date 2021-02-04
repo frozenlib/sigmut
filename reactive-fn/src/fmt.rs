@@ -78,37 +78,37 @@ impl<F: Fn(&mut Formatter, &mut BindContext) -> Result> ObservableDisplay for Fn
 }
 
 #[macro_export]
-macro_rules! obs_write {
+macro_rules! bind_write {
     ($f:expr, $cx:expr, $fmt:expr) => {
         std::write!(f, fmt)
     };
     ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
-        $crate::obs_write_impl!(std::write, cx, $cx, ($f, $fmt)(, $($args)*))
+        $crate::bind_impl!(std::write, cx, $cx, ($f, $fmt)(, $($args)*))
     };
 }
 #[macro_export]
-macro_rules! obs_writeln {
+macro_rules! bind_writeln {
     ($f:expr, $cx:expr, $fmt:expr) => {
         std::writeln!(f, fmt)
     };
     ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
-        $crate::obs_write_impl!(std::writeln, cx, $cx, ($f, $fmt)(, $($args)*))
+        $crate::bind_impl!(std::writeln, cx, $cx, ($f, $fmt)(, $($args)*))
     };
 }
 
 #[macro_export]
-macro_rules! obs_format {
+macro_rules! bind_format {
     ($cx:expr, $fmt:expr) => {
         std::format!(fmt)
     };
     ($cx:expr, $fmt:expr, $($args:tt)*) => {
-        $crate::obs_write_impl!(std::format, cx, $cx, ($fmt)(, $($args)*))
+        $crate::bind_impl!(std::format, cx, $cx, ($fmt)(, $($args)*))
     };
 }
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! obs_write_impl {
+macro_rules! bind_impl {
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) ()) => {
         {
             use $crate::fmt::__helpers::ObsFormatHelperDefault as _;
@@ -117,19 +117,19 @@ macro_rules! obs_write_impl {
         }
     };
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (,)) => {
-        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*)())
+        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*)())
     };
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr)) => {
-        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*)(, $name = $value,))
+        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*)(, $name = $value,))
     };
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr, $($args1:tt)*)) => {
-        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*, $name = $crate::fmt::__helpers::ObsFormatHelper(&$value).to_format_arg(&$cx_var))(, $($args1)*))
+        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*, $name = $crate::fmt::__helpers::ObsFormatHelper(&$value).to_format_arg(&$cx_var))(, $($args1)*))
     };
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr)) => {
-        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*)(, $value,))
+        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*)(, $value,))
     };
     ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr, $($args1:tt)*)) => {
-        $crate::obs_write_impl!($p, $cx_var, $cx, ($($args0)*, $crate::fmt::__helpers::ObsFormatHelper(&$value).to_format_arg(&$cx_var))(, $($args1)*))
+        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*, $crate::fmt::__helpers::ObsFormatHelper(&$value).to_format_arg(&$cx_var))(, $($args1)*))
     };
 }
 
@@ -315,7 +315,7 @@ pub mod __helpers {
             self.s.0.obs_fmt(f, &mut self.cx.borrow_mut())
         }
     }
-    macro_rules! impl_obs_format_arg {
+    macro_rules! impl_bind_format_arg {
         ($($t:ident),*) => {
         $(
             impl<'a, 'b, S: ?Sized + ObservableRef> std::fmt::$t for ObsFormatArg<'a, 'b, S>
@@ -330,7 +330,7 @@ pub mod __helpers {
         )*
         };
     }
-    impl_obs_format_arg!(
+    impl_bind_format_arg!(
         Binary, Debug, Display, LowerExp, LowerHex, Octal, Pointer, UpperExp, UpperHex
     );
 
