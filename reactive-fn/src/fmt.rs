@@ -78,6 +78,40 @@ impl<F: Fn(&mut Formatter, &mut BindContext) -> Result> ObservableDisplay for Fn
 }
 
 #[macro_export]
+macro_rules! obs_format {
+    ($fmt:expr) => {
+        $crate::fmt::obs_display(|f, cx| std::write!(f, fmt))
+    };
+    ($fmt:expr, $($args:tt)*) => {
+        $crate::obs_format_impl!((f, cx) () (cx, f, $fmt) (, $($args)*))
+    };
+}
+#[macro_export]
+macro_rules! obs_format_impl {
+    (($($ps:ident),*) ($($st:tt)*) ($($args0:tt)*) ()) => {
+        {
+            $($st)*
+            $crate::fmt::obs_display(move |$($ps),*| $crate::bind_write!($($args0)*))
+        }
+    };
+    (($($ps:ident),*) ($($st:tt)*) ($($args0:tt)*) (,)) => {
+        $crate::obs_format_impl!(($($ps),*) ($($st)*) ($($args0)*) ())
+    };
+    (($($ps:ident),*) ($($st:tt)*) ($($args0:tt)*) (, $name:ident = $value:expr)) => {
+        $crate::obs_format_impl!(($($ps),*) ($($st)*) ($($args0)*) (, $name = $value,))
+    };
+    (($($ps:ident),*) ($($st:tt)*) ($($args0:tt)*) (, $name:ident = $value:expr, $($args1:tt)*)) => {
+        $crate::obs_format_impl!(($($ps),*) ($($st)* let value = $value;) ($($args0)*, $name = value) (, $($args1)*))
+    };
+    (($($ps:ident),*) ($($st:tt)*) ($($args0:tt)*) (, $value:expr)) => {
+        $crate::obs_format_impl!(($($ps),*) ($($st)*) ($($args0)*) (, $value,))
+    };
+    (($($ps:ident),*) ($($st:tt)*) ($($args0:tt)*) (, $value:expr, $($args1:tt)*)) => {
+        $crate::obs_format_impl!(($($ps),*) ($($st)* let value = $value;) ($($args0)*, value) (, $($args1)*))
+    };
+}
+
+#[macro_export]
 macro_rules! bind_write {
     ($cx:expr, $f:expr,  $fmt:expr) => {
         std::write!(f, fmt)

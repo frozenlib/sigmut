@@ -119,3 +119,14 @@ fn test_bind_format_hex() {
     s.set(20);
     assert_eq!(v.stop(), vec!["abc-a", "abc-10", "abc-14"]);
 }
+
+#[test]
+fn test_obs_format() {
+    let s = ObsCell::new(10);
+    let o = obs_format!("abc-{}", s.clone()).map_string();
+
+    let v = o.collect_vec();
+    s.set(16);
+    s.set(20);
+    assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
+}

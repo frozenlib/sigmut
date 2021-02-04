@@ -113,7 +113,7 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
         {
             source: S,
             _phantom: PhantomData<fn(&S::Item) -> &B>,
-        };
+        }
         impl<S, B> ObservableBorrow for MapBorrow<S, B>
         where
             S: ObservableBorrow,
