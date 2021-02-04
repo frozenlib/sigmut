@@ -79,19 +79,19 @@ impl<F: Fn(&mut Formatter, &mut BindContext) -> Result> ObservableDisplay for Fn
 
 #[macro_export]
 macro_rules! bind_write {
-    ($f:expr, $cx:expr, $fmt:expr) => {
+    ($cx:expr, $f:expr,  $fmt:expr) => {
         std::write!(f, fmt)
     };
-    ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
+    ($cx:expr, $f:expr,  $fmt:expr, $($args:tt)*) => {
         $crate::bind_impl!(std::write, cx, $cx, ($f, $fmt)(, $($args)*))
     };
 }
 #[macro_export]
 macro_rules! bind_writeln {
-    ($f:expr, $cx:expr, $fmt:expr) => {
+    ($cx:expr, $f:expr,  $fmt:expr) => {
         std::writeln!(f, fmt)
     };
-    ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
+    ($cx:expr, $f:expr,  $fmt:expr, $($args:tt)*) => {
         $crate::bind_impl!(std::writeln, cx, $cx, ($f, $fmt)(, $($args)*))
     };
 }
