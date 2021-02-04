@@ -1,4 +1,5 @@
 pub mod cell;
+pub mod collections;
 pub mod collector;
 pub mod fmt;
 
