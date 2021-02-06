@@ -50,13 +50,13 @@ impl<T: 'static> Cache<T> {
     }
     pub fn try_borrow_mut(&self, cx: &mut BindContext) -> Option<RefMut<T>> {
         cx.bind(self.0.clone());
-        self.cache_mut()
+        self.try_borrow_cache_mut()
     }
     pub fn try_borrow(&self, cx: &mut BindContext) -> Option<Ref<T>> {
         cx.bind(self.0.clone());
-        self.cache()
+        self.try_borrow_cache()
     }
-    pub fn cache_mut(&self) -> Option<RefMut<T>> {
+    pub fn try_borrow_cache_mut(&self) -> Option<RefMut<T>> {
         let r = RefMut::map(self.0.state.borrow_mut(), |x| &mut x.value);
         if r.is_some() {
             Some(RefMut::map(r, |x| x.as_mut().unwrap()))
@@ -64,7 +64,7 @@ impl<T: 'static> Cache<T> {
             None
         }
     }
-    pub fn cache(&self) -> Option<Ref<T>> {
+    pub fn try_borrow_cache(&self) -> Option<Ref<T>> {
         let r = Ref::map(self.0.state.borrow(), |x| &x.value);
         if r.is_some() {
             Some(Ref::map(r, |x| x.as_ref().unwrap()))
