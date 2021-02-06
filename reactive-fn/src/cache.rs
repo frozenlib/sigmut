@@ -34,27 +34,26 @@ impl<T: 'static> Cache<T> {
         f: impl FnOnce(&mut BindContext) -> T,
         cx: &mut BindContext,
     ) -> RefMut<T> {
-        if let Some(r) = self.try_borrow_mut(cx) {
-            return r;
-        }
-        self.load(f, cx);
-        self.try_borrow_mut(cx).unwrap()
+        self.load(f, cx.scope());
+        self.bind(cx);
+        self.try_borrow_mut().unwrap()
     }
     pub fn borrow(&self, f: impl FnOnce(&mut BindContext) -> T, cx: &mut BindContext) -> Ref<T> {
-        if let Some(r) = self.try_borrow(cx) {
-            return r;
-        }
-        self.load(f, cx);
-        self.try_borrow(cx).unwrap()
+        self.load(f, cx.scope());
+        self.bind(cx);
+        self.try_borrow().unwrap()
     }
-    fn load(&self, f: impl FnOnce(&mut BindContext) -> T, cx: &mut BindContext) {
+    fn load(&self, f: impl FnOnce(&mut BindContext) -> T, scope: &BindScope) {
+        if self.0.state.borrow().value.is_some() {
+            return;
+        }
         let mut b = self.0.state.borrow_mut();
-        if b.value.is_none() {
-            b.value = Some(b.bindings.update(cx.scope(), &self.0, f));
-        }
+        b.value = Some(b.bindings.update(scope, &self.0, f));
     }
-    pub fn try_borrow_mut(&self, cx: &mut BindContext) -> Option<RefMut<T>> {
+    pub fn bind(&self, cx: &mut BindContext) {
         cx.bind(self.0.clone());
+    }
+    pub fn try_borrow_mut(&self) -> Option<RefMut<T>> {
         let r = RefMut::map(self.0.state.borrow_mut(), |x| &mut x.value);
         if r.is_some() {
             Some(RefMut::map(r, |x| x.as_mut().unwrap()))
@@ -62,8 +61,7 @@ impl<T: 'static> Cache<T> {
             None
         }
     }
-    pub fn try_borrow(&self, cx: &mut BindContext) -> Option<Ref<T>> {
-        cx.bind(self.0.clone());
+    pub fn try_borrow(&self) -> Option<Ref<T>> {
         let r = Ref::map(self.0.state.borrow(), |x| &x.value);
         if r.is_some() {
             Some(Ref::map(r, |x| x.as_ref().unwrap()))
