@@ -86,6 +86,8 @@ macro_rules! obs_format {
         $crate::obs_format_impl!((f, cx) () (cx, f, $fmt) (, $($args)*))
     };
 }
+
+#[doc(hidden)]
 #[macro_export]
 macro_rules! obs_format_impl {
     (($($ps:ident),*) ($($st:tt)*) ($($args0:tt)*) ()) => {
