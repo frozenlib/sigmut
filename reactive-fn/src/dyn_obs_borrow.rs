@@ -188,7 +188,7 @@ impl<T: ?Sized> ObservableBorrow for DynObsBorrow<T> {
     fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
         DynObsBorrow::borrow(self, cx)
     }
-    fn into_dyn(self) -> DynObsBorrow<Self::Item>
+    fn into_dyn_obs_borrow(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
     {

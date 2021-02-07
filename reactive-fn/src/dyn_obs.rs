@@ -179,7 +179,7 @@ impl<T> Observable for DynObs<T> {
     fn get(&self, cx: &mut BindContext) -> Self::Item {
         DynObs::get(self, cx)
     }
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn_obs(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {
@@ -189,7 +189,11 @@ impl<T> Observable for DynObs<T> {
 impl<T> ObservableRef for DynObs<T> {
     type Item = T;
 
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut BindContext) -> U, cx: &mut BindContext) -> U {
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
         DynObs::with(self, f, cx)
     }
 }

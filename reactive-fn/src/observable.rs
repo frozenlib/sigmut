@@ -6,7 +6,7 @@ pub trait Observable: 'static {
     type Item;
     fn get(&self, cx: &mut BindContext) -> Self::Item;
 
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn_obs(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {
@@ -24,7 +24,7 @@ pub trait ObservableBorrow: 'static {
     type Item: ?Sized;
     fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item>;
 
-    fn into_dyn(self) -> DynObsBorrow<Self::Item>
+    fn into_dyn_obs_borrow(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
     {
@@ -45,7 +45,7 @@ pub trait ObservableRef: 'static {
         cx: &mut BindContext,
     ) -> U;
 
-    fn into_dyn(self) -> DynObsRef<Self::Item>
+    fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {

@@ -65,7 +65,7 @@ impl<T: Copy + 'static> Observable for ObsCell<T> {
         self.0.get(cx)
     }
 
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn_obs(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {
@@ -83,7 +83,7 @@ impl<T: Copy + 'static> ObservableRef for ObsCell<T> {
         self.obs().as_ref().with(f, cx)
     }
 
-    fn into_dyn(self) -> DynObsRef<Self::Item>
+    fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {
@@ -199,7 +199,7 @@ impl<T: 'static> ObservableBorrow for ObsRefCell<T> {
         self.0.borrow(cx)
     }
 
-    fn into_dyn(self) -> DynObsBorrow<Self::Item>
+    fn into_dyn_obs_borrow(self) -> DynObsBorrow<Self::Item>
     where
         Self: Sized,
     {
@@ -216,7 +216,7 @@ impl<T: 'static> ObservableRef for ObsRefCell<T> {
     ) -> U {
         self.obs().as_ref().with(f, cx)
     }
-    fn into_dyn(self) -> DynObsRef<Self::Item>
+    fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {

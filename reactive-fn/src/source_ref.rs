@@ -70,7 +70,7 @@ where
     T: ?Sized,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        Obs::into_dyn_ref(self).map_borrow()
+        Obs::into_dyn(self).map_borrow()
     }
 }
 impl<S, T> IntoSourceRef<T> for &Obs<S>
@@ -91,7 +91,7 @@ where
     T: ?Sized,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        ObsBorrow::into_dyn_ref(self).map_borrow()
+        ObsBorrow::into_dyn(self).as_ref().map_borrow()
     }
 }
 impl<S, T> IntoSourceRef<T> for &ObsBorrow<S>

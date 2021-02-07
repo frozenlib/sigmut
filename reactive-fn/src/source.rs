@@ -14,10 +14,31 @@ impl<T: 'static> Source<T> {
     {
         match self {
             Self::Constant(value) => *value,
-            Self::Obs(obs) => obs.with(|value, _cx| *value, cx),
+            Self::Obs(obs) => obs.get(cx),
+        }
+    }
+    pub fn get_cloned(&self, cx: &mut BindContext) -> T
+    where
+        T: Clone,
+    {
+        match self {
+            Self::Constant(value) => value.clone(),
+            Self::Obs(obs) => obs.get(cx),
+        }
+    }
+    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
+        match self {
+            Self::Constant(value) => f(value, cx),
+            Self::Obs(obs) => obs.with(|value, cx| f(value, cx), cx),
         }
     }
 
+    pub fn head(self) -> T {
+        match self {
+            Self::Constant(value) => value,
+            Self::Obs(obs) => obs.head(),
+        }
+    }
     pub fn head_tail(self) -> (T, DynTail<T>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }
@@ -27,6 +48,44 @@ impl<T: 'static> Source<T> {
             Source::Obs(obs) => obs.head_tail_with(scope),
         }
     }
+    pub fn obs(self) -> Obs<impl Observable<Item = T>>
+    where
+        T: Copy,
+    {
+        self.into_obs()
+    }
+    pub fn obs_ref(self) -> ObsRef<impl ObservableRef<Item = T>> {
+        self.into_obs_ref()
+    }
+    pub fn into_dyn(self) -> DynObs<T>
+    where
+        T: Copy,
+    {
+        match self {
+            Source::Constant(value) => DynObs::constant(value),
+            Source::Obs(o) => o.into_dyn_obs(),
+        }
+    }
+    pub fn into_dyn_obs_ref(self) -> DynObsRef<T> {
+        match self {
+            Source::Constant(value) => DynObsRef::constant(value),
+            Source::Obs(o) => o.as_ref().into_dyn_obs_ref(),
+        }
+    }
+    pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> Source<U> {
+        match self {
+            Source::Constant(value) => Source::Constant(f(value)),
+            Source::Obs(o) => Source::Obs(o.map(f)),
+        }
+    }
+
+    pub fn cloned(self) -> Obs<impl Observable<Item = T>>
+    where
+        T: Clone,
+    {
+        obs(move |cx| self.get_cloned(cx))
+    }
+
     pub fn fold<St: 'static>(
         self,
         initial_state: St,
@@ -63,6 +122,38 @@ impl<T: 'static> Source<T> {
             }
             Source::Obs(obs) => obs.subscribe(f),
         }
+    }
+}
+impl<T: Copy> Observable for Source<T> {
+    type Item = T;
+
+    fn get(&self, cx: &mut BindContext) -> Self::Item {
+        Source::get(self, cx)
+    }
+
+    fn into_dyn_obs(self) -> DynObs<Self::Item>
+    where
+        Self: Sized,
+    {
+        Source::into_dyn(self)
+    }
+}
+impl<T> ObservableRef for Source<T> {
+    type Item = T;
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
+        Source::with(self, f, cx)
+    }
+
+    fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
+    where
+        Self: Sized,
+    {
+        Source::into_dyn_obs_ref(self)
     }
 }
 

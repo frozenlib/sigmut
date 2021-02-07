@@ -110,7 +110,7 @@ impl<S: ObservableRef> ObsRef<S> {
         TailRef::new(self.0, scope, f)
     }
     pub fn into_dyn(self) -> DynObsRef<S::Item> {
-        self.0.into_dyn()
+        self.0.into_dyn_obs_ref()
     }
     pub fn map<T: 'static>(
         self,
@@ -173,11 +173,11 @@ impl<S: ObservableRef> ObsRef<S> {
                 self.source.with(|value, cx| f(value.borrow(), cx), cx)
             }
 
-            fn into_dyn(self) -> DynObsRef<Self::Item>
+            fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
             where
                 Self: Sized,
             {
-                self.source.into_dyn().map_borrow()
+                self.source.into_dyn_obs_ref().map_borrow()
             }
         }
         ObsRef(MapBorrow {
@@ -341,10 +341,10 @@ impl<S: ObservableRef> ObservableRef for ObsRef<S> {
     ) -> U {
         ObsRef::with(self, f, cx)
     }
-    fn into_dyn(self) -> DynObsRef<Self::Item>
+    fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {
-        self.0.into_dyn()
+        self.0.into_dyn_obs_ref()
     }
 }

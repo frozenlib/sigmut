@@ -49,12 +49,8 @@ impl<S: Observable> Obs<S> {
         Obs(self.into_dyn())
     }
     pub fn into_dyn(self) -> DynObs<S::Item> {
-        self.0.into_dyn()
+        self.0.into_dyn_obs()
     }
-    pub fn into_dyn_ref(self) -> DynObsRef<S::Item> {
-        self.0.into_dyn().as_ref()
-    }
-
     pub fn map<T>(self, f: impl Fn(S::Item) -> T + 'static) -> Obs<impl Observable<Item = T>> {
         obs(move |cx| f(self.get(cx)))
     }
@@ -234,11 +230,11 @@ impl<S: Observable> Observable for Obs<S> {
     fn get(&self, cx: &mut BindContext) -> Self::Item {
         self.0.get(cx)
     }
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn_obs(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {
-        self.0.into_dyn()
+        self.0.into_dyn_obs()
     }
 }
 
@@ -251,10 +247,10 @@ impl<S: Observable> ObservableRef for Obs<S> {
     ) -> U {
         Obs::with(self, f, cx)
     }
-    fn into_dyn(self) -> DynObsRef<Self::Item>
+    fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {
-        Obs::into_dyn_ref(self)
+        Obs::into_dyn(self).as_ref()
     }
 }

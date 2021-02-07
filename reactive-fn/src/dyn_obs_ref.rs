@@ -218,7 +218,7 @@ impl<T: ?Sized> ObservableRef for DynObsRef<T> {
     ) -> U {
         DynObsRef::with(self, f, cx)
     }
-    fn into_dyn(self) -> DynObsRef<Self::Item>
+    fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
     where
         Self: Sized,
     {
