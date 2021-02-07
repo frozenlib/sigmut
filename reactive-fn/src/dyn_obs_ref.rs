@@ -79,6 +79,9 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
     pub fn constant_map<S: 'static>(value: S, f: impl Fn(&S) -> &T + 'static) -> Self {
         Self::new(value, move |value, f_outer, cx| f_outer(f(value), cx))
     }
+    pub fn constant_borrow<S: Borrow<T> + 'static>(value: S) -> Self {
+        Self::new(value, move |value, f_outer, cx| f_outer(value.borrow(), cx))
+    }
     pub fn static_ref(value: &'static T) -> Self {
         Self(DynObsRefData::StaticRef(value))
     }

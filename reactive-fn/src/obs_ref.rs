@@ -63,6 +63,13 @@ pub fn obs_ref_constant_map<S: 'static, T>(
 ) -> ObsRef<impl ObservableRef<Item = T>> {
     obs_ref_constant(value).map_ref(f)
 }
+pub fn obs_ref_constant_borrow<S, T>(value: S) -> ObsRef<impl ObservableRef<Item = T>>
+where
+    S: Borrow<T> + 'static,
+    T: 'static,
+{
+    obs_ref_constant(value).map_borrow()
+}
 
 pub fn obs_ref_static<T: ?Sized>(value: &'static T) -> ObsRef<impl ObservableRef<Item = T>> {
     struct ObsRefStatic<T: ?Sized + 'static>(&'static T);

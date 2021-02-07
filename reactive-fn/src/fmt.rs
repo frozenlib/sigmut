@@ -43,7 +43,7 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     where
         Self: 'static,
     {
-        SourceStr::Obs(self.map_str().into_dyn())
+        self.map_str().into_dyn()
     }
 }
 
@@ -169,34 +169,7 @@ macro_rules! bind_impl {
     };
 }
 
-#[derive(Clone)]
-pub enum SourceStr {
-    Constant(String),
-    Obs(DynObsRef<str>),
-}
-
-impl SourceStr {
-    pub fn with<U>(&self, f: impl FnOnce(&str, &mut BindContext) -> U, cx: &mut BindContext) -> U {
-        match self {
-            Self::Constant(s) => f(&s, cx),
-            Self::Obs(s) => s.with(f, cx),
-        }
-    }
-    pub fn into_obs(self) -> ObsRef<impl ObservableRef<Item = str>> {
-        ObsRef(self)
-    }
-}
-impl ObservableRef for SourceStr {
-    type Item = str;
-
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
-    ) -> U {
-        SourceStr::with(self, f, cx)
-    }
-}
+pub type SourceStr = SourceRef<str>;
 
 pub trait IntoSourceStr {
     fn into_source_str(self) -> SourceStr;
@@ -209,7 +182,7 @@ impl<T: Display> ObservableDisplay for T {
 }
 impl<T: Display> IntoSourceStr for T {
     fn into_source_str(self) -> SourceStr {
-        SourceStr::Constant(self.to_string())
+        SourceStr::constant_borrow(self.to_string())
     }
 }
 
