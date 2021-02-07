@@ -22,7 +22,7 @@ fn sleep(dur: Duration) -> impl Future {
     tokio::time::sleep(dur)
 }
 async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Option<T> {
-    match select(fut, sleep(dur)).await {
+    match select(fut, sleep(dur).boxed()).await {
         Either::Left(x) => Some(x.0),
         Either::Right(_) => None,
     }
