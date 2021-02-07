@@ -220,7 +220,7 @@ impl<T: ObservableDisplay> ObservableDisplay for ObsDisplay<T> {
 }
 impl<T: ObservableDisplay + 'static> IntoSourceStr for ObsDisplay<T> {
     fn into_source_str(self) -> SourceStr {
-        self.into_source_str()
+        ObsDisplay::into_source_str(self)
     }
 }
 
