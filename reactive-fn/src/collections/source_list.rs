@@ -87,6 +87,17 @@ impl<'a, T: 'static> SourceListRef<'a, T> {
         }
     }
 }
+impl<T> SourceListAge<T> {
+    pub fn new() -> Self {
+        SourceListAge::Initial
+    }
+}
+impl<T> Default for SourceListAge<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<'a, T: 'static> Index<usize> for SourceListRef<'a, T> {
     type Output = T;
 
