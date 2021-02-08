@@ -8,18 +8,18 @@ use std::{
     rc::{Rc, Weak},
 };
 
-pub struct ObsArray<T>(Rc<Inner<T>>);
+pub struct ObsList<T>(Rc<Inner<T>>);
 
-pub struct ObsArrayAge<T> {
+pub struct ObsListAge<T> {
     source: Weak<Inner<T>>,
     age: usize,
 }
 
-pub struct ObsArrayRef<'a, T: 'static> {
+pub struct ObsListRef<'a, T: 'static> {
     source: &'a Rc<Inner<T>>,
     state: ManuallyDrop<Ref<'a, State<T>>>,
 }
-pub struct ObsArrayRefMut<'a, T: 'static> {
+pub struct ObsListRefMut<'a, T: 'static> {
     source: &'a Rc<Inner<T>>,
     state: ManuallyDrop<RefMut<'a, State<T>>>,
     logs_len_old: usize,
@@ -52,18 +52,18 @@ struct LogRefs {
 struct Log {
     index: usize,
     data: usize,
-    kind: ObsArrayChangeKind,
+    kind: ObsListChangeKind,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum ObsArrayChangeKind {
+pub enum ObsListChangeKind {
     Insert,
     Remove,
     Modify,
 }
 
-pub struct ObsArrayChange<'a, T> {
-    pub kind: ObsArrayChangeKind,
+pub struct ObsListChange<'a, T> {
+    pub kind: ObsListChangeKind,
 
     /// Index of the changed element. (The index at the time the change was made.)
     pub index: usize,
@@ -71,28 +71,28 @@ pub struct ObsArrayChange<'a, T> {
     /// The most recent value, not the one immediately after it was changed.
     pub value: &'a T,
 }
-pub struct ObsArrayChanges<'a, T> {
+pub struct ObsListChanges<'a, T> {
     state: &'a State<T>,
     index: usize,
     age: usize,
 }
 
-impl<T: 'static> ObsArray<T> {
+impl<T: 'static> ObsList<T> {
     pub fn new() -> Self {
         Self(Rc::new(Inner::new()))
     }
-    pub fn borrow(&self, cx: &mut BindContext) -> ObsArrayRef<T> {
+    pub fn borrow(&self, cx: &mut BindContext) -> ObsListRef<T> {
         cx.bind(self.0.clone());
         self.0.log_refs.borrow_mut().set_read();
-        ObsArrayRef {
+        ObsListRef {
             source: &self.0,
             state: ManuallyDrop::new(self.0.state.borrow()),
         }
     }
-    pub fn borrow_mut(&self) -> ObsArrayRefMut<T> {
+    pub fn borrow_mut(&self) -> ObsListRefMut<T> {
         let state = ManuallyDrop::new(self.0.state.borrow_mut());
         let logs_len_old = state.logs.len();
-        ObsArrayRefMut {
+        ObsListRefMut {
             source: &self.0,
             state,
             logs_len_old,
@@ -122,13 +122,13 @@ fn clean<T>(state: &mut State<T>, log_refs: &mut LogRefs) {
             d.age_modify = None;
         }
         match log.kind {
-            ObsArrayChangeKind::Insert => {
+            ObsListChangeKind::Insert => {
                 state.data[log.data].age_insert = None;
             }
-            ObsArrayChangeKind::Remove => {
+            ObsListChangeKind::Remove => {
                 state.data.remove(log.data);
             }
-            ObsArrayChangeKind::Modify => {}
+            ObsListChangeKind::Modify => {}
         }
         log_refs.base_age = log_refs.base_age.wrapping_add(1);
         log_refs.read = log_refs.read.saturating_sub(1);
@@ -188,14 +188,14 @@ impl LogRefs {
     }
 }
 
-impl<T> Drop for ObsArrayAge<T> {
+impl<T> Drop for ObsListAge<T> {
     fn drop(&mut self) {
         if let Some(s) = self.source.upgrade() {
             s.log_refs.borrow_mut().decrement(self.age);
         }
     }
 }
-impl<T> Clone for ObsArrayAge<T> {
+impl<T> Clone for ObsListAge<T> {
     fn clone(&self) -> Self {
         if let Some(s) = self.source.upgrade() {
             s.log_refs.borrow_mut().increment(self.age);
@@ -207,9 +207,9 @@ impl<T> Clone for ObsArrayAge<T> {
     }
 }
 
-impl<'a, T: 'static> ObsArrayRef<'a, T> {
-    pub fn age(&self) -> ObsArrayAge<T> {
-        ObsArrayAge {
+impl<'a, T: 'static> ObsListRef<'a, T> {
+    pub fn age(&self) -> ObsListAge<T> {
+        ObsListAge {
             source: Rc::downgrade(self.source),
             age: self.source.log_refs.borrow_mut().increment_last(),
         }
@@ -223,32 +223,32 @@ impl<'a, T: 'static> ObsArrayRef<'a, T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.state.get(index)
     }
-    pub fn changes(&self, age: &ObsArrayAge<T>) -> ObsArrayChanges<T> {
+    pub fn changes(&self, age: &ObsListAge<T>) -> ObsListChanges<T> {
         if !Rc::downgrade(self.source).ptr_eq(&age.source) {
             panic!("mismatch source.");
         }
         let age = age.age;
-        ObsArrayChanges {
+        ObsListChanges {
             state: &self.state,
             index: age.wrapping_sub(self.source.log_refs.borrow().base_age),
             age,
         }
     }
 }
-impl<'a, T: 'static> Drop for ObsArrayRef<'a, T> {
+impl<'a, T: 'static> Drop for ObsListRef<'a, T> {
     fn drop(&mut self) {
         unsafe { ManuallyDrop::drop(&mut self.state) }
         self.source.try_clean_logs()
     }
 }
-impl<'a, T> Index<usize> for ObsArrayRef<'a, T> {
+impl<'a, T> Index<usize> for ObsListRef<'a, T> {
     type Output = T;
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("out of index.")
     }
 }
-impl<'a, T> Iterator for ObsArrayChanges<'a, T> {
-    type Item = ObsArrayChange<'a, T>;
+impl<'a, T> Iterator for ObsListChanges<'a, T> {
+    type Item = ObsListChange<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -257,10 +257,10 @@ impl<'a, T> Iterator for ObsArrayChanges<'a, T> {
             let age = self.age;
             self.index += 1;
             self.age += 1;
-            if log.kind == ObsArrayChangeKind::Modify && s.data[log.data].age_modify != Some(age) {
+            if log.kind == ObsListChangeKind::Modify && s.data[log.data].age_modify != Some(age) {
                 continue;
             }
-            return Some(ObsArrayChange {
+            return Some(ObsListChange {
                 kind: log.kind,
                 index: log.index,
                 value: &self.state.data[log.data].value,
@@ -269,7 +269,7 @@ impl<'a, T> Iterator for ObsArrayChanges<'a, T> {
     }
 }
 
-impl<'a, T> ObsArrayRefMut<'a, T> {
+impl<'a, T> ObsListRefMut<'a, T> {
     pub fn len(&self) -> usize {
         self.state.items.len()
     }
@@ -286,7 +286,7 @@ impl<'a, T> ObsArrayRefMut<'a, T> {
         let mut log_refs = self.source.log_refs.borrow_mut();
         if log_refs.is_unread(d.age_modify) {
             s.logs.push_back(Log {
-                kind: ObsArrayChangeKind::Modify,
+                kind: ObsListChangeKind::Modify,
                 index,
                 data,
             });
@@ -311,7 +311,7 @@ impl<'a, T> ObsArrayRefMut<'a, T> {
         });
         s.items.insert(index, data);
         s.logs.push_back(Log {
-            kind: ObsArrayChangeKind::Insert,
+            kind: ObsListChangeKind::Insert,
             index,
             data,
         });
@@ -326,7 +326,7 @@ impl<'a, T> ObsArrayRefMut<'a, T> {
         d.age_remove = Some(age);
         d.age_modify = Some(age);
         s.logs.push_back(Log {
-            kind: ObsArrayChangeKind::Remove,
+            kind: ObsListChangeKind::Remove,
             index,
             data,
         });
@@ -338,7 +338,7 @@ impl<'a, T> ObsArrayRefMut<'a, T> {
         }
     }
 }
-impl<'a, T> Drop for ObsArrayRefMut<'a, T> {
+impl<'a, T> Drop for ObsListRefMut<'a, T> {
     fn drop(&mut self) {
         let logs_len = self.state.logs.len();
         unsafe { ManuallyDrop::drop(&mut self.state) }
@@ -349,13 +349,13 @@ impl<'a, T> Drop for ObsArrayRefMut<'a, T> {
     }
 }
 
-impl<'a, T> Index<usize> for ObsArrayRefMut<'a, T> {
+impl<'a, T> Index<usize> for ObsListRefMut<'a, T> {
     type Output = T;
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("out of index.")
     }
 }
-impl<'a, T> IndexMut<usize> for ObsArrayRefMut<'a, T> {
+impl<'a, T> IndexMut<usize> for ObsListRefMut<'a, T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index).expect("out of index.")
     }
