@@ -1,6 +1,9 @@
 pub mod obs_list;
 pub mod source_list;
 
+pub use obs_list::ObsList;
+pub use source_list::{IntoSourceList, SourceList, SourceListAge};
+
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
 pub enum ListChangeKind {
     Insert,
