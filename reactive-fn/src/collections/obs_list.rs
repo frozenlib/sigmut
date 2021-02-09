@@ -1,3 +1,4 @@
+use super::*;
 use crate::*;
 use slabmap::SlabMap;
 use std::{
@@ -54,25 +55,9 @@ struct LogRefs {
 struct Log {
     index: usize,
     data: usize,
-    kind: ObsListChangeKind,
+    kind: ListChangeKind,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
-pub enum ObsListChangeKind {
-    Insert,
-    Remove,
-    Modify,
-}
-
-pub struct ObsListChange<'a, T> {
-    pub kind: ObsListChangeKind,
-
-    /// Index of the changed element. (The index at the time the change was made.)
-    pub index: usize,
-
-    /// The most recent value, not the one immediately after it was changed.
-    pub value: &'a T,
-}
 pub struct ObsListChanges<'a, T> {
     state: &'a State<T>,
     index: usize,
@@ -124,13 +109,13 @@ fn clean<T>(state: &mut State<T>, log_refs: &mut LogRefs) {
             d.age_modify = None;
         }
         match log.kind {
-            ObsListChangeKind::Insert => {
+            ListChangeKind::Insert => {
                 state.data[log.data].age_insert = None;
             }
-            ObsListChangeKind::Remove => {
+            ListChangeKind::Remove => {
                 state.data.remove(log.data);
             }
-            ObsListChangeKind::Modify => {}
+            ListChangeKind::Modify => {}
         }
         log_refs.base_age = log_refs.base_age.wrapping_add(1);
         log_refs.read = log_refs.read.saturating_sub(1);
@@ -250,7 +235,7 @@ impl<'a, T: 'static> Index<usize> for ObsListRef<'a, T> {
     }
 }
 impl<'a, T: 'static> Iterator for ObsListChanges<'a, T> {
-    type Item = ObsListChange<'a, T>;
+    type Item = ListChange<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -259,10 +244,10 @@ impl<'a, T: 'static> Iterator for ObsListChanges<'a, T> {
             let age = self.since_age;
             self.index += 1;
             self.since_age += 1;
-            if log.kind == ObsListChangeKind::Modify && s.data[log.data].age_modify != Some(age) {
+            if log.kind == ListChangeKind::Modify && s.data[log.data].age_modify != Some(age) {
                 continue;
             }
-            return Some(ObsListChange {
+            return Some(ListChange {
                 kind: log.kind,
                 index: log.index,
                 value: &self.state.data[log.data].value,
@@ -288,7 +273,7 @@ impl<'a, T> ObsListRefMut<'a, T> {
         let mut log_refs = self.source.log_refs.borrow_mut();
         if log_refs.is_unread(d.age_modify) {
             s.logs.push_back(Log {
-                kind: ObsListChangeKind::Modify,
+                kind: ListChangeKind::Modify,
                 index,
                 data,
             });
@@ -313,7 +298,7 @@ impl<'a, T> ObsListRefMut<'a, T> {
         });
         s.items.insert(index, data);
         s.logs.push_back(Log {
-            kind: ObsListChangeKind::Insert,
+            kind: ListChangeKind::Insert,
             index,
             data,
         });
@@ -328,7 +313,7 @@ impl<'a, T> ObsListRefMut<'a, T> {
         d.age_remove = Some(age);
         d.age_modify = Some(age);
         s.logs.push_back(Log {
-            kind: ObsListChangeKind::Remove,
+            kind: ListChangeKind::Remove,
             index,
             data,
         });

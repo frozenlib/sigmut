@@ -1,3 +1,4 @@
+use super::*;
 use crate::collections::obs_list::*;
 use crate::*;
 use std::{ops::Index, rc::Rc, sync::Arc};
@@ -32,8 +33,6 @@ pub enum SourceListChanges<'a, T: 'static> {
     },
     ObsChanges(ObsListChanges<'a, T>),
 }
-pub type SourceListChange<'a, T> = ObsListChange<'a, T>;
-pub type SourceListChangeKind = ObsListChangeKind;
 
 impl<T: 'static> SourceList<T> {
     pub fn borrow(&self, cx: &mut BindContext) -> SourceListRef<T> {
@@ -112,24 +111,24 @@ impl<'a, T: 'static> SourceListChanges<'a, T> {
     }
 }
 impl<'a, T: 'static> Iterator for SourceListChanges<'a, T> {
-    type Item = SourceListChange<'a, T>;
+    type Item = ListChange<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             SourceListChanges::ConstantValues { values, index } => {
-                let result = SourceListChange {
+                let result = ListChange {
                     value: values.get(*index)?,
                     index: *index,
-                    kind: SourceListChangeKind::Insert,
+                    kind: ListChangeKind::Insert,
                 };
                 *index += 1;
                 Some(result)
             }
             SourceListChanges::ObsValues { values, index } => {
-                let result = SourceListChange {
+                let result = ListChange {
                     value: values.get(*index)?,
                     index: *index,
-                    kind: SourceListChangeKind::Insert,
+                    kind: ListChangeKind::Insert,
                 };
                 *index += 1;
                 Some(result)
