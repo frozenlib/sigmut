@@ -21,15 +21,8 @@ pub enum SourceListAge<T> {
     Obs(ObsListAge<T>),
 }
 pub enum SourceListChanges<'a, T: 'static> {
-    ConstantValues {
-        values: &'a [T],
-        index: usize,
-    },
-    ObsValues {
-        values: &'a ObsListRef<'a, T>,
-        index: usize,
-    },
-    ObsChanges(ObsListChanges<'a, T>),
+    Constant { values: &'a [T], index: usize },
+    Obs(ObsListChanges<'a, T>),
 }
 
 impl<T: 'static> SourceList<T> {
@@ -70,12 +63,9 @@ impl<'a, T: 'static> SourceListRef<'a, T> {
                 SourceListAge::Obs(_) => panic!("mismatch source."),
             },
             SourceListRef::Obs(o) => match since {
-                SourceListAge::Empty => SourceListChanges::ObsValues {
-                    values: o,
-                    index: 0,
-                },
+                SourceListAge::Empty => SourceListChanges::Obs(o.changes(None)),
                 SourceListAge::Last => SourceListChanges::from_values(&[]),
-                SourceListAge::Obs(since) => SourceListChanges::ObsChanges(o.changes(since)),
+                SourceListAge::Obs(since) => SourceListChanges::Obs(o.changes(Some(since))),
             },
         }
     }
@@ -104,7 +94,7 @@ impl<'a, T: 'static> Index<usize> for SourceListRef<'a, T> {
 
 impl<'a, T: 'static> SourceListChanges<'a, T> {
     fn from_values(values: &'a [T]) -> Self {
-        Self::ConstantValues { values, index: 0 }
+        Self::Constant { values, index: 0 }
     }
 }
 impl<'a, T: 'static> Iterator for SourceListChanges<'a, T> {
@@ -112,7 +102,7 @@ impl<'a, T: 'static> Iterator for SourceListChanges<'a, T> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
-            SourceListChanges::ConstantValues { values, index } => {
+            SourceListChanges::Constant { values, index } => {
                 let result = ListChange {
                     value: values.get(*index)?,
                     index: *index,
@@ -121,16 +111,7 @@ impl<'a, T: 'static> Iterator for SourceListChanges<'a, T> {
                 *index += 1;
                 Some(result)
             }
-            SourceListChanges::ObsValues { values, index } => {
-                let result = ListChange {
-                    value: values.get(*index)?,
-                    index: *index,
-                    kind: ListChangeKind::Insert,
-                };
-                *index += 1;
-                Some(result)
-            }
-            SourceListChanges::ObsChanges(o) => o.next(),
+            SourceListChanges::Obs(o) => o.next(),
         }
     }
 }

@@ -58,10 +58,17 @@ struct Log {
     kind: ListChangeKind,
 }
 
-pub struct ObsListChanges<'a, T> {
-    state: &'a State<T>,
-    index: usize,
-    since_age: usize,
+pub struct ObsListChanges<'a, T: 'static>(ObsListChangesData<'a, T>);
+enum ObsListChangesData<'a, T: 'static> {
+    Values {
+        values: &'a ObsListRef<'a, T>,
+        index: usize,
+    },
+    Logs {
+        state: &'a State<T>,
+        index: usize,
+        since_age: usize,
+    },
 }
 
 impl<T: 'static> ObsList<T> {
@@ -215,16 +222,23 @@ impl<'a, T: 'static> ObsListRef<'a, T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.state.get(index)
     }
-    pub fn changes(&self, since: &ObsListAge<T>) -> ObsListChanges<T> {
-        if !Rc::downgrade(self.source).ptr_eq(&since.source) {
-            panic!("mismatch source.");
-        }
-        let since_age = since.age;
-        ObsListChanges {
-            state: &self.state,
-            index: since_age.wrapping_sub(self.source.log_refs.borrow().base_age),
-            since_age,
-        }
+    pub fn changes(&self, since: Option<&ObsListAge<T>>) -> ObsListChanges<T> {
+        ObsListChanges(if let Some(since) = since {
+            if !Rc::downgrade(self.source).ptr_eq(&since.source) {
+                panic!("mismatch source.");
+            }
+            let since_age = since.age;
+            ObsListChangesData::Logs {
+                state: &self.state,
+                index: since_age.wrapping_sub(self.source.log_refs.borrow().base_age),
+                since_age,
+            }
+        } else {
+            ObsListChangesData::Values {
+                values: self,
+                index: 0,
+            }
+        })
     }
 }
 impl<'a, T: 'static> Drop for ObsListRef<'a, T> {
@@ -243,20 +257,35 @@ impl<'a, T: 'static> Iterator for ObsListChanges<'a, T> {
     type Item = ListChange<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let s = &*self.state;
-            let log = s.logs.get(self.index)?;
-            let age = self.since_age;
-            self.index += 1;
-            self.since_age += 1;
-            if log.kind == ListChangeKind::Modify && s.data[log.data].age_modify != Some(age) {
-                continue;
+        match &mut self.0 {
+            ObsListChangesData::Values { values, index } => {
+                let result = ListChange {
+                    value: values.get(*index)?,
+                    index: *index,
+                    kind: ListChangeKind::Insert,
+                };
+                *index += 1;
+                Some(result)
             }
-            return Some(ListChange {
-                kind: log.kind,
-                index: log.index,
-                value: &self.state.data[log.data].value,
-            });
+            ObsListChangesData::Logs {
+                state,
+                index,
+                since_age,
+            } => loop {
+                let s = &*state;
+                let log = s.logs.get(*index)?;
+                let age = *since_age;
+                *index += 1;
+                *since_age += 1;
+                if log.kind == ListChangeKind::Modify && s.data[log.data].age_modify != Some(age) {
+                    continue;
+                }
+                return Some(ListChange {
+                    kind: log.kind,
+                    index: log.index,
+                    value: &state.data[log.data].value,
+                });
+            },
         }
     }
 }
