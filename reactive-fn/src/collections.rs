@@ -13,12 +13,12 @@ pub enum ListChangeKind {
     Modify,
 }
 
-pub struct ListChange<'a, T> {
+pub struct ListChange<T> {
     pub kind: ListChangeKind,
 
     /// Index of the changed element. (The index at the time the change was made.)
     pub index: usize,
 
     /// The most recent value, not the one immediately after it was changed.
-    pub value: &'a T,
+    pub value: T,
 }

@@ -254,7 +254,7 @@ impl<'a, T: 'static> Index<usize> for ObsListRef<'a, T> {
     }
 }
 impl<'a, T: 'static> Iterator for ObsListChanges<'a, T> {
-    type Item = ListChange<'a, T>;
+    type Item = ListChange<&'a T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.0 {

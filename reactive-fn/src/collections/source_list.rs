@@ -98,7 +98,7 @@ impl<'a, T: 'static> SourceListChanges<'a, T> {
     }
 }
 impl<'a, T: 'static> Iterator for SourceListChanges<'a, T> {
-    type Item = ListChange<'a, T>;
+    type Item = ListChange<&'a T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self {
