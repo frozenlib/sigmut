@@ -1,25 +1,24 @@
 use super::*;
 use crate::collections::obs_list::*;
+use crate::collections::*;
 use crate::*;
 use std::{ops::Index, rc::Rc, sync::Arc};
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub enum SourceList<T> {
-    Empty,
-    RcVec(Rc<Vec<T>>),
-    RcSlice(Rc<[T]>),
-    ArcVec(Arc<Vec<T>>),
-    ArcSlice(Arc<[T]>),
+pub enum SourceList<T: 'static> {
+    Constant(SharedArray<'static, T>),
     Obs(ObsList<T>),
 }
 pub enum SourceListRef<'a, T: 'static> {
     Constant(&'a [T]),
     Obs(ObsListRef<'a, T>),
 }
+
+#[derive(Clone, PartialEq)]
 pub enum SourceListAge<T> {
-    Initial,
-    Current,
+    Empty,
+    Last,
     Obs(ObsListAge<T>),
 }
 pub enum SourceListChanges<'a, T: 'static> {
@@ -37,11 +36,7 @@ pub enum SourceListChanges<'a, T: 'static> {
 impl<T: 'static> SourceList<T> {
     pub fn borrow(&self, cx: &mut BindContext) -> SourceListRef<T> {
         match self {
-            SourceList::Empty => SourceListRef::Constant(&[]),
-            SourceList::RcVec(s) => SourceListRef::Constant(&s),
-            SourceList::RcSlice(s) => SourceListRef::Constant(&s),
-            SourceList::ArcVec(s) => SourceListRef::Constant(&s),
-            SourceList::ArcSlice(s) => SourceListRef::Constant(&s),
+            SourceList::Constant(s) => SourceListRef::Constant(&s),
             SourceList::Obs(o) => SourceListRef::Obs(o.borrow(cx)),
         }
     }
@@ -49,7 +44,7 @@ impl<T: 'static> SourceList<T> {
 impl<'a, T: 'static> SourceListRef<'a, T> {
     pub fn age(&self) -> SourceListAge<T> {
         match self {
-            SourceListRef::Constant(_) => SourceListAge::Current,
+            SourceListRef::Constant(_) => SourceListAge::Last,
             SourceListRef::Obs(o) => SourceListAge::Obs(o.age()),
         }
     }
@@ -71,16 +66,16 @@ impl<'a, T: 'static> SourceListRef<'a, T> {
     pub fn changes(&self, since: &SourceListAge<T>) -> SourceListChanges<T> {
         match self {
             SourceListRef::Constant(s) => match since {
-                SourceListAge::Initial => SourceListChanges::from_values(s),
-                SourceListAge::Current => SourceListChanges::from_values(&[]),
+                SourceListAge::Empty => SourceListChanges::from_values(s),
+                SourceListAge::Last => SourceListChanges::from_values(&[]),
                 SourceListAge::Obs(_) => panic!("mismatch source."),
             },
             SourceListRef::Obs(o) => match since {
-                SourceListAge::Initial => SourceListChanges::ObsValues {
+                SourceListAge::Empty => SourceListChanges::ObsValues {
                     values: o,
                     index: 0,
                 },
-                SourceListAge::Current => SourceListChanges::from_values(&[]),
+                SourceListAge::Last => SourceListChanges::from_values(&[]),
                 SourceListAge::Obs(since) => SourceListChanges::ObsChanges(o.changes(since)),
             },
         }
@@ -88,7 +83,10 @@ impl<'a, T: 'static> SourceListRef<'a, T> {
 }
 impl<T> SourceListAge<T> {
     pub fn new() -> Self {
-        SourceListAge::Initial
+        SourceListAge::Empty
+    }
+    pub fn is_last(self) -> bool {
+        matches!(self, Self::Last)
     }
 }
 impl<T> Default for SourceListAge<T> {
@@ -147,36 +145,8 @@ impl<T> IntoSourceList<T> for ObsList<T> {
         SourceList::Obs(self)
     }
 }
-impl<T> IntoSourceList<T> for Vec<T> {
+impl<T: 'static, S: Into<SharedArray<'static, T>>> IntoSourceList<T> for S {
     fn into_source_list(self) -> SourceList<T> {
-        SourceList::RcVec(self.into())
-    }
-}
-impl<T: Clone> IntoSourceList<T> for &[T] {
-    fn into_source_list(self) -> SourceList<T> {
-        SourceList::RcSlice(self.into())
-    }
-}
-
-impl<T> IntoSourceList<T> for Rc<Vec<T>> {
-    fn into_source_list(self) -> SourceList<T> {
-        SourceList::RcVec(self)
-    }
-}
-
-impl<T> IntoSourceList<T> for Rc<[T]> {
-    fn into_source_list(self) -> SourceList<T> {
-        SourceList::RcSlice(self)
-    }
-}
-impl<T> IntoSourceList<T> for Arc<Vec<T>> {
-    fn into_source_list(self) -> SourceList<T> {
-        SourceList::ArcVec(self)
-    }
-}
-
-impl<T> IntoSourceList<T> for Arc<[T]> {
-    fn into_source_list(self) -> SourceList<T> {
-        SourceList::ArcSlice(self)
+        SourceList::Constant(self.into())
     }
 }

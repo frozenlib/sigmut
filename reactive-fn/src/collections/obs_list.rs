@@ -193,6 +193,11 @@ impl<T> Clone for ObsListAge<T> {
         }
     }
 }
+impl<T> PartialEq for ObsListAge<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.age == other.age && self.source.ptr_eq(&other.source)
+    }
+}
 
 impl<'a, T: 'static> ObsListRef<'a, T> {
     pub fn age(&self) -> ObsListAge<T> {

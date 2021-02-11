@@ -1,7 +1,9 @@
 pub mod obs_list;
+mod shared_array;
 pub mod source_list;
 
 pub use obs_list::ObsList;
+pub use shared_array::*;
 pub use source_list::{IntoSourceList, SourceList, SourceListAge};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Debug)]
