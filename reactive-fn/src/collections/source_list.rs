@@ -1,13 +1,12 @@
 use super::*;
 use crate::collections::obs_list::*;
-use crate::collections::*;
 use crate::*;
-use std::{ops::Index, rc::Rc, sync::Arc};
+use std::ops::Index;
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
 pub enum SourceList<T: 'static> {
-    Constant(SharedArray<'static, T>),
+    Constant(SharedArray<T>),
     Obs(ObsList<T>),
 }
 pub enum SourceListRef<'a, T: 'static> {
@@ -145,7 +144,7 @@ impl<T> IntoSourceList<T> for ObsList<T> {
         SourceList::Obs(self)
     }
 }
-impl<T: 'static, S: Into<SharedArray<'static, T>>> IntoSourceList<T> for S {
+impl<T: 'static, S: Into<SharedArray<T>>> IntoSourceList<T> for S {
     fn into_source_list(self) -> SourceList<T> {
         SourceList::Constant(self.into())
     }
