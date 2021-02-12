@@ -14,3 +14,12 @@ pub struct ListChange<T> {
     /// The most recent value, not the one immediately after it was changed.
     pub value: T,
 }
+impl<T> ListChange<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> ListChange<U> {
+        ListChange {
+            kind: self.kind,
+            index: self.index,
+            value: f(self.value),
+        }
+    }
+}
