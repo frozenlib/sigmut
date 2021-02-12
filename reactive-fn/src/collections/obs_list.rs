@@ -363,10 +363,10 @@ impl<'a, T> Drop for ObsListRefMut<'a, T> {
     fn drop(&mut self) {
         let logs_len = self.state.logs.len();
         unsafe { ManuallyDrop::drop(&mut self.state) }
-        self.source.try_clean_logs();
         if self.logs_len_old != logs_len {
             Runtime::spawn_notify(self.source.clone());
         }
+        self.source.try_clean_logs();
     }
 }
 
