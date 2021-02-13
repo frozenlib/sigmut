@@ -39,6 +39,12 @@ impl<T: 'static> ObsCell<T> {
     {
         *self.0.borrow(cx)
     }
+    pub fn get_head(&self) -> T
+    where
+        T: Copy,
+    {
+        *self.0.value.borrow()
+    }
 
     pub fn borrow(&self, cx: &mut BindContext) -> Ref<T> {
         self.0.borrow(cx)
