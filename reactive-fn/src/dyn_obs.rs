@@ -1,6 +1,6 @@
 use super::*;
 use futures::Future;
-use std::{borrow::Borrow, rc::Rc, task::Poll};
+use std::{any::Any, borrow::Borrow, rc::Rc, task::Poll};
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
@@ -71,6 +71,16 @@ impl<T: 'static> DynObs<T> {
         T: Borrow<B>,
     {
         self.as_ref().map_borrow()
+    }
+    pub fn map_into<U>(&self) -> DynObs<U>
+    where
+        T: Into<U>,
+    {
+        if let Some(s) = Any::downcast_ref::<DynObs<U>>(self) {
+            s.clone()
+        } else {
+            self.map(|x| x.into())
+        }
     }
     pub fn flat_map<U>(&self, f: impl Fn(T) -> DynObs<U> + 'static) -> DynObs<U> {
         self.obs().flat_map(f).into_dyn()

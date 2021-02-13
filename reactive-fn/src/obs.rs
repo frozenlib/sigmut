@@ -66,6 +66,12 @@ impl<S: Observable> Obs<S> {
     {
         self.as_ref().map_borrow()
     }
+    pub fn map_into<T>(self) -> Obs<impl Observable<Item = T>>
+    where
+        S::Item: Into<T>,
+    {
+        self.map(|x| x.into())
+    }
     pub fn flat_map<T: Observable>(
         self,
         f: impl Fn(S::Item) -> T + 'static,

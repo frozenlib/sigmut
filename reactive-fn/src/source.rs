@@ -166,117 +166,421 @@ impl<T> ObservableRef for Source<T> {
     }
 }
 
-pub trait IntoSource<T: 'static> {
-    fn into_source(self) -> Source<T>;
-}
+// pub trait IntoSource<T: 'static> {
+//     fn into_source(self) -> Source<T>;
+// }
 
-impl<T: 'static, S: Observable<Item = T>> IntoSource<T> for Obs<S> {
-    fn into_source(self) -> Source<T> {
-        self.into_dyn().into_source()
-    }
-}
-impl<T: 'static, S: Observable<Item = T> + Clone> IntoSource<T> for &Obs<S> {
-    fn into_source(self) -> Source<T> {
-        self.clone().into_source()
-    }
-}
-impl<T: Copy + 'static, S: ObservableBorrow<Item = T>> IntoSource<T> for ObsBorrow<S> {
-    fn into_source(self) -> Source<T> {
-        self.cloned().into_source()
-    }
-}
-impl<T: Copy + 'static, S: ObservableBorrow<Item = T> + Clone> IntoSource<T> for &ObsBorrow<S> {
-    fn into_source(self) -> Source<T> {
-        self.clone().into_source()
-    }
-}
-impl<T: Copy + 'static, S: ObservableRef<Item = T>> IntoSource<T> for ObsRef<S> {
-    fn into_source(self) -> Source<T> {
-        self.cloned().into_source()
-    }
-}
-impl<T: Copy + 'static, S: ObservableRef<Item = T> + Clone> IntoSource<T> for &ObsRef<S> {
-    fn into_source(self) -> Source<T> {
-        self.clone().into_source()
-    }
-}
+// impl<T: 'static, S: Observable<Item = T>> IntoSource<T> for Obs<S> {
+//     fn into_source(self) -> Source<T> {
+//         self.into_dyn().into_source()
+//     }
+// }
+// impl<T: 'static, S: Observable<Item = T> + Clone> IntoSource<T> for &Obs<S> {
+//     fn into_source(self) -> Source<T> {
+//         self.clone().into_source()
+//     }
+// }
+// impl<T: Copy + 'static, S: ObservableBorrow<Item = T>> IntoSource<T> for ObsBorrow<S> {
+//     fn into_source(self) -> Source<T> {
+//         self.cloned().into_source()
+//     }
+// }
+// impl<T: Copy + 'static, S: ObservableBorrow<Item = T> + Clone> IntoSource<T> for &ObsBorrow<S> {
+//     fn into_source(self) -> Source<T> {
+//         self.clone().into_source()
+//     }
+// }
+// impl<T: Copy + 'static, S: ObservableRef<Item = T>> IntoSource<T> for ObsRef<S> {
+//     fn into_source(self) -> Source<T> {
+//         self.cloned().into_source()
+//     }
+// }
+// impl<T: Copy + 'static, S: ObservableRef<Item = T> + Clone> IntoSource<T> for &ObsRef<S> {
+//     fn into_source(self) -> Source<T> {
+//         self.clone().into_source()
+//     }
+// }
 
-impl<T: 'static> IntoSource<T> for DynObs<T> {
-    fn into_source(self) -> Source<T> {
-        Source::Obs(self)
-    }
-}
-impl<T: 'static> IntoSource<T> for &DynObs<T> {
-    fn into_source(self) -> Source<T> {
-        self.clone().into_source()
-    }
-}
-impl<T: Copy + 'static> IntoSource<T> for DynObsBorrow<T> {
-    fn into_source(self) -> Source<T> {
-        Source::Obs(self.cloned())
-    }
-}
-impl<T: Copy + 'static> IntoSource<T> for &DynObsBorrow<T> {
-    fn into_source(self) -> Source<T> {
-        Source::Obs(self.cloned())
-    }
-}
-impl<T: Copy + 'static> IntoSource<T> for DynObsRef<T> {
-    fn into_source(self) -> Source<T> {
-        Source::Obs(self.cloned())
-    }
-}
-impl<T: Copy + 'static> IntoSource<T> for &DynObsRef<T> {
-    fn into_source(self) -> Source<T> {
-        Source::Obs(self.cloned())
-    }
-}
-impl<T> IntoSource<T> for Source<T> {
-    fn into_source(self) -> Source<T> {
-        self
-    }
-}
-impl<T: 'static> IntoSource<Rc<T>> for Rc<T> {
-    fn into_source(self) -> Source<Rc<T>> {
-        Source::Constant(self)
-    }
-}
-impl<T: 'static> IntoSource<Arc<T>> for Arc<T> {
-    fn into_source(self) -> Source<Arc<T>> {
-        Source::Constant(self)
-    }
-}
-impl<T: 'static> IntoSource<ObsCell<T>> for ObsCell<T> {
-    fn into_source(self) -> Source<ObsCell<T>> {
-        Source::Constant(self)
-    }
-}
+// impl<T: 'static> IntoSource<T> for DynObs<T> {
+//     fn into_source(self) -> Source<T> {
+//         Source::Obs(self)
+//     }
+// }
+// impl<T: 'static> IntoSource<T> for &DynObs<T> {
+//     fn into_source(self) -> Source<T> {
+//         self.clone().into_source()
+//     }
+// }
+// impl<T: Copy + 'static> IntoSource<T> for DynObsBorrow<T> {
+//     fn into_source(self) -> Source<T> {
+//         Source::Obs(self.cloned())
+//     }
+// }
+// impl<T: Copy + 'static> IntoSource<T> for &DynObsBorrow<T> {
+//     fn into_source(self) -> Source<T> {
+//         Source::Obs(self.cloned())
+//     }
+// }
+// impl<T: Copy + 'static> IntoSource<T> for DynObsRef<T> {
+//     fn into_source(self) -> Source<T> {
+//         Source::Obs(self.cloned())
+//     }
+// }
+// impl<T: Copy + 'static> IntoSource<T> for &DynObsRef<T> {
+//     fn into_source(self) -> Source<T> {
+//         Source::Obs(self.cloned())
+//     }
+// }
+// impl<T> IntoSource<T> for Source<T> {
+//     fn into_source(self) -> Source<T> {
+//         self
+//     }
+// }
+// impl<T: 'static> IntoSource<Rc<T>> for Rc<T> {
+//     fn into_source(self) -> Source<Rc<T>> {
+//         Source::Constant(self)
+//     }
+// }
+// impl<T: 'static> IntoSource<Arc<T>> for Arc<T> {
+//     fn into_source(self) -> Source<Arc<T>> {
+//         Source::Constant(self)
+//     }
+// }
+// impl<T: 'static> IntoSource<ObsCell<T>> for ObsCell<T> {
+//     fn into_source(self) -> Source<ObsCell<T>> {
+//         Source::Constant(self)
+//     }
+// }
 
-impl<T: IntoSource<T> + 'static> IntoSource<Option<T>> for Option<T> {
-    fn into_source(self) -> Source<Option<T>> {
-        Source::Constant(self)
-    }
-}
-impl<T: IntoSource<T> + 'static, E: IntoSource<E> + 'static> IntoSource<Result<T, E>>
-    for Result<T, E>
+// impl<T: IntoSource<T> + 'static> IntoSource<Option<T>> for Option<T> {
+//     fn into_source(self) -> Source<Option<T>> {
+//         Source::Constant(self)
+//     }
+// }
+// impl<T: IntoSource<T> + 'static, E: IntoSource<E> + 'static> IntoSource<Result<T, E>>
+//     for Result<T, E>
+// {
+//     fn into_source(self) -> Source<Result<T, E>> {
+//         Source::Constant(self)
+//     }
+// }
+
+// macro_rules! impl_into_source {
+//     ($($t:ty),*) => { $(
+//         impl IntoSource<$t> for $t {
+//             fn into_source(self) -> Source<$t> {
+//                 Source::Constant(self)
+//             }
+//         }
+//     )*
+//     };
+// }
+
+// impl_into_source!(u8, u16, u32, u64, u128, usize);
+// impl_into_source!(i8, i16, i32, i64, i128, isize);
+// impl_into_source!(f32, f64);
+// impl_into_source!(bool, char);
+
+pub trait SourceFrom<T>
+where
+    Self: Sized,
 {
-    fn into_source(self) -> Source<Result<T, E>> {
-        Source::Constant(self)
+    fn source_from(_: T) -> Source<Self>;
+}
+pub trait IntoSource2<T> {
+    fn into_source2(self) -> Source<T>;
+}
+impl<S, T: SourceFrom<S>> IntoSource2<T> for S {
+    fn into_source2(self) -> Source<T> {
+        T::source_from(self)
     }
 }
 
-macro_rules! impl_into_source {
+impl<T, S> SourceFrom<Obs<S>> for T
+where
+    S: Observable,
+    S::Item: Into<T>,
+{
+    fn source_from(value: Obs<S>) -> Source<Self> {
+        value.map_into::<T>().into_dyn().into_source2()
+    }
+}
+impl<T, S> SourceFrom<&Obs<S>> for T
+where
+    S: Observable + Clone,
+    S::Item: Into<T>,
+{
+    fn source_from(value: &Obs<S>) -> Source<Self> {
+        value.clone().into_source2()
+    }
+}
+impl<T, S> SourceFrom<ObsBorrow<S>> for T
+where
+    S: ObservableBorrow,
+    T: SourceFrom<DynObsRef<S::Item>>,
+{
+    fn source_from(value: ObsBorrow<S>) -> Source<Self> {
+        value.into_dyn().as_ref().into_source2()
+    }
+}
+impl<T, S> SourceFrom<&ObsBorrow<S>> for T
+where
+    S: ObservableBorrow + Clone,
+    T: SourceFrom<DynObsRef<S::Item>>,
+{
+    fn source_from(value: &ObsBorrow<S>) -> Source<Self> {
+        value.clone().into_source2()
+    }
+}
+impl<T, S> SourceFrom<ObsRef<S>> for T
+where
+    S: ObservableRef,
+    T: SourceFrom<DynObsRef<S::Item>>,
+{
+    fn source_from(value: ObsRef<S>) -> Source<Self> {
+        value.into_dyn().into_source2()
+    }
+}
+impl<T, S> SourceFrom<&ObsRef<S>> for T
+where
+    S: ObservableRef + Clone,
+    T: SourceFrom<DynObsRef<S::Item>>,
+{
+    fn source_from(value: &ObsRef<S>) -> Source<Self> {
+        value.clone().into_source2()
+    }
+}
+impl<T, S: Into<T>> SourceFrom<DynObs<S>> for T {
+    fn source_from(value: DynObs<S>) -> Source<Self> {
+        Source::Obs(value.map_into())
+    }
+}
+impl<T, S: Into<T>> SourceFrom<&DynObs<S>> for T {
+    fn source_from(value: &DynObs<S>) -> Source<Self> {
+        value.clone().into_source2()
+    }
+}
+impl<T, S> SourceFrom<DynObsBorrow<S>> for T
+where
+    T: SourceFrom<DynObsRef<S>>,
+{
+    fn source_from(value: DynObsBorrow<S>) -> Source<Self> {
+        value.as_ref().into_source2()
+    }
+}
+impl<T, S> SourceFrom<&DynObsBorrow<S>> for T
+where
+    T: SourceFrom<DynObsRef<S>>,
+{
+    fn source_from(value: &DynObsBorrow<S>) -> Source<Self> {
+        value.clone().into_source2()
+    }
+}
+impl<T, S> SourceFrom<DynObsRef<S>> for T
+where
+    S: Copy + Into<T>,
+{
+    fn source_from(value: DynObsRef<S>) -> Source<Self> {
+        value.cloned().map_into().into_source2()
+    }
+}
+impl<T, S> SourceFrom<&DynObsRef<S>> for T
+where
+    T: SourceFrom<DynObsRef<S>>,
+{
+    fn source_from(value: &DynObsRef<S>) -> Source<Self> {
+        value.clone().into_source2()
+    }
+}
+impl<T: Into<U>, U> SourceFrom<Source<T>> for U {
+    fn source_from(value: Source<T>) -> Source<Self> {
+        value.map(|x| x.into())
+    }
+}
+impl<T> SourceFrom<ObsCell<T>> for ObsCell<T> {
+    fn source_from(value: ObsCell<T>) -> Source<Self> {
+        Source::Constant(value)
+    }
+}
+
+impl<T, S> From<Obs<S>> for Source<T>
+where
+    S: Observable,
+    S::Item: Into<T>,
+{
+    fn from(value: Obs<S>) -> Self {
+        value.map_into::<T>().into_dyn().into()
+    }
+}
+impl<T, S> From<&Obs<S>> for Source<T>
+where
+    S: Observable + Clone,
+    S::Item: Into<T>,
+{
+    fn from(value: &Obs<S>) -> Self {
+        value.clone().into()
+    }
+}
+impl<T, S> From<ObsBorrow<S>> for Source<T>
+where
+    S: ObservableBorrow,
+    S::Item: Into<T> + Copy,
+{
+    fn from(value: ObsBorrow<S>) -> Self {
+        value.as_ref().into()
+    }
+}
+impl<T, S> From<&ObsBorrow<S>> for Source<T>
+where
+    S: ObservableBorrow + Clone,
+    S::Item: Into<T> + Copy,
+{
+    fn from(value: &ObsBorrow<S>) -> Self {
+        value.clone().into()
+    }
+}
+impl<T, S> From<ObsRef<S>> for Source<T>
+where
+    S: ObservableRef,
+    S::Item: Into<T> + Copy,
+{
+    fn from(value: ObsRef<S>) -> Self {
+        value.into_dyn().into()
+    }
+}
+impl<T, S> From<&ObsRef<S>> for Source<T>
+where
+    S: ObservableRef + Clone,
+    S::Item: Into<T> + Copy,
+{
+    fn from(value: &ObsRef<S>) -> Self {
+        value.clone().into()
+    }
+}
+
+impl<T, S: Into<T>> From<DynObs<S>> for Source<T> {
+    fn from(value: DynObs<S>) -> Self {
+        Source::Obs(value.map_into())
+    }
+}
+impl<T, S: Into<T>> From<&DynObs<S>> for Source<T> {
+    fn from(value: &DynObs<S>) -> Self {
+        value.clone().into()
+    }
+}
+impl<T, S> From<DynObsBorrow<S>> for Source<T>
+where
+    S: Into<T> + Copy,
+{
+    fn from(value: DynObsBorrow<S>) -> Self {
+        value.as_ref().into()
+    }
+}
+impl<T, S> From<&DynObsBorrow<S>> for Source<T>
+where
+    S: Into<T> + Copy,
+{
+    fn from(value: &DynObsBorrow<S>) -> Self {
+        value.clone().into()
+    }
+}
+impl<T, S> From<DynObsRef<S>> for Source<T>
+where
+    S: Into<T> + Copy,
+{
+    fn from(value: DynObsRef<S>) -> Self {
+        value.cloned().into()
+    }
+}
+impl<T, S> From<&DynObsRef<S>> for Source<T>
+where
+    S: Into<T> + Copy,
+{
+    fn from(value: &DynObsRef<S>) -> Self {
+        value.clone().into()
+    }
+}
+
+impl<T: Copy> From<&Source<T>> for Source<T> {
+    fn from(value: &Source<T>) -> Self {
+        value.clone()
+    }
+}
+impl<T> From<Rc<T>> for Source<Rc<T>> {
+    fn from(value: Rc<T>) -> Self {
+        Source::Constant(value)
+    }
+}
+impl<T> From<&Rc<T>> for Source<Rc<T>> {
+    fn from(value: &Rc<T>) -> Self {
+        value.clone().into()
+    }
+}
+
+impl<T> From<Arc<T>> for Source<Arc<T>> {
+    fn from(value: Arc<T>) -> Self {
+        Source::Constant(value)
+    }
+}
+impl<T> From<&Arc<T>> for Source<Arc<T>> {
+    fn from(value: &Arc<T>) -> Self {
+        value.clone().into()
+    }
+}
+
+impl<T> From<ObsCell<T>> for Source<ObsCell<T>> {
+    fn from(value: ObsCell<T>) -> Source<ObsCell<T>> {
+        Source::Constant(value)
+    }
+}
+impl<T> From<&ObsCell<T>> for Source<ObsCell<T>> {
+    fn from(value: &ObsCell<T>) -> Source<ObsCell<T>> {
+        value.clone().into()
+    }
+}
+
+impl<T: Copy> From<ObsCell<T>> for Source<T> {
+    fn from(value: ObsCell<T>) -> Self {
+        value.obs().into()
+    }
+}
+impl<T: Copy> From<&ObsCell<T>> for Source<T> {
+    fn from(value: &ObsCell<T>) -> Self {
+        value.clone().into()
+    }
+}
+
+impl<T: Into<Source<T>> + 'static> From<Option<T>> for Source<Option<T>> {
+    fn from(value: Option<T>) -> Self {
+        Source::Constant(value)
+    }
+}
+impl<T, E> From<Result<T, E>> for Source<Result<T, E>>
+where
+    T: Into<Source<T>> + 'static,
+    E: Into<Source<E>> + 'static,
+{
+    fn from(value: Result<T, E>) -> Source<Result<T, E>> {
+        Source::Constant(value)
+    }
+}
+
+macro_rules! impl_from {
     ($($t:ty),*) => { $(
-        impl IntoSource<$t> for $t {
-            fn into_source(self) -> Source<$t> {
-                Source::Constant(self)
+        impl From<$t> for Source<$t> {
+            fn from(value: $t) -> Source<$t> {
+                Source::Constant(value)
+            }
+        }
+        impl From<&$t> for Source<$t> {
+            fn from(value: &$t) -> Source<$t> {
+                Source::Constant(*value)
             }
         }
     )*
     };
 }
-
-impl_into_source!(u8, u16, u32, u64, u128, usize);
-impl_into_source!(i8, i16, i32, i64, i128, isize);
-impl_into_source!(f32, f64);
-impl_into_source!(bool, char);
+impl_from!(u8, u16, u32, u64, u128, usize);
+impl_from!(i8, i16, i32, i64, i128, isize);
+impl_from!(f32, f64);
+impl_from!(bool, char);
