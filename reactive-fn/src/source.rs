@@ -246,6 +246,17 @@ impl<T: 'static> IntoSource<Arc<T>> for Arc<T> {
         Source::Constant(self)
     }
 }
+impl<T: Copy + 'static> IntoSource<ObsCell<T>> for ObsCell<T> {
+    fn into_source(self) -> Source<ObsCell<T>> {
+        Source::Constant(self)
+    }
+}
+impl<T: 'static> IntoSource<ObsRefCell<T>> for ObsRefCell<T> {
+    fn into_source(self) -> Source<ObsRefCell<T>> {
+        Source::Constant(self)
+    }
+}
+
 impl<T: IntoSource<T> + 'static> IntoSource<Option<T>> for Option<T> {
     fn into_source(self) -> Source<Option<T>> {
         Source::Constant(self)
