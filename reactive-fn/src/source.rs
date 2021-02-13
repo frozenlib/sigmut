@@ -429,7 +429,7 @@ where
 }
 
 #[macro_export]
-macro_rules! impl_source_from {
+macro_rules! impl_source_from_for {
     ($t:ty) => {
         impl<T: Into<$t> + Clone> From<&T> for $t {
             fn from(value: &T) -> Self {
