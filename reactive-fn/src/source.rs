@@ -565,7 +565,8 @@ where
     }
 }
 
-macro_rules! impl_from {
+#[macro_export]
+macro_rules! impl_from_for_source {
     ($($t:ty),*) => { $(
         impl From<$t> for Source<$t> {
             fn from(value: $t) -> Source<$t> {
@@ -574,13 +575,13 @@ macro_rules! impl_from {
         }
         impl From<&$t> for Source<$t> {
             fn from(value: &$t) -> Source<$t> {
-                Source::Constant(*value)
+                value.clone().into()
             }
         }
     )*
     };
 }
-impl_from!(u8, u16, u32, u64, u128, usize);
-impl_from!(i8, i16, i32, i64, i128, isize);
-impl_from!(f32, f64);
-impl_from!(bool, char);
+impl_from_for_source!(u8, u16, u32, u64, u128, usize);
+impl_from_for_source!(i8, i16, i32, i64, i128, isize);
+impl_from_for_source!(f32, f64);
+impl_from_for_source!(bool, char);
