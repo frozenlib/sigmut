@@ -39,6 +39,15 @@ impl<T: 'static> Source<T> {
             Self::Obs(obs) => obs.head(),
         }
     }
+    pub fn head_cloned(&self) -> T
+    where
+        T: Clone,
+    {
+        match &self {
+            Self::Constant(value) => value.clone(),
+            Self::Obs(obs) => obs.head(),
+        }
+    }
     pub fn head_tail(self) -> (T, DynTail<T>) {
         BindScope::with(|scope| self.head_tail_with(scope))
     }
