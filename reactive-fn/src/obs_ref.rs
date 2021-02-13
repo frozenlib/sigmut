@@ -263,6 +263,32 @@ impl<S: ObservableRef> ObsRef<S> {
     {
         self.map(|x| x.clone())
     }
+
+    pub fn dedup_by(
+        self,
+        eq: impl Fn(&S::Item, &S::Item) -> bool + 'static,
+    ) -> ObsBorrow<impl ObservableBorrow<Item = S::Item> + Clone>
+    where
+        S::Item: Clone,
+    {
+        self.cloned().dedup_by(eq)
+    }
+    pub fn dedup_by_key<K: PartialEq>(
+        self,
+        to_key: impl Fn(&S::Item) -> K + 'static,
+    ) -> ObsBorrow<impl ObservableBorrow<Item = S::Item> + Clone>
+    where
+        S::Item: Clone,
+    {
+        self.cloned().dedup_by_key(to_key)
+    }
+    pub fn dedup(self) -> ObsBorrow<impl ObservableBorrow<Item = S::Item> + Clone>
+    where
+        S::Item: PartialEq + Clone,
+    {
+        self.cloned().dedup()
+    }
+
     pub fn fold<St: 'static>(
         self,
         initial_state: St,

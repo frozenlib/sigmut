@@ -129,26 +129,6 @@ where
 impl<T, B> IntoSourceRef<T> for ObsCell<B>
 where
     T: ?Sized,
-    B: Borrow<T> + Copy + 'static,
-{
-    fn into_source_ref(self) -> SourceRef<T> {
-        self.obs().into_source_ref()
-    }
-}
-
-impl<T, B> IntoSourceRef<T> for &ObsCell<B>
-where
-    T: ?Sized,
-    B: Borrow<T> + Copy + 'static,
-{
-    fn into_source_ref(self) -> SourceRef<T> {
-        self.obs().into_source_ref()
-    }
-}
-
-impl<T, B> IntoSourceRef<T> for ObsRefCell<B>
-where
-    T: ?Sized,
     B: Borrow<T> + 'static,
 {
     fn into_source_ref(self) -> SourceRef<T> {
@@ -156,7 +136,7 @@ where
     }
 }
 
-impl<T, B> IntoSourceRef<T> for &ObsRefCell<B>
+impl<T, B> IntoSourceRef<T> for &ObsCell<B>
 where
     T: ?Sized,
     B: Borrow<T> + 'static,

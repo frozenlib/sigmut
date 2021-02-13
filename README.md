@@ -8,12 +8,12 @@ TODO
 
 ## Cheet sheet for Rx users
 
-| Rx                | reactive-fn             |
-| ----------------- | ----------------------- |
-| `Obsrevable`      | `Obs`                   |
-| `IObsrevable`     | `Obsrevable`, `DynObs`  |
-| `IObserver`       | `Observer`              |
-| `BehaviorSubject` | `ObsCell`, `ObsRefCell` |
+| Rx                | reactive-fn            |
+| ----------------- | ---------------------- |
+| `Obsrevable`      | `Obs`                  |
+| `IObsrevable`     | `Obsrevable`, `DynObs` |
+| `IObserver`       | `Observer`             |
+| `BehaviorSubject` | `ObsCell`              |
 
 ### Obsrevable methods
 
@@ -34,11 +34,11 @@ TODO
 
 ## A classified type list
 
-| trait              | static      | dynamic        | cell         | how to make  |
-| ------------------ | ----------- | -------------- | ------------ | ------------ |
-| `Observable`       | `Obs`       | `DynObs`       | `ObsCell`    | `obs`        |
-| `ObservableBorrow` | `ObsBorrow` | `DynObsBorrow` | `ObsRefCell` | `obs_borrow` |
-| `ObservableRef`    | `ObsRef`    | `DynObsRef`    |              | `obs_ref`    |
+| trait              | static      | dynamic        | cell      | how to make  |
+| ------------------ | ----------- | -------------- | --------- | ------------ |
+| `Observable`       | `Obs`       | `DynObs`       | `ObsCell` | `obs`        |
+| `ObservableBorrow` | `ObsBorrow` | `DynObsBorrow` | `ObsCell` | `obs_borrow` |
+| `ObservableRef`    | `ObsRef`    | `DynObsRef`    |           | `obs_ref`    |
 
 ## License
 

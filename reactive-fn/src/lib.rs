@@ -30,7 +30,7 @@ use derivative::Derivative;
 
 pub use bind::*;
 pub use cache::Cache;
-pub use cell::{ObsCell, ObsRefCell};
+pub use cell::ObsCell;
 pub use collections::*;
 pub use collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector};
 pub use dyn_obs::*;

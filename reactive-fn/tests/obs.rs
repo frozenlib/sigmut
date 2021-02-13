@@ -54,7 +54,10 @@ fn re_flat_map() {
 
     let b = ObsCell::new(0);
 
-    let r = b.obs().flat_map(move |x| a_[x].obs()).collect_vec();
+    let r = b
+        .obs()
+        .flat_map(move |&x| a_[x].obs().cloned())
+        .collect_vec();
 
     a[0].set(6);
     a[1].set(12);
@@ -235,7 +238,7 @@ fn re_subscribe() {
 
     let vs_send = vs.clone();
 
-    let r = cell.obs().subscribe(move |x| {
+    let r = cell.obs().subscribe(move |&x| {
         vs_send.borrow_mut().push(x);
     });
 
@@ -275,7 +278,7 @@ fn re_hot_no() {
 
 #[test]
 fn re_flatten() {
-    let cell = ObsRefCell::new(DynObs::constant(1));
+    let cell = ObsCell::new(DynObs::constant(1));
 
     let vs = cell.as_dyn().cloned().flatten().collect_vec();
 
@@ -290,7 +293,7 @@ fn re_flatten() {
 #[test]
 fn re_head_tail() {
     let a = ObsCell::new(2);
-    let (head, tail) = a.obs().head_tail();
+    let (head, tail) = a.obs().cloned().head_tail();
     let r = tail.collect_vec();
 
     a.set(5);

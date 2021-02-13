@@ -22,7 +22,7 @@ fn obs_cell() {
 
 #[test]
 fn obs_ref_cell_dyn() {
-    let cell = ObsRefCell::new(1);
+    let cell = ObsCell::new(1);
     let r = cell.as_dyn().collect_vec();
     cell.set(5);
     cell.set(10);
@@ -32,7 +32,7 @@ fn obs_ref_cell_dyn() {
 
 #[test]
 fn obs_ref_cell() {
-    let cell = ObsRefCell::new(1);
+    let cell = ObsCell::new(1);
     let r = cell.obs().collect_vec();
     cell.set(5);
     cell.set(10);

@@ -285,23 +285,12 @@ impl<T: ObservableDisplay> IntoSourceStr for DynObsRef<T> {
     }
 }
 
-impl<T: ObservableDisplay + Copy + 'static> ObservableDisplay for ObsCell<T> {
-    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-        self.get(cx).obs_fmt(f, cx)
-    }
-}
-impl<T: ObservableDisplay + Copy + 'static> IntoSourceStr for ObsCell<T> {
-    fn into_source_str(self) -> SourceStr {
-        self.into_obs_display().into_source_str()
-    }
-}
-
-impl<T: ObservableDisplay + 'static> ObservableDisplay for ObsRefCell<T> {
+impl<T: ObservableDisplay + 'static> ObservableDisplay for ObsCell<T> {
     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
         self.borrow(cx).obs_fmt(f, cx)
     }
 }
-impl<T: ObservableDisplay + 'static> IntoSourceStr for ObsRefCell<T> {
+impl<T: ObservableDisplay + 'static> IntoSourceStr for ObsCell<T> {
     fn into_source_str(self) -> SourceStr {
         self.into_obs_display().into_source_str()
     }

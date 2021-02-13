@@ -31,17 +31,7 @@ fn run(f: impl Future<Output = ()>) {
 
 const DUR: Duration = Duration::from_millis(300);
 
-fn send_values<T: 'static + Copy>(cell: &ObsCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
-    let cell = cell.clone();
-    local(async move {
-        for value in values {
-            sleep(dur).await;
-            cell.set(value);
-        }
-    })
-}
-
-fn send_values_ref<T: 'static>(cell: &ObsRefCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
+fn send_values<T: 'static>(cell: &ObsCell<T>, values: Vec<T>, dur: Duration) -> impl Future {
     let cell = cell.clone();
     local(async move {
         for value in values {
@@ -86,7 +76,7 @@ fn re_to_stream() {
     run(async {
         let cell = ObsCell::new(1);
         let _task = send_values(&cell, vec![5, 6], DUR);
-        assert_values(cell.as_dyn(), vec![1, 5, 6], DUR * 2).await;
+        assert_values(cell.as_dyn().cloned(), vec![1, 5, 6], DUR * 2).await;
     });
 }
 
@@ -96,7 +86,7 @@ fn re_map_async() {
         let cell = ObsCell::new(1);
         let r = cell
             .as_dyn()
-            .map_async(|x| async move {
+            .map_async(|&x| async move {
                 sleep(DUR / 2).await;
                 x + 2
             })
@@ -120,7 +110,7 @@ fn re_map_async_cancel() {
         let cell = ObsCell::new(1);
         let r = cell
             .as_dyn()
-            .map_async(|x| async move {
+            .map_async(|&x| async move {
                 sleep(DUR).await;
                 x + 2
             })
@@ -137,7 +127,7 @@ fn re_subscribe() {
         let cell = ObsCell::new(1);
         let (s, r) = channel();
 
-        let _s = cell.as_dyn().subscribe_async(move |x| {
+        let _s = cell.as_dyn().subscribe_async(move |&x| {
             let s = s.clone();
             spawn(async move {
                 s.send(x).unwrap();
@@ -151,7 +141,7 @@ fn re_subscribe() {
 #[test]
 fn obs_ref_map_async() {
     run(async {
-        let cell = ObsRefCell::new(1);
+        let cell = ObsCell::new(1);
         let r = cell
             .as_dyn_ref()
             .map_async(|&x| async move {
@@ -159,7 +149,7 @@ fn obs_ref_map_async() {
                 x + 2
             })
             .cloned();
-        let _task = send_values_ref(&cell, vec![5, 10], DUR);
+        let _task = send_values(&cell, vec![5, 10], DUR);
         let values = vec![
             Poll::Pending,
             Poll::Ready(3),
@@ -175,7 +165,7 @@ fn obs_ref_map_async() {
 #[test]
 fn obs_ref_subscribe() {
     run(async {
-        let cell = ObsRefCell::new(1);
+        let cell = ObsCell::new(1);
         let (s, r) = channel();
 
         let _s = cell.as_dyn_ref().subscribe_async(move |&x| {
@@ -184,7 +174,7 @@ fn obs_ref_subscribe() {
                 s.send(x).unwrap();
             })
         });
-        let _task = send_values_ref(&cell, vec![10, 20, 30], DUR);
+        let _task = send_values(&cell, vec![10, 20, 30], DUR);
         assert_recv(r, vec![1, 10, 20, 30], DUR * 2).await;
     });
 }

@@ -126,6 +126,26 @@ impl<T: 'static + ?Sized> DynObsBorrow<T> {
             .into_dyn()
     }
 
+    pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObsBorrow<T>
+    where
+        T: Clone,
+    {
+        self.obs().dedup_by(eq).into_dyn()
+    }
+    pub fn dedup_by_key<K: PartialEq>(&self, to_key: impl Fn(&T) -> K + 'static) -> DynObsBorrow<T>
+    where
+        T: Clone,
+    {
+        self.obs().dedup_by_key(to_key).into_dyn()
+    }
+
+    pub fn dedup(&self) -> DynObsBorrow<T>
+    where
+        T: PartialEq + Clone,
+    {
+        self.obs().dedup().into_dyn()
+    }
+
     pub fn fold<St: 'static>(
         &self,
         initial_state: St,

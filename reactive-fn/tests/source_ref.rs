@@ -32,6 +32,6 @@ fn into_str() {
     func_into(obs_constant(String::from("abc")));
     func_into(obs_ref_static("abc"));
 
-    func_into(ObsRefCell::new(String::from("abc")));
-    func_into(&ObsRefCell::new(String::from("abc")));
+    func_into(ObsCell::new(String::from("abc")));
+    func_into(&ObsCell::new(String::from("abc")));
 }

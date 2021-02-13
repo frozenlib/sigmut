@@ -103,19 +103,19 @@ fn re_map_chain_inputs() -> Vec<usize> {
 fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
     struct Runner<S> {
         cell: ObsCell<usize>,
-        ops: Obs<S>,
+        obs: Obs<S>,
         n: usize,
     }
     fn new_runner(n: usize) -> Runner<impl Observable<Item = usize>> {
         let cell = ObsCell::new(0usize);
-        let ops = cell.obs();
-        Runner { cell, ops, n }
+        let obs = cell.obs().cloned();
+        Runner { cell, obs, n }
     }
     impl<S: Observable<Item = usize>> Runner<S> {
         fn try_run(self) -> Result<Runner<impl Observable<Item = usize>>, usize> {
             if self.n == 0 {
                 self.cell.set(0);
-                let fold = self.ops.fold(0, |s, x| s + x);
+                let fold = self.obs.fold(0, |s, x| s + x);
                 for i in 0..UPDATE_COUNT {
                     self.cell.set(i);
                 }
@@ -123,7 +123,7 @@ fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
             } else {
                 Ok(Runner {
                     cell: self.cell,
-                    ops: self.ops.map(x2),
+                    obs: self.obs.map(x2),
                     n: self.n - 1,
                 })
             }
@@ -151,7 +151,7 @@ fn re_map_chain_ops(b: &mut Bencher, chain: usize) {
 }
 fn re_map_chain_dyn(b: &mut Bencher, chain: usize) {
     let cell = ObsCell::new(0usize);
-    let mut obs = cell.as_dyn();
+    let mut obs = cell.as_dyn().cloned();
     for _ in 0..chain {
         obs = obs.map(|x| x * 2);
     }
@@ -170,7 +170,7 @@ fn re_flatten_inputs() -> Vec<usize> {
 }
 fn re_flatten_ops(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
-        let s = ObsRefCell::new(DynObs::constant(0));
+        let s = ObsCell::new(DynObs::constant(0));
         let s1 = DynObs::constant(1);
         let s2 = DynObs::constant(2);
         let f = s.obs().flatten().fold(0, |s, x| s + x);
@@ -184,7 +184,7 @@ fn re_flatten_ops(b: &mut Bencher, update_count: usize) {
 }
 fn re_flatten_dyn(b: &mut Bencher, update_count: usize) {
     b.iter(|| {
-        let s = ObsRefCell::new(DynObs::constant(0));
+        let s = ObsCell::new(DynObs::constant(0));
         let s1 = DynObs::constant(1);
         let s2 = DynObs::constant(2);
         let f = s.as_dyn().flatten().fold(0, |s, x| s + x);

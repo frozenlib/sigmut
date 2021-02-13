@@ -42,7 +42,7 @@ fn obs_ref_new_cell2() {
 
 #[test]
 fn obs_ref_map() {
-    let a = ObsRefCell::new(2);
+    let a = ObsCell::new(2);
     let r = a.as_dyn_ref().map(|x| x * 2).collect_vec();
 
     a.set(5);
@@ -53,7 +53,7 @@ fn obs_ref_map() {
 
 #[test]
 fn obs_ref_map_ref() {
-    let a = ObsRefCell::new((2, 3));
+    let a = ObsCell::new((2, 3));
     let r = a.as_dyn_ref().map_ref(|x| &x.0).collect_vec();
 
     a.set((5, 8));
@@ -66,11 +66,11 @@ fn obs_ref_flat_map() {
     let a = [ObsCell::new(5), ObsCell::new(10)];
     let a_ = a.clone();
 
-    let b = ObsRefCell::new(0);
+    let b = ObsCell::new(0);
 
     let r = b
         .as_dyn_ref()
-        .flat_map(move |&x| a_[x].as_dyn())
+        .flat_map(move |&x| a_[x].as_dyn().cloned())
         .collect_vec();
 
     a[0].set(6);
@@ -88,7 +88,7 @@ fn obs_ref_flat_map() {
 }
 #[test]
 fn obs_ref_cloned() {
-    let cell = ObsRefCell::new(2);
+    let cell = ObsCell::new(2);
     let r = cell.as_dyn_ref().cloned().collect_vec();
 
     cell.set(3);
@@ -100,7 +100,7 @@ fn obs_ref_cloned() {
 
 #[test]
 fn obs_ref_scan() {
-    let cell = ObsRefCell::new(2);
+    let cell = ObsCell::new(2);
     let r = cell.as_dyn_ref().scan(10, |s, x| s + x).collect_vec();
 
     cell.set(3);
@@ -111,7 +111,7 @@ fn obs_ref_scan() {
 }
 #[test]
 fn obs_ref_filter_scan() {
-    let cell = ObsRefCell::new(2);
+    let cell = ObsCell::new(2);
     let r = cell
         .as_dyn_ref()
         .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
@@ -126,7 +126,7 @@ fn obs_ref_filter_scan() {
 }
 #[test]
 fn obs_ref_fold() {
-    let cell = ObsRefCell::new(1);
+    let cell = ObsCell::new(1);
     let fold = cell.as_dyn_ref().fold(2, |s, x| s + x);
 
     cell.set(5);
@@ -137,7 +137,7 @@ fn obs_ref_fold() {
 
 #[test]
 fn obs_ref_collect_vec() {
-    let cell = ObsRefCell::new(1);
+    let cell = ObsCell::new(1);
     let fold = cell.as_dyn_ref().collect_vec();
 
     cell.set(2);
@@ -151,7 +151,7 @@ fn obs_ref_collect_vec() {
 fn obs_ref_subscribe() {
     use std::cell::RefCell;
     use std::rc::Rc;
-    let cell = ObsRefCell::new(0);
+    let cell = ObsCell::new(0);
     let vs = Rc::new(RefCell::new(Vec::new()));
 
     let vs_send = vs.clone();
@@ -172,7 +172,7 @@ fn obs_ref_subscribe() {
 
 #[test]
 fn obs_ref_hot() {
-    let cell = ObsRefCell::new(1);
+    let cell = ObsCell::new(1);
     let obs = cell.as_dyn_ref().scan(0, |s, x| s + x);
 
     let hot = obs.hot();
@@ -185,7 +185,7 @@ fn obs_ref_hot() {
 
 #[test]
 fn obs_ref_hot_no() {
-    let cell = ObsRefCell::new(1);
+    let cell = ObsCell::new(1);
     let obs = cell.as_dyn_ref().scan(0, |s, x| s + x);
 
     cell.set(2);
@@ -196,7 +196,7 @@ fn obs_ref_hot_no() {
 
 #[test]
 fn obs_ref_flatten() {
-    let cell = ObsRefCell::new(DynObs::constant(1));
+    let cell = ObsCell::new(DynObs::constant(1));
 
     let vs = cell.as_dyn_ref().flatten().collect_vec();
 
@@ -210,7 +210,7 @@ fn obs_ref_flatten() {
 
 #[test]
 fn obs_ref_head_tail() {
-    let a = ObsRefCell::new(2);
+    let a = ObsCell::new(2);
     let (head, tail) = a.as_dyn_ref().head_tail(|&value| value);
     let r = tail.collect_vec();
 
