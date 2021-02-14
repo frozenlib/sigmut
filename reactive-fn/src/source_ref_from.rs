@@ -150,16 +150,23 @@ where
 
 #[macro_export]
 macro_rules! impl_source_ref_from {
-    ($type:ty : $trait:path) => {
-        impl AsRef<dyn $trait> for $type {
-            fn as_ref(&self) -> &(dyn $trait) {
+    ($tr:path , $($ty:ty),*) => {
+        impl ::std::convert::AsRef<dyn $tr> for dyn $tr {
+            fn as_ref(&self) -> &dyn $tr {
                 self
             }
         }
-        impl SourceRefFrom<$type> for dyn $trait {
-            fn source_ref_from(s: $type) -> SourceRef<Self> {
-                DynObsRef::constant(s).into_source_ref()
+        $(
+            impl ::std::convert::AsRef<dyn $tr> for $ty {
+                fn as_ref(&self) -> &(dyn $tr) {
+                    self
+                }
             }
-        }
+            impl $crate::SourceRefFrom<$ty> for dyn $tr {
+                fn source_ref_from(s: $ty) -> $crate::SourceRef<Self> {
+                    $crate::DynObsRef::constant(s).into_source_ref()
+                }
+            }
+        )*
     };
 }
