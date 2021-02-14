@@ -72,6 +72,13 @@ impl<T: 'static> DynObs<T> {
     {
         self.as_ref().map_borrow()
     }
+    pub fn map_as_ref<U: ?Sized>(&self) -> DynObsRef<U>
+    where
+        T: AsRef<U>,
+    {
+        self.as_ref().map_as_ref()
+    }
+
     pub fn map_into<U>(&self) -> DynObs<U>
     where
         T: Into<U>,

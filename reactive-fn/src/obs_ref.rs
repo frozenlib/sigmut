@@ -193,6 +193,48 @@ impl<S: ObservableRef> ObsRef<S> {
         })
     }
 
+    pub fn map_as_ref<U: ?Sized + 'static>(self) -> ObsRef<impl ObservableRef<Item = U>>
+    where
+        S::Item: AsRef<U>,
+    {
+        struct MapAsRef<S, T>
+        where
+            S: ObservableRef,
+            S::Item: AsRef<T>,
+            T: ?Sized + 'static,
+        {
+            source: S,
+            _phantom: PhantomData<fn(&S::Item) -> &T>,
+        }
+        impl<S, T> ObservableRef for MapAsRef<S, T>
+        where
+            S: ObservableRef,
+            S::Item: AsRef<T>,
+            T: ?Sized + 'static,
+        {
+            type Item = T;
+
+            fn with<U>(
+                &self,
+                f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+                cx: &mut BindContext,
+            ) -> U {
+                self.source.with(|value, cx| f(value.as_ref(), cx), cx)
+            }
+
+            fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
+            where
+                Self: Sized,
+            {
+                self.source.into_dyn_obs_ref().map_as_ref()
+            }
+        }
+        ObsRef(MapAsRef {
+            source: self.0,
+            _phantom: PhantomData,
+        })
+    }
+
     pub fn flat_map<U: Observable>(
         self,
         f: impl Fn(&S::Item) -> U + 'static,

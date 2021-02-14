@@ -118,6 +118,16 @@ impl<T: 'static + ?Sized> DynObsRef<T> {
             self.map_ref(|x| x.borrow())
         }
     }
+    pub fn map_as_ref<U: ?Sized>(&self) -> DynObsRef<U>
+    where
+        T: AsRef<U>,
+    {
+        if let Some(s) = Any::downcast_ref::<DynObsRef<U>>(self) {
+            s.clone()
+        } else {
+            self.map_ref(|x| x.as_ref())
+        }
+    }
 
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> DynObs<U> + 'static) -> DynObs<U> {
         self.obs().flat_map(f).into_dyn()

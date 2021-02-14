@@ -134,6 +134,43 @@ impl<S: ObservableBorrow> ObsBorrow<S> {
             _phantom: PhantomData,
         })
     }
+    pub fn map_as_ref<T: ?Sized + 'static>(self) -> ObsBorrow<impl ObservableBorrow<Item = T>>
+    where
+        S::Item: AsRef<T>,
+    {
+        struct MapAsRef<S, T>
+        where
+            S: ObservableBorrow,
+            S::Item: AsRef<T>,
+            T: ?Sized + 'static,
+        {
+            source: S,
+            _phantom: PhantomData<fn(&S::Item) -> &T>,
+        }
+        impl<S, T> ObservableBorrow for MapAsRef<S, T>
+        where
+            S: ObservableBorrow,
+            S::Item: AsRef<T>,
+            T: ?Sized + 'static,
+        {
+            type Item = T;
+
+            fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
+                Ref::map(self.source.borrow(cx), |x| x.as_ref())
+            }
+            fn into_dyn_obs_borrow(self) -> DynObsBorrow<Self::Item>
+            where
+                Self: Sized,
+            {
+                self.source.into_dyn_obs_borrow().map_as_ref()
+            }
+        }
+        ObsBorrow(MapAsRef {
+            source: self,
+            _phantom: PhantomData,
+        })
+    }
+
     pub fn flat_map<U: Observable>(
         self,
         f: impl Fn(&S::Item) -> U + 'static,

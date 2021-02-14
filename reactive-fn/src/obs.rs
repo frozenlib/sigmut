@@ -66,6 +66,12 @@ impl<S: Observable> Obs<S> {
     {
         self.as_ref().map_borrow()
     }
+    pub fn map_as_ref<T: ?Sized + 'static>(self) -> ObsRef<impl ObservableRef<Item = T>>
+    where
+        S::Item: AsRef<T>,
+    {
+        self.as_ref().map_as_ref()
+    }
     pub fn map_into<T>(self) -> Obs<impl Observable<Item = T>>
     where
         S::Item: Into<T>,
