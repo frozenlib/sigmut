@@ -120,6 +120,12 @@ impl<T: Into<U>, U> SourceFrom<Source<T>> for U {
         value.map(|x| x.into())
     }
 }
+impl<T: Copy + Into<U>, U> SourceFrom<&Source<T>> for U {
+    fn source_from(value: &Source<T>) -> Source<Self> {
+        value.clone().into_source()
+    }
+}
+
 impl<T> SourceFrom<ObsCell<T>> for ObsCell<T> {
     fn source_from(value: ObsCell<T>) -> Source<Self> {
         Source::Constant(value)
