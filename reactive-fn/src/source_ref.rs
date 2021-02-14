@@ -1,6 +1,8 @@
 use super::*;
 use std::{borrow::Borrow, ops::Deref};
 
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 pub struct SourceRef<T: ?Sized + 'static>(pub DynObsRef<T>);
 
 impl<T: ?Sized + 'static> Deref for SourceRef<T> {
