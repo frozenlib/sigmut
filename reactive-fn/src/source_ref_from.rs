@@ -147,3 +147,19 @@ where
         s.clone().into_source_ref()
     }
 }
+
+#[macro_export]
+macro_rules! impl_source_ref_from {
+    ($type:ty : $trait:path) => {
+        impl AsRef<dyn $trait> for $type {
+            fn as_ref(&self) -> &(dyn $trait) {
+                self
+            }
+        }
+        impl SourceRefFrom<$type> for dyn $trait {
+            fn source_ref_from(s: $type) -> SourceRef<Self> {
+                DynObsRef::constant(s).into_source_ref()
+            }
+        }
+    };
+}
