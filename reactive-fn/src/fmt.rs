@@ -43,7 +43,7 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     where
         Self: 'static,
     {
-        self.map_str().into_dyn()
+        self.map_str().into()
     }
 }
 
@@ -182,7 +182,7 @@ impl<T: Display> ObservableDisplay for T {
 }
 impl<T: Display> IntoSourceStr for T {
     fn into_source_str(self) -> SourceStr {
-        SourceStr::constant_borrow(self.to_string())
+        self.to_string().into()
     }
 }
 
