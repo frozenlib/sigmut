@@ -18,7 +18,7 @@ use reactive_fn::*;
 
 #[test]
 fn into_str() {
-    fn func_into(_: impl IntoSourceRef<str>) {}
+    fn func_into(_: impl Into<SourceRef<str>>) {}
     func_into("acc");
     func_into(String::from("acb"));
 
