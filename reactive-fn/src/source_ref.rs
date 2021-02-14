@@ -1,7 +1,16 @@
 use super::*;
-use std::borrow::Borrow;
+use std::{borrow::Borrow, ops::Deref};
 
-pub type SourceRef<T> = DynObsRef<T>;
+pub struct SourceRef<T: ?Sized + 'static>(pub DynObsRef<T>);
+
+impl<T: ?Sized + 'static> Deref for SourceRef<T> {
+    type Target = DynObsRef<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+//pub type SourceRef<T> = DynObsRef<T>;
 pub trait IntoSourceRef<T: ?Sized> {
     fn into_source_ref(self) -> SourceRef<T>;
 }
@@ -12,7 +21,7 @@ where
     B: Borrow<T>,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        self.as_ref().map_borrow()
+        (&self).into_source_ref()
     }
 }
 impl<T, B> IntoSourceRef<T> for &DynObs<B>
@@ -21,7 +30,7 @@ where
     B: Borrow<T>,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        self.as_ref().map_borrow()
+        SourceRef(self.as_ref().map_borrow())
     }
 }
 
@@ -31,7 +40,7 @@ where
     B: ?Sized + Borrow<T>,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        self.map_borrow()
+        (&self).into_source_ref()
     }
 }
 
@@ -41,7 +50,7 @@ where
     B: ?Sized + Borrow<T>,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        self.map_borrow()
+        SourceRef(self.map_borrow())
     }
 }
 impl<T, B> IntoSourceRef<T> for DynObsBorrow<B>
@@ -50,7 +59,7 @@ where
     B: ?Sized + Borrow<T>,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        self.as_ref().map_borrow()
+        (&self).into_source_ref()
     }
 }
 impl<T, B> IntoSourceRef<T> for &DynObsBorrow<B>
@@ -59,7 +68,7 @@ where
     B: ?Sized + Borrow<T>,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        self.as_ref().map_borrow()
+        self.as_ref().into_source_ref()
     }
 }
 
@@ -70,7 +79,7 @@ where
     T: ?Sized,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        Obs::into_dyn(self).map_borrow()
+        self.into_dyn_obs_ref().into_source_ref()
     }
 }
 impl<S, T> IntoSourceRef<T> for &Obs<S>
@@ -91,7 +100,7 @@ where
     T: ?Sized,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        ObsBorrow::into_dyn(self).as_ref().map_borrow()
+        self.into_dyn_obs_ref().into_source_ref()
     }
 }
 impl<S, T> IntoSourceRef<T> for &ObsBorrow<S>
@@ -112,7 +121,7 @@ where
     T: ?Sized,
 {
     fn into_source_ref(self) -> SourceRef<T> {
-        ObsRef::into_dyn(self).map_borrow()
+        self.into_dyn_obs_ref().into_source_ref()
     }
 }
 impl<S, T> IntoSourceRef<T> for &ObsRef<S>
@@ -169,11 +178,11 @@ where
 
 impl IntoSourceRef<str> for &'static str {
     fn into_source_ref(self) -> SourceRef<str> {
-        DynObsRef::static_ref(self)
+        DynObsRef::static_ref(self).into_source_ref()
     }
 }
 impl IntoSourceRef<str> for String {
     fn into_source_ref(self) -> SourceRef<str> {
-        DynObsRef::<str>::constant_map(self, |s| &s)
+        DynObsRef::<str>::constant_map(self, |s| &s).into_source_ref()
     }
 }
