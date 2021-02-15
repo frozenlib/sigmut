@@ -55,6 +55,9 @@ impl<'a, T: 'static> SourceListRef<'a, T> {
             SourceListRef::Obs(o) => o.get(index),
         }
     }
+    pub fn iter(&self) -> Iter<T> {
+        Iter::new(self)
+    }
     pub fn changes(&self, since: &SourceListAge<T>) -> SourceListChanges<T> {
         match self {
             SourceListRef::Constant(s) => match since {
@@ -89,6 +92,42 @@ impl<'a, T: 'static> Index<usize> for SourceListRef<'a, T> {
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("out of index.")
+    }
+}
+
+impl<'a, T: 'static> IntoIterator for &'a SourceListRef<'a, T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+pub struct Iter<'a, T: 'static> {
+    s: &'a SourceListRef<'a, T>,
+    index: usize,
+    len: usize,
+}
+impl<'a, T: 'static> Iter<'a, T> {
+    fn new(s: &'a SourceListRef<'a, T>) -> Self {
+        Self {
+            s,
+            index: 0,
+            len: s.len(),
+        }
+    }
+}
+impl<'a, T: 'static> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = self.s.get(self.index)?;
+        self.index += 1;
+        Some(value)
+    }
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len - self.index;
+        (len, Some(len))
     }
 }
 
