@@ -13,11 +13,6 @@ use std::{
 #[derivative(Clone(bound = ""))]
 pub struct ObsList<T>(Rc<Inner<T>>);
 
-pub struct ObsListAge<T> {
-    source: Weak<Inner<T>>,
-    age: usize,
-}
-
 pub struct ObsListRef<'a, T: 'static> {
     source: &'a Rc<Inner<T>>,
     state: ManuallyDrop<Ref<'a, State<T>>>,
@@ -182,6 +177,11 @@ impl LogRefs {
     }
 }
 
+pub struct ObsListAge<T> {
+    source: Weak<Inner<T>>,
+    age: usize,
+}
+
 impl<T> Drop for ObsListAge<T> {
     fn drop(&mut self) {
         if let Some(s) = self.source.upgrade() {
@@ -239,6 +239,17 @@ impl<'a, T: 'static> ObsListRef<'a, T> {
                 index: 0,
             }
         })
+    }
+
+    fn to_obs_list_age(&self, age: &DynObsListAge) -> Option<ObsListAge<T>> {
+        match age {
+            DynObsListAge::Empty => None,
+            DynObsListAge::Last => Some(self.age()),
+            DynObsListAge::Obs(age) => {
+                let age: Rc<ObsListAge<T>> = Rc::downcast(age.clone()).expect("mismatch age type.");
+                Some((*age).clone())
+            }
+        }
     }
 }
 impl<'a, T: 'static> Drop for ObsListRef<'a, T> {
@@ -379,5 +390,30 @@ impl<'a, T> Index<usize> for ObsListRefMut<'a, T> {
 impl<'a, T> IndexMut<usize> for ObsListRefMut<'a, T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index).expect("out of index.")
+    }
+}
+
+impl<T: 'static> DynamicObservableList<T> for ObsList<T> {
+    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Box<dyn DynamicObservableListRef<T> + 'a> {
+        Box::new(self.borrow(cx))
+    }
+}
+impl<'a, T> DynamicObservableListRef<T> for ObsListRef<'a, T> {
+    fn age(&self) -> DynObsListAge {
+        DynObsListAge::Obs(Rc::new(self.age()))
+    }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
+
+    fn get(&self, index: usize) -> Option<&T> {
+        self.get(index)
+    }
+
+    fn changes<'b>(&'b self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&'b T>)) {
+        for c in self.changes((&self.to_obs_list_age(since)).as_ref()) {
+            f(c)
+        }
     }
 }

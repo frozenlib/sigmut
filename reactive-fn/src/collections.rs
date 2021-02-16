@@ -10,3 +10,5 @@ pub use list_change::*;
 pub use obs_list::{ObsList, ObsListAge};
 pub use shared_array::*;
 pub use source_list::{IntoSourceList, SourceList, SourceListAge};
+
+pub(crate) use dyn_obs_list::{DynamicObservableList, DynamicObservableListRef};

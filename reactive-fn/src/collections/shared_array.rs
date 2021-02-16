@@ -3,7 +3,6 @@ use std::{ops::Deref, rc::Rc, sync::Arc};
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-#[non_exhaustive]
 pub enum SharedArray<T: 'static> {
     Empty,
     Slice(&'static [T]),

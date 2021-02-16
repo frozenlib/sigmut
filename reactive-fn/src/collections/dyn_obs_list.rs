@@ -2,19 +2,19 @@ use crate::*;
 use std::{any::Any, iter::FusedIterator, ops::Index, rc::Rc};
 
 pub(crate) trait DynamicObservableList<T> {
-    fn borrow(&self, since: &DynObsListAge) -> Box<dyn DynamicObservableListRef<T>>;
+    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Box<dyn DynamicObservableListRef<T> + 'a>;
 }
 pub(crate) trait DynamicObservableListRef<T> {
     fn age(&self) -> DynObsListAge;
     fn len(&self) -> usize;
     fn get(&self, index: usize) -> Option<&T>;
-    fn changes<'a>(&self, f: &dyn FnMut(ListChange<&'a T>));
+    fn changes<'a>(&'a self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&'a T>));
 }
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
 pub struct DynObsList<T>(Rc<dyn DynamicObservableList<T>>);
-pub struct Ref<T>(Box<dyn DynamicObservableListRef<T>>);
+pub struct DynObsListRef<'a, T>(Box<dyn DynamicObservableListRef<T> + 'a>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
@@ -25,11 +25,11 @@ pub enum DynObsListAge {
 }
 
 impl<T> DynObsList<T> {
-    pub fn borrow(&self, since: &DynObsListAge) -> Ref<T> {
-        Ref(self.0.borrow(since))
+    pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> DynObsListRef<'a, T> {
+        DynObsListRef(self.0.borrow(cx))
     }
 }
-impl<T> Ref<T> {
+impl<T> DynObsListRef<'_, T> {
     pub fn age(&self) -> DynObsListAge {
         self.0.age()
     }
@@ -42,21 +42,21 @@ impl<T> Ref<T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.0.get(index)
     }
-    pub fn changes<'a>(&'a self, f: &dyn FnMut(ListChange<&'a T>)) {
-        self.0.changes(f)
+    pub fn changes<'a>(&'a self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&'a T>)) {
+        self.0.changes(since, f)
     }
     pub fn iter(&self) -> Iter<T> {
         Iter::new(self)
     }
 }
-impl<T> Index<usize> for Ref<T> {
+impl<T> Index<usize> for DynObsListRef<'_, T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("out of index.")
     }
 }
-impl<'a, T> IntoIterator for &'a Ref<T> {
+impl<'a, T> IntoIterator for &'a DynObsListRef<'_, T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -66,13 +66,13 @@ impl<'a, T> IntoIterator for &'a Ref<T> {
 }
 
 pub struct Iter<'a, T> {
-    s: &'a Ref<T>,
+    s: &'a DynObsListRef<'a, T>,
     index: usize,
     s_len: usize,
 }
 
 impl<'a, T> Iter<'a, T> {
-    fn new(s: &'a Ref<T>) -> Self {
+    fn new(s: &'a DynObsListRef<T>) -> Self {
         Self {
             s,
             index: 0,
