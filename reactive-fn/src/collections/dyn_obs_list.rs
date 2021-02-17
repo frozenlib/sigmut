@@ -1,5 +1,5 @@
 use crate::*;
-use std::{any::Any, iter::FusedIterator, ops::Index, rc::Rc};
+use std::{any::Any, borrow::Borrow, iter::FusedIterator, ops::Index, rc::Rc};
 
 pub(crate) trait DynamicObservableList<T> {
     fn borrow<'a>(
@@ -34,7 +34,21 @@ impl<T: 'static> DynObsList<T> {
     }
 
     pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> DynObsListRef<'a, T> {
-        DynObsListRef(self.0.borrow(&self.0, cx))
+        DynObsListRef(DynamicObservableList::borrow(&*self.0, &self.0, cx))
+    }
+
+    pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObsList<U> {
+        DynObsList(Rc::new(MapDynObsList { s: self.clone(), f }))
+    }
+    pub fn map_borrow<U: 'static>(&self) -> DynObsList<U>
+    where
+        T: Borrow<U>,
+    {
+        if let Some(b) = Any::downcast_ref::<DynObsList<U>>(self) {
+            b.clone()
+        } else {
+            self.map(|x| x.borrow())
+        }
     }
 }
 impl<T> DynObsListRef<'_, T> {
@@ -119,15 +133,12 @@ impl<'a, T> DynamicObservableListRef<T> for ConstantObsListRef<'a, T> {
     fn age(&self) -> DynObsListAge {
         DynObsListAge::Last
     }
-
     fn len(&self) -> usize {
         self.0.len()
     }
-
     fn get(&self, index: usize) -> Option<&T> {
         self.0.get(index)
     }
-
     fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
         match since {
             DynObsListAge::Empty => {
@@ -144,5 +155,49 @@ impl<'a, T> DynamicObservableListRef<T> for ConstantObsListRef<'a, T> {
                 panic!("mismatch source.")
             }
         }
+    }
+}
+
+struct MapDynObsList<T, F> {
+    s: DynObsList<T>,
+    f: F,
+}
+struct MapDynObsListRef<'a, T, F> {
+    s: DynObsListRef<'a, T>,
+    f: &'a F,
+}
+
+impl<T, U, F> DynamicObservableList<U> for MapDynObsList<T, F>
+where
+    T: 'static,
+    F: Fn(&T) -> &U,
+{
+    fn borrow<'a>(
+        &'a self,
+        _rs_self: &dyn Any,
+        cx: &mut BindContext,
+    ) -> Box<dyn DynamicObservableListRef<U> + 'a> {
+        Box::new(MapDynObsListRef {
+            s: self.s.borrow(cx),
+            f: &self.f,
+        })
+    }
+}
+impl<'a, T, U, F> DynamicObservableListRef<U> for MapDynObsListRef<'a, T, F>
+where
+    F: Fn(&T) -> &U,
+{
+    fn age(&self) -> DynObsListAge {
+        self.s.age()
+    }
+    fn len(&self) -> usize {
+        self.s.len()
+    }
+    fn get(&self, index: usize) -> Option<&U> {
+        Some((self.f)(self.s.get(index)?))
+    }
+    fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&U>)) {
+        let m = &self.f;
+        self.s.changes(since, &mut |c: ListChange<&T>| f(c.map(m)))
     }
 }

@@ -9,6 +9,6 @@ pub use dyn_obs_list::{DynObsList, DynObsListAge};
 pub use list_change::*;
 pub use obs_list_cell::{ObsListAge, ObsListCell};
 pub use shared_array::*;
-pub use source_list::{IntoSourceList, SourceList, SourceListAge};
+pub use source_list::SourceList;
 
 pub(crate) use dyn_obs_list::{DynamicObservableList, DynamicObservableListRef};

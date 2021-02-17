@@ -14,6 +14,32 @@ use std::{
 #[derivative(Clone(bound = ""))]
 pub struct ObsListCell<T>(Rc<Inner<T>>);
 
+impl<T: 'static> ObsListCell<T> {
+    pub fn new() -> Self {
+        Self(Rc::new(Inner::new()))
+    }
+    pub fn borrow(&self, cx: &mut BindContext) -> ObsListCellRef<T> {
+        cx.bind(self.0.clone());
+        self.0.log_refs.borrow_mut().set_read();
+        ObsListCellRef {
+            source: self.0.clone(),
+            state: ManuallyDrop::new(self.0.state.borrow()),
+        }
+    }
+    pub fn borrow_mut(&self) -> ObsListCellRefMut<T> {
+        let state = ManuallyDrop::new(self.0.state.borrow_mut());
+        let logs_len_old = state.logs.len();
+        ObsListCellRefMut {
+            source: &self.0,
+            state,
+            logs_len_old,
+        }
+    }
+    pub fn as_dyn(&self) -> DynObsList<T> {
+        DynObsList(self.0.clone())
+    }
+}
+
 pub struct ObsListCellRef<'a, T: 'static> {
     source: Rc<Inner<T>>,
     state: ManuallyDrop<Ref<'a, State<T>>>,
@@ -67,31 +93,6 @@ enum ObsListChangesData<'a, T: 'static> {
     },
 }
 
-impl<T: 'static> ObsListCell<T> {
-    pub fn new() -> Self {
-        Self(Rc::new(Inner::new()))
-    }
-    pub fn borrow(&self, cx: &mut BindContext) -> ObsListCellRef<T> {
-        cx.bind(self.0.clone());
-        self.0.log_refs.borrow_mut().set_read();
-        ObsListCellRef {
-            source: self.0.clone(),
-            state: ManuallyDrop::new(self.0.state.borrow()),
-        }
-    }
-    pub fn borrow_mut(&self) -> ObsListCellRefMut<T> {
-        let state = ManuallyDrop::new(self.0.state.borrow_mut());
-        let logs_len_old = state.logs.len();
-        ObsListCellRefMut {
-            source: &self.0,
-            state,
-            logs_len_old,
-        }
-    }
-    pub fn as_dyn(&self) -> DynObsList<T> {
-        DynObsList(self.0.clone())
-    }
-}
 impl<T: 'static> Inner<T> {
     fn new() -> Self {
         Self {
