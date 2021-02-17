@@ -1,5 +1,5 @@
 use super::*;
-use crate::collections::cell::*;
+use crate::collections::obs_list_cell::*;
 use crate::*;
 use std::ops::Index;
 
