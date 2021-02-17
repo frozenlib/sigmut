@@ -182,19 +182,19 @@ impl LogRefs {
     }
 }
 
-pub struct ObsListAge<T> {
+pub struct ObsListCellAge<T> {
     source: Weak<Inner<T>>,
     age: usize,
 }
 
-impl<T> Drop for ObsListAge<T> {
+impl<T> Drop for ObsListCellAge<T> {
     fn drop(&mut self) {
         if let Some(s) = self.source.upgrade() {
             s.log_refs.borrow_mut().decrement(self.age);
         }
     }
 }
-impl<T> Clone for ObsListAge<T> {
+impl<T> Clone for ObsListCellAge<T> {
     fn clone(&self) -> Self {
         if let Some(s) = self.source.upgrade() {
             s.log_refs.borrow_mut().increment(self.age);
@@ -205,15 +205,15 @@ impl<T> Clone for ObsListAge<T> {
         }
     }
 }
-impl<T> PartialEq for ObsListAge<T> {
+impl<T> PartialEq for ObsListCellAge<T> {
     fn eq(&self, other: &Self) -> bool {
         self.age == other.age && self.source.ptr_eq(&other.source)
     }
 }
 
 impl<'a, T: 'static> ObsListCellRef<'a, T> {
-    pub fn age(&self) -> ObsListAge<T> {
-        ObsListAge {
+    pub fn age(&self) -> ObsListCellAge<T> {
+        ObsListCellAge {
             source: Rc::downgrade(&self.source),
             age: self.source.log_refs.borrow_mut().increment_last(),
         }
@@ -227,7 +227,7 @@ impl<'a, T: 'static> ObsListCellRef<'a, T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.state.get(index)
     }
-    pub fn changes(&self, since: Option<&ObsListAge<T>>) -> ObsListChanges<T> {
+    pub fn changes(&self, since: Option<&ObsListCellAge<T>>) -> ObsListChanges<T> {
         ObsListChanges(if let Some(since) = since {
             if !Rc::downgrade(&self.source).ptr_eq(&since.source) {
                 panic!("mismatch source.");
@@ -246,12 +246,13 @@ impl<'a, T: 'static> ObsListCellRef<'a, T> {
         })
     }
 
-    fn to_obs_list_age(&self, age: &DynObsListAge) -> Option<ObsListAge<T>> {
+    fn to_obs_list_age(&self, age: &DynObsListAge) -> Option<ObsListCellAge<T>> {
         match age {
             DynObsListAge::Empty => None,
             DynObsListAge::Last => Some(self.age()),
             DynObsListAge::Obs(age) => {
-                let age: Rc<ObsListAge<T>> = Rc::downcast(age.clone()).expect("mismatch age type.");
+                let age: Rc<ObsListCellAge<T>> =
+                    Rc::downcast(age.clone()).expect("mismatch age type.");
                 Some((*age).clone())
             }
         }
