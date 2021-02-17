@@ -1,5 +1,5 @@
 use super::*;
-use crate::collections::obs_list::*;
+use crate::collections::cell::*;
 use crate::*;
 use std::ops::Index;
 
@@ -7,11 +7,11 @@ use std::ops::Index;
 #[derivative(Clone(bound = ""))]
 pub enum SourceList<T: 'static> {
     Constant(SharedArray<T>),
-    Obs(ObsList<T>),
+    Obs(ObsListCell<T>),
 }
 pub enum SourceListRef<'a, T: 'static> {
     Constant(&'a [T]),
-    Obs(ObsListRef<'a, T>),
+    Obs(ObsListCellRef<'a, T>),
 }
 
 #[derive(Clone, PartialEq)]
@@ -159,7 +159,7 @@ pub trait IntoSourceList<T> {
     fn into_source_list(self) -> SourceList<T>;
 }
 
-impl<T> IntoSourceList<T> for ObsList<T> {
+impl<T> IntoSourceList<T> for ObsListCell<T> {
     fn into_source_list(self) -> SourceList<T> {
         SourceList::Obs(self)
     }

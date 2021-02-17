@@ -11,13 +11,13 @@ use std::{
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ObsList<T>(Rc<Inner<T>>);
+pub struct ObsListCell<T>(Rc<Inner<T>>);
 
-pub struct ObsListRef<'a, T: 'static> {
+pub struct ObsListCellRef<'a, T: 'static> {
     source: &'a Rc<Inner<T>>,
     state: ManuallyDrop<Ref<'a, State<T>>>,
 }
-pub struct ObsListRefMut<'a, T: 'static> {
+pub struct ObsListCellRefMut<'a, T: 'static> {
     source: &'a Rc<Inner<T>>,
     state: ManuallyDrop<RefMut<'a, State<T>>>,
     logs_len_old: usize,
@@ -56,7 +56,7 @@ struct Log {
 pub struct ObsListChanges<'a, T: 'static>(ObsListChangesData<'a, T>);
 enum ObsListChangesData<'a, T: 'static> {
     Values {
-        values: &'a ObsListRef<'a, T>,
+        values: &'a ObsListCellRef<'a, T>,
         index: usize,
     },
     Logs {
@@ -66,22 +66,22 @@ enum ObsListChangesData<'a, T: 'static> {
     },
 }
 
-impl<T: 'static> ObsList<T> {
+impl<T: 'static> ObsListCell<T> {
     pub fn new() -> Self {
         Self(Rc::new(Inner::new()))
     }
-    pub fn borrow(&self, cx: &mut BindContext) -> ObsListRef<T> {
+    pub fn borrow(&self, cx: &mut BindContext) -> ObsListCellRef<T> {
         cx.bind(self.0.clone());
         self.0.log_refs.borrow_mut().set_read();
-        ObsListRef {
+        ObsListCellRef {
             source: &self.0,
             state: ManuallyDrop::new(self.0.state.borrow()),
         }
     }
-    pub fn borrow_mut(&self) -> ObsListRefMut<T> {
+    pub fn borrow_mut(&self) -> ObsListCellRefMut<T> {
         let state = ManuallyDrop::new(self.0.state.borrow_mut());
         let logs_len_old = state.logs.len();
-        ObsListRefMut {
+        ObsListCellRefMut {
             source: &self.0,
             state,
             logs_len_old,
@@ -206,7 +206,7 @@ impl<T> PartialEq for ObsListAge<T> {
     }
 }
 
-impl<'a, T: 'static> ObsListRef<'a, T> {
+impl<'a, T: 'static> ObsListCellRef<'a, T> {
     pub fn age(&self) -> ObsListAge<T> {
         ObsListAge {
             source: Rc::downgrade(self.source),
@@ -252,13 +252,13 @@ impl<'a, T: 'static> ObsListRef<'a, T> {
         }
     }
 }
-impl<'a, T: 'static> Drop for ObsListRef<'a, T> {
+impl<'a, T: 'static> Drop for ObsListCellRef<'a, T> {
     fn drop(&mut self) {
         unsafe { ManuallyDrop::drop(&mut self.state) }
         self.source.try_clean_logs()
     }
 }
-impl<'a, T: 'static> Index<usize> for ObsListRef<'a, T> {
+impl<'a, T: 'static> Index<usize> for ObsListCellRef<'a, T> {
     type Output = T;
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("out of index.")
@@ -301,7 +301,7 @@ impl<'a, T: 'static> Iterator for ObsListChanges<'a, T> {
     }
 }
 
-impl<'a, T> ObsListRefMut<'a, T> {
+impl<'a, T> ObsListCellRefMut<'a, T> {
     pub fn len(&self) -> usize {
         self.state.items.len()
     }
@@ -370,7 +370,7 @@ impl<'a, T> ObsListRefMut<'a, T> {
         }
     }
 }
-impl<'a, T> Drop for ObsListRefMut<'a, T> {
+impl<'a, T> Drop for ObsListCellRefMut<'a, T> {
     fn drop(&mut self) {
         let logs_len = self.state.logs.len();
         unsafe { ManuallyDrop::drop(&mut self.state) }
@@ -381,24 +381,24 @@ impl<'a, T> Drop for ObsListRefMut<'a, T> {
     }
 }
 
-impl<'a, T> Index<usize> for ObsListRefMut<'a, T> {
+impl<'a, T> Index<usize> for ObsListCellRefMut<'a, T> {
     type Output = T;
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("out of index.")
     }
 }
-impl<'a, T> IndexMut<usize> for ObsListRefMut<'a, T> {
+impl<'a, T> IndexMut<usize> for ObsListCellRefMut<'a, T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index).expect("out of index.")
     }
 }
 
-impl<T: 'static> DynamicObservableList<T> for ObsList<T> {
+impl<T: 'static> DynamicObservableList<T> for ObsListCell<T> {
     fn borrow<'a>(&'a self, cx: &mut BindContext) -> Box<dyn DynamicObservableListRef<T> + 'a> {
         Box::new(self.borrow(cx))
     }
 }
-impl<'a, T> DynamicObservableListRef<T> for ObsListRef<'a, T> {
+impl<'a, T> DynamicObservableListRef<T> for ObsListCellRef<'a, T> {
     fn age(&self) -> DynObsListAge {
         DynObsListAge::Obs(Rc::new(self.age()))
     }
