@@ -2,6 +2,7 @@ use super::*;
 use crate::*;
 use slabmap::SlabMap;
 use std::{
+    any::Any,
     cell::{Ref, RefCell, RefMut},
     collections::VecDeque,
     mem::ManuallyDrop,
@@ -14,7 +15,7 @@ use std::{
 pub struct ObsListCell<T>(Rc<Inner<T>>);
 
 pub struct ObsListCellRef<'a, T: 'static> {
-    source: &'a Rc<Inner<T>>,
+    source: Rc<Inner<T>>,
     state: ManuallyDrop<Ref<'a, State<T>>>,
 }
 pub struct ObsListCellRefMut<'a, T: 'static> {
@@ -74,7 +75,7 @@ impl<T: 'static> ObsListCell<T> {
         cx.bind(self.0.clone());
         self.0.log_refs.borrow_mut().set_read();
         ObsListCellRef {
-            source: &self.0,
+            source: self.0.clone(),
             state: ManuallyDrop::new(self.0.state.borrow()),
         }
     }
@@ -86,6 +87,9 @@ impl<T: 'static> ObsListCell<T> {
             state,
             logs_len_old,
         }
+    }
+    pub fn as_dyn(&self) -> DynObsList<T> {
+        DynObsList(self.0.clone())
     }
 }
 impl<T: 'static> Inner<T> {
@@ -209,7 +213,7 @@ impl<T> PartialEq for ObsListAge<T> {
 impl<'a, T: 'static> ObsListCellRef<'a, T> {
     pub fn age(&self) -> ObsListAge<T> {
         ObsListAge {
-            source: Rc::downgrade(self.source),
+            source: Rc::downgrade(&self.source),
             age: self.source.log_refs.borrow_mut().increment_last(),
         }
     }
@@ -224,7 +228,7 @@ impl<'a, T: 'static> ObsListCellRef<'a, T> {
     }
     pub fn changes(&self, since: Option<&ObsListAge<T>>) -> ObsListChanges<T> {
         ObsListChanges(if let Some(since) = since {
-            if !Rc::downgrade(self.source).ptr_eq(&since.source) {
+            if !Rc::downgrade(&self.source).ptr_eq(&since.source) {
                 panic!("mismatch source.");
             }
             let since_age = since.age;
@@ -393,9 +397,19 @@ impl<'a, T> IndexMut<usize> for ObsListCellRefMut<'a, T> {
     }
 }
 
-impl<T: 'static> DynamicObservableList<T> for ObsListCell<T> {
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Box<dyn DynamicObservableListRef<T> + 'a> {
-        Box::new(self.borrow(cx))
+impl<T: 'static> DynamicObservableList<T> for Inner<T> {
+    fn borrow<'a>(
+        &'a self,
+        rc_self: &dyn Any,
+        cx: &mut BindContext,
+    ) -> Box<dyn DynamicObservableListRef<T> + 'a> {
+        let this = rc_self.downcast_ref::<Rc<Inner<T>>>().unwrap();
+        cx.bind(this.clone());
+        self.log_refs.borrow_mut().set_read();
+        Box::new(ObsListCellRef {
+            source: this.clone(),
+            state: ManuallyDrop::new(self.state.borrow()),
+        })
     }
 }
 impl<'a, T> DynamicObservableListRef<T> for ObsListCellRef<'a, T> {

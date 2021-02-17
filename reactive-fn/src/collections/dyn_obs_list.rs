@@ -2,7 +2,11 @@ use crate::*;
 use std::{any::Any, iter::FusedIterator, ops::Index, rc::Rc};
 
 pub(crate) trait DynamicObservableList<T> {
-    fn borrow<'a>(&'a self, cx: &mut BindContext) -> Box<dyn DynamicObservableListRef<T> + 'a>;
+    fn borrow<'a>(
+        &'a self,
+        rs_self: &dyn Any,
+        cx: &mut BindContext,
+    ) -> Box<dyn DynamicObservableListRef<T> + 'a>;
 }
 pub(crate) trait DynamicObservableListRef<T> {
     fn age(&self) -> DynObsListAge;
@@ -13,7 +17,7 @@ pub(crate) trait DynamicObservableListRef<T> {
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct DynObsList<T>(Rc<dyn DynamicObservableList<T>>);
+pub struct DynObsList<T>(pub(crate) Rc<dyn DynamicObservableList<T>>);
 pub struct DynObsListRef<'a, T>(Box<dyn DynamicObservableListRef<T> + 'a>);
 
 #[derive(Derivative)]
@@ -24,9 +28,9 @@ pub enum DynObsListAge {
     Obs(Rc<dyn Any>),
 }
 
-impl<T> DynObsList<T> {
+impl<T: 'static> DynObsList<T> {
     pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> DynObsListRef<'a, T> {
-        DynObsListRef(self.0.borrow(cx))
+        DynObsListRef(self.0.borrow(&self.0, cx))
     }
 }
 impl<T> DynObsListRef<'_, T> {
