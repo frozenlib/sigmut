@@ -411,7 +411,7 @@ impl<'a, T> DynamicObservableListRef<T> for ObsListRef<'a, T> {
         self.get(index)
     }
 
-    fn changes<'b>(&'b self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&'b T>)) {
+    fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
         for c in self.changes((&self.to_obs_list_age(since)).as_ref()) {
             f(c)
         }

@@ -8,7 +8,7 @@ pub(crate) trait DynamicObservableListRef<T> {
     fn age(&self) -> DynObsListAge;
     fn len(&self) -> usize;
     fn get(&self, index: usize) -> Option<&T>;
-    fn changes<'a>(&'a self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&'a T>));
+    fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>));
 }
 
 #[derive(Derivative)]
@@ -42,7 +42,7 @@ impl<T> DynObsListRef<'_, T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.0.get(index)
     }
-    pub fn changes<'a>(&'a self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&'a T>)) {
+    pub fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
         self.0.changes(since, f)
     }
     pub fn iter(&self) -> Iter<T> {
