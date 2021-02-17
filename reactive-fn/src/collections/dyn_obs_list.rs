@@ -29,6 +29,10 @@ pub enum DynObsListAge {
 }
 
 impl<T: 'static> DynObsList<T> {
+    pub fn from_vec(values: Vec<T>) -> Self {
+        Self(Rc::new(values))
+    }
+
     pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> DynObsListRef<'a, T> {
         DynObsListRef(self.0.borrow(&self.0, cx))
     }
@@ -99,3 +103,46 @@ impl<'a, T> Iterator for Iter<'a, T> {
 }
 impl<'a, T> ExactSizeIterator for Iter<'a, T> {}
 impl<'a, T> FusedIterator for Iter<'a, T> {}
+
+struct ConstantObsListRef<'a, T>(&'a [T]);
+
+impl<T> DynamicObservableList<T> for Vec<T> {
+    fn borrow<'a>(
+        &'a self,
+        _rs_self: &dyn Any,
+        _cx: &mut BindContext,
+    ) -> Box<dyn DynamicObservableListRef<T> + 'a> {
+        Box::new(ConstantObsListRef(self.as_slice()))
+    }
+}
+impl<'a, T> DynamicObservableListRef<T> for ConstantObsListRef<'a, T> {
+    fn age(&self) -> DynObsListAge {
+        DynObsListAge::Last
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn get(&self, index: usize) -> Option<&T> {
+        self.0.get(index)
+    }
+
+    fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
+        match since {
+            DynObsListAge::Empty => {
+                for (index, value) in self.0.iter().enumerate() {
+                    f(ListChange {
+                        kind: ListChangeKind::Insert,
+                        index,
+                        value,
+                    })
+                }
+            }
+            DynObsListAge::Last => {}
+            DynObsListAge::Obs(_) => {
+                panic!("mismatch source.")
+            }
+        }
+    }
+}
