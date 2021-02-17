@@ -6,6 +6,12 @@ use std::{borrow::Borrow, ops::Deref};
 #[derivative(Clone(bound = ""))]
 pub struct SourceList<T>(DynObsList<T>);
 
+impl<T> SourceList<T> {
+    pub fn into_dyn_obs_list(self) -> DynObsList<T> {
+        self.0
+    }
+}
+
 impl<T> Deref for SourceList<T> {
     type Target = DynObsList<T>;
 
