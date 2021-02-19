@@ -12,7 +12,7 @@ TODO
 | ----------------- | ---------------------- |
 | `Obsrevable`      | `Obs`                  |
 | `IObsrevable`     | `Obsrevable`, `DynObs` |
-| `IObserver`       | `Observer`,`Fn`        |
+| `IObserver`       | `Observer`,`FnMut`     |
 | `BehaviorSubject` | `ObsCell`              |
 
 ### Obsrevable methods
