@@ -1,5 +1,5 @@
 use crate::*;
-use std::{any::Any, borrow::Borrow, iter::FusedIterator, ops::Index, rc::Rc};
+use std::{any::Any, borrow::Borrow, ops::Index, rc::Rc};
 
 pub(crate) trait DynamicObservableList<T> {
     fn borrow<'a>(
@@ -67,8 +67,8 @@ impl<T> DynObsListRef<'_, T> {
     pub fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
         self.0.changes(since, f)
     }
-    pub fn iter(&self) -> Iter<T> {
-        Iter::new(self)
+    pub fn iter(&self) -> IndexIter<&Self> {
+        IndexIter::new(self, 0, self.len())
     }
 }
 impl<T> Index<usize> for DynObsListRef<'_, T> {
@@ -80,43 +80,12 @@ impl<T> Index<usize> for DynObsListRef<'_, T> {
 }
 impl<'a, T> IntoIterator for &'a DynObsListRef<'_, T> {
     type Item = &'a T;
-    type IntoIter = Iter<'a, T>;
+    type IntoIter = IndexIter<Self>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
-
-pub struct Iter<'a, T> {
-    s: &'a DynObsListRef<'a, T>,
-    index: usize,
-    s_len: usize,
-}
-
-impl<'a, T> Iter<'a, T> {
-    fn new(s: &'a DynObsListRef<T>) -> Self {
-        Self {
-            s,
-            index: 0,
-            s_len: s.len(),
-        }
-    }
-}
-impl<'a, T> Iterator for Iter<'a, T> {
-    type Item = &'a T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let value = self.s.get(self.index)?;
-        self.index += 1;
-        Some(value)
-    }
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let len = self.s_len - self.index;
-        (len, Some(len))
-    }
-}
-impl<'a, T> ExactSizeIterator for Iter<'a, T> {}
-impl<'a, T> FusedIterator for Iter<'a, T> {}
 
 struct ConstantObsListRef<'a, T>(&'a [T]);
 
