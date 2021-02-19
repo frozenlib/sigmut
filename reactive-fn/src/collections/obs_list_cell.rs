@@ -147,19 +147,6 @@ struct Log {
     kind: ListChangeKind,
 }
 
-pub struct ObsListChanges<'a, T: 'static>(ObsListChangesData<'a, T>);
-enum ObsListChangesData<'a, T: 'static> {
-    Values {
-        values: &'a ObsListCellRef<'a, T>,
-        index: usize,
-    },
-    Logs {
-        state: &'a State<T>,
-        index: usize,
-        since_age: usize,
-    },
-}
-
 impl<T: 'static> Inner<T> {
     fn new() -> Self {
         Self {
@@ -275,43 +262,6 @@ impl<T> Clone for ObsListCellAge<T> {
 impl<T> PartialEq for ObsListCellAge<T> {
     fn eq(&self, other: &Self) -> bool {
         self.age == other.age && self.source.ptr_eq(&other.source)
-    }
-}
-
-impl<'a, T: 'static> Iterator for ObsListChanges<'a, T> {
-    type Item = ListChange<&'a T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.0 {
-            ObsListChangesData::Values { values, index } => {
-                let result = ListChange {
-                    value: values.get(*index)?,
-                    index: *index,
-                    kind: ListChangeKind::Insert,
-                };
-                *index += 1;
-                Some(result)
-            }
-            ObsListChangesData::Logs {
-                state,
-                index,
-                since_age,
-            } => loop {
-                let s = &*state;
-                let log = s.logs.get(*index)?;
-                let age = *since_age;
-                *index += 1;
-                *since_age += 1;
-                if log.kind == ListChangeKind::Modify && s.data[log.data].age_modify != Some(age) {
-                    continue;
-                }
-                return Some(ListChange {
-                    kind: log.kind,
-                    index: log.index,
-                    value: &state.data[log.data].value,
-                });
-            },
-        }
     }
 }
 
