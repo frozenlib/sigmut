@@ -141,15 +141,7 @@ impl<'a, T> DynamicObservableListRef<T> for ConstantObsListRef<'a, T> {
     }
     fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
         match since {
-            DynObsListAge::Empty => {
-                for (index, value) in self.0.iter().enumerate() {
-                    f(ListChange {
-                        kind: ListChangeKind::Insert,
-                        index,
-                        value,
-                    })
-                }
-            }
+            DynObsListAge::Empty => list_change_for_each(self.0, f),
             DynObsListAge::Last => {}
             DynObsListAge::Obs(_) => {
                 panic!("mismatch source.")

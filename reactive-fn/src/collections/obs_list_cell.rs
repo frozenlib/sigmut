@@ -44,6 +44,73 @@ pub struct ObsListCellRef<'a, T: 'static> {
     source: Rc<Inner<T>>,
     state: ManuallyDrop<Ref<'a, State<T>>>,
 }
+impl<'a, T: 'static> ObsListCellRef<'a, T> {
+    pub fn age(&self) -> ObsListCellAge<T> {
+        ObsListCellAge {
+            source: Rc::downgrade(&self.source),
+            age: self.source.log_refs.borrow_mut().increment_last(),
+        }
+    }
+    pub fn len(&self) -> usize {
+        self.state.items.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.state.items.is_empty()
+    }
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.state.get(index)
+    }
+    pub fn iter(&self) -> IndexIter<&Self> {
+        IndexIter::new(self, 0, self.len())
+    }
+
+    pub fn changes(&self, since: Option<&ObsListCellAge<T>>, mut f: impl FnMut(ListChange<&T>)) {
+        match since {
+            None => list_change_for_each(self.iter(), f),
+            Some(age) => {
+                let mut age = age.age;
+                let mut index = age.wrapping_sub(self.source.log_refs.borrow().base_age);
+                while let Some(log) = self.state.logs.get(index) {
+                    if log.kind != ListChangeKind::Modify
+                        || self.state.data[log.data].age_modify == Some(age)
+                    {
+                        f(ListChange {
+                            kind: log.kind,
+                            index: log.index,
+                            value: &self.state.data[log.data].value,
+                        })
+                    }
+                    index += 1;
+                    age += 1;
+                }
+            }
+        }
+    }
+
+    fn to_obs_list_age(&self, age: &DynObsListAge) -> Option<ObsListCellAge<T>> {
+        match age {
+            DynObsListAge::Empty => None,
+            DynObsListAge::Last => Some(self.age()),
+            DynObsListAge::Obs(age) => {
+                let age: Rc<ObsListCellAge<T>> =
+                    Rc::downcast(age.clone()).expect("mismatch age type.");
+                Some((*age).clone())
+            }
+        }
+    }
+}
+impl<'a, T: 'static> Drop for ObsListCellRef<'a, T> {
+    fn drop(&mut self) {
+        unsafe { ManuallyDrop::drop(&mut self.state) }
+        self.source.try_clean_logs()
+    }
+}
+impl<'a, T: 'static> Index<usize> for ObsListCellRef<'a, T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("out of index.")
+    }
+}
 pub struct ObsListCellRefMut<'a, T: 'static> {
     source: &'a Rc<Inner<T>>,
     state: ManuallyDrop<RefMut<'a, State<T>>>,
@@ -211,65 +278,6 @@ impl<T> PartialEq for ObsListCellAge<T> {
     }
 }
 
-impl<'a, T: 'static> ObsListCellRef<'a, T> {
-    pub fn age(&self) -> ObsListCellAge<T> {
-        ObsListCellAge {
-            source: Rc::downgrade(&self.source),
-            age: self.source.log_refs.borrow_mut().increment_last(),
-        }
-    }
-    pub fn len(&self) -> usize {
-        self.state.items.len()
-    }
-    pub fn is_empty(&self) -> bool {
-        self.state.items.is_empty()
-    }
-    pub fn get(&self, index: usize) -> Option<&T> {
-        self.state.get(index)
-    }
-    pub fn changes(&self, since: Option<&ObsListCellAge<T>>) -> ObsListChanges<T> {
-        ObsListChanges(if let Some(since) = since {
-            if !Rc::downgrade(&self.source).ptr_eq(&since.source) {
-                panic!("mismatch source.");
-            }
-            let since_age = since.age;
-            ObsListChangesData::Logs {
-                state: &self.state,
-                index: since_age.wrapping_sub(self.source.log_refs.borrow().base_age),
-                since_age,
-            }
-        } else {
-            ObsListChangesData::Values {
-                values: self,
-                index: 0,
-            }
-        })
-    }
-
-    fn to_obs_list_age(&self, age: &DynObsListAge) -> Option<ObsListCellAge<T>> {
-        match age {
-            DynObsListAge::Empty => None,
-            DynObsListAge::Last => Some(self.age()),
-            DynObsListAge::Obs(age) => {
-                let age: Rc<ObsListCellAge<T>> =
-                    Rc::downcast(age.clone()).expect("mismatch age type.");
-                Some((*age).clone())
-            }
-        }
-    }
-}
-impl<'a, T: 'static> Drop for ObsListCellRef<'a, T> {
-    fn drop(&mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.state) }
-        self.source.try_clean_logs()
-    }
-}
-impl<'a, T: 'static> Index<usize> for ObsListCellRef<'a, T> {
-    type Output = T;
-    fn index(&self, index: usize) -> &Self::Output {
-        self.get(index).expect("out of index.")
-    }
-}
 impl<'a, T: 'static> Iterator for ObsListChanges<'a, T> {
     type Item = ListChange<&'a T>;
 
@@ -428,8 +436,6 @@ impl<'a, T> DynamicObservableListRef<T> for ObsListCellRef<'a, T> {
     }
 
     fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
-        for c in self.changes((&self.to_obs_list_age(since)).as_ref()) {
-            f(c)
-        }
+        self.changes((&self.to_obs_list_age(since)).as_ref(), f)
     }
 }

@@ -23,3 +23,15 @@ impl<T> ListChange<T> {
         }
     }
 }
+pub(crate) fn list_change_for_each<'a, T: 'a>(
+    values: impl IntoIterator<Item = &'a T>,
+    mut f: impl FnMut(ListChange<&T>),
+) {
+    for (index, value) in values.into_iter().enumerate() {
+        f(ListChange {
+            index,
+            value,
+            kind: ListChangeKind::Insert,
+        })
+    }
+}
