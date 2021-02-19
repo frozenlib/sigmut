@@ -136,9 +136,11 @@
       "args": [
         "clippy",
         "--all-features",
+        "--target-dir",
+        "target/clippy",
         "--",
         "-W",
-        "clippy::all"
+        "clippy::all",
       ],
       "problemMatcher": [
         "$rustc"

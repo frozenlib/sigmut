@@ -148,7 +148,7 @@ where
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         let mut s = self.state.borrow_mut();
         if s.handle.take().is_some() {
-            if let Poll::Ready(_) = &s.value {
+            if s.value.is_ready() {
                 s.value = Poll::Pending;
                 drop(s);
                 self.sinks.notify(scope);

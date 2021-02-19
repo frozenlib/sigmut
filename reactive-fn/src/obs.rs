@@ -159,7 +159,7 @@ impl<S: Observable> Obs<S> {
                         is_notify,
                     }
                 },
-                |value| Some(value),
+                Some,
                 |value| value,
             ),
         )))

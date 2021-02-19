@@ -52,7 +52,7 @@ impl<T: 'static> ObsCell<T> {
     pub fn borrow_head(&self) -> Ref<T> {
         self.0.value.borrow()
     }
-    pub fn borrow_mut<'a>(&'a self) -> RefMut<'a, T> {
+    pub fn borrow_mut(&self) -> RefMut<T> {
         RefMut {
             b: self.0.value.borrow_mut(),
             s: Some(self.clone()),

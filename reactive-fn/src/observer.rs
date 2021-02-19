@@ -7,7 +7,7 @@ pub trait Observer<T>: 'static {
         DynObserver(Some(Box::new(self)))
     }
 }
-impl<T, F: FnMut(T) -> () + 'static> Observer<T> for F {
+impl<T, F: FnMut(T) + 'static> Observer<T> for F {
     fn next(&mut self, value: T) {
         self(value)
     }

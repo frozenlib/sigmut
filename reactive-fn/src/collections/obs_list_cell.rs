@@ -39,7 +39,11 @@ impl<T: 'static> ObsListCell<T> {
         DynObsList(self.0.clone())
     }
 }
-
+impl<T: 'static> Default for ObsListCell<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 pub struct ObsListCellRef<'a, T: 'static> {
     source: Rc<Inner<T>>,
     state: ManuallyDrop<Ref<'a, State<T>>>,

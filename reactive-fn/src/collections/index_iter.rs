@@ -11,7 +11,7 @@ pub struct IndexIter<S> {
     end: usize,
 }
 impl<'a, S: Index<usize>> IndexIter<&'a S> {
-    pub fn new(s: &'a S, index: usize, end: usize) -> Self {
+    pub(crate) fn new(s: &'a S, index: usize, end: usize) -> Self {
         Self { s, index, end }
     }
 }
@@ -52,7 +52,7 @@ pub struct IndexMutIter<S> {
     end: usize,
 }
 impl<'a, S: IndexMut<usize>> IndexMutIter<&'a mut S> {
-    pub unsafe fn new(s: &'a mut S, index: usize, end: usize) -> Self {
+    pub(crate) unsafe fn new(s: &'a mut S, index: usize, end: usize) -> Self {
         Self { s, index, end }
     }
 }
