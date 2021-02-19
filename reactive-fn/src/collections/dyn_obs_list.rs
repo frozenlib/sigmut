@@ -33,6 +33,9 @@ impl<T: 'static> DynObsList<T> {
     pub fn from_vec(values: Vec<T>) -> Self {
         Self(Rc::new(values))
     }
+    pub fn from_rc_vec(values: Rc<Vec<T>>) -> Self {
+        Self(values)
+    }
 
     pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> DynObsListRef<'a, T> {
         DynObsListRef(DynamicObservableList::borrow(&*self.0, &self.0, cx))
