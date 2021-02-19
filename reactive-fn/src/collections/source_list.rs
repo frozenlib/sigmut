@@ -1,40 +1,12 @@
 use super::*;
-use crate::*;
-use std::{borrow::Borrow, ops::Deref};
 
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct SourceList<T>(DynObsList<T>);
+pub type SourceList<T> = DynObsList<T>;
 
-impl<T> SourceList<T> {
-    pub fn into_dyn_obs_list(self) -> DynObsList<T> {
-        self.0
-    }
-}
-
-impl<T> Deref for SourceList<T> {
-    type Target = DynObsList<T>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<T, U> From<ObsListCell<T>> for SourceList<U>
+impl<T> From<ObsListCell<T>> for SourceList<T>
 where
-    T: Borrow<U> + 'static,
-    U: 'static,
+    T: 'static,
 {
     fn from(s: ObsListCell<T>) -> Self {
-        Self(s.as_dyn().map_borrow())
-    }
-}
-impl<T, U> From<DynObsList<T>> for SourceList<U>
-where
-    T: Borrow<U> + 'static,
-    U: 'static,
-{
-    fn from(s: DynObsList<T>) -> Self {
-        Self(s.map_borrow())
+        s.as_dyn()
     }
 }
