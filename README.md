@@ -12,7 +12,7 @@ TODO
 | ----------------- | ---------------------- |
 | `Obsrevable`      | `Obs`                  |
 | `IObsrevable`     | `Obsrevable`, `DynObs` |
-| `IObserver`       | `Observer`             |
+| `IObserver`       | `Observer`,`Fn`        |
 | `BehaviorSubject` | `ObsCell`              |
 
 ### Obsrevable methods
@@ -34,11 +34,11 @@ TODO
 
 ## A classified type list
 
-| trait              | static      | dynamic        | cell      | how to make  |
-| ------------------ | ----------- | -------------- | --------- | ------------ |
-| `Observable`       | `Obs`       | `DynObs`       | `ObsCell` | `obs`        |
-| `ObservableBorrow` | `ObsBorrow` | `DynObsBorrow` | `ObsCell` | `obs_borrow` |
-| `ObservableRef`    | `ObsRef`    | `DynObsRef`    |           | `obs_ref`    |
+| trait              | static      | dynamic        | how to make  |
+| ------------------ | ----------- | -------------- | ------------ |
+| `Observable`       | `Obs`       | `DynObs`       | `obs`        |
+| `ObservableBorrow` | `ObsBorrow` | `DynObsBorrow` | `obs_borrow` |
+| `ObservableRef`    | `ObsRef`    | `DynObsRef`    | `obs_ref`    |
 
 ## License
 
