@@ -111,6 +111,15 @@ impl<'a, T: 'static> Index<usize> for ObsListCellRef<'a, T> {
         self.get(index).expect("out of index.")
     }
 }
+impl<'a, T> IntoIterator for &'a ObsListCellRef<'_, T> {
+    type Item = &'a T;
+    type IntoIter = IndexIter<Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 pub struct ObsListCellRefMut<'a, T: 'static> {
     source: &'a Rc<Inner<T>>,
     state: ManuallyDrop<RefMut<'a, State<T>>>,
