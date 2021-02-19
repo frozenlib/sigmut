@@ -342,6 +342,12 @@ impl<'a, T> ObsListCellRefMut<'a, T> {
             self.remove(0)
         }
     }
+    pub fn iter(&self) -> IndexIter<&Self> {
+        IndexIter::new(self, 0, self.len())
+    }
+    pub fn iter_mut(&mut self) -> IndexMutIter<&mut Self> {
+        unsafe { IndexMutIter::new(self, 0, self.len()) }
+    }
 }
 impl<'a, T> Drop for ObsListCellRefMut<'a, T> {
     fn drop(&mut self) {
@@ -363,6 +369,22 @@ impl<'a, T> Index<usize> for ObsListCellRefMut<'a, T> {
 impl<'a, T> IndexMut<usize> for ObsListCellRefMut<'a, T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_mut(index).expect("out of index.")
+    }
+}
+impl<'a, T> IntoIterator for &'a ObsListCellRefMut<'_, T> {
+    type Item = &'a T;
+    type IntoIter = IndexIter<Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+impl<'a, T> IntoIterator for &'a mut ObsListCellRefMut<'_, T> {
+    type Item = &'a mut T;
+    type IntoIter = IndexMutIter<Self>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 
