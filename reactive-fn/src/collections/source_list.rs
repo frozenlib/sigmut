@@ -19,3 +19,8 @@ impl<T: 'static> From<Rc<Vec<T>>> for SourceList<T> {
         SourceList::from_rc_vec(values)
     }
 }
+impl<'a, T: 'static> From<&'a Rc<Vec<T>>> for SourceList<T> {
+    fn from(values: &'a Rc<Vec<T>>) -> Self {
+        SourceList::from_rc_vec(values.clone())
+    }
+}
