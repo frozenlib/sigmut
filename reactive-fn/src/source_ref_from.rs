@@ -150,6 +150,9 @@ where
 
 #[macro_export]
 macro_rules! impl_source_ref_from {
+    ($tr:path , $($ty:ty,)+) => {
+        $crate::impl_source_ref_from!($tr , $($ty),*);
+    };
     ($tr:path , $($ty:ty),*) => {
         impl ::std::convert::AsRef<dyn $tr> for dyn $tr {
             fn as_ref(&self) -> &dyn $tr {
