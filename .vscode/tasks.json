@@ -83,29 +83,12 @@
       "args": [
         "bench"
       ],
+      "options": {
+        "cwd": "${workspaceFolder}/reactive-fn-benchmark"
+      },
       "problemMatcher": [
         "$rustc"
       ],
-      "group": {
-        "kind": "test",
-        "isDefault": true
-      },
-      "presentation": {
-        "panel": "dedicated",
-        "clear": true
-      },
-      "options": {
-        "env": {
-          "RUST_BACKTRACE": "1"
-        }
-      }
-    },
-    {
-      "type": "shell",
-      "label": "cargo bench show report",
-      "command": "target/criterion/report/index.html",
-      "args": [],
-      "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
         "clear": true
