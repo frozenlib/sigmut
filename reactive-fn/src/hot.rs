@@ -1,9 +1,6 @@
 use super::*;
 use crate::dynamic_obs::*;
-use std::{
-    cell::{Ref, RefCell},
-    rc::Rc,
-};
+use std::{cell::RefCell, rc::Rc};
 
 pub struct Hot<S> {
     source: S,
@@ -44,23 +41,23 @@ where
     }
 }
 
-impl<S: Observable> HotReady for DynamicObs<Hot<Obs<S>>> {
-    fn ready(self: Rc<Self>, scope: &BindScope) {
-        let this = self.clone();
-        self.0
-            .bindings
-            .borrow_mut()
-            .update(scope, &this, |cx| self.0.source.get(cx));
-    }
-}
-impl<S: ObservableBorrow> HotReady for DynamicObs<Hot<ObsBorrow<S>>> {
-    fn ready(self: Rc<Self>, scope: &BindScope) {
-        let this = self.clone();
-        self.0.bindings.borrow_mut().update(scope, &this, |cx| {
-            self.0.source.borrow(cx);
-        });
-    }
-}
+// impl<S: Observable> HotReady for DynamicObs<Hot<Obs<S>>> {
+//     fn ready(self: Rc<Self>, scope: &BindScope) {
+//         let this = self.clone();
+//         self.0
+//             .bindings
+//             .borrow_mut()
+//             .update(scope, &this, |cx| self.0.source.get(cx));
+//     }
+// }
+// impl<S: ObservableBorrow> HotReady for DynamicObs<Hot<ObsBorrow<S>>> {
+//     fn ready(self: Rc<Self>, scope: &BindScope) {
+//         let this = self.clone();
+//         self.0.bindings.borrow_mut().update(scope, &this, |cx| {
+//             self.0.source.borrow(cx);
+//         });
+//     }
+// }
 
 impl<T: 'static + ?Sized> HotReady for DynamicObs<Hot<DynObsRef<T>>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
@@ -81,18 +78,18 @@ impl<S: ObservableRef> HotReady for DynamicObs<Hot<ObsRef<S>>> {
     }
 }
 
-impl<S: Observable> Observable for Hot<S> {
-    type Item = S::Item;
-    fn get(&self, cx: &mut BindContext) -> Self::Item {
-        self.source.get(cx)
-    }
-}
-impl<S: ObservableBorrow> ObservableBorrow for Hot<S> {
-    type Item = S::Item;
-    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
-        self.source.borrow(cx)
-    }
-}
+// impl<S: Observable> Observable for Hot<S> {
+//     type Item = S::Item;
+//     fn get(&self, cx: &mut BindContext) -> Self::Item {
+//         self.source.get(cx)
+//     }
+// }
+// impl<S: ObservableBorrow> ObservableBorrow for Hot<S> {
+//     type Item = S::Item;
+//     fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
+//         self.source.borrow(cx)
+//     }
+// }
 
 impl<S: ObservableRef> ObservableRef for Hot<S> {
     type Item = S::Item;

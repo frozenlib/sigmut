@@ -88,12 +88,12 @@ impl<T: 'static> Source<T> {
         }
     }
 
-    pub fn cloned(self) -> Obs<impl Observable<Item = T>>
-    where
-        T: Clone,
-    {
-        obs(move |cx| self.get_cloned(cx))
-    }
+    // pub fn cloned(self) -> Obs<impl Observable<Item = T>>
+    // where
+    //     T: Clone,
+    // {
+    //     obs(move |cx| self.get_cloned(cx))
+    // }
 
     pub fn fold<St: 'static>(
         self,
@@ -133,20 +133,20 @@ impl<T: 'static> Source<T> {
         }
     }
 }
-impl<T: Copy> Observable for Source<T> {
-    type Item = T;
+// impl<T: Copy> Observable for Source<T> {
+//     type Item = T;
 
-    fn get(&self, cx: &mut BindContext) -> Self::Item {
-        Source::get(self, cx)
-    }
+//     fn get(&self, cx: &mut BindContext) -> Self::Item {
+//         Source::get(self, cx)
+//     }
 
-    fn into_dyn_obs(self) -> DynObs<Self::Item>
-    where
-        Self: Sized,
-    {
-        Source::into_dyn(self)
-    }
-}
+//     fn into_dyn_obs(self) -> DynObs<Self::Item>
+//     where
+//         Self: Sized,
+//     {
+//         Source::into_dyn(self)
+//     }
+// }
 impl<T> ObservableRef for Source<T> {
     type Item = T;
 
@@ -166,42 +166,42 @@ impl<T> ObservableRef for Source<T> {
     }
 }
 
-impl<T, S> From<Obs<S>> for Source<T>
-where
-    S: Observable,
-    S::Item: Into<T>,
-{
-    fn from(value: Obs<S>) -> Self {
-        value.map_into::<T>().into_dyn().into()
-    }
-}
-impl<T, S> From<&Obs<S>> for Source<T>
-where
-    S: Observable + Clone,
-    S::Item: Into<T>,
-{
-    fn from(value: &Obs<S>) -> Self {
-        value.clone().into()
-    }
-}
-impl<T, S> From<ObsBorrow<S>> for Source<T>
-where
-    S: ObservableBorrow,
-    S::Item: Into<T> + Copy,
-{
-    fn from(value: ObsBorrow<S>) -> Self {
-        value.as_ref().into()
-    }
-}
-impl<T, S> From<&ObsBorrow<S>> for Source<T>
-where
-    S: ObservableBorrow + Clone,
-    S::Item: Into<T> + Copy,
-{
-    fn from(value: &ObsBorrow<S>) -> Self {
-        value.clone().into()
-    }
-}
+// impl<T, S> From<Obs<S>> for Source<T>
+// where
+//     S: Observable,
+//     S::Item: Into<T>,
+// {
+//     fn from(value: Obs<S>) -> Self {
+//         value.map_into::<T>().into_dyn().into()
+//     }
+// }
+// impl<T, S> From<&Obs<S>> for Source<T>
+// where
+//     S: Observable + Clone,
+//     S::Item: Into<T>,
+// {
+//     fn from(value: &Obs<S>) -> Self {
+//         value.clone().into()
+//     }
+// }
+// impl<T, S> From<ObsBorrow<S>> for Source<T>
+// where
+//     S: ObservableBorrow,
+//     S::Item: Into<T> + Copy,
+// {
+//     fn from(value: ObsBorrow<S>) -> Self {
+//         value.as_ref().into()
+//     }
+// }
+// impl<T, S> From<&ObsBorrow<S>> for Source<T>
+// where
+//     S: ObservableBorrow + Clone,
+//     S::Item: Into<T> + Copy,
+// {
+//     fn from(value: &ObsBorrow<S>) -> Self {
+//         value.clone().into()
+//     }
+// }
 impl<T, S> From<ObsRef<S>> for Source<T>
 where
     S: ObservableRef,

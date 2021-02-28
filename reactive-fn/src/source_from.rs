@@ -15,44 +15,44 @@ impl<S, T: SourceFrom<S>> IntoSource<T> for S {
     }
 }
 
-impl<T, S> SourceFrom<Obs<S>> for T
-where
-    S: Observable,
-    S::Item: Into<T>,
-{
-    fn source_from(value: Obs<S>) -> Source<Self> {
-        value.map_into::<T>().into_dyn().into_source()
-    }
-}
-impl<T, S> SourceFrom<&Obs<S>> for T
-where
-    S: Observable + Clone,
-    S::Item: Into<T>,
-{
-    fn source_from(value: &Obs<S>) -> Source<Self> {
-        value.clone().into_source()
-    }
-}
-impl<T, S> SourceFrom<ObsBorrow<S>> for T
-where
-    S: ObservableBorrow,
-    S::Item: Sized,
-    for<'a> &'a S::Item: Into<T>,
-{
-    fn source_from(value: ObsBorrow<S>) -> Source<Self> {
-        value.as_ref().into_source()
-    }
-}
-impl<T, S> SourceFrom<&ObsBorrow<S>> for T
-where
-    S: ObservableBorrow + Clone,
-    S::Item: Sized,
-    for<'a> &'a S::Item: Into<T>,
-{
-    fn source_from(value: &ObsBorrow<S>) -> Source<Self> {
-        value.clone().into_source()
-    }
-}
+// impl<T, S> SourceFrom<Obs<S>> for T
+// where
+//     S: Observable,
+//     S::Item: Into<T>,
+// {
+//     fn source_from(value: Obs<S>) -> Source<Self> {
+//         value.map_into::<T>().into_dyn().into_source()
+//     }
+// }
+// impl<T, S> SourceFrom<&Obs<S>> for T
+// where
+//     S: Observable + Clone,
+//     S::Item: Into<T>,
+// {
+//     fn source_from(value: &Obs<S>) -> Source<Self> {
+//         value.clone().into_source()
+//     }
+// }
+// impl<T, S> SourceFrom<ObsBorrow<S>> for T
+// where
+//     S: ObservableBorrow,
+//     S::Item: Sized,
+//     for<'a> &'a S::Item: Into<T>,
+// {
+//     fn source_from(value: ObsBorrow<S>) -> Source<Self> {
+//         value.as_ref().into_source()
+//     }
+// }
+// impl<T, S> SourceFrom<&ObsBorrow<S>> for T
+// where
+//     S: ObservableBorrow + Clone,
+//     S::Item: Sized,
+//     for<'a> &'a S::Item: Into<T>,
+// {
+//     fn source_from(value: &ObsBorrow<S>) -> Source<Self> {
+//         value.clone().into_source()
+//     }
+// }
 impl<T, S> SourceFrom<ObsRef<S>> for T
 where
     S: ObservableRef,
@@ -73,32 +73,32 @@ where
         value.clone().into_source()
     }
 }
-impl<T, S: Into<T>> SourceFrom<DynObs<S>> for T {
-    fn source_from(value: DynObs<S>) -> Source<Self> {
-        Source::Obs(value.map_into())
-    }
-}
-impl<T, S: Into<T>> SourceFrom<&DynObs<S>> for T {
-    fn source_from(value: &DynObs<S>) -> Source<Self> {
-        value.clone().into_source()
-    }
-}
-impl<T, S> SourceFrom<DynObsBorrow<S>> for T
-where
-    for<'a> &'a S: Into<T>,
-{
-    fn source_from(value: DynObsBorrow<S>) -> Source<Self> {
-        value.as_ref().into_source()
-    }
-}
-impl<T, S> SourceFrom<&DynObsBorrow<S>> for T
-where
-    for<'a> &'a S: Into<T>,
-{
-    fn source_from(value: &DynObsBorrow<S>) -> Source<Self> {
-        value.clone().into_source()
-    }
-}
+// impl<T, S: Into<T>> SourceFrom<DynObs<S>> for T {
+//     fn source_from(value: DynObs<S>) -> Source<Self> {
+//         Source::Obs(value.map_into())
+//     }
+// }
+// impl<T, S: Into<T>> SourceFrom<&DynObs<S>> for T {
+//     fn source_from(value: &DynObs<S>) -> Source<Self> {
+//         value.clone().into_source()
+//     }
+// }
+// impl<T, S> SourceFrom<DynObsBorrow<S>> for T
+// where
+//     for<'a> &'a S: Into<T>,
+// {
+//     fn source_from(value: DynObsBorrow<S>) -> Source<Self> {
+//         value.as_ref().into_source()
+//     }
+// }
+// impl<T, S> SourceFrom<&DynObsBorrow<S>> for T
+// where
+//     for<'a> &'a S: Into<T>,
+// {
+//     fn source_from(value: &DynObsBorrow<S>) -> Source<Self> {
+//         value.clone().into_source()
+//     }
+// }
 impl<T, S> SourceFrom<DynObsRef<S>> for T
 where
     for<'a> &'a S: Into<T>,

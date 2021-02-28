@@ -2,6 +2,9 @@ use super::*;
 use futures::Future;
 use std::{any::Any, borrow::Borrow, marker::PhantomData, rc::Rc, task::Poll};
 
+pub type DynObs<T> = DynObsRef<T>;
+pub type DynObsBorrow<T> = DynObsRef<T>;
+
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
 pub struct DynObsRef<T: 'static + ?Sized>(DynObsRefData<T>);
@@ -236,12 +239,12 @@ impl<T: 'static> DynObsRef<DynObs<T>> {
         self.obs().flatten().into_dyn()
     }
 }
-impl<T: Copy> Observable for DynObsRef<T> {
-    type Item = T;
-    fn get(&self, cx: &mut BindContext) -> Self::Item {
-        DynObsRef::get(self, cx)
-    }
-}
+// impl<T: Copy> Observable for DynObsRef<T> {
+//     type Item = T;
+//     fn get(&self, cx: &mut BindContext) -> Self::Item {
+//         DynObsRef::get(self, cx)
+//     }
+// }
 impl<T: ?Sized> ObservableRef for DynObsRef<T> {
     type Item = T;
 
@@ -266,22 +269,22 @@ struct DynamicObsRefByFn<S, T: ?Sized, F> {
     f: F,
     _phantom: PhantomData<fn(&Self) -> &T>,
 }
-impl<S, T, F> DynamicObservable for DynamicObsRefByFn<S, T, F>
-where
-    S: 'static,
-    T: 'static + Copy,
-    F: Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
-{
-    type Item = T;
-    fn dyn_get(&self, cx: &mut BindContext) -> T {
-        let mut result = None;
-        self.dyn_with(&mut |value, _| result = Some(*value), cx);
-        result.unwrap()
-    }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
-        self
-    }
-}
+// impl<S, T, F> DynamicObservable for DynamicObsRefByFn<S, T, F>
+// where
+//     S: 'static,
+//     T: 'static + Copy,
+//     F: Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
+// {
+//     type Item = T;
+//     fn dyn_get(&self, cx: &mut BindContext) -> T {
+//         let mut result = None;
+//         self.dyn_with(&mut |value, _| result = Some(*value), cx);
+//         result.unwrap()
+//     }
+//     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRef<Item = Self::Item>> {
+//         self
+//     }
+// }
 impl<S, T, F> DynamicObservableRef for DynamicObsRefByFn<S, T, F>
 where
     S: 'static,

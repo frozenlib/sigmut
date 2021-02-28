@@ -69,40 +69,40 @@ where
         Ref::map(s, |o| &o.value)
     }
 }
-impl<S, Fut, Sp> ObservableBorrow for Rc<MapAsync<S, Fut, Sp>>
-where
-    S: Observable<Item = Fut>,
-    Fut: Future + 'static,
-    Sp: LocalSpawn,
-{
-    type Item = Poll<Fut::Output>;
-    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
-        self.borrow(cx)
-    }
-}
+// impl<S, Fut, Sp> ObservableBorrow for Rc<MapAsync<S, Fut, Sp>>
+// where
+//     S: Observable<Item = Fut>,
+//     Fut: Future + 'static,
+//     Sp: LocalSpawn,
+// {
+//     type Item = Poll<Fut::Output>;
+//     fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
+//         self.borrow(cx)
+//     }
+// }
 
-impl<S, Fut, Sp> DynamicObservableBorrowSource for MapAsync<S, Fut, Sp>
-where
-    S: Observable<Item = Fut>,
-    Fut: Future + 'static,
-    Sp: LocalSpawn,
-{
-    type Item = Poll<Fut::Output>;
+// impl<S, Fut, Sp> DynamicObservableBorrowSource for MapAsync<S, Fut, Sp>
+// where
+//     S: Observable<Item = Fut>,
+//     Fut: Future + 'static,
+//     Sp: LocalSpawn,
+// {
+//     type Item = Poll<Fut::Output>;
 
-    fn dyn_borrow<'a>(
-        &'a self,
-        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &mut BindContext,
-    ) -> Ref<Self::Item> {
-        self.borrow_with(Self::downcast(rc_self), cx)
-    }
-    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
-        self
-    }
-}
+//     fn dyn_borrow<'a>(
+//         &'a self,
+//         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
+//         cx: &mut BindContext,
+//     ) -> Ref<Self::Item> {
+//         self.borrow_with(Self::downcast(rc_self), cx)
+//     }
+//     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+//         self
+//     }
+//     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
+//         self
+//     }
+// }
 impl<S, Fut, Sp> DynamicObservableRefSource for MapAsync<S, Fut, Sp>
 where
     S: Observable<Item = Fut>,

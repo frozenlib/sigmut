@@ -7,7 +7,7 @@ use std::{
     rc::Rc,
 };
 
-use super::{DynamicFold, DynamicObservableBorrowSource, DynamicObservableRefSource};
+use super::{DynamicFold, DynamicObservableRefSource};
 
 pub trait ScanOp: 'static {
     type LoadSt;
@@ -341,38 +341,38 @@ impl<Op: ScanOp> Scan<Op> {
         Ref::map(d, |d| d.get())
     }
 }
-impl<Op: ScanOp> ObservableBorrow for Rc<Scan<Op>> {
-    type Item = Op::Value;
-    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
-        self.borrow(cx)
-    }
-}
+// impl<Op: ScanOp> ObservableBorrow for Rc<Scan<Op>> {
+//     type Item = Op::Value;
+//     fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
+//         self.borrow(cx)
+//     }
+// }
 
-impl<Op: ScanOp> DynamicObservableBorrowSource for Scan<Op> {
-    type Item = Op::Value;
+// impl<Op: ScanOp> DynamicObservableBorrowSource for Scan<Op> {
+//     type Item = Op::Value;
 
-    fn dyn_borrow<'a>(
-        &self,
-        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &mut BindContext,
-    ) -> Ref<Self::Item> {
-        let rc_self = Self::downcast(rc_self);
-        cx.bind(rc_self.clone());
-        let mut d = self.data.borrow();
-        if !d.state.is_loaded() {
-            drop(d);
-            self.data.borrow_mut().load(cx.scope(), &rc_self);
-            d = self.data.borrow();
-        }
-        Ref::map(d, |d| d.get())
-    }
-    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
-        self
-    }
-}
+//     fn dyn_borrow<'a>(
+//         &self,
+//         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
+//         cx: &mut BindContext,
+//     ) -> Ref<Self::Item> {
+//         let rc_self = Self::downcast(rc_self);
+//         cx.bind(rc_self.clone());
+//         let mut d = self.data.borrow();
+//         if !d.state.is_loaded() {
+//             drop(d);
+//             self.data.borrow_mut().load(cx.scope(), &rc_self);
+//             d = self.data.borrow();
+//         }
+//         Ref::map(d, |d| d.get())
+//     }
+//     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+//         self
+//     }
+//     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
+//         self
+//     }
+// }
 
 impl<Op: ScanOp> DynamicObservableRefSource for Scan<Op> {
     type Item = Op::Value;
@@ -441,39 +441,39 @@ impl<Op: FilterScanOp> FilterScan<Op> {
     }
 }
 
-impl<Op: FilterScanOp> ObservableBorrow for Rc<FilterScan<Op>> {
-    type Item = Op::Value;
+// impl<Op: FilterScanOp> ObservableBorrow for Rc<FilterScan<Op>> {
+//     type Item = Op::Value;
 
-    fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
-        self.borrow(cx)
-    }
-}
+//     fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
+//         self.borrow(cx)
+//     }
+// }
 
-impl<Op: FilterScanOp> DynamicObservableBorrowSource for FilterScan<Op> {
-    type Item = Op::Value;
+// impl<Op: FilterScanOp> DynamicObservableBorrowSource for FilterScan<Op> {
+//     type Item = Op::Value;
 
-    fn dyn_borrow(
-        &self,
-        rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-        cx: &mut BindContext,
-    ) -> Ref<Self::Item> {
-        let rc_self = Self::downcast(rc_self);
-        let mut d = self.data.borrow();
-        if !d.state.is_loaded() {
-            drop(d);
-            rc_self.ready(cx.scope());
-            d = self.data.borrow();
-        }
-        cx.bind(rc_self);
-        Ref::map(d, |d| d.get())
-    }
-    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
-        self
-    }
-}
+//     fn dyn_borrow(
+//         &self,
+//         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
+//         cx: &mut BindContext,
+//     ) -> Ref<Self::Item> {
+//         let rc_self = Self::downcast(rc_self);
+//         let mut d = self.data.borrow();
+//         if !d.state.is_loaded() {
+//             drop(d);
+//             rc_self.ready(cx.scope());
+//             d = self.data.borrow();
+//         }
+//         cx.bind(rc_self);
+//         Ref::map(d, |d| d.get())
+//     }
+//     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+//         self
+//     }
+//     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
+//         self
+//     }
+// }
 impl<Op: FilterScanOp> DynamicObservableRefSource for FilterScan<Op> {
     type Item = Op::Value;
     fn dyn_with(
@@ -593,21 +593,21 @@ impl<S, O> AsObserver<O> for ObserverOp<S, O> {
     }
 }
 
-impl<S, O> FoldByOp for ObserverOp<Obs<S>, O>
-where
-    S: Observable,
-    O: Observer<S::Item>,
-{
-    type LoadSt = ();
-    type UnloadSt = ();
-    type Value = ();
+// impl<S, O> FoldByOp for ObserverOp<Obs<S>, O>
+// where
+//     S: Observable,
+//     O: Observer<S::Item>,
+// {
+//     type LoadSt = ();
+//     type UnloadSt = ();
+//     type Value = ();
 
-    fn load(&mut self, _state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt {
-        self.o.next(self.s.get(cx))
-    }
-    fn unload(&mut self, _state: Self::LoadSt) -> Self::UnloadSt {}
-    fn get(&self, _state: Self::LoadSt) -> Self::Value {}
-}
+//     fn load(&mut self, _state: Self::UnloadSt, cx: &mut BindContext) -> Self::LoadSt {
+//         self.o.next(self.s.get(cx))
+//     }
+//     fn unload(&mut self, _state: Self::LoadSt) -> Self::UnloadSt {}
+//     fn get(&self, _state: Self::LoadSt) -> Self::Value {}
+// }
 
 impl<S, O> FoldByOp for ObserverOp<ObsRef<S>, O>
 where

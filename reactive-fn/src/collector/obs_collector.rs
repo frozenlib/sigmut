@@ -42,25 +42,25 @@ impl<T: Collect> ObsCollector<T> {
         }
     }
 
-    pub fn as_dyn(&self) -> DynObs<T::Output> {
-        DynObs::from_dyn_source(self.0.clone())
-    }
+    // pub fn as_dyn(&self) -> DynObs<T::Output> {
+    //     DynObs::from_dyn_source(self.0.clone())
+    // }
     pub fn as_dyn_ref(&self) -> DynObsRef<T::Output> {
         self.as_dyn().as_ref()
     }
-    pub fn obs(&self) -> Obs<impl Observable<Item = T::Output> + Clone> {
-        Obs(self.clone())
-    }
+    // pub fn obs(&self) -> Obs<impl Observable<Item = T::Output> + Clone> {
+    //     Obs(self.clone())
+    // }
     pub fn obs_ref(&self) -> ObsRef<impl ObservableRef<Item = T::Output> + Clone> {
         self.obs().as_ref()
     }
 }
-impl<T: Collect> Observable for ObsCollector<T> {
-    type Item = T::Output;
-    fn get(&self, cx: &mut BindContext) -> Self::Item {
-        self.0.clone().get(cx)
-    }
-}
+// impl<T: Collect> Observable for ObsCollector<T> {
+//     type Item = T::Output;
+//     fn get(&self, cx: &mut BindContext) -> Self::Item {
+//         self.0.clone().get(cx)
+//     }
+// }
 impl<T> Clone for ObsCollector<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
@@ -74,16 +74,16 @@ impl<T: Collect> ObsCollectorData<T> {
         value
     }
 }
-impl<T: Collect> DynamicObservableSource for ObsCollectorData<T> {
-    type Item = T::Output;
+// impl<T: Collect> DynamicObservableSource for ObsCollectorData<T> {
+//     type Item = T::Output;
 
-    fn dyn_get(self: Rc<Self>, cx: &mut BindContext) -> Self::Item {
-        self.get(cx)
-    }
-    fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
-        self
-    }
-}
+//     fn dyn_get(self: Rc<Self>, cx: &mut BindContext) -> Self::Item {
+//         self.get(cx)
+//     }
+//     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
+//         self
+//     }
+// }
 impl<T: Collect> DynamicObservableRefSource for ObsCollectorData<T> {
     type Item = T::Output;
     fn dyn_with(
