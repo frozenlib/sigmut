@@ -287,11 +287,12 @@ impl<S: Observable> Obs<S> {
             |st| st.as_ref().unwrap().borrow(),
         )
     }
-    pub fn dedup_by_key<K: PartialEq>(
+    pub fn dedup_by_key<K>(
         self,
         to_key: impl Fn(&S::Item) -> K + 'static,
     ) -> Obs<impl Observable<Item = S::Item>>
     where
+        K: PartialEq,
         S::Item: ToOwned,
     {
         self.dedup_by(move |old, new| to_key(old) == to_key(new))
