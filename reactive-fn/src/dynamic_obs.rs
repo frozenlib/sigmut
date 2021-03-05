@@ -21,6 +21,17 @@ impl<S: Observable> DynamicObservable for DynamicObs<S> {
         self.0.with(f, cx)
     }
 }
+impl<S: Observable> Observable for DynamicObs<S> {
+    type Item = S::Item;
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
+        self.0.with(f, cx)
+    }
+}
 
 impl<S> DynamicObservableInner for S
 where

@@ -8,7 +8,7 @@ mod bind;
 mod dyn_obs;
 mod dynamic_obs;
 mod fold;
-// mod hot;
+mod hot;
 // mod into_stream;
 // mod map_async;
 mod functions;

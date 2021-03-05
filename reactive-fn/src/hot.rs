@@ -1,5 +1,5 @@
-use super::*;
 use crate::dynamic_obs::*;
+use crate::*;
 use std::{cell::RefCell, rc::Rc};
 
 pub struct Hot<S> {
@@ -41,7 +41,7 @@ where
     }
 }
 
-impl<T: 'static + ?Sized> HotReady for DynamicObs<Hot<DynObsRef<T>>> {
+impl<T: 'static + ?Sized> HotReady for DynamicObs<Hot<DynObs<T>>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.0
@@ -50,7 +50,7 @@ impl<T: 'static + ?Sized> HotReady for DynamicObs<Hot<DynObsRef<T>>> {
             .update(scope, &this, |cx| self.0.source.with(|_, _| {}, cx));
     }
 }
-impl<S: ObservableRef> HotReady for DynamicObs<Hot<ObsRef<S>>> {
+impl<S: Observable> HotReady for DynamicObs<Hot<Obs<S>>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.0
@@ -60,20 +60,7 @@ impl<S: ObservableRef> HotReady for DynamicObs<Hot<ObsRef<S>>> {
     }
 }
 
-// impl<S: Observable> Observable for Hot<S> {
-//     type Item = S::Item;
-//     fn get(&self, cx: &mut BindContext) -> Self::Item {
-//         self.source.get(cx)
-//     }
-// }
-// impl<S: ObservableBorrow> ObservableBorrow for Hot<S> {
-//     type Item = S::Item;
-//     fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
-//         self.source.borrow(cx)
-//     }
-// }
-
-impl<S: ObservableRef> ObservableRef for Hot<S> {
+impl<S: Observable> Observable for Hot<S> {
     type Item = S::Item;
     fn with<U>(
         &self,

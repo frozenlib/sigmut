@@ -1,6 +1,6 @@
-use std::{borrow::Borrow, iter::once};
-
+use crate::hot::*;
 use crate::*;
+use std::{borrow::Borrow, iter::once};
 
 #[derive(Clone)]
 pub struct Obs<S>(pub(super) S);
@@ -361,9 +361,9 @@ impl<S: Observable> Obs<S> {
     //     .into()
     // }
 
-    // pub fn hot(self) -> ObsRef<impl ObservableRef<Item = S::Item>> {
-    //     ObsRef(Hot::new(self))
-    // }
+    pub fn hot(self) -> Obs<impl Observable<Item = S::Item>> {
+        Obs(Hot::new(self))
+    }
 }
 impl<S: Observable> Observable for Obs<S> {
     type Item = S::Item;

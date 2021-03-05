@@ -246,9 +246,9 @@ impl<T: 'static + ?Sized> DynObs<T> {
     //     self.obs().subscribe_async_with(f, sp)
     // }
 
-    // pub fn hot(&self) -> Self {
-    //     self.obs().hot().into_dyn()
-    // }
+    pub fn hot(&self) -> Self {
+        self.obs().hot().into_dyn()
+    }
 }
 impl<T: 'static> DynObs<DynObs<T>> {
     pub fn flatten(&self) -> DynObs<T> {
