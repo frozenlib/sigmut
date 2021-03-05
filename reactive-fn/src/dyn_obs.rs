@@ -85,20 +85,16 @@ impl<T: 'static + ?Sized> DynObs<T> {
         BindContext::nul(|cx| self.with(|value, _| f(value), cx))
     }
 
-    // pub fn head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTailRef<T>) {
-    //     BindScope::with(|scope| self.head_tail_with(scope, f))
-    // }
-    // pub fn head_tail_with<U>(
-    //     &self,
-    //     scope: &BindScope,
-    //     f: impl FnOnce(&T) -> U,
-    // ) -> (U, DynTailRef<T>) {
-    //     if let DynObsData::Static(x) = &self.0 {
-    //         (f(x), DynTailRef::empty())
-    //     } else {
-    //         DynTailRef::new(self.clone(), scope, f)
-    //     }
-    // }
+    pub fn head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
+        BindScope::with(|scope| self.head_tail_with(scope, f))
+    }
+    pub fn head_tail_with<U>(&self, scope: &BindScope, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
+        if let DynObsData::Static(x) = &self.0 {
+            (f(x), DynTail::empty())
+        } else {
+            DynTail::new(self.clone(), scope, f)
+        }
+    }
     // pub fn constant_map<S: 'static>(value: S, f: impl Fn(&S) -> &T + 'static) -> Self {
     //     Self::new(value, move |value, f_outer, cx| f_outer(f(value), cx))
     // }

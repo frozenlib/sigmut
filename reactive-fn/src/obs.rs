@@ -6,6 +6,10 @@ use crate::*;
 pub struct Obs<S>(pub(super) S);
 
 impl<S: Observable> Obs<S> {
+    pub fn into_dyn(self) -> DynObs<S::Item> {
+        self.0.into_dyn()
+    }
+
     pub fn get(&self, cx: &mut BindContext) -> <S::Item as ToOwned>::Owned
     where
         S::Item: ToOwned,
@@ -29,19 +33,16 @@ impl<S: Observable> Obs<S> {
     pub fn with_head<U>(&self, f: impl FnOnce(&S::Item) -> U) -> U {
         BindContext::nul(|cx| self.with(|value, _| f(value), cx))
     }
-    // pub fn head_tail<U>(self, f: impl FnOnce(&S::Item) -> U) -> (U, TailRef<S>) {
-    //     BindScope::with(|scope| self.head_tail_with(scope, f))
-    // }
-    // pub fn head_tail_with<U>(
-    //     self,
-    //     scope: &BindScope,
-    //     f: impl FnOnce(&S::Item) -> U,
-    // ) -> (U, TailRef<S>) {
-    //     TailRef::new(self.0, scope, f)
-    // }
-    // pub fn into_dyn(self) -> DynObsRef<S::Item> {
-    //     self.0.into_dyn_obs_ref()
-    // }
+    pub fn head_tail<U>(self, f: impl FnOnce(&S::Item) -> U) -> (U, Tail<S>) {
+        BindScope::with(|scope| self.head_tail_with(scope, f))
+    }
+    pub fn head_tail_with<U>(
+        self,
+        scope: &BindScope,
+        f: impl FnOnce(&S::Item) -> U,
+    ) -> (U, Tail<S>) {
+        Tail::new(self.0, scope, f)
+    }
 
     #[inline]
     pub fn map<T: 'static>(
@@ -334,7 +335,7 @@ impl<S: Observable> Obs<S> {
     pub fn subscribe(self, mut f: impl FnMut(&S::Item) + 'static) -> Subscription {
         subscribe(move |cx| self.with(|value, _cx| f(value), cx))
     }
-    pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<O>
+    pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<St = O>
     where
         for<'a> O: Observer<&'a S::Item>,
     {

@@ -23,7 +23,7 @@ mod scan;
 // mod source_ref;
 // mod source_ref_from;
 mod subscriber;
-// mod tail;
+mod tail;
 
 use derivative::Derivative;
 
@@ -50,6 +50,6 @@ pub use scan::*;
 // pub use source_ref::*;
 // pub use source_ref_from::*;
 pub use subscriber::*;
-// pub use tail::*;
+pub use tail::*;
 
 pub(crate) use dynamic_obs::*;

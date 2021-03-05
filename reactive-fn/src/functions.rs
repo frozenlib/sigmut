@@ -15,11 +15,22 @@ pub fn subscribe(mut f: impl FnMut(&mut BindContext) + 'static) -> Subscription 
 #[inline]
 pub fn subscribe_to<St: 'static>(
     st: St,
-    f: impl FnMut(&mut St, &mut BindContext) + 'static,
-) -> impl Subscriber<St> {
-    match Subscribe::new(st, f) {
+    mut f: impl FnMut(&mut St, &mut BindContext) + 'static,
+) -> impl Subscriber<St = St> {
+    match Subscribe::new(SubscribeToData(st), move |st, cx| f(&mut st.0, cx)) {
         Ok(s) => MayConstantSubscriber::Subscriber(subscriber(s)),
-        Err(st) => MayConstantSubscriber::Constant(RefCell::new(st)),
+        Err(st) => MayConstantSubscriber::Constant(RefCell::new(st.0)),
+    }
+}
+struct SubscribeToData<St>(St);
+impl<St> SubscriberState for SubscribeToData<St> {
+    type St = St;
+
+    fn borrow(&self) -> &Self::St {
+        &self.0
+    }
+    fn borrow_mut(&mut self) -> &mut Self::St {
+        &mut self.0
     }
 }
 
@@ -39,8 +50,8 @@ where
         let s = Rc::new(Self(RefCell::new(SubscribeData {
             st,
             f,
-            bindings: Bindings::new(),
             is_loaded: false,
+            bindings: Bindings::new(),
         })));
         if BindScope::with(|scope| s.load(scope)) {
             Ok(s)
@@ -50,6 +61,18 @@ where
                 Err(s) => Ok(s),
             }
         }
+    }
+    pub(crate) fn new_tail(st: St, f: F, is_loaded: bool, bindings: Bindings) -> Rc<Self> {
+        let s = Rc::new(Self(RefCell::new(SubscribeData {
+            st,
+            f,
+            is_loaded,
+            bindings,
+        })));
+        if !is_loaded {
+            BindScope::with(|scope| s.load(scope));
+        }
+        s
     }
 
     fn ready(self: &Rc<Self>, scope: &BindScope) {
@@ -88,16 +111,23 @@ where
         Subscribe::load(&self, scope);
     }
 }
-impl<St, F> InnerSubscriber<St> for Subscribe<St, F>
+
+pub(crate) trait SubscriberState {
+    type St;
+    fn borrow(&self) -> &Self::St;
+    fn borrow_mut(&mut self) -> &mut Self::St;
+}
+impl<St, F> InnerSubscriber for Subscribe<St, F>
 where
-    St: 'static,
+    St: SubscriberState + 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
 {
-    fn borrow(&self) -> std::cell::Ref<St> {
-        Ref::map(self.0.borrow(), |x| &x.st)
+    type St = St::St;
+    fn borrow(&self) -> std::cell::Ref<Self::St> {
+        Ref::map(self.0.borrow(), |x| x.st.borrow())
     }
-    fn borrow_mut(&self) -> std::cell::RefMut<St> {
-        RefMut::map(self.0.borrow_mut(), |x| &mut x.st)
+    fn borrow_mut(&self) -> std::cell::RefMut<Self::St> {
+        RefMut::map(self.0.borrow_mut(), |x| x.st.borrow_mut())
     }
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
