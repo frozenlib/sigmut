@@ -42,7 +42,7 @@ impl<T: 'static> Fold<T> {
         }
     }
 }
-impl<T> From<Fold<T>> for Subscription {
+impl<T: 'static> From<Fold<T>> for Subscription {
     fn from(x: Fold<T>) -> Self {
         match x.0 {
             FoldData::Constant(_) => Subscription::empty(),
