@@ -1,5 +1,7 @@
-use crate::hot::*;
+use futures::Stream;
+
 use crate::*;
+use crate::{hot::*, into_stream::IntoStream};
 use std::{borrow::Borrow, iter::once};
 
 #[derive(Clone)]
@@ -363,6 +365,13 @@ impl<S: Observable> Obs<S> {
 
     pub fn hot(self) -> Obs<impl Observable<Item = S::Item>> {
         Obs(Hot::new(self))
+    }
+
+    pub fn stream(self) -> impl Stream<Item = <S::Item as ToOwned>::Owned>
+    where
+        S::Item: ToOwned,
+    {
+        IntoStream::new(self)
     }
 }
 impl<S: Observable> Observable for Obs<S> {

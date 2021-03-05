@@ -1,10 +1,15 @@
-use super::*;
-
-use std::{cell::RefCell, rc::Rc, task::Waker};
+use crate::*;
+use futures::Stream;
+use std::{
+    cell::RefCell,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll, Waker},
+};
 
 pub struct IntoStream<S>(Rc<IntoStreamData<S>>);
 struct IntoStreamData<S> {
-    source: S,
+    source: Obs<S>,
     state: RefCell<IntoStreamState>,
 }
 
@@ -15,7 +20,7 @@ struct IntoStreamState {
 }
 
 impl<S> IntoStream<S> {
-    pub fn new(source: S) -> Self {
+    pub fn new(source: Obs<S>) -> Self {
         Self(Rc::new(IntoStreamData {
             source,
             state: RefCell::new(IntoStreamState {
@@ -27,32 +32,39 @@ impl<S> IntoStream<S> {
     }
 }
 
-// impl<S: Observable> BindSink for IntoStreamData<S> {
-//     fn notify(self: Rc<Self>, _scope: &NotifyScope) {
-//         let waker = {
-//             let mut b = self.state.borrow_mut();
-//             b.is_ready = true;
-//             b.waker.take()
-//         };
-//         if let Some(waker) = waker {
-//             waker.wake();
-//         }
-//     }
-// }
-// impl<S: Observable> Stream for IntoStream<S> {
-//     type Item = S::Item;
-//     fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
-//         let this = &self.as_ref().0;
-//         let b = &mut *this.state.borrow_mut();
-//         if b.is_ready {
-//             b.is_ready = false;
-//             let bindings = &mut b.bindings;
-//             let value =
-//                 BindScope::with(|scope| bindings.update(scope, this, |cx| this.source.get(cx)));
-//             Poll::Ready(Some(value))
-//         } else {
-//             b.waker = Some(cx.waker().clone());
-//             Poll::Pending
-//         }
-//     }
-// }
+impl<S> BindSink for IntoStreamData<S>
+where
+    S: Observable,
+{
+    fn notify(self: Rc<Self>, _scope: &NotifyScope) {
+        let waker = {
+            let mut b = self.state.borrow_mut();
+            b.is_ready = true;
+            b.waker.take()
+        };
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
+}
+impl<S> Stream for IntoStream<S>
+where
+    S: Observable,
+    S::Item: ToOwned,
+{
+    type Item = <S::Item as ToOwned>::Owned;
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Option<Self::Item>> {
+        let this = &self.as_ref().0;
+        let b = &mut *this.state.borrow_mut();
+        if b.is_ready {
+            b.is_ready = false;
+            let bindings = &mut b.bindings;
+            let value =
+                BindScope::with(|scope| bindings.update(scope, this, |cx| this.source.get(cx)));
+            Poll::Ready(Some(value))
+        } else {
+            b.waker = Some(cx.waker().clone());
+            Poll::Pending
+        }
+    }
+}

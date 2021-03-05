@@ -1,3 +1,5 @@
+use futures::Stream;
+
 use crate::*;
 use std::{any::Any, borrow::Borrow, rc::Rc};
 
@@ -248,6 +250,12 @@ impl<T: 'static + ?Sized> DynObs<T> {
 
     pub fn hot(&self) -> Self {
         self.obs().hot().into_dyn()
+    }
+    pub fn stream(&self) -> impl Stream<Item = <T as ToOwned>::Owned>
+    where
+        T: ToOwned,
+    {
+        self.obs().stream()
     }
 }
 impl<T: 'static> DynObs<DynObs<T>> {
