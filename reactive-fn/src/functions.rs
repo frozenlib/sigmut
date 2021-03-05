@@ -8,93 +8,56 @@ use std::{
 };
 
 #[inline]
-pub fn subscribe(f: impl FnMut(&mut BindContext) + 'static) -> Subscription {
-    struct Subscribe<F>(RefCell<SubscribeInner<F>>);
-    struct SubscribeInner<F> {
-        f: F,
-        bindings: Bindings,
-        loaded: bool,
-    }
-    impl<F> Subscribe<F>
-    where
-        F: FnMut(&mut BindContext) + 'static,
-    {
-        fn new(f: F) -> Option<Rc<dyn Any>> {
-            let s = Rc::new(Subscribe(RefCell::new(SubscribeInner {
-                f,
-                bindings: Bindings::new(),
-                loaded: false,
-            })));
-            let this = s.clone();
-            if BindScope::with(move |scope| this.run(scope)) {
-                Some(s)
-            } else {
-                None
-            }
-        }
-
-        fn run(self: Rc<Self>, scope: &BindScope) -> bool {
-            let b = &mut *self.0.borrow_mut();
-            let f = &mut b.f;
-            b.bindings.update(scope, &self, |cx| f(cx));
-            b.loaded = true;
-            !b.bindings.is_empty()
-        }
-    }
-    impl<F> BindSink for Subscribe<F>
-    where
-        F: FnMut(&mut BindContext) + 'static,
-    {
-        fn notify(self: Rc<Self>, scope: &NotifyScope) {
-            let mut b = self.0.borrow_mut();
-            if mem::replace(&mut b.loaded, false) && !b.bindings.is_empty() {
-                drop(b);
-                scope.defer_bind(self)
-            }
-        }
-    }
-    impl<F> BindTask for Subscribe<F>
-    where
-        F: FnMut(&mut BindContext) + 'static,
-    {
-        fn run(self: Rc<Self>, scope: &BindScope) {
-            Subscribe::run(self, scope);
-        }
-    }
-    Subscription(Subscribe::new(f))
+pub fn subscribe(mut f: impl FnMut(&mut BindContext) + 'static) -> Subscription {
+    subscribe_to((), move |_, cx| f(cx)).into_subscription()
 }
 
+#[inline]
 pub fn subscribe_to<St: 'static>(
     st: St,
-    f: impl Fn(&mut St, &mut BindContext) + 'static,
+    f: impl FnMut(&mut St, &mut BindContext) + 'static,
 ) -> impl Subscriber<St> {
-    match SubscribeTo::new(st, f) {
+    match Subscribe::new(st, f) {
         Ok(s) => MayConstantSubscriber::Subscriber(subscriber(s)),
         Err(st) => MayConstantSubscriber::Constant(RefCell::new(st)),
     }
 }
 
-struct SubscribeTo<St, F>(RefCell<SubscribeToData<St, F>>);
-struct SubscribeToData<St, F> {
+#[inline]
+pub fn fold<St: 'static>(
+    st: St,
+    mut f: impl FnMut(&mut St, &mut BindContext) + 'static,
+) -> Fold<St> {
+    match Subscribe::new(Some(st), move |st, cx| {
+        if let Some(st) = st {
+            f(st, cx)
+        }
+    }) {
+        Ok(s) => Fold::new(s),
+        Err(st) => Fold::constant(st.unwrap()),
+    }
+}
+
+struct Subscribe<St, F>(RefCell<SubscribeData<St, F>>);
+struct SubscribeData<St, F> {
     st: St,
     f: F,
     bindings: Bindings,
-    loaded: bool,
+    is_loaded: bool,
 }
-impl<St, F> SubscribeTo<St, F>
+impl<St, F> Subscribe<St, F>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
 {
     fn new(st: St, f: F) -> Result<Rc<Self>, St> {
-        let s = Rc::new(Self(RefCell::new(SubscribeToData {
+        let s = Rc::new(Self(RefCell::new(SubscribeData {
             st,
             f,
             bindings: Bindings::new(),
-            loaded: false,
+            is_loaded: false,
         })));
-        let this = s.clone();
-        if BindScope::with(move |scope| this.run(scope)) {
+        if BindScope::with(|scope| s.load(scope)) {
             Ok(s)
         } else {
             match Rc::try_unwrap(s) {
@@ -104,38 +67,43 @@ where
         }
     }
 
-    fn run(self: Rc<Self>, scope: &BindScope) -> bool {
+    fn ready(self: &Rc<Self>, scope: &BindScope) {
+        if !self.0.borrow().is_loaded {
+            self.load(scope);
+        }
+    }
+    fn load(self: &Rc<Self>, scope: &BindScope) -> bool {
         let b = &mut *self.0.borrow_mut();
         let st = &mut b.st;
         let f = &mut b.f;
-        b.bindings.update(scope, &self, |cx| f(st, cx));
-        b.loaded = true;
+        b.bindings.update(scope, self, |cx| f(st, cx));
+        b.is_loaded = true;
         !b.bindings.is_empty()
     }
 }
-impl<St, F> BindSink for SubscribeTo<St, F>
+impl<St, F> BindSink for Subscribe<St, F>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
 {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         let mut b = self.0.borrow_mut();
-        if mem::replace(&mut b.loaded, false) && !b.bindings.is_empty() {
+        if mem::replace(&mut b.is_loaded, false) && !b.bindings.is_empty() {
             drop(b);
             scope.defer_bind(self)
         }
     }
 }
-impl<St, F> BindTask for SubscribeTo<St, F>
+impl<St, F> BindTask for Subscribe<St, F>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
 {
     fn run(self: Rc<Self>, scope: &BindScope) {
-        SubscribeTo::run(self, scope);
+        Subscribe::load(&self, scope);
     }
 }
-impl<St, F> InnerSubscriber<St> for SubscribeTo<St, F>
+impl<St, F> InnerSubscriber<St> for Subscribe<St, F>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
@@ -147,6 +115,24 @@ where
         RefMut::map(self.0.borrow_mut(), |x| &mut x.st)
     }
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
+        self
+    }
+}
+
+impl<T, F> DynamicFold for Subscribe<Option<T>, F>
+where
+    T: 'static,
+    F: FnMut(&mut Option<T>, &mut BindContext) + 'static,
+{
+    type Output = T;
+
+    fn stop(self: Rc<Self>, scope: &BindScope) -> Self::Output {
+        self.ready(scope);
+        let mut s = self.0.borrow_mut();
+        s.bindings.clear();
+        s.st.take().unwrap()
+    }
+    fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 }

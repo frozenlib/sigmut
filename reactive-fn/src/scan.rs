@@ -158,16 +158,14 @@ where
             sinks: BindSinks::new(),
         })
     }
-    fn ready(self: &Rc<Self>, scope: &BindScope) {
+    fn load(self: &Rc<Self>, scope: &BindScope) {
         let mut b = &mut *self.data.borrow_mut();
-        if !b.is_loaded {
-            let f = &mut b.f;
-            let st = &mut b.st;
-            if b.bindings.update(scope, self, |cx| f(st, cx)) {
-                scope.defer_notify(self.clone());
-            }
-            b.is_loaded = true;
+        let f = &mut b.f;
+        let st = &mut b.st;
+        if b.bindings.update(scope, self, |cx| f(st, cx)) {
+            scope.defer_notify(self.clone());
         }
+        b.is_loaded = true;
     }
 }
 impl<St, F, M, T> Observable for Rc<FilterScan<St, F, M>>
@@ -188,7 +186,7 @@ where
         let mut b = self.data.borrow();
         if !b.is_loaded {
             drop(b);
-            self.ready(cx.scope());
+            self.load(cx.scope());
             b = self.data.borrow();
         }
         f((b.m)(&b.st), cx)
@@ -241,7 +239,9 @@ where
     T: ?Sized + 'static,
 {
     fn run(self: Rc<Self>, scope: &BindScope) {
-        self.ready(scope);
+        if !self.data.borrow().is_loaded {
+            self.load(scope)
+        }
     }
 }
 
