@@ -41,24 +41,6 @@ where
     }
 }
 
-// impl<S: Observable> HotReady for DynamicObs<Hot<Obs<S>>> {
-//     fn ready(self: Rc<Self>, scope: &BindScope) {
-//         let this = self.clone();
-//         self.0
-//             .bindings
-//             .borrow_mut()
-//             .update(scope, &this, |cx| self.0.source.get(cx));
-//     }
-// }
-// impl<S: ObservableBorrow> HotReady for DynamicObs<Hot<ObsBorrow<S>>> {
-//     fn ready(self: Rc<Self>, scope: &BindScope) {
-//         let this = self.clone();
-//         self.0.bindings.borrow_mut().update(scope, &this, |cx| {
-//             self.0.source.borrow(cx);
-//         });
-//     }
-// }
-
 impl<T: 'static + ?Sized> HotReady for DynamicObs<Hot<DynObsRef<T>>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();

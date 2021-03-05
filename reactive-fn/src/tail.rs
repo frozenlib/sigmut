@@ -6,116 +6,116 @@ use std::{
     rc::Rc,
 };
 
-pub struct DynTail<T: 'static>(Tail<DynObs<T>>);
+// pub struct DynTail<T: 'static>(Tail<DynObs<T>>);
 
-impl<T> DynTail<T> {
-    pub(crate) fn new(source: DynObs<T>, scope: &BindScope) -> (T, Self) {
-        let (value, s) = Tail::new(source, scope);
-        (value, Self(s))
-    }
-    pub fn empty() -> Self {
-        Self(Tail::empty())
-    }
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
+// impl<T> DynTail<T> {
+//     pub(crate) fn new(source: DynObs<T>, scope: &BindScope) -> (T, Self) {
+//         let (value, s) = Tail::new(source, scope);
+//         (value, Self(s))
+//     }
+//     pub fn empty() -> Self {
+//         Self(Tail::empty())
+//     }
+//     pub fn is_empty(&self) -> bool {
+//         self.0.is_empty()
+//     }
 
-    pub fn subscribe(self, f: impl FnMut(T) + 'static) -> Subscription {
-        self.0.subscribe(f)
-    }
-    pub fn subscribe_to<O: Observer<T>>(self, o: O) -> DynSubscriber<O> {
-        self.0.subscribe_to(o).into_dyn()
-    }
-    pub fn fold<St: 'static>(
-        self,
-        initial_state: St,
-        f: impl Fn(St, T) -> St + 'static,
-    ) -> Fold<St> {
-        self.0.fold(initial_state, f)
-    }
-    pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
-        self.0.collect_to(e)
-    }
-    pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
-        self.0.collect()
-    }
-    pub fn collect_vec(self) -> Fold<Vec<T>> {
-        self.0.collect_vec()
-    }
-}
+//     pub fn subscribe(self, f: impl FnMut(T) + 'static) -> Subscription {
+//         self.0.subscribe(f)
+//     }
+//     pub fn subscribe_to<O: Observer<T>>(self, o: O) -> DynSubscriber<O> {
+//         self.0.subscribe_to(o).into_dyn()
+//     }
+//     pub fn fold<St: 'static>(
+//         self,
+//         initial_state: St,
+//         f: impl Fn(St, T) -> St + 'static,
+//     ) -> Fold<St> {
+//         self.0.fold(initial_state, f)
+//     }
+//     pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
+//         self.0.collect_to(e)
+//     }
+//     pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
+//         self.0.collect()
+//     }
+//     pub fn collect_vec(self) -> Fold<Vec<T>> {
+//         self.0.collect_vec()
+//     }
+// }
 
-pub struct Tail<S>(Option<TailData<S>>);
+// pub struct Tail<S>(Option<TailData<S>>);
 
-impl<S: Observable> Tail<S> {
-    pub(super) fn new(source: S, scope: &BindScope) -> (S::Item, Self) {
-        let state = TailState::new();
-        let mut b = state.borrow_mut();
-        let value = b.bindings.update(scope, &state, |cx| source.get(cx));
-        let data = if b.bindings.is_empty() {
-            None
-        } else {
-            drop(b);
-            Some(TailData { source, state })
-        };
-        (value, Self(data))
-    }
-    pub fn empty() -> Self {
-        Self(None)
-    }
-    pub fn is_empty(&self) -> bool {
-        self.0.is_none()
-    }
+// impl<S: Observable> Tail<S> {
+//     pub(super) fn new(source: S, scope: &BindScope) -> (S::Item, Self) {
+//         let state = TailState::new();
+//         let mut b = state.borrow_mut();
+//         let value = b.bindings.update(scope, &state, |cx| source.get(cx));
+//         let data = if b.bindings.is_empty() {
+//             None
+//         } else {
+//             drop(b);
+//             Some(TailData { source, state })
+//         };
+//         (value, Self(data))
+//     }
+//     pub fn empty() -> Self {
+//         Self(None)
+//     }
+//     pub fn is_empty(&self) -> bool {
+//         self.0.is_none()
+//     }
 
-    pub fn subscribe(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
-        self.fold(f, move |mut f, x| {
-            f(x);
-            f
-        })
-        .into()
-    }
-    pub fn subscribe_to<O: Observer<S::Item>>(self, o: O) -> impl Subscriber<O> {
-        if let Some(this) = self.0 {
-            let source = Obs(this.source);
-            let fold = TailState::connect(this.state, (), |s| {
-                FoldBy::new_with_state(s, TailFoldByOp(ObserverOp::new(source, o)))
-            });
-            MayConstantSubscriber::Subscriber(subscriber(fold))
-        } else {
-            MayConstantSubscriber::Constant(RefCell::new(o))
-        }
-    }
+//     pub fn subscribe(self, f: impl FnMut(S::Item) + 'static) -> Subscription {
+//         self.fold(f, move |mut f, x| {
+//             f(x);
+//             f
+//         })
+//         .into()
+//     }
+//     pub fn subscribe_to<O: Observer<S::Item>>(self, o: O) -> impl Subscriber<O> {
+//         if let Some(this) = self.0 {
+//             let source = Obs(this.source);
+//             let fold = TailState::connect(this.state, (), |s| {
+//                 FoldBy::new_with_state(s, TailFoldByOp(ObserverOp::new(source, o)))
+//             });
+//             MayConstantSubscriber::Subscriber(subscriber(fold))
+//         } else {
+//             MayConstantSubscriber::Constant(RefCell::new(o))
+//         }
+//     }
 
-    pub fn fold<St: 'static>(
-        self,
-        initial_state: St,
-        f: impl Fn(St, S::Item) -> St + 'static,
-    ) -> Fold<St> {
-        if let Some(this) = self.0 {
-            let source = this.source;
-            let fold = TailState::connect(this.state, initial_state, |s| {
-                FoldBy::new_with_state(
-                    s,
-                    TailFoldByOp(fold_op(move |st, cx| f(st, source.get(cx)))),
-                )
-            });
-            Fold::new(fold)
-        } else {
-            Fold::constant(initial_state)
-        }
-    }
-    pub fn collect_to<E: Extend<S::Item> + 'static>(self, e: E) -> Fold<E> {
-        self.fold(e, |mut e, x| {
-            e.extend(once(x));
-            e
-        })
-    }
-    pub fn collect<E: Extend<S::Item> + Default + 'static>(self) -> Fold<E> {
-        self.collect_to(Default::default())
-    }
-    pub fn collect_vec(self) -> Fold<Vec<S::Item>> {
-        self.collect()
-    }
-}
+//     pub fn fold<St: 'static>(
+//         self,
+//         initial_state: St,
+//         f: impl Fn(St, S::Item) -> St + 'static,
+//     ) -> Fold<St> {
+//         if let Some(this) = self.0 {
+//             let source = this.source;
+//             let fold = TailState::connect(this.state, initial_state, |s| {
+//                 FoldBy::new_with_state(
+//                     s,
+//                     TailFoldByOp(fold_op(move |st, cx| f(st, source.get(cx)))),
+//                 )
+//             });
+//             Fold::new(fold)
+//         } else {
+//             Fold::constant(initial_state)
+//         }
+//     }
+//     pub fn collect_to<E: Extend<S::Item> + 'static>(self, e: E) -> Fold<E> {
+//         self.fold(e, |mut e, x| {
+//             e.extend(once(x));
+//             e
+//         })
+//     }
+//     pub fn collect<E: Extend<S::Item> + Default + 'static>(self) -> Fold<E> {
+//         self.collect_to(Default::default())
+//     }
+//     pub fn collect_vec(self) -> Fold<Vec<S::Item>> {
+//         self.collect()
+//     }
+// }
 
 pub struct DynTailRef<T: ?Sized + 'static>(TailRef<DynObsRef<T>>);
 
@@ -193,25 +193,25 @@ impl<S: ObservableRef> TailRef<S> {
         };
         (head, tail)
     }
-    pub(super) fn new_borrow<'a, B: ObservableBorrow<Item = S::Item>>(
-        source: &'a B,
-        scope: &BindScope,
-        to_ref: impl Fn(&B) -> S,
-    ) -> (Ref<'a, B::Item>, Self) {
-        let state = TailState::new();
-        let mut b = state.borrow_mut();
-        let r = b.bindings.update(scope, &state, |cx| source.borrow(cx));
-        let this = if b.bindings.is_empty() {
-            TailRef(None)
-        } else {
-            drop(b);
-            TailRef(Some(TailData {
-                source: to_ref(&source),
-                state,
-            }))
-        };
-        (r, this)
-    }
+    // pub(super) fn new_borrow<'a, B: ObservableBorrow<Item = S::Item>>(
+    //     source: &'a B,
+    //     scope: &BindScope,
+    //     to_ref: impl Fn(&B) -> S,
+    // ) -> (Ref<'a, B::Item>, Self) {
+    //     let state = TailState::new();
+    //     let mut b = state.borrow_mut();
+    //     let r = b.bindings.update(scope, &state, |cx| source.borrow(cx));
+    //     let this = if b.bindings.is_empty() {
+    //         TailRef(None)
+    //     } else {
+    //         drop(b);
+    //         TailRef(Some(TailData {
+    //             source: to_ref(&source),
+    //             state,
+    //         }))
+    //     };
+    //     (r, this)
+    // }
     pub fn empty() -> Self {
         Self(None)
     }

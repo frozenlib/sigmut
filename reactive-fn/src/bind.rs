@@ -18,7 +18,7 @@ impl<'a> BindContext<'a> {
     pub fn scope(&self) -> &BindScope {
         &self.scope
     }
-    pub fn with_no_sink<T>(f: impl FnOnce(&mut BindContext) -> T) -> T {
+    pub fn nul<T>(f: impl FnOnce(&mut BindContext) -> T) -> T {
         BindScope::with(|scope| f(&mut BindContext { scope, bb: None }))
     }
 }

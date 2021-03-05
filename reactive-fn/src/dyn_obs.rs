@@ -1,216 +1,255 @@
-// use super::*;
-// use futures::Future;
-// use std::{any::Any, borrow::Borrow, rc::Rc, task::Poll};
+use crate::*;
+use std::{any::Any, borrow::Borrow, rc::Rc};
 
-// #[derive(Derivative)]
-// #[derivative(Clone(bound = ""))]
-// pub struct DynObs<T: 'static + ?Sized>(pub(super) DynObsData<T>);
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
+pub struct DynObs<T: 'static + ?Sized>(DynObsData<T>);
 
-// #[derive(Derivative)]
-// #[derivative(Clone(bound = ""))]
-// pub(super) enum DynObsData<T: 'static + ?Sized> {
-//     Dyn(Rc<dyn DynamicObservable<Item = T>>),
-//     DynSource(Rc<dyn DynamicObservableSource<Item = T>>),
-// }
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
+enum DynObsData<T: 'static + ?Sized> {
+    Static(&'static T),
+    Dyn(Rc<dyn DynamicObservable<Item = T>>),
+    DynInner(Rc<dyn DynamicObservableInner<Item = T>>),
+}
 
-// impl<T: 'static> DynObs<T> {
-//     pub fn get(&self, cx: &mut BindContext) -> T {
-//         match &self.0 {
-//             DynObsData::Dyn(rc) => rc.dyn_get(cx),
-//             DynObsData::DynSource(rc) => rc.clone().dyn_get(cx),
-//         }
-//     }
-//     pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
-//         f(&self.get(cx), cx)
-//     }
-//     pub fn head(&self) -> T {
-//         BindContext::with_no_sink(|cx| self.get(cx))
-//     }
-//     pub fn head_tail(&self) -> (T, DynTail<T>) {
-//         BindScope::with(|scope| self.head_tail_with(scope))
-//     }
-//     pub fn head_tail_with(&self, scope: &BindScope) -> (T, DynTail<T>) {
-//         DynTail::new(self.clone(), scope)
-//     }
+impl<T: 'static + ?Sized> DynObs<T> {
+    pub(crate) fn from_dyn(rc: Rc<dyn DynamicObservable<Item = T>>) -> Self {
+        Self(DynObsData::Dyn(rc))
+    }
 
-//     pub fn new(get: impl Fn(&mut BindContext) -> T + 'static) -> Self {
-//         obs(get).into_dyn()
-//     }
-//     pub fn constant(value: T) -> Self
-//     where
-//         T: Clone,
-//     {
-//         obs_constant(value).into_dyn()
-//     }
+    pub(crate) fn from_dyn_inner(rc: Rc<dyn DynamicObservableInner<Item = T>>) -> Self {
+        Self(DynObsData::DynInner(rc))
+    }
 
-//     pub(crate) fn from_dyn(inner: impl DynamicObservable<Item = T>) -> Self {
-//         Self(DynObsData::Dyn(Rc::new(inner)))
-//     }
-//     pub(crate) fn from_dyn_source(rc: Rc<dyn DynamicObservableSource<Item = T>>) -> Self {
-//         Self(DynObsData::DynSource(rc))
-//     }
+    pub fn new(f: impl Fn(&mut BindContext) -> T + 'static) -> Self
+    where
+        T: Sized,
+    {
+        obs(f).into_dyn()
+    }
 
-//     pub fn as_ref(&self) -> DynObsRef<T> {
-//         match self.0.clone() {
-//             DynObsData::Dyn(rc) => DynObsRef::from_dyn(rc.as_ref()),
-//             DynObsData::DynSource(rc) => DynObsRef::from_dyn_source(rc.as_ref()),
-//         }
-//     }
-//     pub fn obs(&self) -> Obs<Self> {
-//         Obs(self.clone())
-//     }
+    pub fn new_with<S: 'static>(
+        this: S,
+        f: impl Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
+    ) -> Self {
+        obs_with(this, f).into_dyn()
+    }
+    pub fn new_constant(value: T) -> Self
+    where
+        T: Sized,
+    {
+        Self::new_with(value, |value, f, cx| f(value, cx))
+    }
+    pub fn new_static(value: &'static T) -> Self {
+        Self(DynObsData::Static(value))
+    }
 
-//     pub fn map<U>(&self, f: impl Fn(T) -> U + 'static) -> DynObs<U> {
-//         self.obs().map(f).into_dyn()
-//     }
-//     pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObsRef<U> {
-//         self.as_ref().map_ref(f)
-//     }
-//     pub fn map_borrow<B: ?Sized>(&self) -> DynObsRef<B>
-//     where
-//         T: Borrow<B>,
-//     {
-//         self.as_ref().map_borrow()
-//     }
-//     pub fn map_as_ref<U: ?Sized>(&self) -> DynObsRef<U>
-//     where
-//         T: AsRef<U>,
-//     {
-//         self.as_ref().map_as_ref()
-//     }
+    pub fn obs(&self) -> Obs<impl Observable<Item = T>> {
+        Obs(self.clone())
+    }
+    pub fn get(&self, cx: &mut BindContext) -> T::Owned
+    where
+        T: ToOwned,
+    {
+        self.obs().get(cx)
+    }
+    pub fn get_head(&self) -> T::Owned
+    where
+        T: ToOwned,
+    {
+        self.obs().get_head()
+    }
+    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
+        if let DynObsData::Static(x) = &self.0 {
+            f(x, cx)
+        } else {
+            let mut output = None;
+            let mut f = Some(f);
+            self.dyn_with(
+                &mut |value, cx| output = Some((f.take().unwrap())(value, cx)),
+                cx,
+            );
+            output.unwrap()
+        }
+    }
+    fn dyn_with(&self, f: &mut dyn FnMut(&T, &mut BindContext), cx: &mut BindContext) {
+        match &self.0 {
+            DynObsData::Static(value) => f(value, cx),
+            DynObsData::Dyn(x) => x.dyn_with(f, cx),
+            DynObsData::DynInner(x) => x.clone().dyn_with(f, cx),
+        }
+    }
 
-//     pub fn map_into<U>(&self) -> DynObs<U>
-//     where
-//         T: Into<U>,
-//     {
-//         if let Some(s) = Any::downcast_ref::<DynObs<U>>(self) {
-//             s.clone()
-//         } else {
-//             self.map(|x| x.into())
-//         }
-//     }
-//     pub fn flat_map<U>(&self, f: impl Fn(T) -> DynObs<U> + 'static) -> DynObs<U> {
-//         self.obs().flat_map(f).into_dyn()
-//     }
-//     pub fn map_async_with<Fut>(
-//         &self,
-//         f: impl Fn(T) -> Fut + 'static,
-//         sp: impl LocalSpawn,
-//     ) -> DynObsBorrow<Poll<Fut::Output>>
-//     where
-//         Fut: Future + 'static,
-//     {
-//         self.obs().map_async_with(f, sp).into_dyn()
-//     }
+    pub fn with_head<U>(&self, f: impl FnOnce(&T) -> U) -> U {
+        BindContext::nul(|cx| self.with(|value, _| f(value), cx))
+    }
 
-//     pub fn cached(&self) -> DynObsBorrow<T> {
-//         self.obs().cached().into_dyn()
-//     }
-//     pub fn scan<St: 'static>(
-//         &self,
-//         initial_state: St,
-//         f: impl Fn(St, T) -> St + 'static,
-//     ) -> DynObsBorrow<St> {
-//         self.obs().scan(initial_state, f).into_dyn()
-//     }
-//     pub fn filter_scan<St: 'static>(
-//         &self,
-//         initial_state: St,
-//         predicate: impl Fn(&St, &T) -> bool + 'static,
-//         f: impl Fn(St, T) -> St + 'static,
-//     ) -> DynObsBorrow<St> {
-//         self.obs()
-//             .filter_scan(initial_state, predicate, f)
-//             .into_dyn()
-//     }
+    // pub fn head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTailRef<T>) {
+    //     BindScope::with(|scope| self.head_tail_with(scope, f))
+    // }
+    // pub fn head_tail_with<U>(
+    //     &self,
+    //     scope: &BindScope,
+    //     f: impl FnOnce(&T) -> U,
+    // ) -> (U, DynTailRef<T>) {
+    //     if let DynObsData::Static(x) = &self.0 {
+    //         (f(x), DynTailRef::empty())
+    //     } else {
+    //         DynTailRef::new(self.clone(), scope, f)
+    //     }
+    // }
+    // pub fn constant_map<S: 'static>(value: S, f: impl Fn(&S) -> &T + 'static) -> Self {
+    //     Self::new(value, move |value, f_outer, cx| f_outer(f(value), cx))
+    // }
+    // pub fn constant_borrow<S: Borrow<T> + 'static>(value: S) -> Self {
+    //     Self::new(value, move |value, f_outer, cx| f_outer(value.borrow(), cx))
+    // }
 
-//     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObsBorrow<T> {
-//         self.obs().dedup_by(eq).into_dyn()
-//     }
-//     pub fn dedup_by_key<K: PartialEq>(
-//         &self,
-//         to_key: impl Fn(&T) -> K + 'static,
-//     ) -> DynObsBorrow<T> {
-//         self.obs().dedup_by_key(to_key).into_dyn()
-//     }
+    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
+        self.obs().map(f).into_dyn()
+    }
+    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObs<U> {
+        if let DynObsData::Static(x) = &self.0 {
+            DynObs::new_static(f(x))
+        } else {
+            self.obs().map_ref(f).into_dyn()
+        }
+    }
+    pub fn map_borrow<B: ?Sized>(&self) -> DynObs<B>
+    where
+        T: Borrow<B>,
+    {
+        if let Some(b) = Any::downcast_ref::<DynObs<B>>(self) {
+            b.clone()
+        } else {
+            self.map_ref(|x| x.borrow())
+        }
+    }
+    pub fn map_as_ref<U: ?Sized>(&self) -> DynObs<U>
+    where
+        T: AsRef<U>,
+    {
+        if let Some(s) = Any::downcast_ref::<DynObs<U>>(self) {
+            s.clone()
+        } else {
+            self.map_ref(|x| x.as_ref())
+        }
+    }
+    pub fn flat_map<U>(&self, f: impl Fn(&T) -> DynObs<U> + 'static) -> DynObs<U> {
+        self.obs().flat_map(f).into_dyn()
+    }
+    pub fn flat_map_ref<U>(&self, f: impl Fn(&T) -> &DynObs<U> + 'static) -> DynObs<U> {
+        self.obs().flat_map_ref(f).into_dyn()
+    }
+    // pub fn map_async_with<Fut>(
+    //     &self,
+    //     f: impl Fn(&T) -> Fut + 'static,
+    //     sp: impl LocalSpawn,
+    // ) -> DynObsBorrow<Poll<Fut::Output>>
+    // where
+    //     Fut: Future + 'static,
+    // {
+    //     self.obs().map_async_with(f, sp).into_dyn()
+    // }
+    // pub fn scan<St: 'static>(
+    //     &self,
+    //     initial_state: St,
+    //     f: impl Fn(St, &T) -> St + 'static,
+    // ) -> DynObsBorrow<St> {
+    //     self.obs().scan(initial_state, f).into_dyn()
+    // }
+    // pub fn filter_scan<St: 'static>(
+    //     &self,
+    //     initial_state: St,
+    //     predicate: impl Fn(&St, &T) -> bool + 'static,
+    //     f: impl Fn(St, &T) -> St + 'static,
+    // ) -> DynObsBorrow<St> {
+    //     self.obs()
+    //         .filter_scan(initial_state, predicate, f)
+    //         .into_dyn()
+    // }
 
-//     pub fn dedup(&self) -> DynObsBorrow<T>
-//     where
-//         T: PartialEq,
-//     {
-//         self.obs().dedup().into_dyn()
-//     }
+    // pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObsBorrow<T>
+    // where
+    //     T: Clone,
+    // {
+    //     self.obs().dedup_by(eq).into_dyn()
+    // }
+    // pub fn dedup_by_key<K: PartialEq>(&self, to_key: impl Fn(&T) -> K + 'static) -> DynObsBorrow<T>
+    // where
+    //     T: Clone,
+    // {
+    //     self.obs().dedup_by_key(to_key).into_dyn()
+    // }
 
-//     pub fn fold<St: 'static>(
-//         &self,
-//         initial_state: St,
-//         f: impl Fn(St, T) -> St + 'static,
-//     ) -> Fold<St> {
-//         self.obs().fold(initial_state, f)
-//     }
-//     pub fn collect_to<E: Extend<T> + 'static>(&self, e: E) -> Fold<E> {
-//         self.obs().collect_to(e)
-//     }
-//     pub fn collect<E: Extend<T> + Default + 'static>(&self) -> Fold<E> {
-//         self.obs().collect()
-//     }
-//     pub fn collect_vec(&self) -> Fold<Vec<T>> {
-//         self.obs().collect_vec()
-//     }
+    // pub fn dedup(&self) -> DynObsBorrow<T>
+    // where
+    //     T: PartialEq + Clone,
+    // {
+    //     self.obs().dedup().into_dyn()
+    // }
 
-//     pub fn subscribe(&self, f: impl FnMut(T) + 'static) -> Subscription {
-//         self.obs().subscribe(f)
-//     }
-//     pub fn subscribe_to<O: Observer<T>>(self, o: O) -> DynSubscriber<O> {
-//         self.obs().subscribe_to(o).into_dyn()
-//     }
+    // pub fn fold<St: 'static>(
+    //     &self,
+    //     initial_state: St,
+    //     f: impl Fn(St, &T) -> St + 'static,
+    // ) -> Fold<St> {
+    //     self.obs().fold(initial_state, f)
+    // }
+    // pub fn collect_to<E: for<'a> Extend<&'a T> + 'static>(&self, e: E) -> Fold<E> {
+    //     self.obs().collect_to(e)
+    // }
+    // pub fn collect<E: for<'a> Extend<&'a T> + Default + 'static>(&self) -> Fold<E> {
+    //     self.obs().collect()
+    // }
+    // pub fn collect_vec(&self) -> Fold<Vec<T>>
+    // where
+    //     T: Copy,
+    // {
+    //     self.obs().collect_vec()
+    // }
+    // pub fn subscribe(&self, f: impl FnMut(&T) + 'static) -> Subscription {
+    //     self.obs().subscribe(f)
+    // }
+    // pub fn subscribe_to<O>(self, o: O) -> DynSubscriber<O>
+    // where
+    //     for<'a> O: Observer<&'a T>,
+    // {
+    //     self.obs().subscribe_to(o).into_dyn()
+    // }
 
-//     pub fn subscribe_async_with<Fut>(
-//         &self,
-//         f: impl FnMut(T) -> Fut + 'static,
-//         sp: impl LocalSpawn,
-//     ) -> Subscription
-//     where
-//         Fut: Future<Output = ()> + 'static,
-//     {
-//         self.obs().subscribe_async_with(f, sp)
-//     }
+    // pub fn subscribe_async_with<Fut>(
+    //     &self,
+    //     f: impl FnMut(&T) -> Fut + 'static,
+    //     sp: impl LocalSpawn,
+    // ) -> Subscription
+    // where
+    //     Fut: Future<Output = ()> + 'static,
+    // {
+    //     self.obs().subscribe_async_with(f, sp)
+    // }
 
-//     pub fn hot(&self) -> Self {
-//         self.obs().hot().into_dyn()
-//     }
-
-//     pub fn stream(&self) -> impl futures::Stream<Item = T> {
-//         self.obs().stream()
-//     }
-// }
+    // pub fn hot(&self) -> Self {
+    //     self.obs().hot().into_dyn()
+    // }
+}
 // impl<T: 'static> DynObs<DynObs<T>> {
 //     pub fn flatten(&self) -> DynObs<T> {
 //         self.obs().flatten().into_dyn()
 //     }
 // }
+impl<T: ?Sized> Observable for DynObs<T> {
+    type Item = T;
 
-// impl<T> Observable for DynObs<T> {
-//     type Item = T;
-
-//     fn get(&self, cx: &mut BindContext) -> Self::Item {
-//         DynObs::get(self, cx)
-//     }
-//     fn into_dyn_obs(self) -> DynObs<Self::Item>
-//     where
-//         Self: Sized,
-//     {
-//         self
-//     }
-// }
-// impl<T> ObservableRef for DynObs<T> {
-//     type Item = T;
-
-//     fn with<U>(
-//         &self,
-//         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-//         cx: &mut BindContext,
-//     ) -> U {
-//         DynObs::with(self, f, cx)
-//     }
-// }
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
+        DynObs::with(self, f, cx)
+    }
+    fn into_dyn(self) -> DynObs<Self::Item> {
+        self
+    }
+}

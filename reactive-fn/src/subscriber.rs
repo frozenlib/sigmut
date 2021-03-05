@@ -4,33 +4,33 @@ use std::{
     cell::{Ref, RefCell, RefMut},
     rc::Rc,
 };
-pub trait Subscriber<O>: 'static {
-    fn borrow(&self) -> Ref<O>;
-    fn borrow_mut(&self) -> RefMut<O>;
-    fn into_dyn(self) -> DynSubscriber<O>;
+pub trait Subscriber<St>: 'static {
+    fn borrow(&self) -> Ref<St>;
+    fn borrow_mut(&self) -> RefMut<St>;
+    fn into_dyn(self) -> DynSubscriber<St>;
     fn into_subscription(self) -> Subscription;
 }
 
-pub struct DynSubscriber<O>(DynSubscriberData<O>);
+pub struct DynSubscriber<St>(DynSubscriberData<St>);
 
-enum DynSubscriberData<O> {
-    Subscriber(Rc<dyn InnerSubscriber<O>>),
-    Constant(RefCell<O>),
+enum DynSubscriberData<St> {
+    Subscriber(Rc<dyn InnerSubscriber<St>>),
+    Constant(RefCell<St>),
 }
-impl<O: 'static> Subscriber<O> for DynSubscriber<O> {
-    fn borrow(&self) -> Ref<O> {
+impl<St: 'static> Subscriber<St> for DynSubscriber<St> {
+    fn borrow(&self) -> Ref<St> {
         match &self.0 {
             DynSubscriberData::Subscriber(s) => s.borrow(),
             DynSubscriberData::Constant(o) => o.borrow(),
         }
     }
-    fn borrow_mut(&self) -> RefMut<O> {
+    fn borrow_mut(&self) -> RefMut<St> {
         match &self.0 {
             DynSubscriberData::Subscriber(s) => s.borrow_mut(),
             DynSubscriberData::Constant(o) => o.borrow_mut(),
         }
     }
-    fn into_dyn(self) -> DynSubscriber<O> {
+    fn into_dyn(self) -> DynSubscriber<St> {
         self
     }
     fn into_subscription(self) -> Subscription {
@@ -40,32 +40,32 @@ impl<O: 'static> Subscriber<O> for DynSubscriber<O> {
         }
     }
 }
-impl<O: 'static> From<DynSubscriber<O>> for Subscription {
-    fn from(s: DynSubscriber<O>) -> Self {
+impl<St: 'static> From<DynSubscriber<St>> for Subscription {
+    fn from(s: DynSubscriber<St>) -> Self {
         s.into_subscription()
     }
 }
 
-pub(crate) trait InnerSubscriber<O>: 'static {
-    fn borrow(&self) -> Ref<O>;
-    fn borrow_mut(&self) -> RefMut<O>;
+pub(crate) trait InnerSubscriber<St>: 'static {
+    fn borrow(&self) -> Ref<St>;
+    fn borrow_mut(&self) -> RefMut<St>;
     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
 }
 
-pub(crate) fn subscriber<O: 'static>(rc: Rc<impl InnerSubscriber<O>>) -> impl Subscriber<O> {
+pub(crate) fn subscriber<St: 'static>(rc: Rc<impl InnerSubscriber<St>>) -> impl Subscriber<St> {
     OuterSubscriber(rc)
 }
 
 struct OuterSubscriber<I>(Rc<I>);
 
-impl<I: InnerSubscriber<O>, O: 'static> Subscriber<O> for OuterSubscriber<I> {
-    fn borrow(&self) -> Ref<O> {
+impl<I: InnerSubscriber<St>, St: 'static> Subscriber<St> for OuterSubscriber<I> {
+    fn borrow(&self) -> Ref<St> {
         self.0.borrow()
     }
-    fn borrow_mut(&self) -> RefMut<O> {
+    fn borrow_mut(&self) -> RefMut<St> {
         self.0.borrow_mut()
     }
-    fn into_dyn(self) -> DynSubscriber<O> {
+    fn into_dyn(self) -> DynSubscriber<St> {
         DynSubscriber(DynSubscriberData::Subscriber(self.0))
     }
     fn into_subscription(self) -> Subscription {
@@ -73,24 +73,24 @@ impl<I: InnerSubscriber<O>, O: 'static> Subscriber<O> for OuterSubscriber<I> {
     }
 }
 
-pub(crate) enum MayConstantSubscriber<S, O> {
+pub(crate) enum MayConstantSubscriber<S, St> {
     Subscriber(S),
-    Constant(RefCell<O>),
+    Constant(RefCell<St>),
 }
-impl<S: Subscriber<O>, O: 'static> Subscriber<O> for MayConstantSubscriber<S, O> {
-    fn borrow(&self) -> Ref<O> {
+impl<S: Subscriber<St>, St: 'static> Subscriber<St> for MayConstantSubscriber<S, St> {
+    fn borrow(&self) -> Ref<St> {
         match self {
             Self::Subscriber(s) => s.borrow(),
             Self::Constant(o) => o.borrow(),
         }
     }
-    fn borrow_mut(&self) -> RefMut<O> {
+    fn borrow_mut(&self) -> RefMut<St> {
         match self {
             Self::Subscriber(s) => s.borrow_mut(),
             Self::Constant(o) => o.borrow_mut(),
         }
     }
-    fn into_dyn(self) -> DynSubscriber<O> {
+    fn into_dyn(self) -> DynSubscriber<St> {
         match self {
             Self::Subscriber(s) => s.into_dyn(),
             Self::Constant(o) => DynSubscriber(DynSubscriberData::Constant(o)),
