@@ -1,4 +1,4 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, iter::once};
 
 use crate::*;
 
@@ -303,48 +303,42 @@ impl<S: Observable> Obs<S> {
         self.dedup_by(move |old, new| old == new)
     }
 
-    // pub fn fold<St: 'static>(
-    //     self,
-    //     initial_state: St,
-    //     f: impl Fn(St, &S::Item) -> St + 'static,
-    // ) -> Fold<St> {
-    //     let mut f = f;
-    //     Fold::new(FoldBy::new(
-    //         initial_state,
-    //         fold_op(move |st, cx| {
-    //             let f = &mut f;
-    //             self.with(move |x, _| f(st, x), cx)
-    //         }),
-    //     ))
-    // }
-    // pub fn collect_to<E: for<'a> Extend<&'a S::Item> + 'static>(self, e: E) -> Fold<E> {
-    //     self.fold(e, |mut e, x| {
-    //         e.extend(once(x));
-    //         e
-    //     })
-    // }
-    // pub fn collect<E: for<'a> Extend<&'a S::Item> + Default + 'static>(self) -> Fold<E> {
-    //     self.collect_to(Default::default())
-    // }
-    // pub fn collect_vec(self) -> Fold<Vec<S::Item>>
-    // where
-    //     S::Item: Copy,
-    // {
-    //     self.collect()
-    // }
-    // pub fn subscribe(self, f: impl FnMut(&S::Item) + 'static) -> Subscription {
-    //     self.fold(f, move |mut f, x| {
-    //         f(x);
-    //         f
-    //     })
-    //     .into()
-    // }
-    // pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<O>
-    // where
-    //     for<'a> O: Observer<&'a S::Item>,
-    // {
-    //     subscriber(FoldBy::new((), ObserverOp::new(self, o)))
-    // }
+    pub fn fold<St: 'static>(
+        self,
+        st: St,
+        mut f: impl FnMut(&mut St, &S::Item) + 'static,
+    ) -> Fold<St> {
+        Fold::new(st, move |st, cx| self.with(|value, _cx| f(st, value), cx))
+    }
+    pub fn collect_to<E>(self, e: E) -> Fold<E>
+    where
+        S::Item: ToOwned,
+        E: Extend<<S::Item as ToOwned>::Owned> + 'static,
+    {
+        self.fold(e, |e, x| e.extend(once(x.to_owned())))
+    }
+    pub fn collect<E>(self) -> Fold<E>
+    where
+        S::Item: ToOwned,
+        E: Extend<<S::Item as ToOwned>::Owned> + Default + 'static,
+    {
+        self.collect_to(Default::default())
+    }
+    pub fn collect_vec(self) -> Fold<Vec<<S::Item as ToOwned>::Owned>>
+    where
+        S::Item: ToOwned,
+    {
+        self.collect()
+    }
+    pub fn subscribe(self, mut f: impl FnMut(&S::Item) + 'static) -> Subscription {
+        subscribe(move |cx| self.with(|value, _cx| f(value), cx))
+    }
+    pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<O>
+    where
+        for<'a> O: Observer<&'a S::Item>,
+    {
+        subscribe_to(o, move |o, cx| self.with(|value, _cx| o.next(value), cx))
+    }
     // pub fn subscribe_async_with<Fut>(
     //     self,
     //     f: impl FnMut(&S::Item) -> Fut + 'static,

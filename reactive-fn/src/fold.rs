@@ -18,17 +18,17 @@ impl<T: 'static> Fold<T> {
     pub(crate) fn from_dyn(fold: Rc<dyn DynamicFold<Output = T>>) -> Self {
         Self(FoldData::Dyn(fold))
     }
-    pub(crate) fn constant(value: T) -> Self {
-        Self(FoldData::Constant(value))
+    pub(crate) fn constant(st: T) -> Self {
+        Self(FoldData::Constant(st))
     }
-    pub fn new(value: T, mut f: impl FnMut(&mut T, &mut BindContext) + 'static) -> Self {
-        match Subscribe::new(Some(value), move |value, cx| {
-            if let Some(value) = value {
-                f(value, cx)
+    pub fn new(st: T, mut f: impl FnMut(&mut T, &mut BindContext) + 'static) -> Self {
+        match Subscribe::new(Some(st), move |st, cx| {
+            if let Some(st) = st {
+                f(st, cx)
             }
         }) {
             Ok(s) => Fold::from_dyn(s),
-            Err(value) => Fold::constant(value.unwrap()),
+            Err(st) => Fold::constant(st.unwrap()),
         }
     }
 
@@ -37,7 +37,7 @@ impl<T: 'static> Fold<T> {
     }
     pub fn stop_with(self, scope: &BindScope) -> T {
         match self.0 {
-            FoldData::Constant(value) => value,
+            FoldData::Constant(st) => st,
             FoldData::Dyn(this) => this.stop(scope),
         }
     }
