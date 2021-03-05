@@ -23,22 +23,7 @@ pub fn subscribe_to<St: 'static>(
     }
 }
 
-#[inline]
-pub fn fold<St: 'static>(
-    st: St,
-    mut f: impl FnMut(&mut St, &mut BindContext) + 'static,
-) -> Fold<St> {
-    match Subscribe::new(Some(st), move |st, cx| {
-        if let Some(st) = st {
-            f(st, cx)
-        }
-    }) {
-        Ok(s) => Fold::new(s),
-        Err(st) => Fold::constant(st.unwrap()),
-    }
-}
-
-struct Subscribe<St, F>(RefCell<SubscribeData<St, F>>);
+pub(crate) struct Subscribe<St, F>(RefCell<SubscribeData<St, F>>);
 struct SubscribeData<St, F> {
     st: St,
     f: F,
@@ -50,7 +35,7 @@ where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
 {
-    fn new(st: St, f: F) -> Result<Rc<Self>, St> {
+    pub(crate) fn new(st: St, f: F) -> Result<Rc<Self>, St> {
         let s = Rc::new(Self(RefCell::new(SubscribeData {
             st,
             f,
