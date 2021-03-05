@@ -134,18 +134,29 @@ where
     }
 }
 
-impl<T, F> DynamicFold for Subscribe<Option<T>, F>
+pub(crate) trait FoldState {
+    type Output;
+    fn finish(&mut self) -> Self::Output;
+}
+impl<T> FoldState for Option<T> {
+    type Output = T;
+    fn finish(&mut self) -> Self::Output {
+        self.take().unwrap()
+    }
+}
+
+impl<T: FoldState, F> DynamicFold for Subscribe<T, F>
 where
     T: 'static,
-    F: FnMut(&mut Option<T>, &mut BindContext) + 'static,
+    F: FnMut(&mut T, &mut BindContext) + 'static,
 {
-    type Output = T;
+    type Output = T::Output;
 
     fn stop(self: Rc<Self>, scope: &BindScope) -> Self::Output {
         self.ready(scope);
         let mut s = self.0.borrow_mut();
         s.bindings.clear();
-        s.st.take().unwrap()
+        s.st.finish()
     }
     fn as_dyn_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
