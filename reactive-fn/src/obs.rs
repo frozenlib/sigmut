@@ -2,7 +2,11 @@ use futures::Stream;
 
 use crate::*;
 use crate::{hot::*, into_stream::IntoStream};
-use std::{borrow::Borrow, iter::once};
+use std::{
+    any::{Any, TypeId},
+    borrow::Borrow,
+    iter::once,
+};
 
 #[derive(Clone)]
 pub struct Obs<S>(pub(super) S);
@@ -84,89 +88,19 @@ impl<S: Observable> Obs<S> {
         Obs(MapRef { s: self, f })
     }
 
-    // pub fn map_borrow<B: ?Sized + 'static>(self) -> ObsRef<impl ObservableRef<Item = B>>
-    // where
-    //     S::Item: Borrow<B>,
-    // {
-    //     struct MapBorrow<S, B>
-    //     where
-    //         S: ObservableRef,
-    //         S::Item: Borrow<B>,
-    //         B: ?Sized + 'static,
-    //     {
-    //         source: S,
-    //         _phantom: PhantomData<fn(&S::Item) -> &B>,
-    //     }
-    //     impl<S, B> ObservableRef for MapBorrow<S, B>
-    //     where
-    //         S: ObservableRef,
-    //         S::Item: Borrow<B>,
-    //         B: ?Sized + 'static,
-    //     {
-    //         type Item = B;
+    pub fn map_borrow<B: ?Sized + 'static>(self) -> Obs<impl Observable<Item = B>>
+    where
+        S::Item: Borrow<B>,
+    {
+        Obs(ConvertRefObservable::new(self, |x| x.borrow()))
+    }
 
-    //         fn with<U>(
-    //             &self,
-    //             f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-    //             cx: &mut BindContext,
-    //         ) -> U {
-    //             self.source.with(|value, cx| f(value.borrow(), cx), cx)
-    //         }
-
-    //         fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
-    //         where
-    //             Self: Sized,
-    //         {
-    //             self.source.into_dyn_obs_ref().map_borrow()
-    //         }
-    //     }
-    //     ObsRef(MapBorrow {
-    //         source: self.0,
-    //         _phantom: PhantomData,
-    //     })
-    // }
-
-    // pub fn map_as_ref<U: ?Sized + 'static>(self) -> ObsRef<impl ObservableRef<Item = U>>
-    // where
-    //     S::Item: AsRef<U>,
-    // {
-    //     struct MapAsRef<S, T>
-    //     where
-    //         S: ObservableRef,
-    //         S::Item: AsRef<T>,
-    //         T: ?Sized + 'static,
-    //     {
-    //         source: S,
-    //         _phantom: PhantomData<fn(&S::Item) -> &T>,
-    //     }
-    //     impl<S, T> ObservableRef for MapAsRef<S, T>
-    //     where
-    //         S: ObservableRef,
-    //         S::Item: AsRef<T>,
-    //         T: ?Sized + 'static,
-    //     {
-    //         type Item = T;
-
-    //         fn with<U>(
-    //             &self,
-    //             f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-    //             cx: &mut BindContext,
-    //         ) -> U {
-    //             self.source.with(|value, cx| f(value.as_ref(), cx), cx)
-    //         }
-
-    //         fn into_dyn_obs_ref(self) -> DynObsRef<Self::Item>
-    //         where
-    //             Self: Sized,
-    //         {
-    //             self.source.into_dyn_obs_ref().map_as_ref()
-    //         }
-    //     }
-    //     ObsRef(MapAsRef {
-    //         source: self.0,
-    //         _phantom: PhantomData,
-    //     })
-    // }
+    pub fn map_as_ref<U: ?Sized + 'static>(self) -> Obs<impl Observable<Item = U>>
+    where
+        S::Item: AsRef<U>,
+    {
+        Obs(ConvertRefObservable::new(self, |x| x.as_ref()))
+    }
 
     #[inline]
     pub fn flat_map<U: Observable>(
@@ -386,5 +320,50 @@ impl<S: Observable> Observable for Obs<S> {
 
     fn into_dyn(self) -> DynObs<Self::Item> {
         self.0.into_dyn()
+    }
+}
+
+struct ConvertRefObservable<S, F> {
+    s: S,
+    f: F,
+}
+impl<S, F, T> ConvertRefObservable<S, F>
+where
+    S: Observable,
+    F: Fn(&S::Item) -> &T + 'static,
+    T: ?Sized,
+{
+    fn new(s: S, f: F) -> Self {
+        Self { s, f }
+    }
+}
+
+impl<S, F, T> Observable for ConvertRefObservable<S, F>
+where
+    S: Observable,
+    F: Fn(&S::Item) -> &T + 'static,
+    T: ?Sized,
+{
+    type Item = T;
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
+        self.s.with(|value, cx| f((self.f)(value), cx), cx)
+    }
+
+    fn into_dyn(self) -> DynObs<Self::Item>
+    where
+        Self: Sized,
+    {
+        if TypeId::of::<S::Item>() == TypeId::of::<T>() {
+            Any::downcast_ref::<DynObs<T>>(&self.s.into_dyn())
+                .unwrap()
+                .clone()
+        } else {
+            Obs(self.s).map_ref(self.f).into_dyn()
+        }
     }
 }

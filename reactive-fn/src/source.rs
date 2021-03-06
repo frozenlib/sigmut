@@ -18,11 +18,10 @@ where
         Obs(self)
     }
     pub fn into_dyn(self) -> DynObs<T> {
-        todo!()
-        // match self {
-        //     Source::Constant(value) => DynObs::new_constant_map(value, |value| value.borrow()),
-        //     Source::Obs(o) => o.into_dyn(),
-        // }
+        match self {
+            Source::Constant(value) => DynObs::new_constant_map_ref(value, |value| value.borrow()),
+            Source::Obs(o) => o.into_dyn(),
+        }
     }
 
     pub fn get(&self, cx: &mut BindContext) -> T::Owned {
@@ -129,66 +128,37 @@ where
     }
 }
 
-impl<T, S> From<Obs<S>> for Source<T>
+impl<S> From<Obs<S>> for Source<S::Item>
 where
     S: Observable,
-    S::Item: Copy + Into<T>,
-    T: ToOwned,
+    S::Item: ToOwned,
 {
-    fn from(_value: Obs<S>) -> Self {
-        todo!()
-        //Source::Obs(value.map_into().into_dyn())
+    fn from(value: Obs<S>) -> Self {
+        value.into_dyn().into()
     }
 }
-impl<T, S> From<&Obs<S>> for Source<T>
-where
-    S: Observable,
-    S::Item: Copy + Into<T>,
-    T: ToOwned,
-{
-    fn from(value: &Obs<S>) -> Self {
+
+impl<T: ?Sized + ToOwned> From<DynObs<T>> for Source<T> {
+    fn from(value: DynObs<T>) -> Self {
+        Source::Obs(value)
+    }
+}
+impl<T: ?Sized + ToOwned> From<&DynObs<T>> for Source<T> {
+    fn from(value: &DynObs<T>) -> Self {
         value.clone().into()
     }
 }
 
-impl<T, S> From<DynObs<S>> for Source<T>
-where
-    S: Observable,
-    S::Item: Copy + Into<T>,
-    T: ToOwned,
-{
-    fn from(_value: DynObs<S>) -> Self {
-        todo!()
-        //Source::Obs(value.map_into())
-    }
-}
-impl<T, S> From<&DynObs<S>> for Source<T>
-where
-    S: Observable,
-    S::Item: Copy + Into<T>,
-    T: ToOwned,
-{
-    fn from(value: &DynObs<S>) -> Self {
-        value.clone().into()
-    }
-}
-
-impl<T: Copy> From<&Source<T>> for Source<T> {
-    fn from(value: &Source<T>) -> Self {
-        value.clone()
-    }
-}
-impl<T> From<Rc<T>> for Source<Rc<T>> {
+impl<T: ?Sized> From<Rc<T>> for Source<Rc<T>> {
     fn from(value: Rc<T>) -> Self {
         Source::Constant(value)
     }
 }
-impl<T> From<&Rc<T>> for Source<Rc<T>> {
+impl<T: ?Sized> From<&Rc<T>> for Source<Rc<T>> {
     fn from(value: &Rc<T>) -> Self {
         value.clone().into()
     }
 }
-
 impl<T> From<Arc<T>> for Source<Arc<T>> {
     fn from(value: Arc<T>) -> Self {
         Source::Constant(value)

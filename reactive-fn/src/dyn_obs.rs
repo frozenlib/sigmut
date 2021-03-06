@@ -43,6 +43,9 @@ impl<T: 'static + ?Sized> DynObs<T> {
     {
         Self::new_with(value, |value, f, cx| f(value, cx))
     }
+    pub fn new_constant_map_ref<S: 'static>(value: S, f: impl Fn(&S) -> &T + 'static) -> Self {
+        Self::new_with(value, move |value, f_outer, cx| f_outer(f(value), cx))
+    }
     pub fn new_static(value: &'static T) -> Self {
         Self(DynObsData::Static(value))
     }
@@ -97,13 +100,6 @@ impl<T: 'static + ?Sized> DynObs<T> {
             DynTail::new(self.clone(), scope, f)
         }
     }
-    // pub fn constant_map<S: 'static>(value: S, f: impl Fn(&S) -> &T + 'static) -> Self {
-    //     Self::new(value, move |value, f_outer, cx| f_outer(f(value), cx))
-    // }
-    // pub fn constant_borrow<S: Borrow<T> + 'static>(value: S) -> Self {
-    //     Self::new(value, move |value, f_outer, cx| f_outer(value.borrow(), cx))
-    // }
-
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
         self.obs().map(f).into_dyn()
     }
