@@ -1,5 +1,5 @@
 pub mod cell;
-// pub mod collections;
+pub mod collections;
 pub mod collector;
 pub mod fmt;
 
@@ -28,9 +28,9 @@ use derivative::Derivative;
 pub use bind::*;
 // pub use cache::Cache;
 pub use cell::ObsCell;
-// pub use collections::{
-//     DynObsList, DynObsListAge, ListChange, ListChangeKind, ObsListCell, ObsListCellAge, SourceList,
-// };
+pub use collections::{
+    DynObsList, DynObsListAge, ListChange, ListChangeKind, ObsListCell, ObsListCellAge, SourceList,
+};
 pub use collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector};
 pub use dyn_obs::*;
 pub use fmt::{obs_display, IntoSourceStr, ObsDisplay, ObservableDisplay, SourceStr};
