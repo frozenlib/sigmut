@@ -1,6 +1,6 @@
 pub mod cell;
 // pub mod collections;
-// pub mod collector;
+pub mod collector;
 // pub mod fmt;
 
 mod bind;
@@ -17,7 +17,7 @@ mod observable;
 mod observer;
 mod runtime;
 mod scan;
-// mod sink;
+mod sink;
 // mod source;
 // mod source_from;
 // mod source_ref;
@@ -33,7 +33,7 @@ pub use cell::ObsCell;
 // pub use collections::{
 //     DynObsList, DynObsListAge, ListChange, ListChangeKind, ObsListCell, ObsListCellAge, SourceList,
 // };
-// pub use collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector};
+pub use collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector};
 pub use dyn_obs::*;
 // // pub use fmt::{obs_display, IntoSourceStr, ObsDisplay, ObservableDisplay, SourceStr};
 pub use fold::*;
@@ -43,7 +43,7 @@ pub use observable::*;
 pub use observer::*;
 pub use runtime::*;
 pub use scan::*;
-// pub use sink::*;
+pub use sink::*;
 // pub use source::*;
 // pub use source_from::*;
 // pub use source_ref::*;
