@@ -17,51 +17,6 @@ where
     pub fn obs(self) -> Obs<impl Observable<Item = T>> {
         Obs(self)
     }
-    pub fn into_dyn(self) -> DynObs<T> {
-        match self {
-            Source::Constant(value) => DynObs::new_constant_map_ref(value, |value| value.borrow()),
-            Source::Obs(o) => o.into_dyn(),
-        }
-    }
-
-    pub fn get(&self, cx: &mut BindContext) -> T::Owned {
-        match self {
-            Self::Constant(value) => value.borrow().to_owned(),
-            Self::Obs(obs) => obs.get(cx),
-        }
-    }
-    pub fn get_head(self) -> T::Owned {
-        match self {
-            Self::Constant(value) => value.borrow().to_owned(),
-            Self::Obs(obs) => obs.get_head(),
-        }
-    }
-    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
-        match self {
-            Self::Constant(value) => f(value.borrow(), cx),
-            Self::Obs(obs) => obs.with(|value, cx| f(value, cx), cx),
-        }
-    }
-    pub fn with_head<U>(&self, f: impl FnOnce(&T) -> U) -> U {
-        match self {
-            Self::Constant(value) => f(value.borrow()),
-            Self::Obs(obs) => obs.with_head(f),
-        }
-    }
-
-    pub fn head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
-        match self {
-            Source::Constant(value) => (f(value.borrow()), DynTail::empty()),
-            Source::Obs(o) => o.head_tail(f),
-        }
-    }
-    pub fn head_tail_with<U>(&self, scope: &BindScope, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
-        match self {
-            Source::Constant(value) => (f(value.borrow()), DynTail::empty()),
-            Source::Obs(o) => o.head_tail_with(scope, f),
-        }
-    }
-
     pub fn map<U>(self, f: impl Fn(&T) -> U + 'static) -> Source<U>
     where
         T: Sized + ToOwned<Owned = T>,
@@ -72,44 +27,6 @@ where
             Source::Obs(o) => Source::Obs(o.map(f)),
         }
     }
-
-    // pub fn fold<St: 'static>(
-    //     self,
-    //     initial_state: St,
-    //     f: impl Fn(St, T) -> St + 'static,
-    // ) -> Fold<St> {
-    //     match self {
-    //         Source::Constant(x) => Fold::constant(f(initial_state, x)),
-    //         Source::Obs(obs) => obs.fold(initial_state, f),
-    //     }
-    // }
-    // pub fn collect_to<E: Extend<T> + 'static>(self, e: E) -> Fold<E> {
-    //     match self {
-    //         Source::Constant(x) => {
-    //             let mut e = e;
-    //             e.extend(once(x));
-    //             Fold::constant(e)
-    //         }
-    //         Source::Obs(obs) => obs.collect_to(e),
-    //     }
-    // }
-    // pub fn collect<E: Extend<T> + Default + 'static>(self) -> Fold<E> {
-    //     self.collect_to(Default::default())
-    // }
-    // pub fn collect_vec(self) -> Fold<Vec<T>> {
-    //     self.collect()
-    // }
-
-    // pub fn subscribe(self, f: impl FnMut(T) + 'static) -> Subscription {
-    //     match self {
-    //         Source::Constant(x) => {
-    //             let mut f = f;
-    //             f(x);
-    //             Subscription::empty()
-    //         }
-    //         Source::Obs(obs) => obs.subscribe(f),
-    //     }
-    // }
 }
 impl<T> Observable for Source<T>
 where
@@ -122,13 +39,19 @@ where
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         cx: &mut BindContext,
     ) -> U {
-        self.with(f, cx)
+        match self {
+            Self::Constant(value) => f(value.borrow(), cx),
+            Self::Obs(obs) => obs.with(|value, cx| f(value, cx), cx),
+        }
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
         Self: Sized,
     {
-        self.into_dyn()
+        match self {
+            Source::Constant(value) => DynObs::new_constant_map_ref(value, |value| value.borrow()),
+            Source::Obs(o) => o.into_dyn(),
+        }
     }
 }
 
