@@ -1,11 +1,15 @@
 use super::*;
 use std::{
-    any::Any,
     cell::{Ref, RefCell},
     future::Future,
     rc::{Rc, Weak},
     task::Poll,
 };
+
+pub trait LocalSpawn: 'static {
+    type Handle;
+    fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle;
+}
 
 pub struct MapAsync<S, Fut, Sp>
 where
@@ -103,7 +107,7 @@ where
 //         self
 //     }
 // }
-impl<S, Fut, Sp> DynamicObservableRefSource for MapAsync<S, Fut, Sp>
+impl<S, Fut, Sp> DynamicObservableInner for MapAsync<S, Fut, Sp>
 where
     S: Observable<Item = Fut>,
     Fut: Future + 'static,
