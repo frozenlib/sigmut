@@ -2,13 +2,13 @@ use reactive_fn::*;
 use std::collections::HashSet;
 
 #[test]
-fn re_constant_test() {
+fn constant() {
     let r = obs_constant(2).collect_vec();
     assert_eq!(r.stop(), vec![2]);
 }
 
 #[test]
-fn re_new() {
+fn new() {
     let a = ObsCell::new(2);
     let a_ = a.clone();
     let r = obs(move |cx| a_.get(cx)).collect_vec();
@@ -20,7 +20,7 @@ fn re_new() {
 }
 
 #[test]
-fn re_new_cell2() {
+fn new_cell2() {
     let cell1 = ObsCell::new(1);
     let cell2 = ObsCell::new(2);
 
@@ -37,7 +37,7 @@ fn re_new_cell2() {
 }
 
 #[test]
-fn re_map() {
+fn map() {
     let a = ObsCell::new(2);
     let r = a.obs().map(|x| x * 2).collect_vec();
 
@@ -48,16 +48,12 @@ fn re_map() {
 }
 
 #[test]
-fn re_flat_map() {
+fn flat_map() {
     let a = [ObsCell::new(5), ObsCell::new(10)];
     let a_ = a.clone();
 
     let b = ObsCell::new(0);
-
-    let r = b
-        .obs()
-        .flat_map(move |&x| a_[x].obs().cloned())
-        .collect_vec();
+    let r = b.obs().flat_map(move |&x| a_[x].obs()).collect_vec();
 
     a[0].set(6);
     a[1].set(12);
@@ -73,21 +69,22 @@ fn re_flat_map() {
     assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
 }
 
+// TODO
+// #[test]
+// fn cahced() {
+//     let cell = ObsCell::new(0);
+//     let r = cell.obs().map(|x| x + 1).cached().collect_vec();
+
+//     cell.set(5);
+//     cell.set(10);
+
+//     assert_eq!(r.stop(), vec![1, 6, 11]);
+// }
+
 #[test]
-fn re_cahced() {
-    let cell = ObsCell::new(0);
-    let r = cell.obs().map(|x| x + 1).cached().collect_vec();
-
-    cell.set(5);
-    cell.set(10);
-
-    assert_eq!(r.stop(), vec![1, 6, 11]);
-}
-
-#[test]
-fn re_scan() {
+fn scan() {
     let cell = ObsCell::new(2);
-    let r = cell.obs().scan(10, |s, x| s + x).collect_vec();
+    let r = cell.obs().scan(10, |s, x| *s += x).collect_vec();
 
     cell.set(3);
     cell.set(4);
@@ -96,11 +93,11 @@ fn re_scan() {
     assert_eq!(r.stop(), vec![12, 15, 19, 24]);
 }
 #[test]
-fn re_filter_scan() {
+fn filter_scan() {
     let cell = ObsCell::new(2);
     let r = cell
         .obs()
-        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| s + x)
+        .filter_scan(10, |_s, x| x % 2 != 0, |s, x| *s += x)
         .collect_vec();
 
     cell.set(3);
@@ -112,7 +109,7 @@ fn re_filter_scan() {
 }
 
 #[test]
-fn re_same_value() {
+fn same_value() {
     let cell = ObsCell::new(5);
     let r = cell.obs().collect_vec();
 
@@ -122,7 +119,7 @@ fn re_same_value() {
     assert_eq!(r.stop(), vec![5, 5, 5]);
 }
 #[test]
-fn re_dedup() {
+fn dedup() {
     let cell = ObsCell::new(5);
     let r = cell.obs().dedup().collect_vec();
 
@@ -136,7 +133,7 @@ fn re_dedup() {
 }
 
 #[test]
-fn re_dedup_by_key_1() {
+fn dedup_by_key_1() {
     let cell = ObsCell::new((5, 1));
     let r = cell.obs().dedup_by_key(|&(x, _)| x).collect_vec();
 
@@ -150,7 +147,7 @@ fn re_dedup_by_key_1() {
 }
 
 #[test]
-fn re_dedup_by_key_2() {
+fn dedup_by_key_2() {
     let cell = ObsCell::new((5, 1));
     let obs = cell.obs().dedup_by_key(|&(x, _)| x);
 
@@ -165,7 +162,7 @@ fn re_dedup_by_key_2() {
 }
 
 #[test]
-fn re_dedup_by() {
+fn dedup_by() {
     let cell = ObsCell::new((5, 1));
     let r = cell
         .obs()
@@ -182,9 +179,9 @@ fn re_dedup_by() {
 }
 
 #[test]
-fn re_fold() {
+fn fold() {
     let cell = ObsCell::new(1);
-    let fold = cell.obs().fold(2, |s, x| s + x);
+    let fold = cell.obs().fold(2, |s, x| *s += x);
 
     cell.set(5);
     cell.set(10);
@@ -192,7 +189,7 @@ fn re_fold() {
     assert_eq!(fold.stop(), 18);
 }
 #[test]
-fn re_collect_to() {
+fn collect_to() {
     let cell = ObsCell::new(1);
     let fold = cell.obs().collect_to(HashSet::new());
 
@@ -204,7 +201,7 @@ fn re_collect_to() {
     assert_eq!(fold.stop(), e);
 }
 #[test]
-fn re_collect() {
+fn collect() {
     let cell = ObsCell::new(1);
     let fold = cell.obs().collect_to(HashSet::new());
 
@@ -218,7 +215,7 @@ fn re_collect() {
 }
 
 #[test]
-fn re_collect_vec() {
+fn collect_vec() {
     let cell = ObsCell::new(1);
     let fold = cell.obs().collect_vec();
 
@@ -230,7 +227,7 @@ fn re_collect_vec() {
 }
 
 #[test]
-fn re_subscribe() {
+fn subscribe() {
     use std::cell::RefCell;
     use std::rc::Rc;
     let cell = ObsCell::new(0);
@@ -253,9 +250,9 @@ fn re_subscribe() {
 }
 
 #[test]
-fn re_hot() {
+fn hot() {
     let cell = ObsCell::new(1);
-    let obs = cell.obs().scan(0, |s, x| s + x);
+    let obs = cell.obs().scan(0, |s, x| *s += x);
 
     let hot = obs.hot();
 
@@ -266,9 +263,9 @@ fn re_hot() {
 }
 
 #[test]
-fn re_hot_no() {
+fn hot_no() {
     let cell = ObsCell::new(1);
-    let obs = cell.obs().scan(0, |s, x| s + x);
+    let obs = cell.obs().scan(0, |s, x| *s += x);
 
     cell.set(2);
     cell.set(10);
@@ -277,28 +274,29 @@ fn re_hot_no() {
 }
 
 #[test]
-fn re_flatten() {
-    let cell = ObsCell::new(DynObs::constant(1));
+fn flatten() {
+    let cell = ObsCell::new(DynObs::new_constant(1));
 
-    let vs = cell.as_dyn().cloned().flatten().collect_vec();
+    let vs = cell.as_dyn().flatten().collect_vec();
 
-    cell.set(DynObs::constant(2));
-    cell.set(DynObs::constant(3));
-    cell.set(DynObs::constant(4));
-    cell.set(DynObs::constant(5));
+    cell.set(DynObs::new_constant(2));
+    cell.set(DynObs::new_constant(3));
+    cell.set(DynObs::new_constant(4));
+    cell.set(DynObs::new_constant(5));
 
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }
 
-#[test]
-fn re_head_tail() {
-    let a = ObsCell::new(2);
-    let (head, tail) = a.obs().cloned().head_tail();
-    let r = tail.collect_vec();
+// TODO
+// #[test]
+// fn head_tail() {
+//     let a = ObsCell::new(2);
+//     let (head, tail) = a.obs().head_tail();
+//     let r = tail.collect_vec();
 
-    a.set(5);
-    a.set(7);
+//     a.set(5);
+//     a.set(7);
 
-    assert_eq!(head, 2);
-    assert_eq!(r.stop(), vec![5, 7]);
-}
+//     assert_eq!(head, 2);
+//     assert_eq!(r.stop(), vec![5, 7]);
+// }

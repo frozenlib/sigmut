@@ -19,7 +19,7 @@ fn test_obs_display_map_string() {
         let s = s.clone();
         move |f, cx| write!(f, "abc{}", s.get(cx))
     });
-    let v = d.map_string().collect_vec();
+    let v = d.map_str().collect_vec();
     s.set(5);
     s.set(10);
     assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
@@ -28,14 +28,14 @@ fn test_obs_display_map_string() {
 #[test]
 fn test_bind_write_constant() {
     let o = obs_display(move |f, cx| bind_write!(cx, f, "abc{}", 10));
-    let v = o.map_string().collect_vec();
+    let v = o.map_str().collect_vec();
     assert_eq!(v.stop(), vec!["abc10"]);
 }
 
 #[test]
 fn test_bind_write_constant_ref() {
     let o = obs_display(move |f, cx| bind_write!(cx, f, "abc{}", &10));
-    let v = o.map_string().collect_vec();
+    let v = o.map_str().collect_vec();
     assert_eq!(v.stop(), vec!["abc10"]);
 }
 
@@ -46,7 +46,7 @@ fn test_bind_write_obs() {
         let s = s.clone();
         move |f, cx| bind_write!(cx, f, "abc{}", s)
     });
-    let v = o.map_string().collect_vec();
+    let v = o.map_str().collect_vec();
     s.set(5);
     s.set(10);
     assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
@@ -60,7 +60,7 @@ fn test_bind_write_obs2() {
         let s1 = s1.clone();
         move |f, cx| bind_write!(cx, f, "abc{}-{}", s0, s1)
     });
-    let v = o.map_string().collect_vec();
+    let v = o.map_str().collect_vec();
     s0.set(5);
     s1.set(10);
     assert_eq!(v.stop(), vec!["abc0-1", "abc5-1", "abc5-10"]);
@@ -123,9 +123,7 @@ fn test_bind_format_hex() {
 #[test]
 fn test_obs_format() {
     let s = ObsCell::new(10);
-    let o = obs_format!("abc-{}", s.clone()).map_string();
-
-    let v = o.collect_vec();
+    let v = obs_format!("abc-{}", s.clone()).map_str().collect_vec();
     s.set(16);
     s.set(20);
     assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
