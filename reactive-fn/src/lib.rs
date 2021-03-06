@@ -19,9 +19,6 @@ mod runtime;
 mod scan;
 mod sink;
 mod source;
-// mod source_from;
-// mod source_ref;
-// mod source_ref_from;
 mod subscriber;
 mod tail;
 
@@ -45,9 +42,6 @@ pub use runtime::*;
 pub use scan::*;
 pub use sink::*;
 pub use source::*;
-// pub use source_from::*;
-// pub use source_ref::*;
-// pub use source_ref_from::*;
 pub use subscriber::*;
 pub use tail::*;
 
