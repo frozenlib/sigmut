@@ -17,28 +17,19 @@ pub trait ObservableDisplay {
 
 pub struct ObsDisplay<S: ?Sized>(S);
 impl<S: ObservableDisplay> ObsDisplay<S> {
-    pub fn map_str(self) -> ObsRef<impl ObservableRef<Item = str>>
+    pub fn map_str(self) -> Obs<impl Observable<Item = str>>
     where
         Self: 'static,
     {
-        obs_ref(RefCell::new(String::new()), move |s, cb, cx| {
-            let mut s = s.borrow_mut();
-            let s = &mut *s;
-            s.clear();
-            write!(s, "{}", ObsDisplayHead::new(&self.0, cx)).unwrap();
-            cb(s.as_str(), cx)
-        })
+        obs_scan_map(
+            String::new(),
+            move |s, cx| {
+                s.clear();
+                write!(s, "{}", ObsDisplayHead::new(&self.0, cx)).unwrap();
+            },
+            |s| s.as_str(),
+        )
     }
-    // pub fn map_string(self) -> ObsRef<impl ObservableRef<Item = String>>
-    // where
-    //     Self: 'static,
-    // {
-    //     obs(move |cx| {
-    //         let mut s = String::new();
-    //         write!(&mut s, "{}", ObsDisplayHead::new(&self.0, cx)).unwrap();
-    //         s
-    //     })
-    // }
     pub fn into_source_str(self) -> SourceStr
     where
         Self: 'static,
@@ -169,7 +160,7 @@ macro_rules! bind_impl {
     };
 }
 
-pub type SourceStr = SourceRef<str>;
+pub type SourceStr = SourceBorrow<str>;
 
 pub trait IntoSourceStr {
     fn into_source_str(self) -> SourceStr;
@@ -197,55 +188,18 @@ impl<T: ObservableDisplay + 'static> IntoSourceStr for ObsDisplay<T> {
     }
 }
 
-// impl<S> ObservableDisplay for Obs<S>
-// where
-//     S: Observable,
-//     S::Item: ObservableDisplay,
-// {
-//     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-//         self.get(cx).obs_fmt(f, cx)
-//     }
-// }
-// impl<S> IntoSourceStr for Obs<S>
-// where
-//     S: Observable,
-//     S::Item: ObservableDisplay,
-// {
-//     fn into_source_str(self) -> SourceStr {
-//         self.into_obs_display().into_source_str()
-//     }
-// }
-
-// impl<S> ObservableDisplay for ObsBorrow<S>
-// where
-//     S: ObservableBorrow,
-//     S::Item: ObservableDisplay,
-// {
-//     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-//         self.borrow(cx).obs_fmt(f, cx)
-//     }
-// }
-// impl<S> IntoSourceStr for ObsBorrow<S>
-// where
-//     S: ObservableBorrow,
-//     S::Item: ObservableDisplay,
-// {
-//     fn into_source_str(self) -> SourceStr {
-//         self.into_obs_display().into_source_str()
-//     }
-// }
-impl<S> ObservableDisplay for ObsRef<S>
+impl<S> ObservableDisplay for Obs<S>
 where
-    S: ObservableRef,
+    S: Observable,
     S::Item: ObservableDisplay,
 {
     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
         self.with(|value, cx| value.obs_fmt(f, cx), cx)
     }
 }
-impl<S> IntoSourceStr for ObsRef<S>
+impl<S> IntoSourceStr for Obs<S>
 where
-    S: ObservableRef,
+    S: Observable,
     S::Item: ObservableDisplay,
 {
     fn into_source_str(self) -> SourceStr {
@@ -253,33 +207,12 @@ where
     }
 }
 
-// impl<T: ObservableDisplay> ObservableDisplay for DynObs<T> {
-//     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-//         self.get(cx).obs_fmt(f, cx)
-//     }
-// }
-// impl<T: ObservableDisplay> IntoSourceStr for DynObs<T> {
-//     fn into_source_str(self) -> SourceStr {
-//         self.into_obs_display().into_source_str()
-//     }
-// }
-
-// impl<T: ObservableDisplay> ObservableDisplay for DynObsBorrow<T> {
-//     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-//         self.borrow(cx).obs_fmt(f, cx)
-//     }
-// }
-// impl<T: ObservableDisplay> IntoSourceStr for DynObsBorrow<T> {
-//     fn into_source_str(self) -> SourceStr {
-//         self.into_obs_display().into_source_str()
-//     }
-// }
-impl<T: ObservableDisplay> ObservableDisplay for DynObsRef<T> {
+impl<T: ObservableDisplay> ObservableDisplay for DynObs<T> {
     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
         self.with(|value, cx| value.obs_fmt(f, cx), cx)
     }
 }
-impl<T: ObservableDisplay> IntoSourceStr for DynObsRef<T> {
+impl<T: ObservableDisplay> IntoSourceStr for DynObs<T> {
     fn into_source_str(self) -> SourceStr {
         self.into_obs_display().into_source_str()
     }
@@ -316,7 +249,7 @@ pub mod __helpers {
     macro_rules! impl_bind_format_arg {
         ($($t:ident),*) => {
         $(
-            impl<'a, 'b, S: ?Sized + ObservableRef> std::fmt::$t for ObsFormatArg<'a, 'b, S>
+            impl<'a, 'b, S: ?Sized + Observable> std::fmt::$t for ObsFormatArg<'a, 'b, S>
             where
                 S::Item: std::fmt::$t,
             {
@@ -336,7 +269,7 @@ pub mod __helpers {
     pub trait UseObsFormatArg {}
 
     impl<T> UseObsFormatArg for ObsDisplay<T> {}
-    impl<S: ObservableRef> UseObsFormatArg for S {}
+    impl<S: Observable> UseObsFormatArg for S {}
 
     impl<T: UseObsFormatArg> ObsFormatHelper<'_, T> {
         pub fn to_format_arg<'a, 'b>(

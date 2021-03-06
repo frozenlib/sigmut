@@ -273,3 +273,9 @@ impl<T: ?Sized> Observable for DynObs<T> {
         self
     }
 }
+
+impl<S: Observable> From<Obs<S>> for DynObs<S::Item> {
+    fn from(s: Obs<S>) -> Self {
+        s.into_dyn()
+    }
+}

@@ -48,32 +48,32 @@ where
     }
 }
 
-// TODO
-
-// impl<T, S> Sink<T> for Source<S>
-// where
-//     T: Clone + 'static,
-//     S: Sink<T>,
-// {
-//     fn connect(self, value: T) -> DynObserver<T> {
-//         match self {
-//             Source::Constant(c) => c.connect(value),
-//             Source::Obs(o) => o.connect(value),
-//         }
-//     }
-// }
-// impl<T, S> Sink<T> for &Source<S>
-// where
-//     T: Clone + 'static,
-//     for<'a> &'a S: Sink<T>,
-// {
-//     fn connect(self, value: T) -> DynObserver<T> {
-//         match self {
-//             Source::Constant(c) => c.connect(value),
-//             Source::Obs(o) => o.as_ref().connect(value),
-//         }
-//     }
-// }
+impl<T, S> Sink<T> for Source<S>
+where
+    T: Clone + 'static,
+    S: Clone,
+    for<'a> &'a S: Sink<T>,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        match self {
+            Source::Constant(c) => c.connect(value),
+            Source::Obs(o) => o.connect(value),
+        }
+    }
+}
+impl<T, S> Sink<T> for &Source<S>
+where
+    T: Clone + 'static,
+    S: Clone,
+    for<'a> &'a S: Sink<T>,
+{
+    fn connect(self, value: T) -> DynObserver<T> {
+        match self {
+            Source::Constant(c) => c.connect(value),
+            Source::Obs(o) => o.connect(value),
+        }
+    }
+}
 
 struct InnerObserver<T> {
     value: T,

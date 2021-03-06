@@ -1,7 +1,7 @@
 pub mod cell;
 // pub mod collections;
 pub mod collector;
-// pub mod fmt;
+pub mod fmt;
 
 mod bind;
 // mod cache;
@@ -19,6 +19,7 @@ mod runtime;
 mod scan;
 mod sink;
 mod source;
+mod source_borrow;
 mod subscriber;
 mod tail;
 
@@ -32,7 +33,7 @@ pub use cell::ObsCell;
 // };
 pub use collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector};
 pub use dyn_obs::*;
-// // pub use fmt::{obs_display, IntoSourceStr, ObsDisplay, ObservableDisplay, SourceStr};
+pub use fmt::{obs_display, IntoSourceStr, ObsDisplay, ObservableDisplay, SourceStr};
 pub use fold::*;
 pub use functions::*;
 pub use obs::*;
@@ -42,6 +43,7 @@ pub use runtime::*;
 pub use scan::*;
 pub use sink::*;
 pub use source::*;
+pub use source_borrow::*;
 pub use subscriber::*;
 pub use tail::*;
 
