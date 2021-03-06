@@ -45,6 +45,10 @@ impl<T: 'static> ObsCell<T> {
         self.0.value.borrow().clone()
     }
 
+    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
+        f(&self.borrow(cx), cx)
+    }
+
     pub fn borrow(&self, cx: &mut BindContext) -> Ref<T> {
         self.0.borrow(cx)
     }
@@ -79,7 +83,7 @@ impl<T: 'static> Observable for ObsCell<T> {
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         cx: &mut BindContext,
     ) -> U {
-        self.obs().with(f, cx)
+        self.with(f, cx)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
