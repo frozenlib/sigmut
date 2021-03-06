@@ -49,25 +49,29 @@ where
         }
     }
 
-    // pub fn head_tail(self) -> (T, DynTail<T>) {
-    //     BindScope::with(|scope| self.head_tail_with(scope))
-    // }
-    // pub fn head_tail_with(self, scope: &BindScope) -> (T, DynTail<T>) {
-    //     match self {
-    //         Source::Constant(x) => (x, DynTail::empty()),
-    //         Source::Obs(obs) => obs.head_tail_with(scope),
-    //     }
-    // }
-    // pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> Source<U>
-    // where
-    //     T: Sized + ToOwned<Owned = T>,
-    //     U: ToOwned,
-    // {
-    //     match self {
-    //         Source::Constant(value) => Source::Constant(f(value)),
-    //         Source::Obs(o) => Source::Obs(o.map(f)),
-    //     }
-    // }
+    pub fn head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
+        match self {
+            Source::Constant(value) => (f(value.borrow()), DynTail::empty()),
+            Source::Obs(o) => o.head_tail(f),
+        }
+    }
+    pub fn head_tail_with<U>(&self, scope: &BindScope, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
+        match self {
+            Source::Constant(value) => (f(value.borrow()), DynTail::empty()),
+            Source::Obs(o) => o.head_tail_with(scope, f),
+        }
+    }
+
+    pub fn map<U>(self, f: impl Fn(&T) -> U + 'static) -> Source<U>
+    where
+        T: Sized + ToOwned<Owned = T>,
+        U: Clone,
+    {
+        match self {
+            Source::Constant(value) => Source::Constant(f(value.borrow())),
+            Source::Obs(o) => Source::Obs(o.map(f)),
+        }
+    }
 
     // pub fn fold<St: 'static>(
     //     self,
