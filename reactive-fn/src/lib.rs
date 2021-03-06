@@ -4,7 +4,7 @@ pub mod collector;
 pub mod fmt;
 
 mod bind;
-// mod cache;
+mod cache;
 mod dyn_obs;
 mod dynamic_obs;
 mod fold;
@@ -26,7 +26,7 @@ mod tail;
 use derivative::Derivative;
 
 pub use bind::*;
-// pub use cache::Cache;
+pub use cache::Cache;
 pub use cell::ObsCell;
 pub use collections::{
     DynObsList, DynObsListAge, ListChange, ListChangeKind, ObsListCell, ObsListCellAge, SourceList,
