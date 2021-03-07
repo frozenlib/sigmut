@@ -5,9 +5,20 @@ pub fn obs_scan<T: 'static>(
     initial_state: T,
     f: impl FnMut(&mut T, &mut BindContext) + 'static,
 ) -> Obs<impl Observable<Item = T>> {
-    obs_scan_map(initial_state, f, |x| x)
+    obs_scan_with(initial_state, f, MapId)
 }
 pub fn obs_scan_map<St, T>(
+    initial_state: St,
+    f: impl FnMut(&mut St, &mut BindContext) + 'static,
+    m: impl Fn(&St) -> T + 'static,
+) -> Obs<impl Observable<Item = T>>
+where
+    St: 'static,
+    T: 'static,
+{
+    obs_scan_with(initial_state, f, MapValue(m))
+}
+pub fn obs_scan_map_ref<St, T>(
     initial_state: St,
     f: impl FnMut(&mut St, &mut BindContext) + 'static,
     m: impl Fn(&St) -> &T + 'static,
@@ -16,18 +27,21 @@ where
     St: 'static,
     T: ?Sized + 'static,
 {
+    obs_scan_with(initial_state, f, MapRef(m))
+}
+pub(crate) fn obs_scan_with<St: 'static, M: Map<St>>(
+    initial_state: St,
+    f: impl FnMut(&mut St, &mut BindContext) + 'static,
+    m: M,
+) -> Obs<impl Observable<Item = M::Output>> {
     Obs(Scan::new(initial_state, f, m))
 }
 
-pub(crate) fn obs_filter_scan_map<St, T>(
+pub(crate) fn obs_filter_scan_with<St: 'static, M: Map<St>>(
     initial_state: St,
     f: impl FnMut(&mut St, &mut BindContext) -> bool + 'static,
-    m: impl Fn(&St) -> &T + 'static,
-) -> Obs<impl Observable<Item = T>>
-where
-    St: 'static,
-    T: 'static + ?Sized,
-{
+    m: M,
+) -> Obs<impl Observable<Item = M::Output>> {
     Obs(FilterScan::new(initial_state, f, m))
 }
 
@@ -47,12 +61,11 @@ struct ScanData<St, F, M> {
     is_loaded: bool,
     bindings: Bindings,
 }
-impl<St, F, M, T> Scan<St, F, M>
+impl<St, F, M> Scan<St, F, M>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
     fn new(initial_state: St, f: F, m: M) -> Rc<Self> {
         Rc::new(Self {
@@ -74,14 +87,13 @@ where
         b.is_loaded = true;
     }
 }
-impl<St, F, M, T> Observable for Rc<Scan<St, F, M>>
+impl<St, F, M> Observable for Rc<Scan<St, F, M>>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
-    type Item = T;
+    type Item = M::Output;
 
     fn with<U>(
         &self,
@@ -95,7 +107,7 @@ where
             self.load(cx.scope());
             b = self.data.borrow();
         }
-        f((b.m)(&b.st), cx)
+        b.m.map(&b.st, |value| f(value, cx))
     }
 
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -106,12 +118,11 @@ where
     }
 }
 
-impl<St, F, M, T> BindSource for Scan<St, F, M>
+impl<St, F, M> BindSource for Scan<St, F, M>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
@@ -125,12 +136,11 @@ where
         }
     }
 }
-impl<St, F, M, T> BindSink for Scan<St, F, M>
+impl<St, F, M> BindSink for Scan<St, F, M>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if mem::replace(&mut self.data.borrow_mut().is_loaded, false) {
@@ -139,12 +149,11 @@ where
     }
 }
 
-impl<St, F, M, T> FilterScan<St, F, M>
+impl<St, F, M> FilterScan<St, F, M>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) -> bool + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
     fn new(initial_state: St, f: F, m: M) -> Rc<Self> {
         Rc::new(Self {
@@ -166,14 +175,13 @@ where
         b.bindings.update(scope, self, |cx| f(st, cx))
     }
 }
-impl<St, F, M, T> Observable for Rc<FilterScan<St, F, M>>
+impl<St, F, M> Observable for Rc<FilterScan<St, F, M>>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) -> bool + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
-    type Item = T;
+    type Item = M::Output;
 
     fn with<U>(
         &self,
@@ -187,7 +195,7 @@ where
             b = self.data.borrow();
         }
         cx.bind(self.clone());
-        f((b.m)(&b.st), cx)
+        b.m.map(&b.st, |value| f(value, cx))
     }
 
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -197,12 +205,11 @@ where
         DynObs::from_dyn_inner(self)
     }
 }
-impl<St, F, M, T> BindSource for FilterScan<St, F, M>
+impl<St, F, M> BindSource for FilterScan<St, F, M>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) -> bool + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
@@ -216,12 +223,11 @@ where
         }
     }
 }
-impl<St, F, M, T> BindSink for FilterScan<St, F, M>
+impl<St, F, M> BindSink for FilterScan<St, F, M>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) -> bool + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if mem::replace(&mut self.data.borrow_mut().is_loaded, false) && !self.sinks.is_empty() {
@@ -229,12 +235,11 @@ where
         }
     }
 }
-impl<St, F, M, T> BindTask for FilterScan<St, F, M>
+impl<St, F, M> BindTask for FilterScan<St, F, M>
 where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) -> bool + 'static,
-    M: Fn(&St) -> &T + 'static,
-    T: ?Sized + 'static,
+    M: Map<St>,
 {
     fn run(self: Rc<Self>, scope: &BindScope) {
         if !self.data.borrow().is_loaded {

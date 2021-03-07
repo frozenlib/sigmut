@@ -164,7 +164,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         St: 'static,
         U: ?Sized + 'static,
     {
-        self.obs().scan_map(initial_state, f, m).into_dyn()
+        self.obs().scan_map_ref(initial_state, f, m).into_dyn()
     }
     pub fn cached(self) -> DynObs<<T as ToOwned>::Owned>
     where
@@ -188,6 +188,21 @@ impl<T: 'static + ?Sized> DynObs<T> {
         initial_state: St,
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl FnMut(&mut St, &T) + 'static,
+        m: impl Fn(&St) -> U + 'static,
+    ) -> DynObs<U>
+    where
+        St: 'static,
+        U: 'static,
+    {
+        self.obs()
+            .filter_scan_map(initial_state, predicate, f, m)
+            .into_dyn()
+    }
+    pub fn filter_scan_map_ref<St, U>(
+        self,
+        initial_state: St,
+        predicate: impl Fn(&St, &T) -> bool + 'static,
+        f: impl FnMut(&mut St, &T) + 'static,
         m: impl Fn(&St) -> &U + 'static,
     ) -> DynObs<U>
     where
@@ -195,7 +210,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         U: ?Sized + 'static,
     {
         self.obs()
-            .filter_scan_map(initial_state, predicate, f, m)
+            .filter_scan_map_ref(initial_state, predicate, f, m)
             .into_dyn()
     }
 

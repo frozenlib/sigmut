@@ -159,19 +159,39 @@ impl<S: Observable> Obs<S> {
         initial_state: St,
         f: impl FnMut(&mut St, &S::Item) + 'static,
     ) -> Obs<impl Observable<Item = St>> {
-        self.scan_map(initial_state, f, |value| value)
+        self.scan_with(initial_state, f, MapId)
     }
     pub fn scan_map<St, T>(
         self,
         initial_state: St,
-        mut f: impl FnMut(&mut St, &S::Item) + 'static,
+        f: impl FnMut(&mut St, &S::Item) + 'static,
+        m: impl Fn(&St) -> T + 'static,
+    ) -> Obs<impl Observable<Item = T>>
+    where
+        St: 'static,
+        T: 'static,
+    {
+        self.scan_with(initial_state, f, MapValue(m))
+    }
+    pub fn scan_map_ref<St, T>(
+        self,
+        initial_state: St,
+        f: impl FnMut(&mut St, &S::Item) + 'static,
         m: impl Fn(&St) -> &T + 'static,
     ) -> Obs<impl Observable<Item = T>>
     where
         St: 'static,
         T: ?Sized + 'static,
     {
-        obs_scan_map(
+        self.scan_with(initial_state, f, MapRef(m))
+    }
+    fn scan_with<St: 'static, M: Map<St>>(
+        self,
+        initial_state: St,
+        mut f: impl FnMut(&mut St, &S::Item) + 'static,
+        m: M,
+    ) -> Obs<impl Observable<Item = M::Output>> {
+        obs_scan_with(
             initial_state,
             move |st, cx| {
                 let f = &mut f;
@@ -186,20 +206,34 @@ impl<S: Observable> Obs<S> {
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl FnMut(&mut St, &S::Item) + 'static,
     ) -> Obs<impl Observable<Item = St>> {
-        self.filter_scan_map(initial_state, predicate, f, |x| x)
+        self.filter_scan_with(initial_state, predicate, f, MapId)
     }
-    pub fn filter_scan_map<St, T>(
+    pub fn filter_scan_map<St: 'static, T: 'static>(
+        self,
+        initial_state: St,
+        predicate: impl Fn(&St, &S::Item) -> bool + 'static,
+        f: impl FnMut(&mut St, &S::Item) + 'static,
+        m: impl Fn(&St) -> T + 'static,
+    ) -> Obs<impl Observable<Item = T>> {
+        self.filter_scan_with(initial_state, predicate, f, MapValue(m))
+    }
+    pub fn filter_scan_map_ref<St: 'static, T: ?Sized + 'static>(
+        self,
+        initial_state: St,
+        predicate: impl Fn(&St, &S::Item) -> bool + 'static,
+        f: impl FnMut(&mut St, &S::Item) + 'static,
+        m: impl Fn(&St) -> &T + 'static,
+    ) -> Obs<impl Observable<Item = T>> {
+        self.filter_scan_with(initial_state, predicate, f, MapRef(m))
+    }
+    fn filter_scan_with<St: 'static, M: Map<St>>(
         self,
         initial_state: St,
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         mut f: impl FnMut(&mut St, &S::Item) + 'static,
-        m: impl Fn(&St) -> &T + 'static,
-    ) -> Obs<impl Observable<Item = T>>
-    where
-        St: 'static,
-        T: ?Sized + 'static,
-    {
-        obs_filter_scan_map(
+        m: M,
+    ) -> Obs<impl Observable<Item = M::Output>> {
+        obs_filter_scan_with(
             initial_state,
             move |st, cx| {
                 let f = &mut f;
@@ -223,7 +257,7 @@ impl<S: Observable> Obs<S> {
     where
         S::Item: ToOwned,
     {
-        self.scan_map(
+        self.scan_map_ref(
             None,
             |st, value| *st = Some(value.to_owned()),
             |st| st.as_ref().unwrap(),
@@ -238,7 +272,7 @@ impl<S: Observable> Obs<S> {
         S::Item: ToOwned,
     {
         let initial_state: Option<<S::Item as ToOwned>::Owned> = None;
-        self.filter_scan_map(
+        self.filter_scan_map_ref(
             initial_state,
             move |st, value| {
                 if let Some(old) = st {

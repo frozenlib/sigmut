@@ -21,7 +21,7 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     where
         Self: 'static,
     {
-        obs_scan_map(
+        obs_scan_map_ref(
             String::new(),
             move |s, cx| {
                 s.clear();

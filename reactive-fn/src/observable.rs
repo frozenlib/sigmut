@@ -43,3 +43,30 @@ impl Subscription {
         Subscription(None)
     }
 }
+
+pub(crate) trait Map<I: ?Sized>: 'static {
+    type Output: ?Sized;
+    fn map<U>(&self, value: &I, f: impl FnOnce(&Self::Output) -> U) -> U;
+}
+pub(crate) struct MapId;
+impl<T: ?Sized> Map<T> for MapId {
+    type Output = T;
+    fn map<U>(&self, value: &T, f: impl FnOnce(&Self::Output) -> U) -> U {
+        f(value)
+    }
+}
+
+pub(crate) struct MapValue<F>(pub F);
+impl<F: Fn(&I) -> O + 'static, I: ?Sized, O> Map<I> for MapValue<F> {
+    type Output = O;
+    fn map<U>(&self, value: &I, f: impl FnOnce(&Self::Output) -> U) -> U {
+        f(&(self.0)(value))
+    }
+}
+pub(crate) struct MapRef<F>(pub F);
+impl<F: Fn(&I) -> &O + 'static, I: ?Sized, O: ?Sized> Map<I> for MapRef<F> {
+    type Output = O;
+    fn map<U>(&self, value: &I, f: impl FnOnce(&Self::Output) -> U) -> U {
+        f((self.0)(value))
+    }
+}
