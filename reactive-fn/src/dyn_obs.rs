@@ -158,6 +158,18 @@ impl<T: 'static + ?Sized> DynObs<T> {
         self,
         initial_state: St,
         f: impl FnMut(&mut St, &T) + 'static,
+        m: impl Fn(&St) -> U + 'static,
+    ) -> DynObs<U>
+    where
+        St: 'static,
+        U: 'static,
+    {
+        self.obs().scan_map(initial_state, f, m).into_dyn()
+    }
+    pub fn scan_map_ref<St, U>(
+        self,
+        initial_state: St,
+        f: impl FnMut(&mut St, &T) + 'static,
         m: impl Fn(&St) -> &U + 'static,
     ) -> DynObs<U>
     where
