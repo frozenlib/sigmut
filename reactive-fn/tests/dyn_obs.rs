@@ -70,17 +70,16 @@ fn flat_map() {
     assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
 }
 
-// TODO
-// #[test]
-// fn cahced() {
-//     let cell = ObsCell::new(0);
-//     let r = cell.as_dyn().map(|x| x + 1).cached().collect_vec();
+#[test]
+fn cahced() {
+    let cell = ObsCell::new(0);
+    let r = cell.as_dyn().map(|x| x + 1).cached().collect_vec();
 
-//     cell.set(5);
-//     cell.set(10);
+    cell.set(5);
+    cell.set(10);
 
-//     assert_eq!(r.stop(), vec![1, 6, 11]);
-// }
+    assert_eq!(r.stop(), vec![1, 6, 11]);
+}
 
 #[test]
 fn scan() {

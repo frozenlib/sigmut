@@ -157,12 +157,28 @@ impl<S: Observable> Obs<S> {
     pub fn scan<St: 'static>(
         self,
         initial_state: St,
-        mut f: impl FnMut(&mut St, &S::Item) + 'static,
+        f: impl FnMut(&mut St, &S::Item) + 'static,
     ) -> Obs<impl Observable<Item = St>> {
-        obs_scan(initial_state, move |st, cx| {
-            let f = &mut f;
-            self.with(|value, _cx| f(st, value), cx)
-        })
+        self.scan_map(initial_state, f, |value| value)
+    }
+    pub fn scan_map<St, T>(
+        self,
+        initial_state: St,
+        mut f: impl FnMut(&mut St, &S::Item) + 'static,
+        m: impl Fn(&St) -> &T + 'static,
+    ) -> Obs<impl Observable<Item = T>>
+    where
+        St: 'static,
+        T: ?Sized + 'static,
+    {
+        obs_scan_map(
+            initial_state,
+            move |st, cx| {
+                let f = &mut f;
+                self.with(|value, _cx| f(st, value), cx)
+            },
+            m,
+        )
     }
     pub fn filter_scan<St: 'static>(
         self,
@@ -200,6 +216,17 @@ impl<S: Observable> Obs<S> {
                 )
             },
             m,
+        )
+    }
+
+    pub fn cached(self) -> Obs<impl Observable<Item = <S::Item as ToOwned>::Owned>>
+    where
+        S::Item: ToOwned,
+    {
+        self.scan_map(
+            None,
+            |st, value| *st = Some(value.to_owned()),
+            |st| st.as_ref().unwrap(),
         )
     }
 

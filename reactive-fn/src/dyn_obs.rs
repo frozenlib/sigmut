@@ -154,6 +154,25 @@ impl<T: 'static + ?Sized> DynObs<T> {
     ) -> DynObs<St> {
         self.obs().scan(initial_state, f).into_dyn()
     }
+    pub fn scan_map<St, U>(
+        self,
+        initial_state: St,
+        f: impl FnMut(&mut St, &T) + 'static,
+        m: impl Fn(&St) -> &U + 'static,
+    ) -> DynObs<U>
+    where
+        St: 'static,
+        U: ?Sized + 'static,
+    {
+        self.obs().scan_map(initial_state, f, m).into_dyn()
+    }
+    pub fn cached(self) -> DynObs<<T as ToOwned>::Owned>
+    where
+        T: ToOwned,
+    {
+        self.obs().cached().into_dyn()
+    }
+
     pub fn filter_scan<St: 'static>(
         &self,
         initial_state: St,
