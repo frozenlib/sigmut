@@ -11,14 +11,6 @@ futures = "0.3"
 derivative = "2.2"
 slabmap = "0.1"
 
-[dev-dependencies]
-thiserror = "1.0"
-# criterion = "0.3"
-# typenum = "1"
-
 [lib]
 bench = false
 
-# [[bench]]
-# name = "benchmarks"
-# harness = false
