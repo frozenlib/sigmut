@@ -91,14 +91,13 @@ impl<T: 'static + ?Sized> DynObs<T> {
     }
 
     pub fn head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
-        BindScope::with(|scope| self.head_tail_with(scope, f))
-    }
-    pub fn head_tail_with<U>(&self, scope: &BindScope, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
-        if let DynObsData::Static(x) = &self.0 {
-            (f(x), DynTail::empty())
-        } else {
-            DynTail::new(self.clone(), scope, f)
-        }
+        BindScope::with(|scope| {
+            if let DynObsData::Static(x) = &self.0 {
+                (f(x), DynTail::empty())
+            } else {
+                DynTail::new(self.clone(), scope, f)
+            }
+        })
     }
     pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
         self.obs().map(f).into_dyn()

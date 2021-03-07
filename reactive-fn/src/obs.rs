@@ -40,14 +40,7 @@ impl<S: Observable> Obs<S> {
         BindContext::nul(|cx| self.with(|value, _| f(value), cx))
     }
     pub fn head_tail<U>(self, f: impl FnOnce(&S::Item) -> U) -> (U, Tail<S>) {
-        BindScope::with(|scope| self.head_tail_with(scope, f))
-    }
-    pub fn head_tail_with<U>(
-        self,
-        scope: &BindScope,
-        f: impl FnOnce(&S::Item) -> U,
-    ) -> (U, Tail<S>) {
-        Tail::new(self.0, scope, f)
+        BindScope::with(|scope| Tail::new(self.0, scope, f))
     }
 
     #[inline]
