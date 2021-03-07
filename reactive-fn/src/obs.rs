@@ -28,6 +28,12 @@ impl<S: Observable> Obs<S> {
     {
         BindContext::nul(|cx| self.get(cx))
     }
+    pub fn get_head_tail<U>(self) -> (<S::Item as ToOwned>::Owned, Tail<S>)
+    where
+        S::Item: ToOwned,
+    {
+        self.with_head_tail(|value| value.to_owned())
+    }
 
     pub fn with<U>(
         &self,
@@ -39,7 +45,7 @@ impl<S: Observable> Obs<S> {
     pub fn with_head<U>(&self, f: impl FnOnce(&S::Item) -> U) -> U {
         BindContext::nul(|cx| self.with(|value, _| f(value), cx))
     }
-    pub fn head_tail<U>(self, f: impl FnOnce(&S::Item) -> U) -> (U, Tail<S>) {
+    pub fn with_head_tail<U>(self, f: impl FnOnce(&S::Item) -> U) -> (U, Tail<S>) {
         BindScope::with(|scope| Tail::new(self.0, scope, f))
     }
 

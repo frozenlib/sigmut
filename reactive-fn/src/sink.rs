@@ -10,7 +10,7 @@ where
     for<'a> &'a S::Item: Sink<T>,
 {
     fn connect(self, value: T) -> DynObserver<T> {
-        let (o, tail) = self.head_tail(|head| head.connect(value.clone()));
+        let (o, tail) = self.with_head_tail(|head| head.connect(value.clone()));
         if tail.is_empty() {
             o
         } else {

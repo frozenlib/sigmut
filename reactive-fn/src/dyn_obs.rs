@@ -65,6 +65,12 @@ impl<T: 'static + ?Sized> DynObs<T> {
     {
         self.obs().get_head()
     }
+    pub fn get_head_tail(&self) -> (T::Owned, DynTail<T>)
+    where
+        T: ToOwned,
+    {
+        self.with_head_tail(|value| value.to_owned())
+    }
     pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
         if let DynObsData::Static(x) = &self.0 {
             f(x, cx)
@@ -90,7 +96,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         BindContext::nul(|cx| self.with(|value, _| f(value), cx))
     }
 
-    pub fn head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
+    pub fn with_head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
         BindScope::with(|scope| {
             if let DynObsData::Static(x) = &self.0 {
                 (f(x), DynTail::empty())
