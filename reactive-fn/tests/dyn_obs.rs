@@ -119,6 +119,7 @@ fn same_value() {
 
     assert_eq!(r.stop(), vec![5, 5, 5]);
 }
+
 #[test]
 fn dedup() {
     let cell = ObsCell::new(5);

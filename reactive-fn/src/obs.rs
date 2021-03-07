@@ -215,7 +215,7 @@ impl<S: Observable> Obs<S> {
             initial_state,
             move |st, value| {
                 if let Some(old) = st {
-                    eq(old.borrow(), value)
+                    !eq(old.borrow(), value)
                 } else {
                     true
                 }
