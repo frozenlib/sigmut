@@ -286,16 +286,15 @@ fn flatten() {
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }
 
-// TODO
-// #[test]
-// fn head_tail() {
-//     let a = ObsCell::new(2);
-//     let (head, tail) = a.obs().head_tail();
-//     let r = tail.collect_vec();
+#[test]
+fn get_head_tail() {
+    let a = ObsCell::new(2);
+    let (head, tail) = a.obs().get_head_tail();
+    let r = tail.collect_vec();
 
-//     a.set(5);
-//     a.set(7);
+    a.set(5);
+    a.set(7);
 
-//     assert_eq!(head, 2);
-//     assert_eq!(r.stop(), vec![5, 7]);
-// }
+    assert_eq!(head, 2);
+    assert_eq!(r.stop(), vec![5, 7]);
+}

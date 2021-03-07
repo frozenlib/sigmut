@@ -28,7 +28,7 @@ impl<S: Observable> Obs<S> {
     {
         BindContext::nul(|cx| self.get(cx))
     }
-    pub fn get_head_tail<U>(self) -> (<S::Item as ToOwned>::Owned, Tail<S>)
+    pub fn get_head_tail(self) -> (<S::Item as ToOwned>::Owned, Tail<S>)
     where
         S::Item: ToOwned,
     {
