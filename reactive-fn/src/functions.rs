@@ -62,14 +62,14 @@ where
             }
         }
     }
-    pub(crate) fn new_tail(st: St, f: F, is_loaded: bool, bindings: Bindings) -> Rc<Self> {
+    pub(crate) fn new_tail(st: St, f: F, is_modified: bool, bindings: Bindings) -> Rc<Self> {
         let s = Rc::new(Self(RefCell::new(SubscribeData {
             st,
             f,
-            is_loaded,
+            is_loaded: !is_modified,
             bindings,
         })));
-        if !is_loaded {
+        if is_modified {
             BindScope::with(|scope| s.load(scope));
         }
         s

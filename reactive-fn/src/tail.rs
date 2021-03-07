@@ -152,7 +152,7 @@ impl<S: Observable> TailData<S> {
         >,
     > {
         let mut state = self.state.borrow_mut();
-        let head_subscription = if state.is_modified {
+        let head_subscription = if !state.is_modified {
             Some(self.state.clone())
         } else {
             None
@@ -162,14 +162,14 @@ impl<S: Observable> TailData<S> {
             head_subscription,
         };
         let source = self.source;
-        let bindings = mem::replace(&mut state.bindings, Bindings::new());
+        let bindings = mem::take(&mut state.bindings);
         let s = Subscribe::new_tail(
             st,
             move |st, cx| {
                 source.with(|value, cx| f(&mut st.st, value, cx), cx);
                 st.head_subscription = None;
             },
-            !state.is_modified,
+            state.is_modified,
             bindings,
         );
         if !state.is_modified {

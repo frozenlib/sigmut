@@ -298,3 +298,16 @@ fn get_head_tail() {
     assert_eq!(head, 2);
     assert_eq!(r.stop(), vec![5, 7]);
 }
+
+#[test]
+fn get_head_tail_after_set() {
+    let a = ObsCell::new(2);
+    let (head, tail) = a.obs().get_head_tail();
+
+    a.set(5);
+    let r = tail.collect_vec();
+    a.set(7);
+
+    assert_eq!(head, 2);
+    assert_eq!(r.stop(), vec![5, 7]);
+}

@@ -24,20 +24,22 @@ impl<'a> BindContext<'a> {
 }
 struct BindingsBuilder {
     sink: Weak<dyn BindSink>,
+    sink_changed: bool,
     bindings: Vec<Binding>,
     len: usize,
 }
 impl BindingsBuilder {
-    fn new(sink: Weak<dyn BindSink>, bindings: Vec<Binding>) -> Self {
+    fn new(sink: Weak<dyn BindSink>, sink_changed: bool, bindings: Vec<Binding>) -> Self {
         Self {
             sink,
+            sink_changed,
             bindings,
             len: 0,
         }
     }
     pub fn bind(&mut self, source: Rc<dyn BindSource>) {
         if self.len < self.bindings.len() {
-            if !Rc::ptr_eq(&self.bindings[self.len].source, &source) {
+            if self.sink_changed || !Rc::ptr_eq(&self.bindings[self.len].source, &source) {
                 let idx_old = self.len;
                 let idx_new = self.bindings.len();
                 self.bind_new(source);
@@ -89,11 +91,20 @@ impl Drop for Binding {
         self.source.detach_sink(self.idx);
     }
 }
-pub struct Bindings(Vec<Binding>);
-
+pub struct Bindings {
+    bindings: Vec<Binding>,
+    sink: Weak<dyn BindSink>,
+}
 impl Bindings {
     pub fn new() -> Self {
-        Self(Vec::new())
+        struct DummyBindSink;
+        impl BindSink for DummyBindSink {
+            fn notify(self: Rc<Self>, _scope: &NotifyScope) {}
+        }
+        Self {
+            bindings: Vec::new(),
+            sink: Weak::new() as Weak<DummyBindSink>,
+        }
     }
     pub fn update<T>(
         &mut self,
@@ -101,24 +112,31 @@ impl Bindings {
         sink: &Rc<impl BindSink>,
         f: impl FnOnce(&mut BindContext) -> T,
     ) -> T {
-        let bindings = replace(&mut self.0, Vec::new());
+        let bindings = replace(&mut self.bindings, Vec::new());
+        let sink = Rc::downgrade(sink) as Weak<dyn BindSink>;
+        let sink_changed = !Weak::ptr_eq(&self.sink, &sink);
+        if sink_changed {
+            self.sink = sink.clone();
+        }
         let mut cx = BindContext {
             scope,
-            bb: Some(BindingsBuilder::new(
-                Rc::downgrade(sink) as Weak<dyn BindSink>,
-                bindings,
-            )),
+            bb: Some(BindingsBuilder::new(sink, sink_changed, bindings)),
         };
         let value = f(&mut cx);
-        self.0 = cx.bb.unwrap().build();
+        self.bindings = cx.bb.unwrap().build();
         value
     }
 
     pub fn clear(&mut self) {
-        self.0.clear()
+        self.bindings.clear()
     }
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.bindings.is_empty()
+    }
+}
+impl Default for Bindings {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -62,11 +62,11 @@ impl<S: Observable> Obs<S> {
         self,
         f: impl Fn(&S::Item) -> &T + 'static,
     ) -> Obs<impl Observable<Item = T>> {
-        struct MapRef<S, F> {
+        struct MapRefObservable<S, F> {
             s: S,
             f: F,
         }
-        impl<S, F, T> Observable for MapRef<S, F>
+        impl<S, F, T> Observable for MapRefObservable<S, F>
         where
             S: Observable,
             F: Fn(&S::Item) -> &T + 'static,
@@ -84,7 +84,7 @@ impl<S: Observable> Obs<S> {
             }
         }
 
-        Obs(MapRef { s: self, f })
+        Obs(MapRefObservable { s: self, f })
     }
 
     pub fn map_borrow<B: ?Sized + 'static>(self) -> Obs<impl Observable<Item = B>>
