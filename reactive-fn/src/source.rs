@@ -145,11 +145,6 @@ macro_rules! impl_from_for_source {
                 Source::Constant(value)
             }
         }
-        impl From<&$t> for Source<$t> {
-            fn from(value: &$t) -> Source<$t> {
-                value.clone().into()
-            }
-        }
     )*
     };
 }
