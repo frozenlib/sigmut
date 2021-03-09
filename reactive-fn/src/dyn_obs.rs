@@ -151,6 +151,13 @@ impl<T: 'static + ?Sized> DynObs<T> {
     pub fn flat_map_ref<U>(&self, f: impl Fn(&T) -> &DynObs<U> + 'static) -> DynObs<U> {
         self.obs().flat_map_ref(f).into_dyn()
     }
+    pub fn flatten(&self) -> DynObs<T::Item>
+    where
+        T: Observable,
+    {
+        self.obs().flatten().into_dyn()
+    }
+
     // pub fn map_async_with<Fut>(
     //     &self,
     //     f: impl Fn(&T) -> Fut + 'static,
@@ -313,11 +320,6 @@ impl<T: 'static + ?Sized> DynObs<T> {
         T: ToOwned,
     {
         self.obs().stream()
-    }
-}
-impl<T: 'static> DynObs<DynObs<T>> {
-    pub fn flatten(&self) -> DynObs<T> {
-        self.obs().flatten().into_dyn()
     }
 }
 impl<T: ?Sized> Observable for DynObs<T> {
