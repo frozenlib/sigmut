@@ -124,7 +124,6 @@ where
     }
 }
 
-#[macro_export]
 macro_rules! impl_from_for_source {
     ($($t:ty),*) => { $(
         impl From<$t> for Source<$t> {
