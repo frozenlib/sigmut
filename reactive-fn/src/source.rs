@@ -14,9 +14,27 @@ impl<T> Source<T>
 where
     T: Clone + 'static,
 {
-    pub fn obs(self) -> Obs<impl Observable<Item = T>> {
-        Obs(self)
+    pub fn get(&self, cx: &mut BindContext) -> T {
+        self.with(|value, _| value.to_owned(), cx)
     }
+    pub fn get_head(&self) -> T {
+        BindContext::nul(|cx| self.get(cx))
+    }
+
+    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
+        match self {
+            Self::Constant(value) => f(value.borrow(), cx),
+            Self::Obs(obs) => obs.with(|value, cx| f(value, cx), cx),
+        }
+    }
+    pub fn with_head<U>(&self, f: impl FnOnce(&T) -> U) -> U {
+        BindContext::nul(|cx| self.with(|value, _| f(value), cx))
+    }
+
+    pub fn obs(&self) -> Obs<impl Observable<Item = T>> {
+        Obs(self.clone())
+    }
+
     pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> Source<U>
     where
         U: Clone,
@@ -38,10 +56,7 @@ where
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         cx: &mut BindContext,
     ) -> U {
-        match self {
-            Self::Constant(value) => f(value.borrow(), cx),
-            Self::Obs(obs) => obs.with(|value, cx| f(value, cx), cx),
-        }
+        Source::with(self, f, cx)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
