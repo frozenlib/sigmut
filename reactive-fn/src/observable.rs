@@ -8,6 +8,23 @@ pub trait Observable: 'static {
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         cx: &mut BindContext,
     ) -> U;
+    fn with_head<U>(&self, f: impl FnOnce(&Self::Item) -> U) -> U {
+        BindContext::nul(|cx| self.with(|value, _| f(value), cx))
+    }
+
+    fn get(&self, cx: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    where
+        Self::Item: ToOwned,
+    {
+        self.with(|value, _| value.to_owned(), cx)
+    }
+    fn get_head(&self) -> <Self::Item as ToOwned>::Owned
+    where
+        Self::Item: ToOwned,
+    {
+        BindContext::nul(|cx| self.get(cx))
+    }
+
     fn into_dyn(self) -> DynObs<Self::Item>
     where
         Self: Sized,

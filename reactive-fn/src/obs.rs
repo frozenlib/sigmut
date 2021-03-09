@@ -16,34 +16,11 @@ impl<S: Observable> Obs<S> {
         self.0.into_dyn()
     }
 
-    pub fn get(&self, cx: &mut BindContext) -> <S::Item as ToOwned>::Owned
-    where
-        S::Item: ToOwned,
-    {
-        self.with(|value, _| value.to_owned(), cx)
-    }
-    pub fn get_head(&self) -> <S::Item as ToOwned>::Owned
-    where
-        S::Item: ToOwned,
-    {
-        BindContext::nul(|cx| self.get(cx))
-    }
     pub fn get_head_tail(self) -> (<S::Item as ToOwned>::Owned, Tail<S>)
     where
         S::Item: ToOwned,
     {
         self.with_head_tail(|value| value.to_owned())
-    }
-
-    pub fn with<U>(
-        &self,
-        f: impl FnOnce(&S::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
-    ) -> U {
-        self.0.with(f, cx)
-    }
-    pub fn with_head<U>(&self, f: impl FnOnce(&S::Item) -> U) -> U {
-        BindContext::nul(|cx| self.with(|value, _| f(value), cx))
     }
     pub fn with_head_tail<U>(self, f: impl FnOnce(&S::Item) -> U) -> (U, Tail<S>) {
         BindScope::with(|scope| Tail::new(self.0, scope, f))
@@ -381,7 +358,7 @@ impl<S: Observable> Observable for Obs<S> {
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         cx: &mut BindContext,
     ) -> U {
-        Obs::with(self, f, cx)
+        self.0.with(f, cx)
     }
 
     fn into_dyn(self) -> DynObs<Self::Item> {

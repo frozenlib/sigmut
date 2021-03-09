@@ -53,49 +53,12 @@ impl<T: 'static + ?Sized> DynObs<T> {
     pub fn obs(&self) -> Obs<impl Observable<Item = T>> {
         Obs(self.clone())
     }
-    pub fn get(&self, cx: &mut BindContext) -> T::Owned
-    where
-        T: ToOwned,
-    {
-        self.obs().get(cx)
-    }
-    pub fn get_head(&self) -> T::Owned
-    where
-        T: ToOwned,
-    {
-        self.obs().get_head()
-    }
     pub fn get_head_tail(&self) -> (T::Owned, DynTail<T>)
     where
         T: ToOwned,
     {
         self.with_head_tail(|value| value.to_owned())
     }
-    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
-        if let DynObsData::Static(x) = &self.0 {
-            f(x, cx)
-        } else {
-            let mut output = None;
-            let mut f = Some(f);
-            self.dyn_with(
-                &mut |value, cx| output = Some((f.take().unwrap())(value, cx)),
-                cx,
-            );
-            output.unwrap()
-        }
-    }
-    fn dyn_with(&self, f: &mut dyn FnMut(&T, &mut BindContext), cx: &mut BindContext) {
-        match &self.0 {
-            DynObsData::Static(value) => f(value, cx),
-            DynObsData::Dyn(x) => x.dyn_with(f, cx),
-            DynObsData::DynInner(x) => x.clone().dyn_with(f, cx),
-        }
-    }
-
-    pub fn with_head<U>(&self, f: impl FnOnce(&T) -> U) -> U {
-        BindContext::nul(|cx| self.with(|value, _| f(value), cx))
-    }
-
     pub fn with_head_tail<U>(&self, f: impl FnOnce(&T) -> U) -> (U, DynTail<T>) {
         BindScope::with(|scope| {
             if let DynObsData::Static(x) = &self.0 {
@@ -330,7 +293,20 @@ impl<T: ?Sized> Observable for DynObs<T> {
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         cx: &mut BindContext,
     ) -> U {
-        DynObs::with(self, f, cx)
+        if let DynObsData::Static(x) = &self.0 {
+            f(x, cx)
+        } else {
+            let mut output = None;
+            let mut f = Some(f);
+            let f: &mut dyn FnMut(&T, &mut BindContext) =
+                &mut |value, cx| output = Some((f.take().unwrap())(value, cx));
+            match &self.0 {
+                DynObsData::Static(value) => f(value, cx),
+                DynObsData::Dyn(x) => x.dyn_with(f, cx),
+                DynObsData::DynInner(x) => x.clone().dyn_with(f, cx),
+            }
+            output.unwrap()
+        }
     }
     fn into_dyn(self) -> DynObs<Self::Item> {
         self
