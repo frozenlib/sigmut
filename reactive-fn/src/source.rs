@@ -4,33 +4,32 @@ use std::{borrow::Borrow, rc::Rc, sync::Arc};
 #[derive(Clone)]
 pub enum Source<T>
 where
-    T: ?Sized + ToOwned + 'static,
+    T: Clone + 'static,
 {
-    Constant(T::Owned),
+    Constant(T),
     Obs(DynObs<T>),
 }
 
 impl<T> Source<T>
 where
-    T: ?Sized + ToOwned + 'static,
+    T: Clone + 'static,
 {
     pub fn obs(self) -> Obs<impl Observable<Item = T>> {
         Obs(self)
     }
-    pub fn map<U>(self, f: impl Fn(&T) -> U + 'static) -> Source<U>
+    pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> Source<U>
     where
-        T: Sized + ToOwned<Owned = T>,
         U: Clone,
     {
         match self {
-            Source::Constant(value) => Source::Constant(f(value.borrow())),
-            Source::Obs(o) => Source::Obs(o.map(f)),
+            Source::Constant(value) => Source::Constant(f(value)),
+            Source::Obs(o) => Source::Obs(o.map(move |value| f(value.clone()))),
         }
     }
 }
 impl<T> Observable for Source<T>
 where
-    T: ?Sized + ToOwned + 'static,
+    T: Clone + 'static,
 {
     type Item = T;
 
@@ -58,19 +57,19 @@ where
 impl<S> From<Obs<S>> for Source<S::Item>
 where
     S: Observable,
-    S::Item: ToOwned,
+    S::Item: Clone,
 {
     fn from(value: Obs<S>) -> Self {
         value.into_dyn().into()
     }
 }
 
-impl<T: ?Sized + ToOwned> From<DynObs<T>> for Source<T> {
+impl<T: Clone> From<DynObs<T>> for Source<T> {
     fn from(value: DynObs<T>) -> Self {
         Source::Obs(value)
     }
 }
-impl<T: ?Sized + ToOwned> From<&DynObs<T>> for Source<T> {
+impl<T: Clone> From<&DynObs<T>> for Source<T> {
     fn from(value: &DynObs<T>) -> Self {
         value.clone().into()
     }
