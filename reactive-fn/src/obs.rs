@@ -100,6 +100,12 @@ impl<S: Observable> Obs<S> {
     {
         Obs(ConvertRefObservable::new(self, |x| x.as_ref()))
     }
+    pub fn map_into<U: 'static>(self) -> Obs<impl Observable<Item = U>>
+    where
+        S::Item: Clone + Into<U>,
+    {
+        Obs(ConvertValueObservable::new(self, |x| x.clone().into()))
+    }
 
     #[inline]
     pub fn flat_map<U: Observable>(
@@ -380,6 +386,49 @@ impl<S: Observable> Observable for Obs<S> {
 
     fn into_dyn(self) -> DynObs<Self::Item> {
         self.0.into_dyn()
+    }
+}
+
+struct ConvertValueObservable<S, F> {
+    s: S,
+    f: F,
+}
+impl<S, F, T> ConvertValueObservable<S, F>
+where
+    S: Observable,
+    F: Fn(&S::Item) -> T + 'static,
+{
+    fn new(s: S, f: F) -> Self {
+        Self { s, f }
+    }
+}
+
+impl<S, F, T> Observable for ConvertValueObservable<S, F>
+where
+    S: Observable,
+    F: Fn(&S::Item) -> T + 'static,
+{
+    type Item = T;
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        cx: &mut BindContext,
+    ) -> U {
+        self.s.with(|value, cx| f(&(self.f)(value), cx), cx)
+    }
+
+    fn into_dyn(self) -> DynObs<Self::Item>
+    where
+        Self: Sized,
+    {
+        if TypeId::of::<S::Item>() == TypeId::of::<T>() {
+            Any::downcast_ref::<DynObs<T>>(&self.s.into_dyn())
+                .unwrap()
+                .clone()
+        } else {
+            Obs(self.s).map(self.f).into_dyn()
+        }
     }
 }
 

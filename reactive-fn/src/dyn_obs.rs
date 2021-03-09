@@ -115,6 +115,16 @@ impl<T: 'static + ?Sized> DynObs<T> {
             self.obs().map_ref(f).into_dyn()
         }
     }
+    pub fn map_into<U>(&self) -> DynObs<U>
+    where
+        T: Clone + Into<U>,
+    {
+        if let Some(o) = Any::downcast_ref::<DynObs<U>>(self) {
+            o.clone()
+        } else {
+            self.map(|v| v.clone().into())
+        }
+    }
     pub fn map_borrow<B: ?Sized>(&self) -> DynObs<B>
     where
         T: Borrow<B>,
