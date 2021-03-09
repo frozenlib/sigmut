@@ -1,5 +1,5 @@
 use super::*;
-use std::{borrow::Borrow, rc::Rc, sync::Arc};
+use std::borrow::Borrow;
 
 #[derive(Clone)]
 pub enum Source<T>
@@ -54,44 +54,32 @@ where
     }
 }
 
-impl<S> From<Obs<S>> for Source<S::Item>
+impl<S, U> From<Obs<S>> for Source<U>
 where
     S: Observable,
-    S::Item: Clone,
+    S::Item: Clone + Into<U>,
+    U: Clone,
 {
     fn from(value: Obs<S>) -> Self {
-        value.into_dyn().into()
+        value.map_into().into_dyn().into()
     }
 }
 
-impl<T: Clone> From<DynObs<T>> for Source<T> {
+impl<T, U> From<DynObs<T>> for Source<U>
+where
+    T: Clone + Into<U>,
+    U: Clone,
+{
     fn from(value: DynObs<T>) -> Self {
-        Source::Obs(value)
+        Source::Obs(value.map_into())
     }
 }
-impl<T: Clone> From<&DynObs<T>> for Source<T> {
+impl<T, U> From<&DynObs<T>> for Source<U>
+where
+    T: Clone + Into<U>,
+    U: Clone,
+{
     fn from(value: &DynObs<T>) -> Self {
-        value.clone().into()
-    }
-}
-
-impl<T: ?Sized> From<Rc<T>> for Source<Rc<T>> {
-    fn from(value: Rc<T>) -> Self {
-        Source::Constant(value)
-    }
-}
-impl<T: ?Sized> From<&Rc<T>> for Source<Rc<T>> {
-    fn from(value: &Rc<T>) -> Self {
-        value.clone().into()
-    }
-}
-impl<T> From<Arc<T>> for Source<Arc<T>> {
-    fn from(value: Arc<T>) -> Self {
-        Source::Constant(value)
-    }
-}
-impl<T> From<&Arc<T>> for Source<Arc<T>> {
-    fn from(value: &Arc<T>) -> Self {
         value.clone().into()
     }
 }
