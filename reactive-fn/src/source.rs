@@ -126,9 +126,9 @@ where
 
 macro_rules! impl_from_for_source {
     ($($t:ty),*) => { $(
-        impl From<$t> for Source<$t> {
-            fn from(value: $t) -> Source<$t> {
-                Source::Constant(value)
+        impl<T: Into<$t>> From<T> for Source<$t> {
+            fn from(value: T) -> Self {
+                Self::Constant(value.into())
             }
         }
     )*
