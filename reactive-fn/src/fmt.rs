@@ -17,7 +17,7 @@ pub trait ObservableDisplay {
 
 pub struct ObsDisplay<S: ?Sized>(S);
 impl<S: ObservableDisplay> ObsDisplay<S> {
-    pub fn map_str(self) -> Obs<impl Observable<Item = str>>
+    pub fn obs(self) -> Obs<impl Observable<Item = str>>
     where
         Self: 'static,
     {
@@ -34,7 +34,7 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     where
         Self: 'static,
     {
-        self.map_str().into()
+        self.obs().into()
     }
 }
 
