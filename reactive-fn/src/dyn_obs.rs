@@ -284,6 +284,12 @@ impl<T: 'static + ?Sized> DynObs<T> {
     {
         self.obs().stream()
     }
+    pub fn display(&self) -> ObsDisplay<impl ObservableDisplay + 'static>
+    where
+        T: ObservableDisplay,
+    {
+        self.obs().display()
+    }
 }
 impl<T: ?Sized> Observable for DynObs<T> {
     type Item = T;

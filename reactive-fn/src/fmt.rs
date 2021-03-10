@@ -1,3 +1,5 @@
+use __helpers::{ObsFormatHelper, ObsFormatHelperDefault};
+
 use crate::*;
 use std::{
     cell::RefCell,
@@ -201,12 +203,12 @@ where
     }
 }
 
-impl<T: ObservableDisplay> ObservableDisplay for DynObs<T> {
+impl<T: ?Sized + ObservableDisplay> ObservableDisplay for DynObs<T> {
     fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
         self.with(|value, cx| value.obs_fmt(f, cx), cx)
     }
 }
-impl<T: ObservableDisplay> IntoSourceStr for DynObs<T> {
+impl<T: ?Sized + ObservableDisplay> IntoSourceStr for DynObs<T> {
     fn into_source_str(self) -> SourceStr {
         self.into_obs_display().into_source_str()
     }
@@ -259,13 +261,13 @@ pub mod __helpers {
         Binary, Debug, Display, LowerExp, LowerHex, Octal, Pointer, UpperExp, UpperHex
     );
 
-    pub struct ObsFormatHelper<'a, T>(pub &'a T);
+    pub struct ObsFormatHelper<'a, T: ?Sized>(pub &'a T);
     pub trait UseObsFormatArg {}
 
     impl<T> UseObsFormatArg for ObsDisplay<T> {}
     impl<S: Observable> UseObsFormatArg for S {}
 
-    impl<T: UseObsFormatArg> ObsFormatHelper<'_, T> {
+    impl<T: ?Sized + UseObsFormatArg> ObsFormatHelper<'_, T> {
         pub fn to_format_arg<'a, 'b>(
             &'a self,
             cx: &'a RefCell<&'a mut BindContext<'b>>,

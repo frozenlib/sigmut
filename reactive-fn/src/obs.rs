@@ -350,6 +350,12 @@ impl<S: Observable> Obs<S> {
     {
         IntoStream::new(self)
     }
+    pub fn display(self) -> ObsDisplay<impl ObservableDisplay + 'static>
+    where
+        S::Item: ObservableDisplay,
+    {
+        self.into_obs_display()
+    }
 }
 impl<S: Observable> Observable for Obs<S> {
     type Item = S::Item;
