@@ -1,5 +1,3 @@
-use __helpers::{ObsFormatHelper, ObsFormatHelperDefault};
-
 use crate::*;
 use std::{
     cell::RefCell,
@@ -237,9 +235,9 @@ pub mod __helpers {
         s: &'a S,
         cx: &'a RefCell<&'a mut BindContext<'b>>,
     }
-    impl<'a, 'b, S: ?Sized + ObservableDisplay> Display for ObsFormatArg<'a, 'b, ObsDisplay<S>> {
+    impl<'a, 'b, S: ?Sized + ObservableDisplay> Display for ObsFormatArg<'a, 'b, S> {
         fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-            self.s.0.obs_fmt(f, &mut self.cx.borrow_mut())
+            self.s.obs_fmt(f, &mut self.cx.borrow_mut())
         }
     }
     macro_rules! impl_bind_format_arg {
@@ -257,9 +255,7 @@ pub mod __helpers {
         )*
         };
     }
-    impl_bind_format_arg!(
-        Binary, Debug, Display, LowerExp, LowerHex, Octal, Pointer, UpperExp, UpperHex
-    );
+    impl_bind_format_arg!(Binary, Debug, LowerExp, LowerHex, Octal, Pointer, UpperExp, UpperHex);
 
     pub struct ObsFormatHelper<'a, T: ?Sized>(pub &'a T);
     pub trait UseObsFormatArg {}

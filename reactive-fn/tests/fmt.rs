@@ -2,7 +2,7 @@ use reactive_fn::*;
 
 #[test]
 fn impl_observable_display() {
-    fn check(s: impl ObservableDisplay) {}
+    fn check(_s: impl ObservableDisplay) {}
 
     let s = ObsCell::new(0);
     let s_dyn = s.obs().map_ref(|x| x as &dyn ObservableDisplay).into_dyn();
@@ -93,6 +93,16 @@ fn test_bind_write_obs_display() {
     let s = ObsCell::new(0);
     let d = s.obs().map_ref(|x| x as &dyn ObservableDisplay).into_dyn();
     let o = obs_display(move |f, cx| bind_write!(f, cx, "abc-{}", d.display()));
+    let v = o.obs().collect_vec();
+    s.set(5);
+    s.set(10);
+    assert_eq!(v.stop(), vec!["abc-0", "abc-5", "abc-10"]);
+}
+#[test]
+fn test_bind_write_dyn_obs_display() {
+    let s = ObsCell::new(0);
+    let d = s.obs().map_ref(|x| x as &dyn ObservableDisplay).into_dyn();
+    let o = obs_display(move |f, cx| bind_write!(f, cx, "abc-{}", d));
     let v = o.obs().collect_vec();
     s.set(5);
     s.set(10);
