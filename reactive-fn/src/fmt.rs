@@ -30,12 +30,6 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
             |s| s.as_str(),
         )
     }
-    pub fn into_source_str(self) -> SourceStr
-    where
-        Self: 'static,
-    {
-        self.obs().into()
-    }
 }
 
 struct ObsDisplayHead<'a, 'b, S> {
@@ -184,7 +178,7 @@ impl<T: ObservableDisplay> ObservableDisplay for ObsDisplay<T> {
 }
 impl<T: ObservableDisplay + 'static> IntoSourceStr for ObsDisplay<T> {
     fn into_source_str(self) -> SourceStr {
-        ObsDisplay::into_source_str(self)
+        self.obs().into()
     }
 }
 
