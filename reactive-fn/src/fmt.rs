@@ -115,10 +115,10 @@ macro_rules! bind_write {
 }
 #[macro_export]
 macro_rules! bind_writeln {
-    ($cx:expr, $f:expr, $fmt:expr) => {
+    ($f:expr, $cx:expr, $fmt:expr) => {
         std::writeln!(f, fmt)
     };
-    ($cx:expr, $f:expr, $fmt:expr, $($args:tt)*) => {
+    ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
         $crate::bind_impl!(std::writeln, cx, $cx, ($f, $fmt)(, $($args)*))
     };
 }
