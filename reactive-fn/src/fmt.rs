@@ -74,7 +74,7 @@ macro_rules! obs_format {
         $crate::fmt::obs_display(|f, cx| std::write!(f, fmt))
     };
     ($fmt:expr, $($args:tt)*) => {
-        $crate::obs_format_impl!((f, cx) () (cx, f, $fmt) (, $($args)*))
+        $crate::obs_format_impl!((f, cx) () (f, cx, $fmt) (, $($args)*))
     };
 }
 
@@ -106,19 +106,19 @@ macro_rules! obs_format_impl {
 
 #[macro_export]
 macro_rules! bind_write {
-    ($cx:expr, $f:expr,  $fmt:expr) => {
+    ($f:expr, $cx:expr, $fmt:expr) => {
         std::write!(f, fmt)
     };
-    ($cx:expr, $f:expr,  $fmt:expr, $($args:tt)*) => {
+    ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
         $crate::bind_impl!(std::write, cx, $cx, ($f, $fmt)(, $($args)*))
     };
 }
 #[macro_export]
 macro_rules! bind_writeln {
-    ($cx:expr, $f:expr,  $fmt:expr) => {
+    ($cx:expr, $f:expr, $fmt:expr) => {
         std::writeln!(f, fmt)
     };
-    ($cx:expr, $f:expr,  $fmt:expr, $($args:tt)*) => {
+    ($cx:expr, $f:expr, $fmt:expr, $($args:tt)*) => {
         $crate::bind_impl!(std::writeln, cx, $cx, ($f, $fmt)(, $($args)*))
     };
 }
