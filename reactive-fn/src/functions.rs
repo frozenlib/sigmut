@@ -222,7 +222,7 @@ where
         where
             Self: Sized,
         {
-            DynObs::from_dyn(Rc::new(self))
+            DynObs::new_dyn(Rc::new(self))
         }
     }
 
