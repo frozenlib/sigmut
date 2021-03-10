@@ -67,6 +67,30 @@ fn test_bind_write_obs2() {
 }
 
 #[test]
+fn test_bind_write_obs_format() {
+    let s = ObsCell::new(1);
+    let o = obs_display({
+        let s = s.clone();
+        move |f, cx| bind_write!(f, cx, "abc-{}", obs_format!("<{}>", s.clone()))
+    });
+    let v = o.obs().collect_vec();
+    s.set(5);
+    s.set(10);
+    assert_eq!(v.stop(), vec!["abc-<1>", "abc-<5>", "abc-<10>"]);
+}
+
+// #[test]
+// fn test_bind_write_dyn() {
+//     let s = ObsCell::new(0);
+//     let d = s.obs().map_ref(|x| x as &dyn ObservableDisplay);
+//     let o = obs_display(move |f, cx| bind_write!(f, cx, "abc-{}", d));
+//     let v = o.obs().collect_vec();
+//     s.set(5);
+//     s.set(10);
+//     assert_eq!(v.stop(), vec!["abc-0", "abc5-5", "abc-10"]);
+// }
+
+#[test]
 fn test_bind_format_obs() {
     let s = ObsCell::new(1);
     let o = obs({
