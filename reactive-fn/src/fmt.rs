@@ -167,7 +167,7 @@ impl<T: Display> ObservableDisplay for T {
 }
 impl<T: Display> IntoSourceStr for T {
     fn into_source_str(self) -> SourceStr {
-        self.to_string().into()
+        self.to_string().into_source_borrow()
     }
 }
 

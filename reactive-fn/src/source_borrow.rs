@@ -1,91 +1,86 @@
 use crate::*;
-use std::{borrow::Borrow, ops::Deref};
+use std::borrow::Borrow;
 
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct SourceBorrow<T: ?Sized + 'static>(pub DynObs<T>);
+pub type SourceBorrow<T> = DynObs<T>;
 
-impl<T: ?Sized + 'static> Deref for SourceBorrow<T> {
-    type Target = DynObs<T>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+pub trait IntoSourceBorrow<T: ?Sized> {
+    fn into_source_borrow(self) -> SourceBorrow<T>;
 }
 
-impl<S: Observable, U> From<Obs<S>> for SourceBorrow<U>
+impl<S: Observable, U> IntoSourceBorrow<U> for Obs<S>
 where
     S: Observable,
     S::Item: Borrow<U>,
     U: ?Sized,
 {
-    fn from(s: Obs<S>) -> Self {
-        s.map_borrow().into_dyn().into()
+    fn into_source_borrow(self) -> SourceBorrow<U> {
+        self.map_borrow().into_dyn().into_source_borrow()
     }
 }
-impl<T, U> From<DynObs<T>> for SourceBorrow<U>
+impl<T, U> IntoSourceBorrow<U> for DynObs<T>
 where
     T: ?Sized + 'static + Borrow<U>,
     U: ?Sized + 'static,
 {
-    fn from(s: DynObs<T>) -> Self {
-        Self(s.map_borrow())
+    fn into_source_borrow(self) -> SourceBorrow<U> {
+        self.map_borrow()
     }
 }
-impl<T, U> From<&DynObs<T>> for SourceBorrow<U>
+impl<T, U> IntoSourceBorrow<U> for &DynObs<T>
 where
     T: ?Sized + 'static + Borrow<U>,
     U: ?Sized + 'static,
 {
-    fn from(s: &DynObs<T>) -> Self {
-        s.clone().into()
+    fn into_source_borrow(self) -> SourceBorrow<U> {
+        self.clone().into_source_borrow()
     }
 }
-impl<T, U> From<ObsCell<T>> for SourceBorrow<U>
+impl<T, U> IntoSourceBorrow<U> for ObsCell<T>
 where
-    T: Borrow<U> + 'static,
+    T: 'static + Borrow<U>,
     U: ?Sized + 'static,
 {
-    fn from(s: ObsCell<T>) -> Self {
-        s.as_dyn().into()
+    fn into_source_borrow(self) -> SourceBorrow<U> {
+        self.obs().into_source_borrow()
     }
 }
-impl<T, U> From<&ObsCell<T>> for SourceBorrow<U>
+impl<T, U> IntoSourceBorrow<U> for &ObsCell<T>
 where
-    T: Borrow<U> + 'static,
+    T: 'static + Borrow<U>,
     U: ?Sized + 'static,
 {
-    fn from(s: &ObsCell<T>) -> Self {
-        s.as_dyn().into()
+    fn into_source_borrow(self) -> SourceBorrow<U> {
+        self.obs().into_source_borrow()
     }
 }
 
-impl<S, T> From<ObsCollector<S>> for SourceBorrow<T>
+impl<S, T> IntoSourceBorrow<T> for ObsCollector<S>
 where
     S: Collect,
     S::Output: Borrow<T>,
     T: ?Sized,
 {
-    fn from(s: ObsCollector<S>) -> Self {
-        (&s).into()
+    fn into_source_borrow(self) -> SourceBorrow<T> {
+        self.obs().into_source_borrow()
     }
 }
-impl<S, T> From<&ObsCollector<S>> for SourceBorrow<T>
+impl<S, T> IntoSourceBorrow<T> for &ObsCollector<S>
 where
     S: Collect,
     S::Output: Borrow<T>,
     T: ?Sized,
 {
-    fn from(s: &ObsCollector<S>) -> Self {
-        s.obs().into()
+    fn into_source_borrow(self) -> SourceBorrow<T> {
+        self.obs().into_source_borrow()
     }
 }
-impl From<&'static str> for SourceBorrow<str> {
-    fn from(s: &'static str) -> Self {
-        DynObs::new_static(s).into()
+impl IntoSourceBorrow<str> for &'static str {
+    fn into_source_borrow(self) -> SourceBorrow<str> {
+        DynObs::new_static(self).into_source_borrow()
     }
 }
-impl From<String> for SourceBorrow<str> {
-    fn from(s: String) -> Self {
-        DynObs::<str>::new_constant_map_ref(s, |s| s.as_str()).into()
+impl IntoSourceBorrow<str> for String {
+    fn into_source_borrow(self) -> SourceBorrow<str> {
+        DynObs::new_constant_map_ref(self, |s| s.as_str()).into_source_borrow()
     }
 }
