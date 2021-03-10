@@ -6,7 +6,7 @@ use std::{
 };
 
 /// A `Rc<RefCell>` like type that implement [`Observable`].
-pub struct ObsCell<T>(Rc<ObsRefCellData<T>>);
+pub struct ObsCell<T: 'static>(Rc<ObsRefCellData<T>>);
 struct ObsRefCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,

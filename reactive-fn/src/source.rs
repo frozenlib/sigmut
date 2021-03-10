@@ -55,87 +55,104 @@ where
     }
 }
 
-impl<S, U> From<Obs<S>> for Source<U>
+pub trait IntoSource<T: Clone> {
+    fn into_source(self) -> Source<T>;
+}
+
+impl<S: Observable, U> IntoSource<U> for Obs<S>
 where
-    S: Observable,
     S::Item: Clone + Into<U>,
     U: Clone,
 {
-    fn from(value: Obs<S>) -> Self {
-        value.map_into().into_dyn().into()
+    fn into_source(self) -> Source<U> {
+        self.map_into().into_dyn().into_source()
     }
 }
-
-impl<T, U> From<DynObs<T>> for Source<U>
+impl<T, U> IntoSource<U> for DynObs<T>
 where
     T: Clone + Into<U>,
     U: Clone,
 {
-    fn from(value: DynObs<T>) -> Self {
-        Source::Obs(value.map_into())
+    fn into_source(self) -> Source<U> {
+        Source::Obs(self.map_into())
     }
 }
-impl<T, U> From<&DynObs<T>> for Source<U>
+impl<T, U> IntoSource<U> for &DynObs<T>
 where
     T: Clone + Into<U>,
     U: Clone,
 {
-    fn from(value: &DynObs<T>) -> Self {
-        value.clone().into()
+    fn into_source(self) -> Source<U> {
+        self.clone().into_source()
     }
 }
 
-impl<T> From<ObsCell<T>> for Source<ObsCell<T>> {
-    fn from(value: ObsCell<T>) -> Source<ObsCell<T>> {
-        Source::Constant(value)
-    }
-}
-impl<T> From<&ObsCell<T>> for Source<ObsCell<T>> {
-    fn from(value: &ObsCell<T>) -> Source<ObsCell<T>> {
-        value.clone().into()
-    }
-}
-
-impl<T: Copy> From<ObsCell<T>> for Source<T> {
-    fn from(value: ObsCell<T>) -> Self {
-        value.obs().into()
-    }
-}
-impl<T: Copy> From<&ObsCell<T>> for Source<T> {
-    fn from(value: &ObsCell<T>) -> Self {
-        value.clone().into()
-    }
-}
-
-impl<T> From<Option<T>> for Source<Option<T>>
+impl<T> IntoSource<T> for ObsCell<T>
 where
-    T: Clone + Into<Source<T>> + 'static,
+    T: Clone,
 {
-    fn from(value: Option<T>) -> Self {
-        Source::Constant(value)
+    fn into_source(self) -> Source<T> {
+        self.as_dyn().into_source()
     }
 }
-impl<T, E> From<Result<T, E>> for Source<Result<T, E>>
+impl<T> IntoSource<T> for &ObsCell<T>
 where
-    T: Clone + Into<Source<T>> + 'static,
-    E: Clone + Into<Source<E>> + 'static,
+    T: Clone,
 {
-    fn from(value: Result<T, E>) -> Source<Result<T, E>> {
-        Source::Constant(value)
+    fn into_source(self) -> Source<T> {
+        self.clone().into_source()
     }
 }
 
-macro_rules! impl_from_for_source {
+impl<T> IntoSource<ObsCell<T>> for ObsCell<T> {
+    fn into_source(self) -> Source<ObsCell<T>> {
+        Source::Constant(self)
+    }
+}
+impl<T> IntoSource<ObsCell<T>> for &ObsCell<T> {
+    fn into_source(self) -> Source<ObsCell<T>> {
+        self.clone().into_source()
+    }
+}
+impl<T, U> IntoSource<Option<U>> for Option<T>
+where
+    T: IntoSource<U>,
+    U: Clone + 'static,
+{
+    fn into_source(self) -> Source<Option<U>> {
+        if let Some(s) = self {
+            s.into_source().map(|x| Some(x))
+        } else {
+            Source::Constant(None)
+        }
+    }
+}
+impl<T0, T1, E0, E1> IntoSource<Result<T1, E1>> for Result<T0, E0>
+where
+    T0: IntoSource<T1>,
+    T1: Clone + 'static,
+    E0: IntoSource<E1>,
+    E1: Clone + 'static,
+{
+    fn into_source(self) -> Source<Result<T1, E1>> {
+        match self {
+            Ok(s) => s.into_source().map(|x| Ok(x)),
+            Err(s) => s.into_source().map(|x| Err(x)),
+        }
+    }
+}
+
+macro_rules! impl_into_source {
     ($($t:ty),*) => { $(
-        impl<T: Into<$t>> From<T> for Source<$t> {
-            fn from(value: T) -> Self {
-                Self::Constant(value.into())
+        impl IntoSource<$t> for $t {
+            fn into_source(self) -> Source<$t> {
+                Source::Constant(self)
             }
         }
     )*
     };
 }
-impl_from_for_source!(u8, u16, u32, u64, u128, usize);
-impl_from_for_source!(i8, i16, i32, i64, i128, isize);
-impl_from_for_source!(f32, f64);
-impl_from_for_source!(bool, char);
+impl_into_source!(u8, u16, u32, u64, u128, usize);
+impl_into_source!(i8, i16, i32, i64, i128, isize);
+impl_into_source!(f32, f64);
+impl_into_source!(bool, char);
