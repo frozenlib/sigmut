@@ -89,27 +89,6 @@ fn test_bind_write_obs_format() {
 }
 
 #[test]
-fn test_bind_write_obs_display() {
-    let s = ObsCell::new(0);
-    let d = s.obs().map_ref(|x| x as &dyn ObservableDisplay).into_dyn();
-    let o = obs_display(move |f, cx| bind_write!(f, cx, "abc-{}", d.display()));
-    let v = o.obs().collect_vec();
-    s.set(5);
-    s.set(10);
-    assert_eq!(v.stop(), vec!["abc-0", "abc-5", "abc-10"]);
-}
-#[test]
-fn test_bind_write_dyn_obs_display() {
-    let s = ObsCell::new(0);
-    let d = s.obs().map_ref(|x| x as &dyn ObservableDisplay).into_dyn();
-    let o = obs_display(move |f, cx| bind_write!(f, cx, "abc-{}", d));
-    let v = o.obs().collect_vec();
-    s.set(5);
-    s.set(10);
-    assert_eq!(v.stop(), vec!["abc-0", "abc-5", "abc-10"]);
-}
-
-#[test]
 fn test_bind_format_obs() {
     let s = ObsCell::new(1);
     let o = obs({
@@ -167,6 +146,25 @@ fn test_bind_format_hex() {
 fn test_obs_format() {
     let s = ObsCell::new(10);
     let v = obs_format!("abc-{}", s.clone()).obs().collect_vec();
+    s.set(16);
+    s.set(20);
+    assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
+}
+
+#[test]
+fn test_obs_format_obs_display() {
+    let s = ObsCell::new(10);
+    let d = s.obs().display();
+    let v = obs_format!("abc-{}", d).obs().collect_vec();
+    s.set(16);
+    s.set(20);
+    assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
+}
+#[test]
+fn test_obs_format_dyn_obs_dyn_obs_display() {
+    let s = ObsCell::new(10);
+    let d = s.as_dyn().map_ref(|x| x as &dyn ObservableDisplay);
+    let v = obs_format!("abc-{}", d).obs().collect_vec();
     s.set(16);
     s.set(20);
     assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
