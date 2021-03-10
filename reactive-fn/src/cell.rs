@@ -89,7 +89,7 @@ impl<T: 'static> Observable for ObsCell<T> {
     where
         Self: Sized,
     {
-        DynObs::from_dyn_inner(self.0)
+        DynObs::new_dyn_inner(self.0)
     }
 }
 

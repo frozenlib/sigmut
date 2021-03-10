@@ -114,7 +114,7 @@ where
     where
         Self: Sized,
     {
-        DynObs::from_dyn_inner(self)
+        DynObs::new_dyn_inner(self)
     }
 }
 
@@ -202,7 +202,7 @@ where
     where
         Self: Sized,
     {
-        DynObs::from_dyn_inner(self)
+        DynObs::new_dyn_inner(self)
     }
 }
 impl<St, F, M> BindSource for FilterScan<St, F, M>

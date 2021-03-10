@@ -16,16 +16,14 @@ enum DynObsData<T: 'static + ?Sized> {
 }
 
 impl<T: 'static + ?Sized> DynObs<T> {
-    pub(crate) fn from_dyn(rc: Rc<dyn DynamicObservable<Item = T>>) -> Self {
-        Self(DynObsData::Dyn(rc))
-    }
-
-    pub(crate) fn from_dyn_inner(rc: Rc<dyn DynamicObservableInner<Item = T>>) -> Self {
-        Self(DynObsData::DynInner(rc))
-    }
-
     pub(crate) fn new_static(value: &'static T) -> Self {
         Self(DynObsData::Static(value))
+    }
+    pub(crate) fn new_dyn(rc: Rc<dyn DynamicObservable<Item = T>>) -> Self {
+        Self(DynObsData::Dyn(rc))
+    }
+    pub(crate) fn new_dyn_inner(rc: Rc<dyn DynamicObservableInner<Item = T>>) -> Self {
+        Self(DynObsData::DynInner(rc))
     }
 
     pub fn obs(&self) -> Obs<impl Observable<Item = T>> {

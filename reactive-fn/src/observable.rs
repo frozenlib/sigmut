@@ -29,7 +29,7 @@ pub trait Observable: 'static {
     where
         Self: Sized,
     {
-        DynObs::from_dyn(Rc::new(DynamicObs(self)))
+        DynObs::new_dyn(Rc::new(DynamicObs(self)))
     }
 }
 
@@ -47,7 +47,7 @@ impl<S: Observable> Observable for Rc<S> {
     where
         Self: Sized,
     {
-        DynObs::from_dyn_inner(self)
+        DynObs::new_dyn_inner(self)
     }
 }
 
