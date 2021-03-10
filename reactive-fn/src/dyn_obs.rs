@@ -24,29 +24,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         Self(DynObsData::DynInner(rc))
     }
 
-    pub fn new(f: impl Fn(&mut BindContext) -> T + 'static) -> Self
-    where
-        T: Sized,
-    {
-        obs(f).into_dyn()
-    }
-
-    pub fn new_with<S: 'static>(
-        this: S,
-        f: impl Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
-    ) -> Self {
-        obs_with(this, f).into_dyn()
-    }
-    pub fn new_constant(value: T) -> Self
-    where
-        T: Sized,
-    {
-        Self::new_with(value, |value, f, cx| f(value, cx))
-    }
-    pub fn new_constant_map_ref<S: 'static>(value: S, f: impl Fn(&S) -> &T + 'static) -> Self {
-        Self::new_with(value, move |value, f_outer, cx| f_outer(f(value), cx))
-    }
-    pub fn new_static(value: &'static T) -> Self {
+    pub(crate) fn new_static(value: &'static T) -> Self {
         Self(DynObsData::Static(value))
     }
 

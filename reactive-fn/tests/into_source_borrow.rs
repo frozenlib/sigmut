@@ -6,8 +6,8 @@ fn into_source_borrow_str() {
     func_into("acc");
     func_into(String::from("acb"));
 
-    func_into(DynObs::new_constant(String::from("abc")));
-    func_into(&DynObs::new_constant(String::from("abc")));
+    func_into(obs_constant(String::from("abc")).into_dyn());
+    func_into(&obs_constant(String::from("abc")).into_dyn());
 
     func_into(obs_constant(String::from("abc")));
     func_into(obs_static("abc"));

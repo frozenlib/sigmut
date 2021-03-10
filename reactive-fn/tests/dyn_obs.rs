@@ -2,41 +2,6 @@ use reactive_fn::*;
 use std::collections::HashSet;
 
 #[test]
-fn new_constant() {
-    let r = DynObs::new_constant(2).collect_vec();
-    assert_eq!(r.stop(), vec![2]);
-}
-
-#[test]
-fn new() {
-    let a = ObsCell::new(2);
-    let a_ = a.clone();
-    let r = DynObs::new(move |cx| a_.get(cx)).collect_vec();
-
-    a.set(5);
-    a.set(7);
-
-    assert_eq!(r.stop(), vec![2, 5, 7]);
-}
-
-#[test]
-fn cell2() {
-    let cell1 = ObsCell::new(1);
-    let cell2 = ObsCell::new(2);
-
-    let r = {
-        let cell1 = cell1.clone();
-        let cell2 = cell2.clone();
-        DynObs::new(move |cx| cell1.get(cx) + cell2.get(cx)).collect_vec()
-    };
-
-    cell1.set(5);
-    cell2.set(10);
-
-    assert_eq!(r.stop(), vec![1 + 2, 5 + 2, 5 + 10]);
-}
-
-#[test]
 fn map() {
     let a = ObsCell::new(2);
     let r = a.as_dyn().map(|x| x * 2).collect_vec();
@@ -276,14 +241,14 @@ fn hot_no() {
 
 #[test]
 fn flatten() {
-    let cell = ObsCell::new(DynObs::new_constant(1));
+    let cell = ObsCell::new(obs_constant(1));
 
     let vs = cell.as_dyn().flatten().collect_vec();
 
-    cell.set(DynObs::new_constant(2));
-    cell.set(DynObs::new_constant(3));
-    cell.set(DynObs::new_constant(4));
-    cell.set(DynObs::new_constant(5));
+    cell.set(obs_constant(2));
+    cell.set(obs_constant(3));
+    cell.set(obs_constant(4));
+    cell.set(obs_constant(5));
 
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }

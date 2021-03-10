@@ -81,6 +81,6 @@ impl IntoSourceBorrow<str> for &'static str {
 }
 impl IntoSourceBorrow<str> for String {
     fn into_source_borrow(self) -> SourceBorrow<str> {
-        DynObs::new_constant_map_ref(self, |s| s.as_str()).into_source_borrow()
+        obs_constant_map_ref(self, |s| s.as_str()).into_source_borrow()
     }
 }

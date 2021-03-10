@@ -49,7 +49,9 @@ where
         Self: Sized,
     {
         match self {
-            Source::Constant(value) => DynObs::new_constant_map_ref(value, |value| value.borrow()),
+            Source::Constant(value) => {
+                obs_constant_map_ref(value, |value| value.borrow()).into_dyn()
+            }
             Source::Obs(o) => o.into_dyn(),
         }
     }

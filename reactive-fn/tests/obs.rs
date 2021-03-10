@@ -274,14 +274,14 @@ fn hot_no() {
 
 #[test]
 fn flatten() {
-    let cell = ObsCell::new(DynObs::new_constant(1));
+    let cell = ObsCell::new(obs_constant(1));
 
     let vs = cell.as_dyn().flatten().collect_vec();
 
-    cell.set(DynObs::new_constant(2));
-    cell.set(DynObs::new_constant(3));
-    cell.set(DynObs::new_constant(4));
-    cell.set(DynObs::new_constant(5));
+    cell.set(obs_constant(2));
+    cell.set(obs_constant(3));
+    cell.set(obs_constant(4));
+    cell.set(obs_constant(5));
 
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }
