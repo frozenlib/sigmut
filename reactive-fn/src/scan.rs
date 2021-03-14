@@ -242,10 +242,8 @@ where
     M: Map<St>,
 {
     fn run(self: Rc<Self>, scope: &BindScope) {
-        if !self.data.borrow().is_loaded {
-            if self.load(scope) {
-                scope.defer_notify(self);
-            }
+        if !self.data.borrow().is_loaded && self.load(scope) {
+            scope.defer_notify(self);
         }
     }
 }

@@ -123,7 +123,7 @@ where
 {
     fn into_source(self) -> Source<Option<U>> {
         if let Some(s) = self {
-            s.into_source().map(|x| Some(x))
+            s.into_source().map(Some)
         } else {
             Source::Constant(None)
         }
@@ -138,8 +138,8 @@ where
 {
     fn into_source(self) -> Source<Result<T1, E1>> {
         match self {
-            Ok(s) => s.into_source().map(|x| Ok(x)),
-            Err(s) => s.into_source().map(|x| Err(x)),
+            Ok(s) => s.into_source().map(Ok),
+            Err(s) => s.into_source().map(Err),
         }
     }
 }
