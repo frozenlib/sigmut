@@ -73,6 +73,11 @@ impl<T: 'static> Cache<T> {
         }
     }
 }
+impl<T: 'static> Default for Cache<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl<T: 'static> BindSink for CacheData<T> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         self.state.borrow_mut().value.take();
