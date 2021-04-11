@@ -1,4 +1,5 @@
 use super::*;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     cell::{Ref, RefCell},
     ops::{Deref, DerefMut},
@@ -117,6 +118,22 @@ impl<T> Clone for ObsCell<T> {
 impl<T: std::fmt::Debug> std::fmt::Debug for ObsCell<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         std::fmt::Debug::fmt(&self.0.value, f)
+    }
+}
+impl<T: Serialize> Serialize for ObsCell<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        self.deref().serialize(serializer)
+    }
+}
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for ObsCell<T> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        Ok(Self::new(T::deserialize(deserializer)?))
     }
 }
 
