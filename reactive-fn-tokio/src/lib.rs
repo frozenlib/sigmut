@@ -1,78 +1,24 @@
-use extend::ext;
-use futures::{
-    future::{abortable, AbortHandle},
-    Future,
-};
-use reactive_fn::*;
-use std::task::Poll;
+use reactive_fn::async_runtime::*;
+use std::future::Future;
+use tokio::task::JoinHandle;
 
-pub struct AutoAbortHandle(AbortHandle);
+struct TokioAsyncRuntime;
+struct TokioAsyncHandle(JoinHandle<()>);
 
-impl Drop for AutoAbortHandle {
+impl AsyncRuntime for TokioAsyncRuntime {
+    fn spawn_local(&mut self, task: WeakAsyncTask) -> Box<dyn AsyncTaskHandle> {
+        Box::new(TokioAsyncHandle(tokio::task::spawn_local(task)))
+    }
+}
+impl AsyncTaskHandle for TokioAsyncHandle {}
+impl Drop for TokioAsyncHandle {
     fn drop(&mut self) {
-        self.0.abort();
+        self.0.abort()
     }
 }
 
-#[derive(Default, Clone, Copy)]
-pub struct LocalSpawner;
-
-impl LocalSpawn for LocalSpawner {
-    type Handle = AutoAbortHandle;
-    fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle {
-        let (fut, handle) = abortable(fut);
-        tokio::task::spawn_local(fut);
-        AutoAbortHandle(handle)
-    }
-}
-
-#[ext(pub)]
-impl<T: 'static> DynObs<T> {
-    fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, LocalSpawner)
-    }
-
-    fn subscribe_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, LocalSpawner)
-    }
-}
-
-#[ext(pub)]
-impl<T: 'static> DynObsRef<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, LocalSpawner)
-    }
-
-    fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, LocalSpawner)
-    }
-}
-
-#[ext(pub)]
-impl<T: 'static> DynObsBorrow<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, LocalSpawner)
-    }
-
-    fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, LocalSpawner)
-    }
+pub fn run<T>(future: impl Future<Output = T>) -> T {
+    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let local = tokio::task::LocalSet::new();
+    enter_async_runtime(TokioAsyncRuntime, || local.block_on(&mut rt, future))
 }
