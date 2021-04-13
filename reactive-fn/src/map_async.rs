@@ -153,7 +153,7 @@ where
     F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
-    fn poll(&self, cx: &mut Context) {
+    fn poll(self: Rc<Self>, cx: &mut Context) {
         let mut is_notify = false;
         let d = &mut *self.data.borrow_mut();
         if let Some(fut) = d.fut.as_mut().as_pin_mut() {

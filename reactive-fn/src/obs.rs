@@ -277,9 +277,11 @@ impl<S: Observable> Obs<S> {
 
     pub fn map_async<Fut: Future + 'static>(
         self,
-        f: impl Fn(&S::Item, &mut BindContext) -> Fut + 'static,
+        f: impl Fn(&S::Item) -> Fut + 'static,
     ) -> Obs<impl Observable<Item = Poll<Fut::Output>>> {
-        Obs(MapAsync::new(move |cx| self.with(&f, cx)))
+        Obs(MapAsync::new(move |cx| {
+            self.with(|value, _cx| f(value), cx)
+        }))
     }
 
     pub fn fold<St: 'static>(
@@ -318,25 +320,12 @@ impl<S: Observable> Obs<S> {
     {
         subscribe_to(o, move |o, cx| self.with(|value, _cx| o.next(value), cx))
     }
-    // pub fn subscribe_async_with<Fut>(
-    //     self,
-    //     f: impl FnMut(&S::Item) -> Fut + 'static,
-    //     sp: impl LocalSpawn,
-    // ) -> Subscription
-    // where
-    //     Fut: Future<Output = ()> + 'static,
-    // {
-    //     let mut f = f;
-    //     Fold::new(FoldBy::new(
-    //         (),
-    //         fold_by_op(
-    //             move |_, cx| ((), self.with(|x, _ctx| sp.spawn_local(f(x)), cx)),
-    //             |_| (),
-    //             |_| (),
-    //         ),
-    //     ))
-    //     .into()
-    // }
+    pub fn subscribe_async<Fut>(self, mut f: impl FnMut(&S::Item) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        subscribe_async(move |cx| self.with(|value, _cx| f(value), cx))
+    }
 
     pub fn hot(self) -> Obs<impl Observable<Item = S::Item>> {
         Obs(Hot::new(self))

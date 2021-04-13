@@ -13,7 +13,7 @@ pub trait AsyncRuntime: 'static {
 pub trait AsyncTaskHandle: 'static {}
 
 pub trait DynWeakAsyncTask: 'static {
-    fn poll(&self, cx: &mut Context);
+    fn poll(self: Rc<Self>, cx: &mut Context);
 }
 
 #[derive(Clone)]

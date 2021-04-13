@@ -198,7 +198,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
 
     pub fn map_async<Fut: Future + 'static>(
         &self,
-        f: impl Fn(&T, &mut BindContext) -> Fut + 'static,
+        f: impl Fn(&T) -> Fut + 'static,
     ) -> DynObs<Poll<Fut::Output>> {
         self.obs().map_async(f).into_dyn()
     }
@@ -235,6 +235,13 @@ impl<T: 'static + ?Sized> DynObs<T> {
     {
         self.obs().subscribe_to(o).into_dyn()
     }
+    pub fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        self.obs().subscribe_async(f)
+    }
+
     pub fn hot(&self) -> Self {
         self.obs().hot().into_dyn()
     }

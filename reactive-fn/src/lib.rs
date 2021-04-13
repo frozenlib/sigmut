@@ -21,6 +21,7 @@ mod scan;
 mod sink;
 mod source;
 mod source_borrow;
+mod subscribe_async;
 mod subscriber;
 mod tail;
 

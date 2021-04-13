@@ -16,9 +16,9 @@ thread_local! {
 fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
     LOCAL_EXECUTOR.with(|sp| sp.spawn(fut))
 }
-// fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
-//     smol::spawn(fut)
-// }
+fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
+    smol::spawn(fut)
+}
 fn sleep(dur: Duration) -> impl Future {
     smol::Timer::after(dur)
 }
@@ -45,25 +45,25 @@ fn send_values<T: 'static>(cell: &ObsCell<T>, values: Vec<T>, dur: Duration) -> 
     })
 }
 
-// async fn assert_recv<T>(r: Receiver<T>, values: Vec<T>, dur: Duration)
-// where
-//     T: 'static + PartialEq + Debug,
-// {
-//     for value in values {
-//         let a = if let Ok(a) = r.try_recv() {
-//             a
-//         } else {
-//             sleep(dur).await;
-//             if let Ok(a) = r.try_recv() {
-//                 a
-//             } else {
-//                 panic!("value {:?} : timeout.", value);
-//             }
-//         };
-//         assert_eq!(a, value);
-//     }
-//     assert_eq!(r.recv_timeout(dur), Err(RecvTimeoutError::Timeout));
-// }
+async fn assert_recv<T>(r: Receiver<T>, values: Vec<T>, dur: Duration)
+where
+    T: 'static + PartialEq + Debug,
+{
+    for value in values {
+        let a = if let Ok(a) = r.try_recv() {
+            a
+        } else {
+            sleep(dur).await;
+            if let Ok(a) = r.try_recv() {
+                a
+            } else {
+                panic!("value {:?} : timeout.", value);
+            }
+        };
+        assert_eq!(a, value);
+    }
+    assert_eq!(r.recv_timeout(dur), Err(RecvTimeoutError::Timeout));
+}
 #[track_caller]
 async fn assert_values<T>(source: DynObs<T>, values: Vec<T>, dur: Duration)
 where
@@ -89,7 +89,7 @@ fn obs_to_stream() {
 fn obs_map_async() {
     run(async {
         let cell = ObsCell::new(1);
-        let r = cell.as_dyn().map_async(|&x, _cx| async move {
+        let r = cell.as_dyn().map_async(|&x| async move {
             sleep(DUR / 2).await;
             x + 2
         });
@@ -110,7 +110,7 @@ fn obs_map_async() {
 fn obs_map_async_cancel() {
     run(async {
         let cell = ObsCell::new(1);
-        let r = cell.as_dyn().map_async(|&x, _cx| async move {
+        let r = cell.as_dyn().map_async(|&x| async move {
             sleep(DUR).await;
             x + 2
         });
@@ -120,19 +120,19 @@ fn obs_map_async_cancel() {
     });
 }
 
-// #[test]
-// fn re_subscribe() {
-//     run(async {
-//         let cell = ObsCell::new(1);
-//         let (s, r) = channel();
+#[test]
+fn obs_subscribe() {
+    run(async {
+        let cell = ObsCell::new(1);
+        let (s, r) = channel();
 
-//         let _s = cell.as_dyn().subscribe_async(move |&x| {
-//             let s = s.clone();
-//             spawn(async move {
-//                 s.send(x).unwrap();
-//             })
-//         });
-//         let _task = send_values(&cell, vec![10, 20, 30], DUR);
-//         assert_recv(r, vec![1, 10, 20, 30], DUR * 2).await;
-//     });
-// }
+        let _s = cell.as_dyn().subscribe_async(move |&x| {
+            let s = s.clone();
+            spawn(async move {
+                s.send(x).unwrap();
+            })
+        });
+        let _task = send_values(&cell, vec![10, 20, 30], DUR);
+        assert_recv(r, vec![1, 10, 20, 30], DUR * 2).await;
+    });
+}

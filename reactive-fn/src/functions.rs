@@ -2,6 +2,7 @@ use crate::*;
 use std::{
     any::Any,
     cell::{Ref, RefCell, RefMut},
+    future::Future,
     marker::PhantomData,
     mem,
     rc::Rc,
@@ -22,6 +23,13 @@ pub fn subscribe_to<St: 'static>(
         Err(st) => MayConstantSubscriber::Constant(RefCell::new(st.0)),
     }
 }
+
+pub fn subscribe_async<Fut: Future<Output = ()> + 'static>(
+    f: impl FnMut(&mut BindContext) -> Fut + 'static,
+) -> Subscription {
+    Subscription(Some(subscribe_async::SubscribeAsync::new(f)))
+}
+
 struct SubscribeToData<St>(St);
 impl<St> SubscriberState for SubscribeToData<St> {
     type St = St;
