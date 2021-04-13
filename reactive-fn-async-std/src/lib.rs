@@ -1,74 +1,27 @@
-use async_std::task::{spawn_local, JoinHandle};
-use extend::ext;
-use reactive_fn::*;
-use std::{future::Future, task::Poll};
+use async_std::task::JoinHandle;
+use reactive_fn::async_runtime::*;
+use std::future::Future;
 
-pub struct AutoCancelHandle(Option<JoinHandle<()>>);
+struct AsyncStdRuntime;
+struct AsyncStdTaskHandle(Option<JoinHandle<()>>);
 
-impl Drop for AutoCancelHandle {
+impl AsyncRuntime for AsyncStdRuntime {
+    fn spawn_local(
+        &mut self,
+        task: reactive_fn::async_runtime::WeakAsyncTask,
+    ) -> Box<dyn reactive_fn::async_runtime::AsyncTaskHandle> {
+        Box::new(AsyncStdTaskHandle(Some(async_std::task::spawn_local(task))))
+    }
+}
+impl AsyncTaskHandle for AsyncStdTaskHandle {}
+impl Drop for AsyncStdTaskHandle {
     fn drop(&mut self) {
         if let Some(handle) = self.0.take() {
-            spawn_local(handle.cancel());
+            let _ = handle.cancel();
         }
     }
 }
-#[derive(Default, Clone, Copy)]
-pub struct LocalSpawner;
 
-impl LocalSpawn for LocalSpawner {
-    type Handle = AutoCancelHandle;
-    fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle {
-        AutoCancelHandle(Some(spawn_local(fut)))
-    }
-}
-
-#[ext(pub)]
-impl<T: 'static> DynObs<T> {
-    fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, LocalSpawner)
-    }
-
-    fn subscribe_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, LocalSpawner)
-    }
-}
-
-#[ext(pub)]
-impl<T: 'static> DynObsRef<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, LocalSpawner)
-    }
-
-    fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, LocalSpawner)
-    }
-}
-
-#[ext(pub)]
-impl<T: 'static> DynObsBorrow<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, LocalSpawner)
-    }
-
-    fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, LocalSpawner)
-    }
+pub fn run<T>(f: impl Future<Output = T>) -> T {
+    enter_async_runtime(AsyncStdRuntime, || async_std::task::block_on(f))
 }
