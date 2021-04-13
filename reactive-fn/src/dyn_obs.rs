@@ -105,7 +105,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         self.obs().scan(initial_state, f).into_dyn()
     }
     pub fn scan_map<St, U>(
-        self,
+        &self,
         initial_state: St,
         f: impl FnMut(&mut St, &T) + 'static,
         m: impl Fn(&St) -> U + 'static,
@@ -117,7 +117,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         self.obs().scan_map(initial_state, f, m).into_dyn()
     }
     pub fn scan_map_ref<St, U>(
-        self,
+        &self,
         initial_state: St,
         f: impl FnMut(&mut St, &T) + 'static,
         m: impl Fn(&St) -> &U + 'static,
@@ -128,7 +128,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
     {
         self.obs().scan_map_ref(initial_state, f, m).into_dyn()
     }
-    pub fn cached(self) -> DynObs<<T as ToOwned>::Owned>
+    pub fn cached(&self) -> DynObs<<T as ToOwned>::Owned>
     where
         T: ToOwned,
     {
@@ -146,7 +146,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
             .into_dyn()
     }
     pub fn filter_scan_map<St, U>(
-        self,
+        &self,
         initial_state: St,
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl FnMut(&mut St, &T) + 'static,
@@ -161,7 +161,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
             .into_dyn()
     }
     pub fn filter_scan_map_ref<St, U>(
-        self,
+        &self,
         initial_state: St,
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl FnMut(&mut St, &T) + 'static,
@@ -176,20 +176,20 @@ impl<T: 'static + ?Sized> DynObs<T> {
             .into_dyn()
     }
 
-    pub fn dedup_by(self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObs<T>
+    pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObs<T>
     where
         T: ToOwned,
     {
         self.obs().dedup_by(eq).into_dyn()
     }
-    pub fn dedup_by_key<K>(self, to_key: impl Fn(&T) -> K + 'static) -> DynObs<T>
+    pub fn dedup_by_key<K>(&self, to_key: impl Fn(&T) -> K + 'static) -> DynObs<T>
     where
         K: PartialEq + 'static,
         T: ToOwned,
     {
         self.obs().dedup_by_key(to_key).into_dyn()
     }
-    pub fn dedup(self) -> DynObs<T>
+    pub fn dedup(&self) -> DynObs<T>
     where
         T: ToOwned + PartialEq,
     {
@@ -203,24 +203,24 @@ impl<T: 'static + ?Sized> DynObs<T> {
         self.obs().map_async(f).into_dyn()
     }
 
-    pub fn fold<St: 'static>(self, st: St, f: impl FnMut(&mut St, &T) + 'static) -> Fold<St> {
+    pub fn fold<St: 'static>(&self, st: St, f: impl FnMut(&mut St, &T) + 'static) -> Fold<St> {
         self.obs().fold(st, f)
     }
-    pub fn collect_to<E>(self, e: E) -> Fold<E>
+    pub fn collect_to<E>(&self, e: E) -> Fold<E>
     where
         T: ToOwned,
         E: Extend<<T as ToOwned>::Owned> + 'static,
     {
         self.obs().collect_to(e)
     }
-    pub fn collect<E>(self) -> Fold<E>
+    pub fn collect<E>(&self) -> Fold<E>
     where
         T: ToOwned,
         E: Extend<<T as ToOwned>::Owned> + Default + 'static,
     {
         self.obs().collect()
     }
-    pub fn collect_vec(self) -> Fold<Vec<<T as ToOwned>::Owned>>
+    pub fn collect_vec(&self) -> Fold<Vec<<T as ToOwned>::Owned>>
     where
         T: ToOwned,
     {
@@ -229,7 +229,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
     pub fn subscribe(&self, f: impl FnMut(&T) + 'static) -> Subscription {
         self.obs().subscribe(f)
     }
-    pub fn subscribe_to<O>(self, o: O) -> DynSubscriber<O>
+    pub fn subscribe_to<O>(&self, o: O) -> DynSubscriber<O>
     where
         for<'a> O: Observer<&'a T>,
     {
