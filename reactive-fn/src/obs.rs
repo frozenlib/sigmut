@@ -1,11 +1,12 @@
-use futures::Stream;
+use futures::{Future, Stream};
 
 use crate::*;
-use crate::{hot::*, into_stream::IntoStream};
+use crate::{hot::*, into_stream::IntoStream, map_async::MapAsync};
 use std::{
     any::{Any, TypeId},
     borrow::Borrow,
     iter::once,
+    task::Poll,
 };
 
 #[derive(Clone)]
@@ -126,16 +127,6 @@ impl<S: Observable> Obs<S> {
         Obs(Flatten(self))
     }
 
-    // pub fn map_async_with<Fut>(
-    //     self,
-    //     f: impl Fn(&S::Item) -> Fut + 'static,
-    //     sp: impl LocalSpawn,
-    // ) -> ObsRef<impl ObservableRef<Item = Poll<Fut::Output>> + Clone>
-    // where
-    //     Fut: Future + 'static,
-    // {
-    //     ObsRef(Rc::new(MapAsync::new(self.map(f), sp)))
-    // }
     pub fn scan<St: 'static>(
         self,
         initial_state: St,
@@ -282,6 +273,13 @@ impl<S: Observable> Obs<S> {
         S::Item: ToOwned + PartialEq,
     {
         self.dedup_by(move |old, new| old == new)
+    }
+
+    pub fn map_async<Fut: Future + 'static>(
+        self,
+        f: impl Fn(&S::Item, &mut BindContext) -> Fut + 'static,
+    ) -> Obs<impl Observable<Item = Poll<Fut::Output>>> {
+        Obs(MapAsync::new(move |cx| self.with(&f, cx)))
     }
 
     pub fn fold<St: 'static>(

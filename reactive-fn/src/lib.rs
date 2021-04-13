@@ -1,3 +1,4 @@
+pub mod async_runtime;
 pub mod cell;
 pub mod collections;
 pub mod collector;
@@ -11,7 +12,7 @@ mod fold;
 mod functions;
 mod hot;
 mod into_stream;
-// mod map_async;
+mod map_async;
 mod obs;
 mod observable;
 mod observer;

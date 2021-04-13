@@ -1,133 +1,110 @@
-use super::*;
+use crate::async_runtime::*;
+use crate::*;
+use std::future::Future;
 use std::{
-    cell::{Ref, RefCell},
-    future::Future,
-    rc::{Rc, Weak},
-    task::Poll,
+    cell::RefCell,
+    mem,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll, Waker},
 };
 
-pub trait LocalSpawn: 'static {
-    type Handle;
-    fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle;
-}
-
-pub struct MapAsync<S, Fut, Sp>
+pub struct MapAsync<F, Fut>
 where
-    S: Observable<Item = Fut>,
+    F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
-    Sp: LocalSpawn,
 {
-    sp: Sp,
-    source: S,
+    data: RefCell<MapAsyncData<F, Fut>>,
     sinks: BindSinks,
-    state: RefCell<MapAsyncState<Fut::Output, Sp::Handle>>,
-}
-struct MapAsyncState<T, H> {
-    value: Poll<T>,
-    handle: Option<H>,
-    bindings: Bindings,
 }
 
-impl<S, Fut, Sp> MapAsync<S, Fut, Sp>
+struct MapAsyncData<F, Fut>
 where
-    S: Observable<Item = Fut>,
+    F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
-    Sp: LocalSpawn,
 {
-    pub fn new(source: S, sp: Sp) -> Self {
+    f: F,
+    bindings: Bindings,
+    task: Option<Box<dyn AsyncTaskHandle>>,
+    fut: Pin<Box<Option<Fut>>>,
+    waker: Option<Waker>,
+    value: Poll<Fut::Output>,
+    is_loaded: bool,
+}
+impl<F, Fut> MapAsyncData<F, Fut>
+where
+    F: Fn(&mut BindContext) -> Fut + 'static,
+    Fut: Future + 'static,
+{
+    fn new(f: F) -> Self {
         Self {
-            sp,
-            source,
-            sinks: BindSinks::new(),
-            state: RefCell::new(MapAsyncState {
-                value: Poll::Pending,
-                handle: None,
-                bindings: Bindings::new(),
-            }),
+            f,
+            bindings: Bindings::new(),
+            task: None,
+            waker: None,
+            fut: Box::pin(None),
+            value: Poll::Pending,
+            is_loaded: false,
         }
-    }
-
-    fn ready(self: &Rc<Self>, scope: &BindScope) {
-        let mut s = self.state.borrow_mut();
-        let fut = s.bindings.update(scope, self, |cx| self.source.get(cx));
-        let this = Rc::downgrade(self);
-        s.handle = Some(self.sp.spawn_local(async move {
-            let value = fut.await;
-            if let Some(this) = Weak::upgrade(&this) {
-                this.state.borrow_mut().value = Poll::Ready(value);
-                Runtime::spawn_notify(this);
-            }
-        }));
-    }
-    fn borrow<'a>(self: &'a Rc<Self>, cx: &mut BindContext) -> Ref<'a, Poll<Fut::Output>> {
-        self.borrow_with(self.clone(), cx)
-    }
-    fn borrow_with(&self, rc_self: Rc<Self>, cx: &mut BindContext) -> Ref<Poll<Fut::Output>> {
-        let mut s = self.state.borrow();
-        if s.handle.is_none() {
-            drop(s);
-            rc_self.ready(cx.scope());
-            s = self.state.borrow();
-        }
-        cx.bind(rc_self);
-        Ref::map(s, |o| &o.value)
     }
 }
-// impl<S, Fut, Sp> ObservableBorrow for Rc<MapAsync<S, Fut, Sp>>
-// where
-//     S: Observable<Item = Fut>,
-//     Fut: Future + 'static,
-//     Sp: LocalSpawn,
-// {
-//     type Item = Poll<Fut::Output>;
-//     fn borrow(&self, cx: &mut BindContext) -> Ref<Self::Item> {
-//         self.borrow(cx)
-//     }
-// }
 
-// impl<S, Fut, Sp> DynamicObservableBorrowSource for MapAsync<S, Fut, Sp>
-// where
-//     S: Observable<Item = Fut>,
-//     Fut: Future + 'static,
-//     Sp: LocalSpawn,
-// {
-//     type Item = Poll<Fut::Output>;
-
-//     fn dyn_borrow<'a>(
-//         &'a self,
-//         rc_self: &Rc<dyn DynamicObservableBorrowSource<Item = Self::Item>>,
-//         cx: &mut BindContext,
-//     ) -> Ref<Self::Item> {
-//         self.borrow_with(Self::downcast(rc_self), cx)
-//     }
-//     fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
-//         self
-//     }
-//     fn as_ref(self: Rc<Self>) -> Rc<dyn DynamicObservableRefSource<Item = Self::Item>> {
-//         self
-//     }
-// }
-impl<S, Fut, Sp> DynamicObservableInner for MapAsync<S, Fut, Sp>
+impl<F, Fut> MapAsync<F, Fut>
 where
-    S: Observable<Item = Fut>,
+    F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
-    Sp: LocalSpawn,
+{
+    pub fn new(f: F) -> Rc<Self> {
+        Rc::new(Self {
+            data: RefCell::new(MapAsyncData::new(f)),
+            sinks: BindSinks::new(),
+        })
+    }
+    fn update(self: &Rc<Self>, load: bool, scope: &BindScope) {
+        let d = &mut *self.data.borrow_mut();
+        if !d.is_loaded {
+            d.value = Poll::Pending;
+            d.fut.set(None);
+            if self.sinks.is_empty() {
+                d.task.take();
+            }
+        }
+        if load && !self.sinks.is_empty() {
+            if !d.is_loaded {
+                d.is_loaded = true;
+                d.fut.set(Some(d.bindings.update(scope, &self, &mut d.f)));
+                if d.task.is_none() {
+                    let task = WeakAsyncTask::from_rc(self.clone());
+                    d.task = Some(with_async_runtime(|rt| rt.spawn_local(task)));
+                } else if let Some(waker) = d.waker.take() {
+                    waker.wake();
+                }
+            }
+        }
+    }
+}
+impl<F, Fut> Observable for Rc<MapAsync<F, Fut>>
+where
+    F: Fn(&mut BindContext) -> Fut + 'static,
+    Fut: Future + 'static,
 {
     type Item = Poll<Fut::Output>;
-    fn dyn_with(
-        self: Rc<Self>,
-        f: &mut dyn FnMut(&Self::Item, &mut BindContext),
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         cx: &mut BindContext,
-    ) {
-        f(&self.borrow(cx), cx)
+    ) -> U {
+        cx.bind(self.clone());
+        self.update(true, cx.scope());
+        f(&self.data.borrow().value, cx)
     }
 }
 
-impl<S, Fut, Sp> BindSource for MapAsync<S, Fut, Sp>
+impl<F, Fut> BindSource for MapAsync<F, Fut>
 where
-    S: Observable<Item = Fut>,
+    F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
-    Sp: LocalSpawn,
 {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
@@ -135,41 +112,49 @@ where
     fn detach_sink(&self, idx: usize) {
         self.sinks.detach(idx);
         if self.sinks.is_empty() {
-            let mut s = self.state.borrow_mut();
-            s.handle = None;
-            s.value = Poll::Pending;
-            s.bindings.clear();
-        }
-    }
-}
-
-impl<S, Fut, Sp> BindSink for MapAsync<S, Fut, Sp>
-where
-    S: Observable<Item = Fut>,
-    Fut: Future + 'static,
-    Sp: LocalSpawn,
-{
-    fn notify(self: Rc<Self>, scope: &NotifyScope) {
-        let mut s = self.state.borrow_mut();
-        if s.handle.take().is_some() {
-            if s.value.is_ready() {
-                s.value = Poll::Pending;
-                drop(s);
-                self.sinks.notify(scope);
-            } else {
-                drop(s);
-                scope.defer_bind(self);
+            let d = &mut *self.data.borrow_mut();
+            d.bindings.clear();
+            if d.is_loaded {
+                d.is_loaded = false;
+                // Runtime::spawn_bind(self);
             }
         }
     }
 }
-impl<S, Fut, Sp> BindTask for MapAsync<S, Fut, Sp>
+impl<F, Fut> BindSink for MapAsync<F, Fut>
 where
-    S: Observable<Item = Fut>,
+    F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
-    Sp: LocalSpawn,
+{
+    fn notify(self: Rc<Self>, scope: &NotifyScope) {
+        if mem::replace(&mut self.data.borrow_mut().is_loaded, false) {
+            scope.defer_bind(self);
+        }
+    }
+}
+impl<F, Fut> BindTask for MapAsync<F, Fut>
+where
+    F: Fn(&mut BindContext) -> Fut + 'static,
+    Fut: Future + 'static,
 {
     fn run(self: Rc<Self>, scope: &BindScope) {
-        self.ready(scope);
+        self.update(false, scope);
+    }
+}
+
+impl<F, Fut> DynWeakAsyncTask for MapAsync<F, Fut>
+where
+    F: Fn(&mut BindContext) -> Fut + 'static,
+    Fut: Future + 'static,
+{
+    fn poll(&self, cx: &mut Context) {
+        let d = &mut *self.data.borrow_mut();
+        if let Some(fut) = d.fut.as_mut().as_pin_mut() {
+            d.value = fut.poll(cx);
+            if d.value.is_ready() {
+                d.fut.set(None);
+            }
+        }
+        d.waker = Some(cx.waker().clone());
     }
 }

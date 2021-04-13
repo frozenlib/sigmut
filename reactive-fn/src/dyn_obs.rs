@@ -1,7 +1,7 @@
-use futures::Stream;
+use futures::{Future, Stream};
 
 use crate::*;
-use std::{any::Any, borrow::Borrow, rc::Rc};
+use std::{any::Any, borrow::Borrow, rc::Rc, task::Poll};
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
@@ -96,17 +96,6 @@ impl<T: 'static + ?Sized> DynObs<T> {
     {
         self.obs().flatten().into_dyn()
     }
-
-    // pub fn map_async_with<Fut>(
-    //     &self,
-    //     f: impl Fn(&T) -> Fut + 'static,
-    //     sp: impl LocalSpawn,
-    // ) -> DynObsBorrow<Poll<Fut::Output>>
-    // where
-    //     Fut: Future + 'static,
-    // {
-    //     self.obs().map_async_with(f, sp).into_dyn()
-    // }
 
     pub fn scan<St: 'static>(
         &self,
@@ -207,6 +196,13 @@ impl<T: 'static + ?Sized> DynObs<T> {
         self.obs().dedup().into_dyn()
     }
 
+    pub fn map_async<Fut: Future + 'static>(
+        &self,
+        f: impl Fn(&T, &mut BindContext) -> Fut + 'static,
+    ) -> DynObs<Poll<Fut::Output>> {
+        self.obs().map_async(f).into_dyn()
+    }
+
     pub fn fold<St: 'static>(self, st: St, f: impl FnMut(&mut St, &T) + 'static) -> Fold<St> {
         self.obs().fold(st, f)
     }
@@ -239,18 +235,6 @@ impl<T: 'static + ?Sized> DynObs<T> {
     {
         self.obs().subscribe_to(o).into_dyn()
     }
-
-    // pub fn subscribe_async_with<Fut>(
-    //     &self,
-    //     f: impl FnMut(&T) -> Fut + 'static,
-    //     sp: impl LocalSpawn,
-    // ) -> Subscription
-    // where
-    //     Fut: Future<Output = ()> + 'static,
-    // {
-    //     self.obs().subscribe_async_with(f, sp)
-    // }
-
     pub fn hot(&self) -> Self {
         self.obs().hot().into_dyn()
     }
