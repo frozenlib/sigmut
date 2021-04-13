@@ -202,6 +202,12 @@ impl<T: 'static + ?Sized> DynObs<T> {
     ) -> DynObs<Poll<Fut::Output>> {
         self.obs().map_async(f).into_dyn()
     }
+    pub fn map_stream<St: Stream + 'static>(
+        &self,
+        f: impl Fn(&T) -> St + 'static,
+    ) -> DynObs<Poll<Option<St::Item>>> {
+        self.obs().map_stream(f).into_dyn()
+    }
 
     pub fn fold<St: 'static>(&self, st: St, f: impl FnMut(&mut St, &T) + 'static) -> Fold<St> {
         self.obs().fold(st, f)

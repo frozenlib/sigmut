@@ -1,7 +1,6 @@
-use futures::{Future, Stream};
-
 use crate::*;
-use crate::{hot::*, into_stream::IntoStream, map_async::MapAsync};
+use crate::{hot::*, into_stream::IntoStream, map_async::MapAsync, map_stream::MapStream};
+use futures::{Future, Stream};
 use std::{
     any::{Any, TypeId},
     borrow::Borrow,
@@ -280,6 +279,14 @@ impl<S: Observable> Obs<S> {
         f: impl Fn(&S::Item) -> Fut + 'static,
     ) -> Obs<impl Observable<Item = Poll<Fut::Output>>> {
         Obs(MapAsync::new(move |cx| {
+            self.with(|value, _cx| f(value), cx)
+        }))
+    }
+    pub fn map_stream<St: Stream + 'static>(
+        self,
+        f: impl Fn(&S::Item) -> St + 'static,
+    ) -> Obs<impl Observable<Item = Poll<Option<St::Item>>>> {
+        Obs(MapStream::new(move |cx| {
             self.with(|value, _cx| f(value), cx)
         }))
     }

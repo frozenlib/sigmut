@@ -13,6 +13,7 @@ mod functions;
 mod hot;
 mod into_stream;
 mod map_async;
+mod map_stream;
 mod obs;
 mod observable;
 mod observer;
