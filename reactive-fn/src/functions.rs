@@ -6,6 +6,7 @@ use std::{
     marker::PhantomData,
     mem,
     rc::Rc,
+    task::Poll,
 };
 
 #[inline]
@@ -307,4 +308,10 @@ pub fn obs_static<T: ?Sized>(value: &'static T) -> Obs<impl Observable<Item = T>
     }
 
     Obs(ObsStatic(value))
+}
+
+pub fn obs_from_async<Fut: Future + 'static>(
+    future: Fut,
+) -> Obs<impl Observable<Item = Poll<Fut::Output>>> {
+    Obs(crate::obs_from_async::ObsFromAsync::new(future))
 }
