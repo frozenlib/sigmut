@@ -1,71 +1,24 @@
-use extend::ext;
-use reactive_fn::*;
-use smol::LocalExecutor;
-use std::{future::Future, task::Poll, thread::LocalKey};
+use async_executor::{LocalExecutor, Task};
+use futures::executor::block_on;
+use reactive_fn::async_runtime::*;
+use std::{future::Future, thread::LocalKey};
 
-struct LocalSpawner(&'static LocalKey<LocalExecutor<'static>>);
+struct SmolAsyncRuntime(&'static LocalKey<LocalExecutor<'static>>);
+struct SmolAsyncTaskHandle(Task<()>);
 
-impl LocalSpawn for LocalSpawner {
-    type Handle = smol::Task<()>;
-    fn spawn_local(&self, fut: impl Future<Output = ()> + 'static) -> Self::Handle {
-        self.0.with(|sp| sp.spawn(fut))
-    }
-}
-pub fn spawner() -> impl LocalSpawn {
-    LocalSpawner(&LOCAL_EXECUTOR)
-}
-
-thread_local! {
-    pub static LOCAL_EXECUTOR: LocalExecutor<'static> = LocalExecutor::new();
-}
-
-#[ext(pub)]
-impl<T: 'static> DynObs<T> {
-    fn map_async<Fut>(&self, f: impl Fn(T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, spawner())
-    }
-
-    fn subscribe_async<Fut>(&self, f: impl FnMut(T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, spawner())
+impl AsyncRuntime for SmolAsyncRuntime {
+    fn spawn_local(&mut self, task: WeakAsyncTask) -> Box<dyn AsyncTaskHandle> {
+        Box::new(SmolAsyncTaskHandle(self.0.with(|ex| ex.spawn(task))))
     }
 }
 
-#[ext(pub)]
-impl<T: 'static> DynObsRef<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, spawner())
-    }
+impl AsyncTaskHandle for SmolAsyncTaskHandle {}
 
-    fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, spawner())
-    }
-}
-
-#[ext(pub)]
-impl<T: 'static> DynObsBorrow<T> {
-    fn map_async<Fut>(&self, f: impl Fn(&T) -> Fut + 'static) -> DynObsBorrow<Poll<Fut::Output>>
-    where
-        Fut: Future + 'static,
-    {
-        self.map_async_with(f, spawner())
-    }
-
-    fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        self.subscribe_async_with(f, spawner())
-    }
+pub fn run<T>(
+    executor: &'static LocalKey<LocalExecutor<'static>>,
+    future: impl Future<Output = T>,
+) -> T {
+    enter_async_runtime(SmolAsyncRuntime(executor), || {
+        executor.with(|ex| block_on(ex.run(future)))
+    })
 }

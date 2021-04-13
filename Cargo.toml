@@ -1,10 +1,6 @@
 [workspace]
-members = [
-    "reactive-fn",
-    # "reactive-fn-smol",
-    # "reactive-fn-async-std",
-    # "reactive-fn-tokio",
-]
+members = ["reactive-fn", "reactive-fn-smol"]
+# "reactive-fn-tokio",
 
 [profile.bench]
 lto = true

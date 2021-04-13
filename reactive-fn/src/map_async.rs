@@ -60,16 +60,17 @@ where
             sinks: BindSinks::new(),
         })
     }
-    fn update(self: &Rc<Self>, load: bool, scope: &BindScope) {
+    fn update(self: &Rc<Self>, scope: &BindScope) {
         let d = &mut *self.data.borrow_mut();
         if !d.is_loaded {
             d.value = Poll::Pending;
             d.fut.set(None);
             if self.sinks.is_empty() {
                 d.task.take();
+                d.waker.take();
             }
         }
-        if load && !self.sinks.is_empty() {
+        if !self.sinks.is_empty() {
             if !d.is_loaded {
                 d.is_loaded = true;
                 d.fut.set(Some(d.bindings.update(scope, &self, &mut d.f)));
@@ -96,7 +97,7 @@ where
         cx: &mut BindContext,
     ) -> U {
         cx.bind(self.clone());
-        self.update(true, cx.scope());
+        self.update(cx.scope());
         f(&self.data.borrow().value, cx)
     }
 }
@@ -127,7 +128,12 @@ where
     Fut: Future + 'static,
 {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
-        if mem::replace(&mut self.data.borrow_mut().is_loaded, false) {
+        let mut d = self.data.borrow_mut();
+        if mem::replace(&mut d.is_loaded, false) {
+            if d.value.is_ready() {
+                self.sinks.notify(scope);
+            }
+            drop(d);
             scope.defer_bind(self);
         }
     }
@@ -138,7 +144,7 @@ where
     Fut: Future + 'static,
 {
     fn run(self: Rc<Self>, scope: &BindScope) {
-        self.update(false, scope);
+        self.update(scope);
     }
 }
 
@@ -148,13 +154,19 @@ where
     Fut: Future + 'static,
 {
     fn poll(&self, cx: &mut Context) {
+        let mut is_notify = false;
         let d = &mut *self.data.borrow_mut();
         if let Some(fut) = d.fut.as_mut().as_pin_mut() {
             d.value = fut.poll(cx);
             if d.value.is_ready() {
                 d.fut.set(None);
+                is_notify = true;
             }
         }
         d.waker = Some(cx.waker().clone());
+        drop(d);
+        if is_notify {
+            NotifyScope::with(|scope| self.sinks.notify(scope));
+        }
     }
 }
