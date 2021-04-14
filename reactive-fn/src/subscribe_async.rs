@@ -40,12 +40,12 @@ where
             waker: None,
             is_loaded: false,
         })));
-        this.0.borrow_mut().task = Some(spawn_local_async_task(&this));
+        this.0.borrow_mut().task = Some(spawn_local_weak(&this));
         this
     }
 }
 
-impl<F, Fut> DynWeakAsyncTask for SubscribeAsync<F, Fut>
+impl<F, Fut> AsyncTask for SubscribeAsync<F, Fut>
 where
     F: FnMut(&mut BindContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,

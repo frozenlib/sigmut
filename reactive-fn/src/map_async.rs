@@ -75,7 +75,7 @@ where
                 d.is_loaded = true;
                 d.fut.set(Some(d.bindings.update(scope, &self, &mut d.f)));
                 if d.task.is_none() {
-                    d.task = Some(spawn_local_async_task(self));
+                    d.task = Some(spawn_local_weak(self));
                 } else if let Some(waker) = d.waker.take() {
                     waker.wake();
                 }
@@ -147,7 +147,7 @@ where
     }
 }
 
-impl<F, Fut> DynWeakAsyncTask for MapAsync<F, Fut>
+impl<F, Fut> AsyncTask for MapAsync<F, Fut>
 where
     F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,

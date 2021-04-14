@@ -77,7 +77,7 @@ where
             d.value = Some(value);
             if !self.sinks.is_empty() {
                 if d.task.is_none() {
-                    d.task = Some(spawn_local_async_task(self));
+                    d.task = Some(spawn_local_weak(self));
                 } else if let Some(waker) = d.waker.take() {
                     waker.wake();
                 }
@@ -147,7 +147,7 @@ where
     }
 }
 
-impl<F, St> DynWeakAsyncTask for MapStream<F, St>
+impl<F, St> AsyncTask for MapStream<F, St>
 where
     F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,

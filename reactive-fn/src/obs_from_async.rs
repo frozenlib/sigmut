@@ -51,7 +51,7 @@ where
         let d = &mut *self.data.borrow_mut();
         if !self.sinks.is_empty() {
             if d.fut.is_some() && d.task.is_none() {
-                d.task = Some(spawn_local_async_task(self));
+                d.task = Some(spawn_local_weak(self));
             }
         }
     }
@@ -82,7 +82,7 @@ where
     }
 }
 
-impl<Fut> DynWeakAsyncTask for ObsFromAsync<Fut>
+impl<Fut> AsyncTask for ObsFromAsync<Fut>
 where
     Fut: Future + 'static,
 {

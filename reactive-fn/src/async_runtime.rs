@@ -12,24 +12,18 @@ pub trait AsyncRuntime: 'static {
 }
 pub trait AsyncTaskHandle: 'static {}
 
-pub trait DynWeakAsyncTask: 'static {
+pub trait AsyncTask: 'static {
     fn poll(self: Rc<Self>, cx: &mut Context);
 }
 
-pub(crate) fn spawn_local_async_task(task: &Rc<impl DynWeakAsyncTask>) -> Box<dyn AsyncTaskHandle> {
-    let task = WeakAsyncTask::from_rc(task.clone());
+pub(crate) fn spawn_local_weak(task: &Rc<impl AsyncTask>) -> Box<dyn AsyncTaskHandle> {
+    let task: Rc<dyn AsyncTask> = task.clone();
+    let task = WeakAsyncTask(Rc::downgrade(&task));
     with_async_runtime(|rt| rt.spawn_local(task))
 }
 
 #[derive(Clone)]
-pub struct WeakAsyncTask(Weak<dyn DynWeakAsyncTask>);
-
-impl WeakAsyncTask {
-    pub fn from_rc(rc: Rc<impl DynWeakAsyncTask>) -> Self {
-        let rc: Rc<dyn DynWeakAsyncTask> = rc;
-        Self(Rc::downgrade(&rc))
-    }
-}
+pub struct WeakAsyncTask(Weak<dyn AsyncTask>);
 
 impl Future for WeakAsyncTask {
     type Output = ();
