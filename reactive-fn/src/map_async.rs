@@ -75,8 +75,7 @@ where
                 d.is_loaded = true;
                 d.fut.set(Some(d.bindings.update(scope, &self, &mut d.f)));
                 if d.task.is_none() {
-                    let task = WeakAsyncTask::from_rc(self.clone());
-                    d.task = Some(with_async_runtime(|rt| rt.spawn_local(task)));
+                    d.task = Some(spawn_local_async_task(self));
                 } else if let Some(waker) = d.waker.take() {
                     waker.wake();
                 }

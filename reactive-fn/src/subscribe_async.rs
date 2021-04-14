@@ -40,8 +40,7 @@ where
             waker: None,
             is_loaded: false,
         })));
-        let task = WeakAsyncTask::from_rc(this.clone());
-        this.0.borrow_mut().task = Some(with_async_runtime(|rt| rt.spawn_local(task)));
+        this.0.borrow_mut().task = Some(spawn_local_async_task(&this));
         this
     }
 }

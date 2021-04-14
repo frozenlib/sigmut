@@ -51,8 +51,7 @@ where
         let d = &mut *self.data.borrow_mut();
         if !self.sinks.is_empty() {
             if d.fut.is_some() && d.task.is_none() {
-                let task = WeakAsyncTask::from_rc(self.clone());
-                d.task = Some(with_async_runtime(|rt| rt.spawn_local(task)));
+                d.task = Some(spawn_local_async_task(self));
             }
         }
     }
