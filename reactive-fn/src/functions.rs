@@ -1,4 +1,5 @@
 use crate::*;
+use futures::Stream;
 use std::{
     any::Any,
     cell::{Ref, RefCell, RefMut},
@@ -314,4 +315,10 @@ pub fn obs_from_async<Fut: Future + 'static>(
     future: Fut,
 ) -> Obs<impl Observable<Item = Poll<Fut::Output>>> {
     Obs(crate::obs_from_async::ObsFromAsync::new(future))
+}
+pub fn obs_from_stream<St: Stream + 'static>(
+    initial_value: St::Item,
+    stream: St,
+) -> Obs<impl Observable<Item = St::Item>> {
+    Obs(obs_from_stream::ObsFromStream::new(initial_value, stream))
 }

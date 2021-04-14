@@ -16,6 +16,7 @@ mod map_async;
 mod map_stream;
 mod obs;
 mod obs_from_async;
+mod obs_from_stream;
 mod observable;
 mod observer;
 mod runtime;
