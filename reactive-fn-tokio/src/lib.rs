@@ -1,19 +1,13 @@
 use reactive_fn::async_runtime::*;
 use std::future::Future;
-use tokio::task::JoinHandle;
 
 struct TokioAsyncRuntime;
-struct TokioAsyncHandle(JoinHandle<()>);
 
 impl AsyncRuntime for TokioAsyncRuntime {
-    fn spawn_local(&mut self, task: WeakAsyncTask) -> Box<dyn AsyncTaskHandle> {
-        Box::new(TokioAsyncHandle(tokio::task::spawn_local(task)))
-    }
-}
-impl AsyncTaskHandle for TokioAsyncHandle {}
-impl Drop for TokioAsyncHandle {
-    fn drop(&mut self) {
-        self.0.abort()
+    fn spawn_local(&mut self, task: WeakAsyncTask) -> AsyncTaskHandle {
+        AsyncTaskHandle::new(tokio::task::spawn_local(task), |handle| {
+            handle.abort();
+        })
     }
 }
 

@@ -20,7 +20,7 @@ struct ObsFromAsyncData<Fut>
 where
     Fut: Future + 'static,
 {
-    task: Option<Box<dyn AsyncTaskHandle>>,
+    task: Option<AsyncTaskHandle>,
     fut: Option<Pin<Box<Fut>>>,
     value: Poll<Fut::Output>,
 }

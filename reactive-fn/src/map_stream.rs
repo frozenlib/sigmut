@@ -25,7 +25,7 @@ where
 {
     f: F,
     bindings: Bindings,
-    task: Option<Box<dyn AsyncTaskHandle>>,
+    task: Option<AsyncTaskHandle>,
     stream: Pin<Box<Option<St>>>,
     waker: Option<Waker>,
     value: Option<St::Item>,

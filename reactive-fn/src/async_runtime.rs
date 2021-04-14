@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     cell::RefCell,
     ops::DerefMut,
     pin::Pin,
@@ -8,15 +9,36 @@ use std::{
 use std::{future::Future, rc::Rc};
 
 pub trait AsyncRuntime: 'static {
-    fn spawn_local(&mut self, task: WeakAsyncTask) -> Box<dyn AsyncTaskHandle>;
+    fn spawn_local(&mut self, task: WeakAsyncTask) -> AsyncTaskHandle;
 }
-pub trait AsyncTaskHandle: 'static {}
+
+pub struct AsyncTaskHandle(Box<dyn Any>);
+impl AsyncTaskHandle {
+    pub fn new<T: 'static>(handle: T, cancel: impl FnOnce(T) + 'static) -> Self {
+        Self(Box::new(AsyncTaskHandleOuter(Some(AsyncTaskHandleInner {
+            handle,
+            cancel,
+        }))))
+    }
+}
+struct AsyncTaskHandleOuter<T, F: FnOnce(T)>(Option<AsyncTaskHandleInner<T, F>>);
+struct AsyncTaskHandleInner<T, F: FnOnce(T)> {
+    handle: T,
+    cancel: F,
+}
+impl<T, F: FnOnce(T)> Drop for AsyncTaskHandleOuter<T, F> {
+    fn drop(&mut self) {
+        if let Some(this) = self.0.take() {
+            (this.cancel)(this.handle);
+        }
+    }
+}
 
 pub trait AsyncTask: 'static {
     fn poll(self: Rc<Self>, cx: &mut Context);
 }
 
-pub(crate) fn spawn_local_weak(task: &Rc<impl AsyncTask>) -> Box<dyn AsyncTaskHandle> {
+pub(crate) fn spawn_local_weak(task: &Rc<impl AsyncTask>) -> AsyncTaskHandle {
     let task: Rc<dyn AsyncTask> = task.clone();
     let task = WeakAsyncTask(Rc::downgrade(&task));
     with_async_runtime(|rt| rt.spawn_local(task))

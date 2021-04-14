@@ -20,7 +20,7 @@ struct ObsFromStreamData<St>
 where
     St: Stream + 'static,
 {
-    task: Option<Box<dyn AsyncTaskHandle>>,
+    task: Option<AsyncTaskHandle>,
     stream: Option<Pin<Box<St>>>,
     value: St::Item,
 }

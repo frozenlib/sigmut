@@ -1,18 +1,15 @@
-use async_executor::{LocalExecutor, Task};
+use async_executor::LocalExecutor;
 use futures::executor::block_on;
 use reactive_fn::async_runtime::*;
 use std::{future::Future, thread::LocalKey};
 
 struct SmolAsyncRuntime(&'static LocalKey<LocalExecutor<'static>>);
-struct SmolAsyncTaskHandle(Task<()>);
 
 impl AsyncRuntime for SmolAsyncRuntime {
-    fn spawn_local(&mut self, task: WeakAsyncTask) -> Box<dyn AsyncTaskHandle> {
-        Box::new(SmolAsyncTaskHandle(self.0.with(|ex| ex.spawn(task))))
+    fn spawn_local(&mut self, task: WeakAsyncTask) -> AsyncTaskHandle {
+        AsyncTaskHandle::new(self.0.with(|ex| ex.spawn(task)), |_| {})
     }
 }
-
-impl AsyncTaskHandle for SmolAsyncTaskHandle {}
 
 pub fn run<T>(
     executor: &'static LocalKey<LocalExecutor<'static>>,

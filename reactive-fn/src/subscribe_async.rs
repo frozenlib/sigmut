@@ -20,7 +20,7 @@ where
 {
     f: F,
     bindings: Bindings,
-    task: Option<Box<dyn AsyncTaskHandle>>,
+    task: Option<AsyncTaskHandle>,
     fut: Pin<Box<Option<Fut>>>,
     waker: Option<Waker>,
     is_loaded: bool,
