@@ -204,8 +204,8 @@ impl<T: 'static + ?Sized> DynObs<T> {
     }
     pub fn map_stream<St: Stream + 'static>(
         &self,
-        f: impl Fn(&T) -> St + 'static,
-    ) -> DynObs<Poll<Option<St::Item>>> {
+        f: impl Fn(&T) -> (St::Item, St) + 'static,
+    ) -> DynObs<St::Item> {
         self.obs().map_stream(f).into_dyn()
     }
 

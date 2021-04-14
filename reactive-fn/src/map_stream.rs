@@ -11,7 +11,7 @@ use std::{
 
 pub struct MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
     data: RefCell<MapStreamData<F, St>>,
@@ -20,7 +20,7 @@ where
 
 struct MapStreamData<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
     f: F,
@@ -28,12 +28,12 @@ where
     task: Option<Box<dyn AsyncTaskHandle>>,
     stream: Pin<Box<Option<St>>>,
     waker: Option<Waker>,
-    value: Poll<Option<St::Item>>,
+    value: Option<St::Item>,
     is_loaded: bool,
 }
 impl<F, St> MapStreamData<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
     fn new(f: F) -> Self {
@@ -43,7 +43,7 @@ where
             task: None,
             waker: None,
             stream: Box::pin(None),
-            value: Poll::Pending,
+            value: None,
             is_loaded: false,
         }
     }
@@ -51,7 +51,7 @@ where
 
 impl<F, St> MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
     pub fn new(f: F) -> Rc<Self> {
@@ -63,21 +63,21 @@ where
     fn update(self: &Rc<Self>, scope: &BindScope) {
         let d = &mut *self.data.borrow_mut();
         if !d.is_loaded {
-            d.value = Poll::Pending;
+            d.value.take();
             d.stream.set(None);
             if self.sinks.is_empty() {
                 d.task.take();
                 d.waker.take();
             }
         }
-        if !self.sinks.is_empty() {
-            if !d.is_loaded {
-                d.is_loaded = true;
-                d.stream
-                    .set(Some(d.bindings.update(scope, &self, &mut d.f)));
+        if !d.is_loaded {
+            d.is_loaded = true;
+            let (value, stream) = d.bindings.update(scope, &self, &mut d.f);
+            d.stream.set(Some(stream));
+            d.value = Some(value);
+            if !self.sinks.is_empty() {
                 if d.task.is_none() {
-                    let task = WeakAsyncTask::from_rc(self.clone());
-                    d.task = Some(with_async_runtime(|rt| rt.spawn_local(task)));
+                    d.task = Some(spawn_local_async_task(self));
                 } else if let Some(waker) = d.waker.take() {
                     waker.wake();
                 }
@@ -87,10 +87,10 @@ where
 }
 impl<F, St> Observable for Rc<MapStream<F, St>>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
-    type Item = Poll<Option<St::Item>>;
+    type Item = St::Item;
 
     fn with<U>(
         &self,
@@ -99,13 +99,13 @@ where
     ) -> U {
         cx.bind(self.clone());
         self.update(cx.scope());
-        f(&self.data.borrow().value, cx)
+        f(&self.data.borrow().value.as_ref().unwrap(), cx)
     }
 }
 
 impl<F, St> BindSource for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
     fn sinks(&self) -> &BindSinks {
@@ -125,15 +125,13 @@ where
 }
 impl<F, St> BindSink for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         let mut d = self.data.borrow_mut();
         if mem::replace(&mut d.is_loaded, false) {
-            if d.value.is_ready() {
-                self.sinks.notify(scope);
-            }
+            self.sinks.notify(scope);
             drop(d);
             scope.defer_bind(self);
         }
@@ -141,7 +139,7 @@ where
 }
 impl<F, St> BindTask for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
     fn run(self: Rc<Self>, scope: &BindScope) {
@@ -151,31 +149,29 @@ where
 
 impl<F, St> DynWeakAsyncTask for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
     fn poll(self: Rc<Self>, cx: &mut Context) {
         let mut is_notify = false;
-        let mut is_end = false;
         let d = &mut *self.data.borrow_mut();
         if let Some(mut s) = d.stream.as_mut().as_pin_mut() {
             loop {
                 match s.as_mut().poll_next(cx) {
                     Poll::Ready(value) => {
-                        is_end = value.is_none();
-                        is_notify = true;
-                        d.value = Poll::Ready(value);
-                        if !is_end {
-                            continue;
+                        if let Some(value) = value {
+                            is_notify = true;
+                            d.value = Some(value);
+                        } else {
+                            d.stream.set(None);
+                            break;
                         }
                     }
-                    Poll::Pending => {}
+                    Poll::Pending => {
+                        break;
+                    }
                 }
-                break;
             }
-        }
-        if is_end {
-            d.stream.set(None);
         }
         d.waker = Some(cx.waker().clone());
         drop(d);
