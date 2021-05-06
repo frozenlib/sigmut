@@ -119,8 +119,6 @@
       "args": [
         "clippy",
         "--all-features",
-        "--target-dir",
-        "target/clippy",
         "--",
         "-W",
         "clippy::all",
