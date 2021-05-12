@@ -48,7 +48,7 @@ impl<T: 'static> DynObsList<T> {
     where
         T: Borrow<U>,
     {
-        if let Some(b) = Any::downcast_ref::<DynObsList<U>>(self) {
+        if let Some(b) = <dyn Any>::downcast_ref::<DynObsList<U>>(self) {
             b.clone()
         } else {
             self.map(|x| x.borrow())

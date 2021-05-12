@@ -400,7 +400,7 @@ where
         Self: Sized,
     {
         if TypeId::of::<S::Item>() == TypeId::of::<T>() {
-            Any::downcast_ref::<DynObs<T>>(&self.s.into_dyn())
+            <dyn Any>::downcast_ref::<DynObs<T>>(&self.s.into_dyn())
                 .unwrap()
                 .clone()
         } else {
@@ -445,7 +445,7 @@ where
         Self: Sized,
     {
         if TypeId::of::<S::Item>() == TypeId::of::<T>() {
-            Any::downcast_ref::<DynObs<T>>(&self.s.into_dyn())
+            <dyn Any>::downcast_ref::<DynObs<T>>(&self.s.into_dyn())
                 .unwrap()
                 .clone()
         } else {

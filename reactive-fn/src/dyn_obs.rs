@@ -58,7 +58,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
     where
         T: Clone + Into<U>,
     {
-        if let Some(o) = Any::downcast_ref::<DynObs<U>>(self) {
+        if let Some(o) = <dyn Any>::downcast_ref::<DynObs<U>>(self) {
             o.clone()
         } else {
             self.map(|v| v.clone().into())
@@ -68,7 +68,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
     where
         T: Borrow<B>,
     {
-        if let Some(b) = Any::downcast_ref::<DynObs<B>>(self) {
+        if let Some(b) = <dyn Any>::downcast_ref::<DynObs<B>>(self) {
             b.clone()
         } else {
             self.map_ref(|x| x.borrow())
@@ -78,7 +78,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
     where
         T: AsRef<U>,
     {
-        if let Some(s) = Any::downcast_ref::<DynObs<U>>(self) {
+        if let Some(s) = <dyn Any>::downcast_ref::<DynObs<U>>(self) {
             s.clone()
         } else {
             self.map_ref(|x| x.as_ref())
