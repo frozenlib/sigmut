@@ -13,6 +13,13 @@ pub trait ObservableDisplay {
     {
         ObsDisplay(self)
     }
+    fn head(&self) -> String {
+        BindContext::nul(move |cx| {
+            let mut s = String::new();
+            write!(&mut s, "{}", ObsDisplayHead::new(self, cx)).unwrap();
+            s
+        })
+    }
 }
 
 pub struct ObsDisplay<S: ?Sized>(S);
@@ -32,11 +39,11 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     }
 }
 
-struct ObsDisplayHead<'a, 'b, S> {
+struct ObsDisplayHead<'a, 'b, S: ?Sized> {
     s: &'a S,
     cx: RefCell<&'a mut BindContext<'b>>,
 }
-impl<'a, 'b, S: ObservableDisplay> ObsDisplayHead<'a, 'b, S> {
+impl<'a, 'b, S: ObservableDisplay + ?Sized> ObsDisplayHead<'a, 'b, S> {
     fn new(s: &'a S, cx: &'a mut BindContext<'b>) -> Self {
         Self {
             s,
@@ -44,7 +51,7 @@ impl<'a, 'b, S: ObservableDisplay> ObsDisplayHead<'a, 'b, S> {
         }
     }
 }
-impl<'a, 'b, S: ObservableDisplay> Display for ObsDisplayHead<'a, 'b, S> {
+impl<'a, 'b, S: ObservableDisplay + ?Sized> Display for ObsDisplayHead<'a, 'b, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         self.s.obs_fmt(f, &mut self.cx.borrow_mut())
     }
@@ -62,6 +69,27 @@ impl<F: Fn(&mut Formatter, &mut BindContext) -> Result> ObservableDisplay for Fn
     }
 }
 
+/// Creates a [`ObsDisplay`] using interpolation of runtime expressions.
+///
+/// The first argument `obs_format!` receives is a format string with the same syntax as the one used in [`macro@std::format`].
+///
+/// The following types can be used for additional parameters passed to `obs_format!`.
+///
+/// - Types that implements formatting traits. (e.g. [`Display`], [`Debug`], [`LowerHex`](std::fmt::LowerHex),...)
+/// - Types that implements [`Observable`].
+/// - [`ObsDisplay`]
+///
+/// # Example
+///
+/// ```
+/// use reactive_fn::*;
+///
+/// let x = ObsCell::new(0);
+/// let s = obs_format!("x = {}", x.obs());
+/// assert_eq!(s.head(), "x = 0");
+/// x.set(10);
+/// assert_eq!(s.head(), "x = 10");
+/// ```
 #[macro_export]
 macro_rules! obs_format {
     ($fmt:expr) => {
