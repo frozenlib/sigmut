@@ -169,3 +169,18 @@ fn test_obs_format_dyn_obs_dyn_obs_display() {
     s.set(20);
     assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
 }
+
+#[test]
+fn test_obs_format_hex() {
+    let v = obs_format!("abc-{:x}", 0xa0).obs().collect_vec();
+    assert_eq!(v.stop(), vec!["abc-a0"]);
+}
+
+#[test]
+fn test_obs_format_obs_hex() {
+    let s = ObsCell::new(0xff);
+    let v = obs_format!("abc-{:x}", s.obs()).obs().collect_vec();
+    s.set(0x10);
+    s.set(0x20);
+    assert_eq!(v.stop(), vec!["abc-ff", "abc-10", "abc-20"]);
+}
