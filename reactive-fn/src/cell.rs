@@ -115,11 +115,6 @@ impl<T> Clone for ObsCell<T> {
         Self(self.0.clone())
     }
 }
-impl<T: std::fmt::Debug> std::fmt::Debug for ObsCell<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
-        std::fmt::Debug::fmt(&self.0.value, f)
-    }
-}
 impl<T: Serialize> Serialize for ObsCell<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
