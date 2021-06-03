@@ -2,6 +2,8 @@
 
 Reactive programming framework for data binding.
 
+Warning: This library is at a very early stage of development.
+
 ## Example
 
 TODO
