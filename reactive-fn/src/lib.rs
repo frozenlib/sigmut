@@ -47,6 +47,7 @@ pub use into_obs_borrow::*;
 pub use into_obs_value::*;
 pub use obs::*;
 pub use observable::*;
+pub use observables::ConstantObservable;
 pub use observer::*;
 pub use runtime::*;
 pub use scan::*;
