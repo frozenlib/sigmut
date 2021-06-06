@@ -13,12 +13,6 @@ impl<S: Observable> Obs<S> {
     pub fn into_dyn(self) -> DynObs<S::Item> {
         self.0.into_dyn()
     }
-    pub fn into_source(self) -> Source<S::Item>
-    where
-        S::Item: Sized,
-    {
-        self.0.into_source()
-    }
 
     pub fn get_head_tail(self) -> (<S::Item as ToOwned>::Owned, Tail<S>)
     where
@@ -347,6 +341,12 @@ impl<S: Observable> Obs<S> {
         S::Item: ToOwned,
     {
         IntoStream::new(self)
+    }
+    pub fn source(self) -> Source<S::Item>
+    where
+        S::Item: Sized,
+    {
+        self.0.into_source()
     }
     pub fn display(self) -> ObsDisplay<impl ObservableDisplay + 'static>
     where

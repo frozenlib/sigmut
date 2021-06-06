@@ -9,7 +9,7 @@ pub trait IntoObsValue<T> {
     where
         Self: Sized,
     {
-        self.into_obs_value().into_source()
+        self.into_obs_value().source()
     }
 }
 
