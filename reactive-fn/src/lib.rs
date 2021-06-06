@@ -31,6 +31,7 @@ mod subscriber;
 mod tail;
 
 use derivative::Derivative;
+use dynamic_obs::*;
 
 pub use bind::*;
 pub use cache::Cache;
@@ -55,5 +56,3 @@ pub use scan::*;
 pub use sink::*;
 pub use subscriber::*;
 pub use tail::*;
-
-pub(crate) use dynamic_obs::*;
