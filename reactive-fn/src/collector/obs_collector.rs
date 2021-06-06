@@ -2,7 +2,7 @@ use super::*;
 use std::{cell::RefCell, rc::Rc};
 
 #[derive(Default)]
-pub struct ObsCollector<T>(Rc<ObsCollectorData<T>>);
+pub struct ObsCollector<C>(Rc<ObsCollectorData<C>>);
 
 #[derive(Default)]
 struct ObsCollectorData<T> {
@@ -19,19 +19,19 @@ pub trait Collect: 'static {
     fn collect(&self) -> Self::Output;
 }
 
-struct ObsCollectorObserver<T: Collect> {
-    collector: Rc<ObsCollectorData<T>>,
-    key: Option<T::Key>,
+struct ObsCollectorObserver<C: Collect> {
+    collector: Rc<ObsCollectorData<C>>,
+    key: Option<C::Key>,
 }
-impl<T: Collect> ObsCollector<T> {
+impl<C: Collect> ObsCollector<C> {
     pub fn new() -> Self
     where
-        T: Default,
+        C: Default,
     {
         Default::default()
     }
 
-    pub fn insert(&self) -> impl Observer<T::Input> {
+    pub fn insert(&self) -> impl Observer<C::Input> {
         let (key, is_modified) = self.0.collector.borrow_mut().insert();
         if is_modified {
             Runtime::spawn_notify(self.0.clone());
@@ -42,15 +42,15 @@ impl<T: Collect> ObsCollector<T> {
         }
     }
 
-    pub fn as_dyn(&self) -> DynObs<T::Output> {
+    pub fn as_dyn(&self) -> DynObs<C::Output> {
         self.obs().into_dyn()
     }
-    pub fn obs(&self) -> Obs<impl Observable<Item = T::Output> + Clone> {
+    pub fn obs(&self) -> Obs<ObsCollector<C>> {
         Obs(self.clone())
     }
 }
-impl<T: Collect> Observable for ObsCollector<T> {
-    type Item = T::Output;
+impl<C: Collect> Observable for ObsCollector<C> {
+    type Item = C::Output;
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
@@ -59,21 +59,21 @@ impl<T: Collect> Observable for ObsCollector<T> {
         f(&self.0.clone().get(cx), cx)
     }
 }
-impl<T> Clone for ObsCollector<T> {
+impl<C> Clone for ObsCollector<C> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
 
-impl<T: Collect> ObsCollectorData<T> {
-    pub fn get(self: Rc<Self>, cx: &mut BindContext) -> T::Output {
+impl<C: Collect> ObsCollectorData<C> {
+    pub fn get(self: Rc<Self>, cx: &mut BindContext) -> C::Output {
         let value = self.collector.borrow().collect();
         cx.bind(self);
         value
     }
 }
-impl<T: Collect> DynamicObservableInner for ObsCollectorData<T> {
-    type Item = T::Output;
+impl<C: Collect> DynamicObservableInner for ObsCollectorData<C> {
+    type Item = C::Output;
     fn dyn_with(
         self: Rc<Self>,
         f: &mut dyn FnMut(&Self::Item, &mut BindContext),
@@ -82,14 +82,14 @@ impl<T: Collect> DynamicObservableInner for ObsCollectorData<T> {
         f(&self.get(cx), cx)
     }
 }
-impl<T: 'static> BindSource for ObsCollectorData<T> {
+impl<C: 'static> BindSource for ObsCollectorData<C> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
 
-impl<T: Collect> Observer<T::Input> for ObsCollectorObserver<T> {
-    fn next(&mut self, value: T::Input) {
+impl<C: Collect> Observer<C::Input> for ObsCollectorObserver<C> {
+    fn next(&mut self, value: C::Input) {
         let (key, is_modified) = self
             .collector
             .collector
@@ -101,7 +101,7 @@ impl<T: Collect> Observer<T::Input> for ObsCollectorObserver<T> {
         }
     }
 }
-impl<T: Collect> Drop for ObsCollectorObserver<T> {
+impl<C: Collect> Drop for ObsCollectorObserver<C> {
     fn drop(&mut self) {
         if self
             .collector
@@ -113,13 +113,13 @@ impl<T: Collect> Drop for ObsCollectorObserver<T> {
         }
     }
 }
-impl<T: Collect> Sink<T::Input> for ObsCollector<T> {
-    fn connect(self, value: T::Input) -> DynObserver<T::Input> {
+impl<C: Collect> Sink<C::Input> for ObsCollector<C> {
+    fn connect(self, value: C::Input) -> DynObserver<C::Input> {
         (&self).connect(value)
     }
 }
-impl<T: Collect> Sink<T::Input> for &ObsCollector<T> {
-    fn connect(self, value: T::Input) -> DynObserver<T::Input> {
+impl<C: Collect> Sink<C::Input> for &ObsCollector<C> {
+    fn connect(self, value: C::Input) -> DynObserver<C::Input> {
         let mut o = self.insert();
         o.next(value);
         o.into_dyn()

@@ -290,26 +290,8 @@ pub fn obs_constant_map_ref<T: 'static, U: ?Sized + 'static>(
 }
 
 #[inline]
-pub fn obs_static<T: ?Sized>(value: &'static T) -> Obs<impl Observable<Item = T>> {
-    struct ObsStatic<T: ?Sized + 'static>(&'static T);
-    impl<T: ?Sized> Observable for ObsStatic<T> {
-        type Item = T;
-
-        #[inline]
-        fn with<U>(
-            &self,
-            f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-            cx: &mut BindContext,
-        ) -> U {
-            f(self.0, cx)
-        }
-        #[inline]
-        fn into_dyn(self) -> DynObs<Self::Item> {
-            DynObs::new_static(self.0)
-        }
-    }
-
-    Obs(ObsStatic(value))
+pub fn obs_static<T: ?Sized>(value: &'static T) -> Obs<StaticObservable<T>> {
+    Obs(StaticObservable(value))
 }
 
 pub fn obs_from_async<Fut: Future + 'static>(

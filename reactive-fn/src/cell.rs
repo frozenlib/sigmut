@@ -66,7 +66,7 @@ impl<T: 'static> ObsCell<T> {
     pub fn as_dyn(&self) -> DynObs<T> {
         self.obs().into_dyn()
     }
-    pub fn obs(&self) -> Obs<impl Observable<Item = T>> {
+    pub fn obs(&self) -> Obs<ObsCell<T>> {
         Obs(self.clone())
     }
 }
