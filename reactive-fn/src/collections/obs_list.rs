@@ -10,26 +10,26 @@ pub(crate) trait DynamicObservableList<T> {
     ) -> Box<dyn DynamicObservableListRef<T> + 'a>;
 }
 pub(crate) trait DynamicObservableListRef<T> {
-    fn age(&self) -> DynObsListAge;
+    fn age(&self) -> ObsListAge;
     fn len(&self) -> usize;
     fn get(&self, index: usize) -> Option<&T>;
-    fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>));
+    fn changes(&self, since: &ObsListAge, f: &mut dyn FnMut(ListChange<&T>));
 }
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct DynObsList<T>(pub(crate) Rc<dyn DynamicObservableList<T>>);
-pub struct DynObsListRef<'a, T>(Box<dyn DynamicObservableListRef<T> + 'a>);
+pub struct ObsList<T>(pub(crate) Rc<dyn DynamicObservableList<T>>);
+pub struct ObsListRef<'a, T>(Box<dyn DynamicObservableListRef<T> + 'a>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub enum DynObsListAge {
+pub enum ObsListAge {
     Empty,
     Last,
     Obs(Rc<dyn Any>),
 }
 
-impl<T: 'static> DynObsList<T> {
+impl<T: 'static> ObsList<T> {
     pub fn from_vec(values: Vec<T>) -> Self {
         Self(Rc::new(values))
     }
@@ -37,26 +37,26 @@ impl<T: 'static> DynObsList<T> {
         Self(values)
     }
 
-    pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> DynObsListRef<'a, T> {
-        DynObsListRef(DynamicObservableList::borrow(&*self.0, &self.0, cx))
+    pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> ObsListRef<'a, T> {
+        ObsListRef(DynamicObservableList::borrow(&*self.0, &self.0, cx))
     }
 
-    pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObsList<U> {
-        DynObsList(Rc::new(MapDynObsList { s: self.clone(), f }))
+    pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> ObsList<U> {
+        ObsList(Rc::new(MapDynObsList { s: self.clone(), f }))
     }
-    pub fn map_borrow<U: 'static>(&self) -> DynObsList<U>
+    pub fn map_borrow<U: 'static>(&self) -> ObsList<U>
     where
         T: Borrow<U>,
     {
-        if let Some(b) = <dyn Any>::downcast_ref::<DynObsList<U>>(self) {
+        if let Some(b) = <dyn Any>::downcast_ref::<ObsList<U>>(self) {
             b.clone()
         } else {
             self.map(|x| x.borrow())
         }
     }
 }
-impl<T> DynObsListRef<'_, T> {
-    pub fn age(&self) -> DynObsListAge {
+impl<T> ObsListRef<'_, T> {
+    pub fn age(&self) -> ObsListAge {
         self.0.age()
     }
     pub fn len(&self) -> usize {
@@ -68,21 +68,21 @@ impl<T> DynObsListRef<'_, T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.0.get(index)
     }
-    pub fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
+    pub fn changes(&self, since: &ObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
         self.0.changes(since, f)
     }
     pub fn iter(&self) -> IndexIter<&Self> {
         IndexIter::new(self, 0, self.len())
     }
 }
-impl<T> Index<usize> for DynObsListRef<'_, T> {
+impl<T> Index<usize> for ObsListRef<'_, T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("out of index.")
     }
 }
-impl<'a, T> IntoIterator for &'a DynObsListRef<'_, T> {
+impl<'a, T> IntoIterator for &'a ObsListRef<'_, T> {
     type Item = &'a T;
     type IntoIter = IndexIter<Self>;
 
@@ -103,8 +103,8 @@ impl<T> DynamicObservableList<T> for Vec<T> {
     }
 }
 impl<'a, T> DynamicObservableListRef<T> for ConstantObsListRef<'a, T> {
-    fn age(&self) -> DynObsListAge {
-        DynObsListAge::Last
+    fn age(&self) -> ObsListAge {
+        ObsListAge::Last
     }
     fn len(&self) -> usize {
         self.0.len()
@@ -112,11 +112,11 @@ impl<'a, T> DynamicObservableListRef<T> for ConstantObsListRef<'a, T> {
     fn get(&self, index: usize) -> Option<&T> {
         self.0.get(index)
     }
-    fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
+    fn changes(&self, since: &ObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
         match since {
-            DynObsListAge::Empty => list_change_for_each(self.0, f),
-            DynObsListAge::Last => {}
-            DynObsListAge::Obs(_) => {
+            ObsListAge::Empty => list_change_for_each(self.0, f),
+            ObsListAge::Last => {}
+            ObsListAge::Obs(_) => {
                 panic!("mismatch source.")
             }
         }
@@ -124,11 +124,11 @@ impl<'a, T> DynamicObservableListRef<T> for ConstantObsListRef<'a, T> {
 }
 
 struct MapDynObsList<T, F> {
-    s: DynObsList<T>,
+    s: ObsList<T>,
     f: F,
 }
 struct MapDynObsListRef<'a, T, F> {
-    s: DynObsListRef<'a, T>,
+    s: ObsListRef<'a, T>,
     f: &'a F,
 }
 
@@ -152,7 +152,7 @@ impl<'a, T, U, F> DynamicObservableListRef<U> for MapDynObsListRef<'a, T, F>
 where
     F: Fn(&T) -> &U,
 {
-    fn age(&self) -> DynObsListAge {
+    fn age(&self) -> ObsListAge {
         self.s.age()
     }
     fn len(&self) -> usize {
@@ -161,29 +161,29 @@ where
     fn get(&self, index: usize) -> Option<&U> {
         Some((self.f)(self.s.get(index)?))
     }
-    fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&U>)) {
+    fn changes(&self, since: &ObsListAge, f: &mut dyn FnMut(ListChange<&U>)) {
         let m = &self.f;
         self.s.changes(since, &mut |c: ListChange<&T>| f(c.map(m)))
     }
 }
 
-impl<T: 'static> From<ObsListCell<T>> for DynObsList<T> {
+impl<T: 'static> From<ObsListCell<T>> for ObsList<T> {
     fn from(s: ObsListCell<T>) -> Self {
         s.as_dyn()
     }
 }
-impl<T: 'static> From<Vec<T>> for DynObsList<T> {
+impl<T: 'static> From<Vec<T>> for ObsList<T> {
     fn from(values: Vec<T>) -> Self {
-        DynObsList::from_vec(values)
+        ObsList::from_vec(values)
     }
 }
-impl<T: 'static> From<Rc<Vec<T>>> for DynObsList<T> {
+impl<T: 'static> From<Rc<Vec<T>>> for ObsList<T> {
     fn from(values: Rc<Vec<T>>) -> Self {
-        DynObsList::from_rc_vec(values)
+        ObsList::from_rc_vec(values)
     }
 }
-impl<'a, T: 'static> From<&'a Rc<Vec<T>>> for DynObsList<T> {
+impl<'a, T: 'static> From<&'a Rc<Vec<T>>> for ObsList<T> {
     fn from(values: &'a Rc<Vec<T>>) -> Self {
-        DynObsList::from_rc_vec(values.clone())
+        ObsList::from_rc_vec(values.clone())
     }
 }

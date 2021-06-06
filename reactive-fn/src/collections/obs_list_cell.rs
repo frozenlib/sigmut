@@ -35,8 +35,8 @@ impl<T: 'static> ObsListCell<T> {
             logs_len_old,
         }
     }
-    pub fn as_dyn(&self) -> DynObsList<T> {
-        DynObsList(self.0.clone())
+    pub fn as_dyn(&self) -> ObsList<T> {
+        ObsList(self.0.clone())
     }
 }
 impl<T: 'static> Default for ObsListCell<T> {
@@ -91,11 +91,11 @@ impl<'a, T: 'static> ObsListCellRef<'a, T> {
         }
     }
 
-    fn to_obs_list_age(&self, age: &DynObsListAge) -> Option<ObsListCellAge<T>> {
+    fn to_obs_list_age(&self, age: &ObsListAge) -> Option<ObsListCellAge<T>> {
         match age {
-            DynObsListAge::Empty => None,
-            DynObsListAge::Last => Some(self.age()),
-            DynObsListAge::Obs(age) => {
+            ObsListAge::Empty => None,
+            ObsListAge::Last => Some(self.age()),
+            ObsListAge::Obs(age) => {
                 let age: Rc<ObsListCellAge<T>> =
                     Rc::downcast(age.clone()).expect("mismatch age type.");
                 Some((*age).clone())
@@ -408,8 +408,8 @@ impl<T: 'static> DynamicObservableList<T> for Inner<T> {
     }
 }
 impl<'a, T> DynamicObservableListRef<T> for ObsListCellRef<'a, T> {
-    fn age(&self) -> DynObsListAge {
-        DynObsListAge::Obs(Rc::new(self.age()))
+    fn age(&self) -> ObsListAge {
+        ObsListAge::Obs(Rc::new(self.age()))
     }
 
     fn len(&self) -> usize {
@@ -420,7 +420,7 @@ impl<'a, T> DynamicObservableListRef<T> for ObsListCellRef<'a, T> {
         self.get(index)
     }
 
-    fn changes(&self, since: &DynObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
+    fn changes(&self, since: &ObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
         self.changes((&self.to_obs_list_age(since)).as_ref(), f)
     }
 }
