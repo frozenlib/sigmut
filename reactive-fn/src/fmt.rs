@@ -1,3 +1,4 @@
+use crate::observables::*;
 use crate::*;
 use std::{
     cell::RefCell,
@@ -244,10 +245,9 @@ macro_rules! bind_impl {
     };
 }
 
-pub type SourceStr = DynObs<str>;
-
-pub trait IntoSourceStr {
-    fn into_source_str(self) -> SourceStr;
+pub trait IntoObsStr {
+    type Observable: Observable<Item = str>;
+    fn into_obs_str(self) -> Obs<Self::Observable>;
 }
 
 impl<T: Display> ObservableDisplay for T {
@@ -255,9 +255,10 @@ impl<T: Display> ObservableDisplay for T {
         <Self as Display>::fmt(self, f)
     }
 }
-impl<T: Display> IntoSourceStr for T {
-    fn into_source_str(self) -> SourceStr {
-        self.to_string().into_obs_borrow().into_dyn()
+impl<T: Display> IntoObsStr for T {
+    type Observable = MapBorrowObservable<ConstantObservable<String>, str>;
+    fn into_obs_str(self) -> Obs<Self::Observable> {
+        obs_constant(self.to_string()).map_borrow()
     }
 }
 
@@ -266,9 +267,10 @@ impl<T: ObservableDisplay> ObservableDisplay for ObsDisplay<T> {
         self.0.obs_fmt(f, cx)
     }
 }
-impl<T: ObservableDisplay + 'static> IntoSourceStr for ObsDisplay<T> {
-    fn into_source_str(self) -> SourceStr {
-        self.obs().into()
+impl<T: ObservableDisplay + 'static> IntoObsStr for ObsDisplay<T> {
+    type Observable = DynObs<str>;
+    fn into_obs_str(self) -> Obs<Self::Observable> {
+        Obs(self.obs().into_dyn())
     }
 }
 
@@ -281,13 +283,14 @@ where
         self.with(|value, cx| value.obs_fmt(f, cx), cx)
     }
 }
-impl<S> IntoSourceStr for Obs<S>
+impl<S> IntoObsStr for Obs<S>
 where
     S: Observable,
     S::Item: ObservableDisplay,
 {
-    fn into_source_str(self) -> SourceStr {
-        self.into_obs_display().into_source_str()
+    type Observable = DynObs<str>;
+    fn into_obs_str(self) -> Obs<Self::Observable> {
+        self.into_obs_display().into_obs_str()
     }
 }
 
@@ -296,9 +299,10 @@ impl<T: ?Sized + ObservableDisplay> ObservableDisplay for DynObs<T> {
         self.with(|value, cx| value.obs_fmt(f, cx), cx)
     }
 }
-impl<T: ?Sized + ObservableDisplay> IntoSourceStr for DynObs<T> {
-    fn into_source_str(self) -> SourceStr {
-        self.into_obs_display().into_source_str()
+impl<T: ?Sized + ObservableDisplay> IntoObsStr for DynObs<T> {
+    type Observable = DynObs<str>;
+    fn into_obs_str(self) -> Obs<Self::Observable> {
+        self.into_obs_display().into_obs_str()
     }
 }
 
@@ -307,8 +311,9 @@ impl<T: ObservableDisplay + 'static> ObservableDisplay for ObsCell<T> {
         self.borrow(cx).obs_fmt(f, cx)
     }
 }
-impl<T: ObservableDisplay + 'static> IntoSourceStr for ObsCell<T> {
-    fn into_source_str(self) -> SourceStr {
-        self.into_obs_display().into_source_str()
+impl<T: ObservableDisplay + 'static> IntoObsStr for ObsCell<T> {
+    type Observable = DynObs<str>;
+    fn into_obs_str(self) -> Obs<Self::Observable> {
+        self.into_obs_display().into_obs_str()
     }
 }

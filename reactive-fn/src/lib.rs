@@ -40,7 +40,7 @@ pub use collections::{
 };
 pub use collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector};
 pub use dyn_obs::*;
-pub use fmt::{obs_display, IntoSourceStr, ObsDisplay, ObservableDisplay, SourceStr};
+pub use fmt::{obs_display, IntoObsStr, ObsDisplay, ObservableDisplay};
 pub use fold::*;
 pub use functions::*;
 pub use into_obs_borrow::*;
