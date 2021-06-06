@@ -260,34 +260,6 @@ where
 pub fn obs_constant<T: 'static>(value: T) -> Obs<ConstantObservable<T>> {
     Obs(ConstantObservable::new(value))
 }
-#[inline]
-pub fn obs_constant_map_ref<T: 'static, U: ?Sized + 'static>(
-    value: T,
-    f: impl Fn(&T) -> &U + 'static,
-) -> Obs<impl Observable<Item = U>> {
-    struct ObsConstantMapRef<T, F> {
-        value: T,
-        f: F,
-    }
-    impl<T, R, F> Observable for ObsConstantMapRef<T, F>
-    where
-        T: 'static,
-        R: ?Sized + 'static,
-        F: Fn(&T) -> &R + 'static,
-    {
-        type Item = R;
-
-        #[inline]
-        fn with<U>(
-            &self,
-            f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-            cx: &mut BindContext,
-        ) -> U {
-            f((self.f)(&self.value), cx)
-        }
-    }
-    Obs(ObsConstantMapRef { value, f })
-}
 
 #[inline]
 pub fn obs_static<T: ?Sized>(value: &'static T) -> Obs<StaticObservable<T>> {
