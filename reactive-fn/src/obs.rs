@@ -1,5 +1,7 @@
 use crate::*;
-use crate::{hot::*, into_stream::IntoStream, map_async::MapAsync, map_stream::MapStream};
+use crate::{
+    hot::*, into_stream::IntoStream, map_async::MapAsync, map_stream::MapStream, observables::*,
+};
 use futures::{Future, Stream};
 use std::{
     any::{Any, TypeId},
@@ -9,7 +11,7 @@ use std::{
 };
 
 #[derive(Clone)]
-pub struct Obs<S>(pub(super) S);
+pub struct Obs<S>(pub(crate) S);
 
 impl<S: Observable> Obs<S> {
     pub fn into_dyn(self) -> DynObs<S::Item> {
@@ -77,11 +79,11 @@ impl<S: Observable> Obs<S> {
     {
         Obs(ConvertRefObservable::new(self, |x| x.as_ref()))
     }
-    pub fn map_into<U: 'static>(self) -> Obs<impl Observable<Item = U>>
+    pub fn map_into<U: 'static>(self) -> Obs<MapIntoObservable<S, U>>
     where
         S::Item: Clone + Into<U>,
     {
-        Obs(ConvertValueObservable::new(self, |x| x.clone().into()))
+        Obs(MapIntoObservable::new(self.0))
     }
 
     #[inline]
@@ -363,49 +365,6 @@ impl<S: Observable> Observable for Obs<S> {
 
     fn into_dyn(self) -> DynObs<Self::Item> {
         self.0.into_dyn()
-    }
-}
-
-struct ConvertValueObservable<S, F> {
-    s: S,
-    f: F,
-}
-impl<S, F, T> ConvertValueObservable<S, F>
-where
-    S: Observable,
-    F: Fn(&S::Item) -> T + 'static,
-{
-    fn new(s: S, f: F) -> Self {
-        Self { s, f }
-    }
-}
-
-impl<S, F, T> Observable for ConvertValueObservable<S, F>
-where
-    S: Observable,
-    F: Fn(&S::Item) -> T + 'static,
-{
-    type Item = T;
-
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
-    ) -> U {
-        self.s.with(|value, cx| f(&(self.f)(value), cx), cx)
-    }
-
-    fn into_dyn(self) -> DynObs<Self::Item>
-    where
-        Self: Sized,
-    {
-        if TypeId::of::<S::Item>() == TypeId::of::<T>() {
-            <dyn Any>::downcast_ref::<DynObs<T>>(&self.s.into_dyn())
-                .unwrap()
-                .clone()
-        } else {
-            Obs(self.s).map(self.f).into_dyn()
-        }
     }
 }
 

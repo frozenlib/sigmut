@@ -26,7 +26,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         Self(DynObsData::DynInner(rc))
     }
 
-    pub fn obs(&self) -> Obs<impl Observable<Item = T>> {
+    pub fn obs(&self) -> Obs<Self> {
         Obs(self.clone())
     }
     pub fn get_head_tail(&self) -> (T::Owned, DynTail<T>)

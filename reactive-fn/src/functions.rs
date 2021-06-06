@@ -1,3 +1,4 @@
+use crate::observables::*;
 use crate::*;
 use futures::Stream;
 use std::{
@@ -256,8 +257,8 @@ where
 }
 
 #[inline]
-pub fn obs_constant<T: 'static>(value: T) -> Obs<impl Observable<Item = T>> {
-    obs_constant_map_ref(value, |v| v)
+pub fn obs_constant<T: 'static>(value: T) -> Obs<ConstantObservable<T>> {
+    Obs(ConstantObservable::new(value))
 }
 #[inline]
 pub fn obs_constant_map_ref<T: 'static, U: ?Sized + 'static>(
