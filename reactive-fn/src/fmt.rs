@@ -244,7 +244,7 @@ macro_rules! bind_impl {
     };
 }
 
-pub type SourceStr = SourceBorrow<str>;
+pub type SourceStr = DynObs<str>;
 
 pub trait IntoSourceStr {
     fn into_source_str(self) -> SourceStr;
@@ -257,7 +257,7 @@ impl<T: Display> ObservableDisplay for T {
 }
 impl<T: Display> IntoSourceStr for T {
     fn into_source_str(self) -> SourceStr {
-        self.to_string().into_source_borrow()
+        self.to_string().into_obs_borrow().into_dyn()
     }
 }
 

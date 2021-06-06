@@ -1,8 +1,8 @@
 use reactive_fn::*;
 
 #[test]
-fn into_source_borrow_str() {
-    fn func_into(_: impl IntoSourceBorrow<str>) {}
+fn into_obs_borrow_str() {
+    fn func_into(_: impl IntoObsBorrow<str>) {}
     func_into("acc");
     func_into(String::from("acb"));
 

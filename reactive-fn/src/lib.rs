@@ -26,7 +26,6 @@ mod runtime;
 mod scan;
 mod sink;
 mod source;
-mod source_borrow;
 mod subscribe_async;
 mod subscriber;
 mod tail;
@@ -53,7 +52,6 @@ pub use runtime::*;
 pub use scan::*;
 pub use sink::*;
 pub use source::*;
-pub use source_borrow::*;
 pub use subscriber::*;
 pub use tail::*;
 
