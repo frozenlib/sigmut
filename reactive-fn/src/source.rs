@@ -49,7 +49,7 @@ where
         Self: Sized,
     {
         match self {
-            Source::Constant(value) => obs_constant(value).map_borrow().into_dyn(),
+            Source::Constant(value) => obs_constant(value).into_dyn(),
             Source::Obs(o) => o.into_dyn(),
         }
     }
