@@ -29,6 +29,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
     pub fn obs(&self) -> Obs<Self> {
         Obs(self.clone())
     }
+
     pub fn get_head_tail(&self) -> (T::Owned, DynTail<T>)
     where
         T: ToOwned,
