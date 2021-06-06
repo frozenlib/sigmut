@@ -166,3 +166,24 @@ where
         self.s.changes(since, &mut |c: ListChange<&T>| f(c.map(m)))
     }
 }
+
+impl<T: 'static> From<ObsListCell<T>> for DynObsList<T> {
+    fn from(s: ObsListCell<T>) -> Self {
+        s.as_dyn()
+    }
+}
+impl<T: 'static> From<Vec<T>> for DynObsList<T> {
+    fn from(values: Vec<T>) -> Self {
+        DynObsList::from_vec(values)
+    }
+}
+impl<T: 'static> From<Rc<Vec<T>>> for DynObsList<T> {
+    fn from(values: Rc<Vec<T>>) -> Self {
+        DynObsList::from_rc_vec(values)
+    }
+}
+impl<'a, T: 'static> From<&'a Rc<Vec<T>>> for DynObsList<T> {
+    fn from(values: &'a Rc<Vec<T>>) -> Self {
+        DynObsList::from_rc_vec(values.clone())
+    }
+}

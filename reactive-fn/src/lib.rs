@@ -36,7 +36,7 @@ pub use bind::*;
 pub use cache::Cache;
 pub use cell::ObsCell;
 pub use collections::{
-    DynObsList, DynObsListAge, ListChange, ListChangeKind, ObsListCell, ObsListCellAge, SourceList,
+    DynObsList, DynObsListAge, ListChange, ListChangeKind, ObsListCell, ObsListCellAge,
 };
 pub use collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector};
 pub use dyn_obs::*;
