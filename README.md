@@ -17,7 +17,7 @@ TODO
 | `IObserver`       | `Observer`,`FnMut`     |
 | `BehaviorSubject` | `ObsCell`              |
 
-### Obsrevable methods
+### `System.Reactive.Linq.Obsrevable` methods
 
 | Rx                     | reactive-fn      |
 | ---------------------- | ---------------- |
