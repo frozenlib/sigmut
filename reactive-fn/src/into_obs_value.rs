@@ -21,9 +21,9 @@ where
     T: Clone + Into<U>,
     U: 'static,
 {
-    type Observable = DynObs<U>;
+    type Observable = MapIntoObservable<DynObs<T>, U>;
     fn into_obs_value(self) -> Obs<Self::Observable> {
-        self.map_into().obs()
+        self.obs().map_into()
     }
 }
 impl<T, U> IntoObsValue<U> for &DynObs<T>
@@ -31,9 +31,9 @@ where
     T: Clone + Into<U>,
     U: 'static,
 {
-    type Observable = DynObs<U>;
+    type Observable = MapIntoObservable<DynObs<T>, U>;
     fn into_obs_value(self) -> Obs<Self::Observable> {
-        self.map_into().obs()
+        self.obs().map_into()
     }
 }
 
