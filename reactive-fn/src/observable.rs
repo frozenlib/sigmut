@@ -31,12 +31,12 @@ pub trait Observable: 'static {
     {
         DynObs::new_dyn(Rc::new(DynamicObs(self)))
     }
-    fn into_source(self) -> Source<Self::Item>
+    fn into_may(self) -> MayObs<Self::Item>
     where
         Self: Sized,
         Self::Item: Sized,
     {
-        Source::Obs(self.into_dyn())
+        MayObs::Obs(self.into_dyn())
     }
 }
 

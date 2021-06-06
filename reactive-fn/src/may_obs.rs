@@ -2,7 +2,7 @@ use super::*;
 use std::borrow::Borrow;
 
 #[derive(Clone)]
-pub enum Source<T>
+pub enum MayObs<T>
 where
     T: 'static,
 {
@@ -10,7 +10,7 @@ where
     Obs(DynObs<T>),
 }
 
-impl<T> Source<T>
+impl<T> MayObs<T>
 where
     T: Clone + 'static,
 {
@@ -18,17 +18,17 @@ where
         Obs(self.clone())
     }
 
-    pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> Source<U>
+    pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> MayObs<U>
     where
         U: Clone,
     {
         match self {
-            Source::Constant(value) => Source::Constant(f(value)),
-            Source::Obs(o) => Source::Obs(o.map(move |value| f(value.clone()))),
+            MayObs::Constant(value) => MayObs::Constant(f(value)),
+            MayObs::Obs(o) => MayObs::Obs(o.map(move |value| f(value.clone()))),
         }
     }
 }
-impl<T> Observable for Source<T>
+impl<T> Observable for MayObs<T>
 where
     T: Clone + 'static,
 {
@@ -49,11 +49,11 @@ where
         Self: Sized,
     {
         match self {
-            Source::Constant(value) => obs_constant(value).into_dyn(),
-            Source::Obs(o) => o.into_dyn(),
+            MayObs::Constant(value) => obs_constant(value).into_dyn(),
+            MayObs::Obs(o) => o.into_dyn(),
         }
     }
-    fn into_source(self) -> Source<Self::Item> {
+    fn into_may(self) -> MayObs<Self::Item> {
         self
     }
 }

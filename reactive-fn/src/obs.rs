@@ -342,11 +342,11 @@ impl<S: Observable> Obs<S> {
     {
         IntoStream::new(self)
     }
-    pub fn source(self) -> Source<S::Item>
+    pub fn may(self) -> MayObs<S::Item>
     where
         S::Item: Sized,
     {
-        self.0.into_source()
+        self.0.into_may()
     }
     pub fn display(self) -> ObsDisplay<impl ObservableDisplay + 'static>
     where

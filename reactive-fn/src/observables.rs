@@ -115,8 +115,8 @@ impl<T: 'static> Observable for ConstantObservable<T> {
     ) -> U {
         f(&self.0, cx)
     }
-    fn into_source(self) -> Source<Self::Item> {
-        Source::Constant(self.0)
+    fn into_may(self) -> MayObs<Self::Item> {
+        MayObs::Constant(self.0)
     }
 }
 

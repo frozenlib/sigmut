@@ -48,7 +48,7 @@ where
     }
 }
 
-impl<T, S> Sink<T> for Source<S>
+impl<T, S> Sink<T> for MayObs<S>
 where
     T: Clone + 'static,
     S: Clone,
@@ -56,12 +56,12 @@ where
 {
     fn connect(self, value: T) -> DynObserver<T> {
         match self {
-            Source::Constant(c) => c.connect(value),
-            Source::Obs(o) => o.connect(value),
+            MayObs::Constant(c) => c.connect(value),
+            MayObs::Obs(o) => o.connect(value),
         }
     }
 }
-impl<T, S> Sink<T> for &Source<S>
+impl<T, S> Sink<T> for &MayObs<S>
 where
     T: Clone + 'static,
     S: Clone,
@@ -69,8 +69,8 @@ where
 {
     fn connect(self, value: T) -> DynObserver<T> {
         match self {
-            Source::Constant(c) => c.connect(value),
-            Source::Obs(o) => o.connect(value),
+            MayObs::Constant(c) => c.connect(value),
+            MayObs::Obs(o) => o.connect(value),
         }
     }
 }

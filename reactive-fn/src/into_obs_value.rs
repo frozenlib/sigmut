@@ -4,13 +4,6 @@ use crate::*;
 pub trait IntoObsValue<T> {
     type Observable: Observable<Item = T>;
     fn into_obs_value(self) -> Obs<Self::Observable>;
-
-    fn into_source(self) -> Source<T>
-    where
-        Self: Sized,
-    {
-        self.into_obs_value().source()
-    }
 }
 
 impl<S: Observable, U> IntoObsValue<U> for Obs<S>

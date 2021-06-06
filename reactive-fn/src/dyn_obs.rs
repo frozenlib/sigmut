@@ -258,11 +258,11 @@ impl<T: 'static + ?Sized> DynObs<T> {
     {
         self.obs().stream()
     }
-    pub fn source(self) -> Source<T>
+    pub fn may(self) -> MayObs<T>
     where
         T: Sized,
     {
-        self.obs().source()
+        self.obs().may()
     }
     pub fn display(&self) -> ObsDisplay<impl ObservableDisplay + 'static>
     where
