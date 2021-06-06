@@ -103,13 +103,7 @@ fn into_dyn_by_convert<Outer: Observable, Inner: Observable>(
     }
 }
 
-pub struct ConstantObservable<T>(T);
-
-impl<T: 'static> ConstantObservable<T> {
-    pub(crate) fn new(value: T) -> Self {
-        Self(value)
-    }
-}
+pub struct ConstantObservable<T>(pub(crate) T);
 
 impl<T: 'static> Observable for ConstantObservable<T> {
     type Item = T;
@@ -120,6 +114,9 @@ impl<T: 'static> Observable for ConstantObservable<T> {
         cx: &mut BindContext,
     ) -> U {
         f(&self.0, cx)
+    }
+    fn into_source(self) -> Source<Self::Item> {
+        Source::Constant(self.0)
     }
 }
 

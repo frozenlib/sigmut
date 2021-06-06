@@ -258,7 +258,7 @@ where
 
 #[inline]
 pub fn obs_constant<T: 'static>(value: T) -> Obs<ConstantObservable<T>> {
-    Obs(ConstantObservable::new(value))
+    Obs(ConstantObservable(value))
 }
 
 #[inline]

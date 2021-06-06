@@ -31,6 +31,13 @@ pub trait Observable: 'static {
     {
         DynObs::new_dyn(Rc::new(DynamicObs(self)))
     }
+    fn into_source(self) -> Source<Self::Item>
+    where
+        Self: Sized,
+        Self::Item: Sized,
+    {
+        Source::Obs(self.into_dyn())
+    }
 }
 
 impl<S: Observable> Observable for Rc<S> {
