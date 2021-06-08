@@ -23,7 +23,7 @@ impl<T: 'static> ObsCell<T> {
         *self.0.value.borrow_mut() = value;
         Runtime::spawn_notify(self.0.clone());
     }
-    pub fn set_if_ne(&self, value: T)
+    pub fn set_dedup(&self, value: T)
     where
         T: PartialEq,
     {
