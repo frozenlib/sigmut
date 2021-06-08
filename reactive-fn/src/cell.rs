@@ -63,6 +63,17 @@ impl<T: 'static> ObsCell<T> {
             modified: false,
         }
     }
+    pub fn borrow_mut_dedup(&self) -> RefMutDedup<T>
+    where
+        T: PartialEq + Clone,
+    {
+        RefMutDedup {
+            b: self.0.value.borrow_mut(),
+            s: Some(self.clone()),
+            old: None,
+        }
+    }
+
     pub fn as_dyn(&self) -> DynObs<T> {
         self.obs().into_dyn()
     }
@@ -155,6 +166,34 @@ impl<T> Drop for RefMut<'_, T> {
     fn drop(&mut self) {
         if self.modified {
             Runtime::spawn_notify(self.s.take().unwrap().0);
+        }
+    }
+}
+pub struct RefMutDedup<'a, T: 'static + PartialEq> {
+    b: std::cell::RefMut<'a, T>,
+    s: Option<ObsCell<T>>,
+    old: Option<T>,
+}
+impl<T: 'static + PartialEq> Deref for RefMutDedup<'_, T> {
+    type Target = T;
+    fn deref(&self) -> &T {
+        &self.b
+    }
+}
+impl<T: 'static + PartialEq + Clone> DerefMut for RefMutDedup<'_, T> {
+    fn deref_mut(&mut self) -> &mut T {
+        if self.old.is_none() {
+            self.old = Some(self.b.clone());
+        }
+        &mut self.b
+    }
+}
+impl<T: 'static + PartialEq> Drop for RefMutDedup<'_, T> {
+    fn drop(&mut self) {
+        if let Some(old) = &self.old {
+            if old != &*self.b {
+                Runtime::spawn_notify(self.s.take().unwrap().0);
+            }
         }
     }
 }
