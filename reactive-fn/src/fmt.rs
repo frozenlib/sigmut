@@ -143,6 +143,8 @@ format_trait!(
 /// - [`ObservableUpperExp`]      
 /// - [`ObservableUpperHex`]      
 ///
+/// Unlike [`macro@std::format`], consume the ownership of the addtional argument passed to `obs_format!`.
+///
 /// # Example
 ///
 /// ```
