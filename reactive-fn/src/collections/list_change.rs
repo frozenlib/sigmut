@@ -5,6 +5,7 @@ pub enum ListChangeKind {
     Modify,
 }
 
+#[derive(Copy, Clone)]
 pub struct ListChange<T> {
     pub kind: ListChangeKind,
 
