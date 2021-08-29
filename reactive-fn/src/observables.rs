@@ -95,9 +95,7 @@ fn into_dyn_by_convert<Outer: Observable, Inner: Observable>(
     f: impl FnOnce(Outer) -> Inner,
 ) -> DynObs<Outer::Item> {
     if TypeId::of::<Outer::Item>() == TypeId::of::<Inner>() {
-        <dyn Any>::downcast_ref::<DynObs<Outer::Item>>(&f(s).into_dyn())
-            .unwrap()
-            .clone()
+        (*<dyn Any>::downcast_ref::<DynObs<Outer::Item>>(&f(s).into_dyn()).unwrap()).clone()
     } else {
         DynObs::new_dyn(Rc::new(DynamicObs(s)))
     }
