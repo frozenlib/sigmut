@@ -3,22 +3,22 @@ use std::rc::Rc;
 
 pub trait DynamicObservable: 'static {
     type Item: ?Sized;
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &mut BindContext), cx: &mut BindContext);
+    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &mut BindContext), bc: &mut BindContext);
 }
 pub trait DynamicObservableInner: 'static {
     type Item: ?Sized;
     fn dyn_with(
         self: Rc<Self>,
         f: &mut dyn FnMut(&Self::Item, &mut BindContext),
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     );
 }
 pub struct DynamicObs<S>(pub S);
 impl<S: Observable> DynamicObservable for DynamicObs<S> {
     type Item = S::Item;
 
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &mut BindContext), cx: &mut BindContext) {
-        self.0.with(f, cx)
+    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &mut BindContext), bc: &mut BindContext) {
+        self.0.with(f, bc)
     }
 }
 impl<S: Observable> Observable for DynamicObs<S> {
@@ -27,9 +27,9 @@ impl<S: Observable> Observable for DynamicObs<S> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        self.0.with(f, cx)
+        self.0.with(f, bc)
     }
 }
 
@@ -42,8 +42,8 @@ where
     fn dyn_with(
         self: Rc<Self>,
         f: &mut dyn FnMut(&Self::Item, &mut BindContext),
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) {
-        self.with(f, cx)
+        self.with(f, bc)
     }
 }

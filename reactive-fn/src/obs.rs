@@ -29,7 +29,7 @@ impl<S: Observable> Obs<S> {
         self,
         f: impl Fn(&S::Item) -> T + 'static,
     ) -> Obs<impl Observable<Item = T>> {
-        obs(move |cx| self.with(|x, _| f(x), cx))
+        obs(move |bc| self.with(|x, _| f(x), bc))
     }
 
     #[inline]
@@ -53,9 +53,9 @@ impl<S: Observable> Obs<S> {
             fn with<U>(
                 &self,
                 f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-                cx: &mut BindContext,
+                bc: &mut BindContext,
             ) -> U {
-                self.s.with(|value, cx| f((self.f)(value), cx), cx)
+                self.s.with(|value, bc| f((self.f)(value), bc), bc)
             }
         }
 
@@ -115,10 +115,10 @@ impl<S: Observable> Obs<S> {
             fn with<U>(
                 &self,
                 f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-                cx: &mut BindContext,
+                bc: &mut BindContext,
             ) -> U {
                 self.0
-                    .with(|s, cx| s.with(|value, cx| f(value, cx), cx), cx)
+                    .with(|s, bc| s.with(|value, bc| f(value, bc), bc), bc)
             }
         }
         Obs(Flatten(self))
@@ -163,9 +163,9 @@ impl<S: Observable> Obs<S> {
     ) -> Obs<impl Observable<Item = M::Output>> {
         obs_scan_with(
             initial_state,
-            move |st, cx| {
+            move |st, bc| {
                 let f = &mut f;
-                self.with(|value, _cx| f(st, value), cx)
+                self.with(|value, _bc| f(st, value), bc)
             },
             m,
         )
@@ -205,10 +205,10 @@ impl<S: Observable> Obs<S> {
     ) -> Obs<impl Observable<Item = M::Output>> {
         obs_filter_scan_with(
             initial_state,
-            move |st, cx| {
+            move |st, bc| {
                 let f = &mut f;
                 self.with(
-                    |value, _cx| {
+                    |value, _bc| {
                         if predicate(st, value) {
                             f(st, value);
                             true
@@ -216,7 +216,7 @@ impl<S: Observable> Obs<S> {
                             false
                         }
                     },
-                    cx,
+                    bc,
                 )
             },
             m,
@@ -276,16 +276,16 @@ impl<S: Observable> Obs<S> {
         self,
         f: impl Fn(&S::Item) -> Fut + 'static,
     ) -> Obs<impl Observable<Item = Poll<Fut::Output>>> {
-        Obs(MapAsync::new(move |cx| {
-            self.with(|value, _cx| f(value), cx)
+        Obs(MapAsync::new(move |bc| {
+            self.with(|value, _bc| f(value), bc)
         }))
     }
     pub fn map_stream<St: Stream + 'static>(
         self,
         f: impl Fn(&S::Item) -> (St::Item, St) + 'static,
     ) -> Obs<impl Observable<Item = St::Item>> {
-        Obs(MapStream::new(move |cx| {
-            self.with(|value, _cx| f(value), cx)
+        Obs(MapStream::new(move |bc| {
+            self.with(|value, _bc| f(value), bc)
         }))
     }
 
@@ -294,7 +294,7 @@ impl<S: Observable> Obs<S> {
         st: St,
         mut f: impl FnMut(&mut St, &S::Item) + 'static,
     ) -> Fold<St> {
-        Fold::new(st, move |st, cx| self.with(|value, _cx| f(st, value), cx))
+        Fold::new(st, move |st, bc| self.with(|value, _bc| f(st, value), bc))
     }
     pub fn collect_to<E>(self, e: E) -> Fold<E>
     where
@@ -317,19 +317,19 @@ impl<S: Observable> Obs<S> {
         self.collect()
     }
     pub fn subscribe(self, mut f: impl FnMut(&S::Item) + 'static) -> Subscription {
-        subscribe(move |cx| self.with(|value, _cx| f(value), cx))
+        subscribe(move |bc| self.with(|value, _bc| f(value), bc))
     }
     pub fn subscribe_to<O>(self, o: O) -> impl Subscriber<St = O>
     where
         for<'a> O: Observer<&'a S::Item>,
     {
-        subscribe_to(o, move |o, cx| self.with(|value, _cx| o.next(value), cx))
+        subscribe_to(o, move |o, bc| self.with(|value, _bc| o.next(value), bc))
     }
     pub fn subscribe_async<Fut>(self, mut f: impl FnMut(&S::Item) -> Fut + 'static) -> Subscription
     where
         Fut: Future<Output = ()> + 'static,
     {
-        subscribe_async(move |cx| self.with(|value, _cx| f(value), cx))
+        subscribe_async(move |bc| self.with(|value, _bc| f(value), bc))
     }
 
     pub fn hot(self) -> Obs<impl Observable<Item = S::Item>> {
@@ -360,9 +360,9 @@ impl<S: Observable> Observable for Obs<S> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        self.0.with(f, cx)
+        self.0.with(f, bc)
     }
 
     fn into_dyn(self) -> DynObs<Self::Item> {

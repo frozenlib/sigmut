@@ -47,7 +47,7 @@ impl<T: 'static + ?Sized> HotReady for DynamicObs<Hot<DynObs<T>>> {
         self.0
             .bindings
             .borrow_mut()
-            .update(scope, &this, |cx| self.0.source.with(|_, _| {}, cx));
+            .update(scope, &this, |bc| self.0.source.with(|_, _| {}, bc));
     }
 }
 impl<S: Observable> HotReady for DynamicObs<Hot<Obs<S>>> {
@@ -56,7 +56,7 @@ impl<S: Observable> HotReady for DynamicObs<Hot<Obs<S>>> {
         self.0
             .bindings
             .borrow_mut()
-            .update(scope, &this, |cx| self.0.source.with(|_, _| {}, cx));
+            .update(scope, &this, |bc| self.0.source.with(|_, _| {}, bc));
     }
 }
 
@@ -65,8 +65,8 @@ impl<S: Observable> Observable for Hot<S> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        self.source.with(f, cx)
+        self.source.with(f, bc)
     }
 }

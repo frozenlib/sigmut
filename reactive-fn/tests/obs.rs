@@ -11,7 +11,7 @@ fn constant() {
 fn new() {
     let a = ObsCell::new(2);
     let a_ = a.clone();
-    let r = obs(move |cx| a_.get(cx)).collect_vec();
+    let r = obs(move |bc| a_.get(bc)).collect_vec();
 
     a.set(5);
     a.set(7);
@@ -27,7 +27,7 @@ fn new_cell2() {
     let r = {
         let cell1 = cell1.clone();
         let cell2 = cell2.clone();
-        obs(move |cx| cell1.get(cx) + cell2.get(cx)).collect_vec()
+        obs(move |bc| cell1.get(bc) + cell2.get(bc)).collect_vec()
     };
 
     cell1.set(5);

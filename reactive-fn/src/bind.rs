@@ -121,12 +121,12 @@ impl Bindings {
         if sink_changed {
             self.sink = sink.clone();
         }
-        let mut cx = BindContext {
+        let mut bc = BindContext {
             scope,
             bb: Some(BindingsBuilder::new(sink, sink_changed, bindings)),
         };
-        let value = f(&mut cx);
-        self.bindings = cx.bb.unwrap().build();
+        let value = f(&mut bc);
+        self.bindings = bc.bb.unwrap().build();
         value
     }
 

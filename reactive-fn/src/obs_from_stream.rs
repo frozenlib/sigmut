@@ -65,11 +65,11 @@ where
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        cx.bind(self.clone());
+        bc.bind(self.clone());
         self.update();
-        f(&self.data.borrow().value, cx)
+        f(&self.data.borrow().value, bc)
     }
 }
 

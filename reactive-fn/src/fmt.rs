@@ -6,7 +6,7 @@ use std::{
 };
 
 pub trait ObservableDisplay {
-    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result;
+    fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result;
 
     fn into_obs_display(self) -> ObsDisplay<Self>
     where
@@ -15,9 +15,9 @@ pub trait ObservableDisplay {
         ObsDisplay(self)
     }
     fn head(&self) -> String {
-        BindContext::nul(move |cx| {
+        BindContext::nul(move |bc| {
             let mut s = String::new();
-            write_to(&mut s, self, cx).unwrap();
+            write_to(&mut s, self, bc).unwrap();
             s
         })
     }
@@ -31,9 +31,9 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     {
         obs_scan_map_ref(
             String::new(),
-            move |s, cx| {
+            move |s, bc| {
                 s.clear();
-                write_to(s, &self, cx).unwrap();
+                write_to(s, &self, bc).unwrap();
             },
             |s| s.as_str(),
         )
@@ -43,14 +43,14 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
 fn write_to(
     w: &mut impl Write,
     value: &(impl ObservableDisplay + ?Sized),
-    cx: &mut BindContext,
+    bc: &mut BindContext,
 ) -> Result {
     write!(
         w,
         "{}",
         ObsFormatArg {
             value,
-            cx: &RefCell::new(cx)
+            bc: &RefCell::new(bc)
         }
     )
 }
@@ -62,19 +62,19 @@ pub fn obs_display(
 }
 struct FnObsDisplay<F>(F);
 impl<F: Fn(&mut Formatter, &mut BindContext) -> Result> ObservableDisplay for FnObsDisplay<F> {
-    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-        (self.0)(f, cx)
+    fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+        (self.0)(f, bc)
     }
 }
 
 #[doc(hidden)]
 pub struct ObsFormatArg<'a, 'b, S: ?Sized> {
     pub value: &'a S,
-    pub cx: &'a RefCell<&'a mut BindContext<'b>>,
+    pub bc: &'a RefCell<&'a mut BindContext<'b>>,
 }
 impl<'a, 'b, S: ?Sized + ObservableDisplay> Display for ObsFormatArg<'a, 'b, S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        self.value.obs_fmt(f, &mut self.cx.borrow_mut())
+        self.value.obs_fmt(f, &mut self.bc.borrow_mut())
     }
 }
 
@@ -82,35 +82,35 @@ macro_rules! format_trait {
     ($(($t:ident, $ot:ident),)*) => {
     $(
         pub trait $ot {
-            fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result;
+            fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result;
         }
         impl<S> $ot for Obs<S>
         where
             S: Observable,
             S::Item: $ot,
         {
-            fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-                self.with(|value, cx| value.obs_fmt(f, cx), cx)
+            fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+                self.with(|value, bc| value.obs_fmt(f, bc), bc)
             }
         }
         impl<T: $ot> $ot for DynObs<T> {
-            fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-                self.with(|value, cx| value.obs_fmt(f, cx), cx)
+            fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+                self.with(|value, bc| value.obs_fmt(f, bc), bc)
             }
         }
         impl<T: $ot> $ot for ObsCell<T> {
-            fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-                self.with(|value, cx| value.obs_fmt(f, cx), cx)
+            fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+                self.with(|value, bc| value.obs_fmt(f, bc), bc)
             }
         }
         impl<T: std::fmt::$t> $ot for T {
-            fn obs_fmt(&self, f: &mut Formatter, _cx: &mut BindContext) -> Result {
+            fn obs_fmt(&self, f: &mut Formatter, _bc: &mut BindContext) -> Result {
                 self.fmt(f)
             }
         }
         impl<'a, 'b, S: ?Sized + $ot> std::fmt::$t for ObsFormatArg<'a, 'b, S> {
             fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-                self.value.obs_fmt(f, &mut self.cx.borrow_mut())
+                self.value.obs_fmt(f, &mut self.bc.borrow_mut())
             }
         }
     )*
@@ -159,10 +159,10 @@ format_trait!(
 #[macro_export]
 macro_rules! obs_format {
     ($fmt:expr) => {
-        $crate::fmt::obs_display(|f, cx| std::write!(f, fmt))
+        $crate::fmt::obs_display(|f, _bc| std::write!(f, fmt))
     };
     ($fmt:expr, $($args:tt)*) => {
-        $crate::obs_format_impl!((f, cx) () (f, cx, $fmt) (, $($args)*))
+        $crate::obs_format_impl!((f, bc) () (f, bc, $fmt) (, $($args)*))
     };
 }
 
@@ -194,56 +194,56 @@ macro_rules! obs_format_impl {
 
 #[macro_export]
 macro_rules! bind_write {
-    ($f:expr, $cx:expr, $fmt:expr) => {
+    ($f:expr, $bc:expr, $fmt:expr) => {
         std::write!(f, fmt)
     };
-    ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
-        $crate::bind_impl!(std::write, cx, $cx, ($f, $fmt)(, $($args)*))
+    ($f:expr, $bc:expr, $fmt:expr, $($args:tt)*) => {
+        $crate::bind_impl!(std::write, bc, $bc, ($f, $fmt)(, $($args)*))
     };
 }
 #[macro_export]
 macro_rules! bind_writeln {
-    ($f:expr, $cx:expr, $fmt:expr) => {
+    ($f:expr, $bc:expr, $fmt:expr) => {
         std::writeln!(f, fmt)
     };
-    ($f:expr, $cx:expr, $fmt:expr, $($args:tt)*) => {
-        $crate::bind_impl!(std::writeln, cx, $cx, ($f, $fmt)(, $($args)*))
+    ($f:expr, $bc:expr, $fmt:expr, $($args:tt)*) => {
+        $crate::bind_impl!(std::writeln, bc, $bc, ($f, $fmt)(, $($args)*))
     };
 }
 
 #[macro_export]
 macro_rules! bind_format {
-    ($cx:expr, $fmt:expr) => {
+    ($bc:expr, $fmt:expr) => {
         std::format!(fmt)
     };
-    ($cx:expr, $fmt:expr, $($args:tt)*) => {
-        $crate::bind_impl!(std::format, cx, $cx, ($fmt)(, $($args)*))
+    ($bc:expr, $fmt:expr, $($args:tt)*) => {
+        $crate::bind_impl!(std::format, bc, $bc, ($fmt)(, $($args)*))
     };
 }
 
 #[doc(hidden)]
 #[macro_export]
 macro_rules! bind_impl {
-    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) ()) => {
+    ($p:path, $bc_var:ident, $bc:expr, ($($args0:tt)*) ()) => {
         {
-            let $cx_var : std::cell::RefCell<&mut $crate::BindContext> = std::cell::RefCell::new($cx);
+            let $bc_var : std::cell::RefCell<&mut $crate::BindContext> = std::cell::RefCell::new($bc);
             $p!($($args0)*)
         }
     };
-    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (,)) => {
-        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*)())
+    ($p:path, $bc_var:ident, $bc:expr, ($($args0:tt)*) (,)) => {
+        $crate::bind_impl!($p, $bc_var, $bc, ($($args0)*)())
     };
-    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr)) => {
-        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*)(, $name = $value,))
+    ($p:path, $bc_var:ident, $bc:expr, ($($args0:tt)*) (, $name:ident = $value:expr)) => {
+        $crate::bind_impl!($p, $bc_var, $bc, ($($args0)*)(, $name = $value,))
     };
-    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $name:ident = $value:expr, $($args1:tt)*)) => {
-        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*, $name = $crate::fmt::ObsFormatArg { value: &$value, cx: &$cx_var })(, $($args1)*))
+    ($p:path, $bc_var:ident, $bc:expr, ($($args0:tt)*) (, $name:ident = $value:expr, $($args1:tt)*)) => {
+        $crate::bind_impl!($p, $bc_var, $bc, ($($args0)*, $name = $crate::fmt::ObsFormatArg { value: &$value, bc: &$bc_var })(, $($args1)*))
     };
-    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr)) => {
-        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*)(, $value,))
+    ($p:path, $bc_var:ident, $bc:expr, ($($args0:tt)*) (, $value:expr)) => {
+        $crate::bind_impl!($p, $bc_var, $bc, ($($args0)*)(, $value,))
     };
-    ($p:path, $cx_var:ident, $cx:expr, ($($args0:tt)*) (, $value:expr, $($args1:tt)*)) => {
-        $crate::bind_impl!($p, $cx_var, $cx, ($($args0)*, $crate::fmt::ObsFormatArg { value: &$value, cx: &$cx_var})(, $($args1)*))
+    ($p:path, $bc_var:ident, $bc:expr, ($($args0:tt)*) (, $value:expr, $($args1:tt)*)) => {
+        $crate::bind_impl!($p, $bc_var, $bc, ($($args0)*, $crate::fmt::ObsFormatArg { value: &$value, bc: &$bc_var})(, $($args1)*))
     };
 }
 
@@ -253,7 +253,7 @@ pub trait IntoObsStr {
 }
 
 impl<T: Display> ObservableDisplay for T {
-    fn obs_fmt(&self, f: &mut Formatter, _cx: &mut BindContext) -> Result {
+    fn obs_fmt(&self, f: &mut Formatter, _bc: &mut BindContext) -> Result {
         <Self as Display>::fmt(self, f)
     }
 }
@@ -265,8 +265,8 @@ impl<T: Display> IntoObsStr for T {
 }
 
 impl<T: ObservableDisplay> ObservableDisplay for ObsDisplay<T> {
-    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-        self.0.obs_fmt(f, cx)
+    fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+        self.0.obs_fmt(f, bc)
     }
 }
 impl<T: ObservableDisplay + 'static> IntoObsStr for ObsDisplay<T> {
@@ -281,8 +281,8 @@ where
     S: Observable,
     S::Item: ObservableDisplay,
 {
-    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-        self.with(|value, cx| value.obs_fmt(f, cx), cx)
+    fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+        self.with(|value, bc| value.obs_fmt(f, bc), bc)
     }
 }
 impl<S> IntoObsStr for Obs<S>
@@ -297,8 +297,8 @@ where
 }
 
 impl<T: ?Sized + ObservableDisplay> ObservableDisplay for DynObs<T> {
-    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-        self.with(|value, cx| value.obs_fmt(f, cx), cx)
+    fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+        self.with(|value, bc| value.obs_fmt(f, bc), bc)
     }
 }
 impl<T: ?Sized + ObservableDisplay> IntoObsStr for DynObs<T> {
@@ -309,8 +309,8 @@ impl<T: ?Sized + ObservableDisplay> IntoObsStr for DynObs<T> {
 }
 
 impl<T: ObservableDisplay + 'static> ObservableDisplay for ObsCell<T> {
-    fn obs_fmt(&self, f: &mut Formatter, cx: &mut BindContext) -> Result {
-        self.borrow(cx).obs_fmt(f, cx)
+    fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+        self.borrow(bc).obs_fmt(f, bc)
     }
 }
 impl<T: ObservableDisplay + 'static> IntoObsStr for ObsCell<T> {

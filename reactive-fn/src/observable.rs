@@ -6,23 +6,23 @@ pub trait Observable: 'static {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U;
     fn with_head<U>(&self, f: impl FnOnce(&Self::Item) -> U) -> U {
-        BindContext::nul(|cx| self.with(|value, _| f(value), cx))
+        BindContext::nul(|bc| self.with(|value, _| f(value), bc))
     }
 
-    fn get(&self, cx: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    fn get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
-        self.with(|value, _| value.to_owned(), cx)
+        self.with(|value, _| value.to_owned(), bc)
     }
     fn get_head(&self) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
-        BindContext::nul(|cx| self.get(cx))
+        BindContext::nul(|bc| self.get(bc))
     }
 
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -46,9 +46,9 @@ impl<S: Observable> Observable for Rc<S> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        self.deref().with(f, cx)
+        self.deref().with(f, bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where

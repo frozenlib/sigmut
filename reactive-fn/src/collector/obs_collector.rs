@@ -54,9 +54,9 @@ impl<C: Collect> Observable for ObsCollector<C> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        f(&self.0.clone().get(cx), cx)
+        f(&self.0.clone().get(bc), bc)
     }
 }
 impl<C> Clone for ObsCollector<C> {
@@ -66,9 +66,9 @@ impl<C> Clone for ObsCollector<C> {
 }
 
 impl<C: Collect> ObsCollectorData<C> {
-    pub fn get(self: Rc<Self>, cx: &mut BindContext) -> C::Output {
+    pub fn get(self: Rc<Self>, bc: &mut BindContext) -> C::Output {
         let value = self.collector.borrow().collect();
-        cx.bind(self);
+        bc.bind(self);
         value
     }
 }
@@ -77,9 +77,9 @@ impl<C: Collect> DynamicObservableInner for ObsCollectorData<C> {
     fn dyn_with(
         self: Rc<Self>,
         f: &mut dyn FnMut(&Self::Item, &mut BindContext),
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) {
-        f(&self.get(cx), cx)
+        f(&self.get(bc), bc)
     }
 }
 impl<C: 'static> BindSource for ObsCollectorData<C> {

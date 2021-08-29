@@ -67,7 +67,7 @@ impl<S: Observable> Tail<S> {
         let mut b = state.borrow_mut();
         let head = b
             .bindings
-            .update(scope, &state, |cx| source.with(|value, _| f(value), cx));
+            .update(scope, &state, |bc| source.with(|value, _| f(value), bc));
         let tail = if b.bindings.is_empty() {
             Self(None)
         } else {
@@ -89,7 +89,7 @@ impl<S: Observable> Tail<S> {
         mut f: impl FnMut(&mut St, &S::Item) + 'static,
     ) -> Fold<St> {
         if let Some(this) = self.0 {
-            let fold = this.subscribe_new(Some(initial_state), move |st, value, _cx| {
+            let fold = this.subscribe_new(Some(initial_state), move |st, value, _bc| {
                 if let Some(st) = st {
                     f(st, value);
                 }
@@ -128,7 +128,7 @@ impl<S: Observable> Tail<S> {
         for<'a> O: Observer<&'a S::Item>,
     {
         if let Some(this) = self.0 {
-            let s = this.subscribe_new(o, |o, value, _cx| o.next(value));
+            let s = this.subscribe_new(o, |o, value, _bc| o.next(value));
             MayConstantSubscriber::Subscriber(subscriber(s))
         } else {
             MayConstantSubscriber::Constant(RefCell::new(o))
@@ -165,8 +165,8 @@ impl<S: Observable> TailData<S> {
         let bindings = mem::take(&mut state.bindings);
         let s = Subscribe::new_tail(
             st,
-            move |st, cx| {
-                source.with(|value, cx| f(&mut st.st, value, cx), cx);
+            move |st, bc| {
+                source.with(|value, bc| f(&mut st.st, value, bc), bc);
                 st.head_subscription = None;
             },
             state.is_modified,

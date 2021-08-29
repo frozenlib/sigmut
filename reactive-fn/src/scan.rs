@@ -83,7 +83,7 @@ where
         let mut b = &mut *self.data.borrow_mut();
         let f = &mut b.f;
         let st = &mut b.st;
-        b.bindings.update(scope, &self, |cx| f(st, cx));
+        b.bindings.update(scope, &self, |bc| f(st, bc));
         b.is_loaded = true;
     }
 }
@@ -98,16 +98,16 @@ where
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        cx.bind(self.clone());
+        bc.bind(self.clone());
         let mut b = self.data.borrow();
         if !b.is_loaded {
             drop(b);
-            self.load(cx.scope());
+            self.load(bc.scope());
             b = self.data.borrow();
         }
-        b.m.map(&b.st, |value| f(value, cx))
+        b.m.map(&b.st, |value| f(value, bc))
     }
 
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -172,7 +172,7 @@ where
         let f = &mut b.f;
         let st = &mut b.st;
         b.is_loaded = true;
-        b.bindings.update(scope, self, |cx| f(st, cx))
+        b.bindings.update(scope, self, |bc| f(st, bc))
     }
 }
 impl<St, F, M> Observable for Rc<FilterScan<St, F, M>>
@@ -186,16 +186,16 @@ where
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
         let mut b = self.data.borrow();
         if !b.is_loaded {
             drop(b);
-            self.load(cx.scope());
+            self.load(bc.scope());
             b = self.data.borrow();
         }
-        cx.bind(self.clone());
-        b.m.map(&b.st, |value| f(value, cx))
+        bc.bind(self.clone());
+        b.m.map(&b.st, |value| f(value, bc))
     }
 
     fn into_dyn(self) -> DynObs<Self::Item>

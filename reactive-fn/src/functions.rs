@@ -13,7 +13,7 @@ use std::{
 
 #[inline]
 pub fn subscribe(mut f: impl FnMut(&mut BindContext) + 'static) -> Subscription {
-    subscribe_to((), move |_, cx| f(cx)).into_subscription()
+    subscribe_to((), move |_, bc| f(bc)).into_subscription()
 }
 
 #[inline]
@@ -21,7 +21,7 @@ pub fn subscribe_to<St: 'static>(
     st: St,
     mut f: impl FnMut(&mut St, &mut BindContext) + 'static,
 ) -> impl Subscriber<St = St> {
-    match Subscribe::new(SubscribeToData(st), move |st, cx| f(&mut st.0, cx)) {
+    match Subscribe::new(SubscribeToData(st), move |st, bc| f(&mut st.0, bc)) {
         Ok(s) => MayConstantSubscriber::Subscriber(subscriber(s)),
         Err(st) => MayConstantSubscriber::Constant(RefCell::new(st.0)),
     }
@@ -95,7 +95,7 @@ where
         let b = &mut *self.0.borrow_mut();
         let st = &mut b.st;
         let f = &mut b.f;
-        b.bindings.update(scope, self, |cx| f(st, cx));
+        b.bindings.update(scope, self, |bc| f(st, bc));
         b.is_loaded = true;
         !b.bindings.is_empty()
     }
@@ -184,9 +184,9 @@ pub fn obs<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> Obs<impl Observabl
         fn with<U>(
             &self,
             f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-            cx: &mut BindContext,
+            bc: &mut BindContext,
         ) -> U {
-            f(&(self.0)(cx), cx)
+            f(&(self.0)(bc), bc)
         }
     }
     Obs(ObsFn(f))
@@ -217,13 +217,13 @@ where
         fn with<U>(
             &self,
             f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-            cx: &mut BindContext,
+            bc: &mut BindContext,
         ) -> U {
             let mut output = None;
             let mut f = Some(f);
             self.dyn_with(
-                &mut |value, cx| output = Some((f.take().unwrap())(value, cx)),
-                cx,
+                &mut |value, bc| output = Some((f.take().unwrap())(value, bc)),
+                bc,
             );
             output.unwrap()
         }
@@ -244,8 +244,8 @@ where
         F: Fn(&S, &mut dyn FnMut(&T, &mut BindContext), &mut BindContext) + 'static,
     {
         type Item = T;
-        fn dyn_with(&self, f: &mut dyn FnMut(&T, &mut BindContext), cx: &mut BindContext) {
-            (self.f)(&self.this, f, cx)
+        fn dyn_with(&self, f: &mut dyn FnMut(&T, &mut BindContext), bc: &mut BindContext) {
+            (self.f)(&self.this, f, bc)
         }
     }
 

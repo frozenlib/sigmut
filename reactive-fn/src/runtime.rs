@@ -18,7 +18,7 @@ impl BindScope {
         Runtime::with(|this| {
             this.try_bind(
                 (),
-                |_, cx| f(cx),
+                |_, bc| f(bc),
                 |_, _| panic!("Cannot create BindScope when NotifyScope exists."),
             )
         })
@@ -35,7 +35,7 @@ impl NotifyScope {
         Runtime::with(|this| {
             this.try_notify(
                 (),
-                |_, cx| f(cx),
+                |_, bc| f(bc),
                 |_, _| panic!("Cannot create NotifyScope when BindScope exists."),
             )
         })

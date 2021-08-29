@@ -6,7 +6,7 @@ pub(crate) trait DynamicObservableList<T> {
     fn borrow<'a>(
         &'a self,
         rs_self: &dyn Any,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> Box<dyn DynamicObservableListRef<T> + 'a>;
 }
 pub(crate) trait DynamicObservableListRef<T> {
@@ -37,8 +37,8 @@ impl<T: 'static> ObsList<T> {
         Self(values)
     }
 
-    pub fn borrow<'a>(&'a self, cx: &mut BindContext) -> ObsListRef<'a, T> {
-        ObsListRef(DynamicObservableList::borrow(&*self.0, &self.0, cx))
+    pub fn borrow<'a>(&'a self, bc: &mut BindContext) -> ObsListRef<'a, T> {
+        ObsListRef(DynamicObservableList::borrow(&*self.0, &self.0, bc))
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> ObsList<U> {
@@ -97,7 +97,7 @@ impl<T> DynamicObservableList<T> for Vec<T> {
     fn borrow<'a>(
         &'a self,
         _rs_self: &dyn Any,
-        _cx: &mut BindContext,
+        _bc: &mut BindContext,
     ) -> Box<dyn DynamicObservableListRef<T> + 'a> {
         Box::new(ConstantObsListRef(self.as_slice()))
     }
@@ -140,10 +140,10 @@ where
     fn borrow<'a>(
         &'a self,
         _rs_self: &dyn Any,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> Box<dyn DynamicObservableListRef<U> + 'a> {
         Box::new(MapDynObsListRef {
-            s: self.s.borrow(cx),
+            s: self.s.borrow(bc),
             f: &self.f,
         })
     }

@@ -277,19 +277,19 @@ impl<T: ?Sized> Observable for DynObs<T> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
         if let DynObsData::Static(x) = &self.0 {
-            f(x, cx)
+            f(x, bc)
         } else {
             let mut output = None;
             let mut f = Some(f);
             let f: &mut dyn FnMut(&T, &mut BindContext) =
-                &mut |value, cx| output = Some((f.take().unwrap())(value, cx));
+                &mut |value, bc| output = Some((f.take().unwrap())(value, bc));
             match &self.0 {
-                DynObsData::Static(value) => f(value, cx),
-                DynObsData::Dyn(x) => x.dyn_with(f, cx),
-                DynObsData::DynInner(x) => x.clone().dyn_with(f, cx),
+                DynObsData::Static(value) => f(value, bc),
+                DynObsData::Dyn(x) => x.dyn_with(f, bc),
+                DynObsData::DynInner(x) => x.clone().dyn_with(f, bc),
             }
             output.unwrap()
         }

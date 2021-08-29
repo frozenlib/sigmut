@@ -60,7 +60,7 @@ where
             b.is_ready = false;
             let bindings = &mut b.bindings;
             let value =
-                BindScope::with(|scope| bindings.update(scope, this, |cx| this.source.get(cx)));
+                BindScope::with(|scope| bindings.update(scope, this, |bc| this.source.get(bc)));
             Poll::Ready(Some(value))
         } else {
             b.waker = Some(cx.waker().clone());

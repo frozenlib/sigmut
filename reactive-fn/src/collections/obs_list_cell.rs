@@ -18,8 +18,8 @@ impl<T: 'static> ObsListCell<T> {
     pub fn new() -> Self {
         Self(Rc::new(Inner::new()))
     }
-    pub fn borrow(&self, cx: &mut BindContext) -> ObsListCellRef<T> {
-        cx.bind(self.0.clone());
+    pub fn borrow(&self, bc: &mut BindContext) -> ObsListCellRef<T> {
+        bc.bind(self.0.clone());
         self.0.log_refs.borrow_mut().set_read();
         ObsListCellRef {
             source: self.0.clone(),
@@ -396,10 +396,10 @@ impl<T: 'static> DynamicObservableList<T> for Inner<T> {
     fn borrow<'a>(
         &'a self,
         rc_self: &dyn Any,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> Box<dyn DynamicObservableListRef<T> + 'a> {
         let this = rc_self.downcast_ref::<Rc<Inner<T>>>().unwrap();
-        cx.bind(this.clone());
+        bc.bind(this.clone());
         self.log_refs.borrow_mut().set_read();
         Box::new(ObsListCellRef {
             source: this.clone(),

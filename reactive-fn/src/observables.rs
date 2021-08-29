@@ -22,9 +22,9 @@ where
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        self.0.with(|value, cx| f(&value.clone().into(), cx), cx)
+        self.0.with(|value, bc| f(&value.clone().into(), bc), bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
@@ -50,9 +50,9 @@ where
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        self.0.with(|value, cx| f(&value.borrow(), cx), cx)
+        self.0.with(|value, bc| f(&value.borrow(), bc), bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
@@ -78,9 +78,9 @@ where
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        self.0.with(|value, cx| f(&value.as_ref(), cx), cx)
+        self.0.with(|value, bc| f(&value.as_ref(), bc), bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
@@ -111,9 +111,9 @@ impl<T: 'static> Observable for ConstantObservable<T> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        f(&self.0, cx)
+        f(&self.0, bc)
     }
     fn into_may(self) -> MayObs<Self::Item> {
         MayObs::Constant(self.0)
@@ -129,9 +129,9 @@ impl<T: ?Sized> Observable for StaticObservable<T> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        f(self.0, cx)
+        f(self.0, bc)
     }
     #[inline]
     fn into_dyn(self) -> DynObs<Self::Item> {
@@ -161,12 +161,12 @@ where
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
         if let Some(s) = &self.0 {
-            s.with(|value, cx| f(&Some(value.to_owned()), cx), cx)
+            s.with(|value, bc| f(&Some(value.to_owned()), bc), bc)
         } else {
-            f(&None, cx)
+            f(&None, bc)
         }
     }
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -211,11 +211,11 @@ where
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
         match &self.0 {
-            Ok(s) => s.with(|value, cx| f(&Ok(value.to_owned()), cx), cx),
-            Err(e) => f(&e, cx),
+            Ok(s) => s.with(|value, bc| f(&Ok(value.to_owned()), bc), bc),
+            Err(e) => f(&e, bc),
         }
     }
     fn into_dyn(self) -> DynObs<Self::Item>

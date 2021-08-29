@@ -22,9 +22,9 @@ impl<T: 'static> Fold<T> {
         Self(FoldData::Constant(st))
     }
     pub fn new(st: T, mut f: impl FnMut(&mut T, &mut BindContext) + 'static) -> Self {
-        match Subscribe::new(Some(st), move |st, cx| {
+        match Subscribe::new(Some(st), move |st, bc| {
             if let Some(st) = st {
-                f(st, cx)
+                f(st, bc)
             }
         }) {
             Ok(s) => Fold::from_dyn(s),

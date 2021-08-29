@@ -33,11 +33,11 @@ impl<T: 'static> ObsCell<T> {
             Runtime::spawn_notify(self.0.clone());
         }
     }
-    pub fn get(&self, cx: &mut BindContext) -> T
+    pub fn get(&self, bc: &mut BindContext) -> T
     where
         T: Clone,
     {
-        self.0.borrow(cx).clone()
+        self.0.borrow(bc).clone()
     }
     pub fn get_head(&self) -> T
     where
@@ -46,12 +46,12 @@ impl<T: 'static> ObsCell<T> {
         self.0.value.borrow().clone()
     }
 
-    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, cx: &mut BindContext) -> U {
-        f(&self.borrow(cx), cx)
+    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, bc: &mut BindContext) -> U {
+        f(&self.borrow(bc), bc)
     }
 
-    pub fn borrow(&self, cx: &mut BindContext) -> Ref<T> {
-        self.0.borrow(cx)
+    pub fn borrow(&self, bc: &mut BindContext) -> Ref<T> {
+        self.0.borrow(bc)
     }
     pub fn borrow_head(&self) -> Ref<T> {
         self.0.value.borrow()
@@ -82,8 +82,8 @@ impl<T: 'static> ObsCell<T> {
     }
 }
 impl<T: 'static> ObsRefCellData<T> {
-    pub fn borrow<'a>(self: &'a Rc<Self>, cx: &mut BindContext) -> Ref<'a, T> {
-        cx.bind(self.clone());
+    pub fn borrow<'a>(self: &'a Rc<Self>, bc: &mut BindContext) -> Ref<'a, T> {
+        bc.bind(self.clone());
         self.value.borrow()
     }
 }
@@ -93,9 +93,9 @@ impl<T: 'static> Observable for ObsCell<T> {
     fn with<U>(
         &self,
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) -> U {
-        self.with(f, cx)
+        self.with(f, bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
@@ -110,9 +110,9 @@ impl<T: 'static> DynamicObservableInner for ObsRefCellData<T> {
     fn dyn_with(
         self: Rc<Self>,
         f: &mut dyn FnMut(&Self::Item, &mut BindContext),
-        cx: &mut BindContext,
+        bc: &mut BindContext,
     ) {
-        f(&self.borrow(cx), cx)
+        f(&self.borrow(bc), bc)
     }
 }
 
