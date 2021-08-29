@@ -52,7 +52,7 @@ where
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         bc: &mut BindContext,
     ) -> U {
-        self.0.with(|value, bc| f(&value.borrow(), bc), bc)
+        self.0.with(|value, bc| f(value.borrow(), bc), bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
@@ -80,7 +80,7 @@ where
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         bc: &mut BindContext,
     ) -> U {
-        self.0.with(|value, bc| f(&value.as_ref(), bc), bc)
+        self.0.with(|value, bc| f(value.as_ref(), bc), bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
     where
@@ -215,7 +215,7 @@ where
     ) -> U {
         match &self.0 {
             Ok(s) => s.with(|value, bc| f(&Ok(value.to_owned()), bc), bc),
-            Err(e) => f(&e, bc),
+            Err(e) => f(e, bc),
         }
     }
     fn into_dyn(self) -> DynObs<Self::Item>

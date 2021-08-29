@@ -72,7 +72,7 @@ where
         }
         if !d.is_loaded {
             d.is_loaded = true;
-            let (value, stream) = d.bindings.update(scope, &self, &mut d.f);
+            let (value, stream) = d.bindings.update(scope, self, &mut d.f);
             d.stream.set(Some(stream));
             d.value = Some(value);
             if !self.sinks.is_empty() {
@@ -99,7 +99,7 @@ where
     ) -> U {
         bc.bind(self.clone());
         self.update(bc.scope());
-        f(&self.data.borrow().value.as_ref().unwrap(), bc)
+        f(self.data.borrow().value.as_ref().unwrap(), bc)
     }
 }
 
@@ -154,27 +154,22 @@ where
 {
     fn poll(self: Rc<Self>, cx: &mut Context) {
         let mut is_notify = false;
-        let d = &mut *self.data.borrow_mut();
-        if let Some(mut s) = d.stream.as_mut().as_pin_mut() {
-            loop {
-                match s.as_mut().poll_next(cx) {
-                    Poll::Ready(value) => {
-                        if let Some(value) = value {
-                            is_notify = true;
-                            d.value = Some(value);
-                        } else {
-                            d.stream.set(None);
-                            break;
-                        }
-                    }
-                    Poll::Pending => {
+        {
+            let mut d = self.data.borrow_mut();
+            let d = &mut *d;
+            if let Some(mut s) = d.stream.as_mut().as_pin_mut() {
+                while let Poll::Ready(value) = s.as_mut().poll_next(cx) {
+                    if let Some(value) = value {
+                        is_notify = true;
+                        d.value = Some(value);
+                    } else {
+                        d.stream.set(None);
                         break;
                     }
                 }
             }
+            d.waker = Some(cx.waker().clone());
         }
-        d.waker = Some(cx.waker().clone());
-        drop(d);
         if is_notify {
             NotifyScope::with(|scope| self.sinks.notify(scope));
         }

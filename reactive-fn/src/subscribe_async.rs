@@ -5,7 +5,7 @@ use std::{
     future::Future,
     pin::Pin,
     rc::Rc,
-    task::{Context, Poll, Waker},
+    task::{Context, Waker},
 };
 
 pub struct SubscribeAsync<F, Fut>(RefCell<SubscribeAsyncData<F, Fut>>)
@@ -61,7 +61,7 @@ where
             d.fut.set(Some(fut));
         }
         if let Some(fut) = d.fut.as_mut().as_pin_mut() {
-            if let Poll::Ready(_) = fut.poll(cx) {
+            if fut.poll(cx).is_ready() {
                 d.fut.set(None);
             }
         }

@@ -70,15 +70,13 @@ where
                 d.waker.take();
             }
         }
-        if !self.sinks.is_empty() {
-            if !d.is_loaded {
-                d.is_loaded = true;
-                d.fut.set(Some(d.bindings.update(scope, &self, &mut d.f)));
-                if d.task.is_none() {
-                    d.task = Some(spawn_local_weak(self));
-                } else if let Some(waker) = d.waker.take() {
-                    waker.wake();
-                }
+        if !self.sinks.is_empty() && !d.is_loaded {
+            d.is_loaded = true;
+            d.fut.set(Some(d.bindings.update(scope, self, &mut d.f)));
+            if d.task.is_none() {
+                d.task = Some(spawn_local_weak(self));
+            } else if let Some(waker) = d.waker.take() {
+                waker.wake();
             }
         }
     }
@@ -154,16 +152,18 @@ where
 {
     fn poll(self: Rc<Self>, cx: &mut Context) {
         let mut is_notify = false;
-        let d = &mut *self.data.borrow_mut();
-        if let Some(fut) = d.fut.as_mut().as_pin_mut() {
-            d.value = fut.poll(cx);
-            if d.value.is_ready() {
-                d.fut.set(None);
-                is_notify = true;
+        {
+            let mut d = self.data.borrow_mut();
+            let d = &mut *d;
+            if let Some(fut) = d.fut.as_mut().as_pin_mut() {
+                d.value = fut.poll(cx);
+                if d.value.is_ready() {
+                    d.fut.set(None);
+                    is_notify = true;
+                }
             }
+            d.waker = Some(cx.waker().clone());
         }
-        d.waker = Some(cx.waker().clone());
-        drop(d);
         if is_notify {
             NotifyScope::with(|scope| self.sinks.notify(scope));
         }

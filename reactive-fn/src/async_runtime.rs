@@ -73,7 +73,7 @@ pub(crate) fn with_async_runtime<T>(f: impl FnOnce(&mut dyn AsyncRuntime) -> T) 
 pub fn enter_async_runtime<T>(rt: impl AsyncRuntime, f: impl FnOnce() -> T) -> T {
     ASYNC_RUNTIME.with(|current| {
         let mut current = current.borrow_mut();
-        if let Some(_) = *current {
+        if current.is_some() {
             panic!("async runtime is already set");
         } else {
             *current = Some(Box::new(rt));

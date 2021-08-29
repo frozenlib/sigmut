@@ -12,7 +12,7 @@ impl AsyncRuntime for TokioAsyncRuntime {
 }
 
 pub fn run<T>(future: impl Future<Output = T>) -> T {
-    let mut rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new().unwrap();
     let local = tokio::task::LocalSet::new();
-    enter_async_runtime(TokioAsyncRuntime, || local.block_on(&mut rt, future))
+    enter_async_runtime(TokioAsyncRuntime, || local.block_on(&rt, future))
 }

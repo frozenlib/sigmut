@@ -49,10 +49,8 @@ where
     }
     fn update(self: &Rc<Self>) {
         let d = &mut *self.data.borrow_mut();
-        if !self.sinks.is_empty() {
-            if d.stream.is_some() && d.task.is_none() {
-                d.task = Some(spawn_local_weak(self));
-            }
+        if !self.sinks.is_empty() && d.stream.is_some() && d.task.is_none() {
+            d.task = Some(spawn_local_weak(self));
         }
     }
 }
@@ -88,26 +86,27 @@ where
 {
     fn poll(self: Rc<Self>, cx: &mut Context) {
         let mut is_notify = false;
-        let d = &mut *self.data.borrow_mut();
-        if let Some(stream) = d.stream.as_mut() {
-            loop {
-                match stream.as_mut().poll_next(cx) {
-                    Poll::Ready(Some(value)) => {
-                        d.value = value;
-                        is_notify = true;
-                    }
-                    Poll::Ready(None) => {
-                        d.stream.take();
-                        d.task.take();
-                        break;
-                    }
-                    Poll::Pending => {
-                        break;
+        {
+            let d = &mut *self.data.borrow_mut();
+            if let Some(stream) = d.stream.as_mut() {
+                loop {
+                    match stream.as_mut().poll_next(cx) {
+                        Poll::Ready(Some(value)) => {
+                            d.value = value;
+                            is_notify = true;
+                        }
+                        Poll::Ready(None) => {
+                            d.stream.take();
+                            d.task.take();
+                            break;
+                        }
+                        Poll::Pending => {
+                            break;
+                        }
                     }
                 }
             }
         }
-        drop(d);
         if is_notify {
             NotifyScope::with(|scope| self.sinks.notify(scope));
         }

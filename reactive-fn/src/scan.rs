@@ -83,7 +83,7 @@ where
         let mut b = &mut *self.data.borrow_mut();
         let f = &mut b.f;
         let st = &mut b.st;
-        b.bindings.update(scope, &self, |bc| f(st, bc));
+        b.bindings.update(scope, self, |bc| f(st, bc));
         b.is_loaded = true;
     }
 }

@@ -1,7 +1,7 @@
 use crate::{BindScope, NotifyScope, NotifyTask};
 use slabmap::SlabMap;
 use std::cell::RefCell;
-use std::mem::replace;
+use std::mem;
 use std::rc::{Rc, Weak};
 
 pub struct BindContext<'a> {
@@ -16,7 +16,7 @@ impl<'a> BindContext<'a> {
         }
     }
     pub fn scope(&self) -> &BindScope {
-        &self.scope
+        self.scope
     }
     pub fn nul<T>(f: impl FnOnce(&mut BindContext) -> T) -> T {
         BindScope::with(|scope| f(&mut BindContext { scope, bb: None }))
@@ -115,7 +115,7 @@ impl Bindings {
         sink: &Rc<impl BindSink>,
         f: impl FnOnce(&mut BindContext) -> T,
     ) -> T {
-        let bindings = replace(&mut self.bindings, Vec::new());
+        let bindings = mem::take(&mut self.bindings);
         let sink = Rc::downgrade(sink) as Weak<dyn BindSink>;
         let sink_changed = !Weak::ptr_eq(&self.sink, &sink);
         if sink_changed {
