@@ -37,7 +37,7 @@ impl<St: 'static> Subscriber for DynSubscriber<St> {
     }
     fn into_subscription(self) -> Subscription {
         match self.0 {
-            DynSubscriberData::Subscriber(s) => Subscription(Some(s.as_rc_any())),
+            DynSubscriberData::Subscriber(s) => s.to_subscription(),
             DynSubscriberData::Constant(_) => Subscription::empty(),
         }
     }
@@ -52,7 +52,7 @@ pub(crate) trait InnerSubscriber: 'static {
     type St;
     fn borrow(&self) -> Ref<Self::St>;
     fn borrow_mut(&self) -> RefMut<Self::St>;
-    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any>;
+    fn to_subscription(self: Rc<Self>) -> Subscription;
 }
 
 pub(crate) fn subscriber<St: 'static>(

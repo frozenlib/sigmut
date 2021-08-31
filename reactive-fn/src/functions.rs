@@ -140,8 +140,13 @@ where
     fn borrow_mut(&self) -> std::cell::RefMut<Self::St> {
         RefMut::map(self.0.borrow_mut(), |x| x.st.borrow_mut())
     }
-    fn as_rc_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
+    fn to_subscription(self: Rc<Self>) -> Subscription {
+        if let Ok(data) = self.0.try_borrow() {
+            if data.bindings.is_empty() {
+                return Subscription::empty();
+            }
+        }
+        Subscription(Some(self))
     }
 }
 
