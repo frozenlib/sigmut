@@ -68,8 +68,8 @@ impl<T> ObsListRef<'_, T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.0.get(index)
     }
-    pub fn changes(&self, since: &ObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
-        self.0.changes(since, f)
+    pub fn changes(&self, since: &ObsListAge, mut f: impl FnMut(ListChange<&T>)) {
+        self.0.changes(since, &mut f)
     }
     pub fn iter(&self) -> IndexIter<&Self> {
         IndexIter::new(self, 0, self.len())
