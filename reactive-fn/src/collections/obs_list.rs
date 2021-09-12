@@ -19,7 +19,7 @@ pub(crate) trait DynamicObservableListRef<T: ?Sized> {
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
 pub struct ObsList<T: ?Sized>(pub(crate) Rc<dyn DynamicObservableList<T>>);
-pub struct ObsListRef<'a, T>(Box<dyn DynamicObservableListRef<T> + 'a>);
+pub struct ObsListRef<'a, T: ?Sized>(Box<dyn DynamicObservableListRef<T> + 'a>);
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
@@ -36,7 +36,8 @@ impl<T: 'static> ObsList<T> {
     pub fn from_rc_vec(values: Rc<Vec<T>>) -> Self {
         Self(values)
     }
-
+}
+impl<T: ?Sized + 'static> ObsList<T> {
     pub fn borrow<'a>(&'a self, bc: &mut BindContext) -> ObsListRef<'a, T> {
         ObsListRef(DynamicObservableList::borrow(&*self.0, &self.0, bc))
     }
@@ -55,7 +56,7 @@ impl<T: 'static> ObsList<T> {
         }
     }
 }
-impl<T> ObsListRef<'_, T> {
+impl<T: ?Sized> ObsListRef<'_, T> {
     pub fn age(&self) -> ObsListAge {
         self.0.age()
     }
@@ -75,14 +76,14 @@ impl<T> ObsListRef<'_, T> {
         IndexIter::new(self, 0, self.len())
     }
 }
-impl<T> Index<usize> for ObsListRef<'_, T> {
+impl<T: ?Sized> Index<usize> for ObsListRef<'_, T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("out of index.")
     }
 }
-impl<'a, T> IntoIterator for &'a ObsListRef<'_, T> {
+impl<'a, T: ?Sized> IntoIterator for &'a ObsListRef<'_, T> {
     type Item = &'a T;
     type IntoIter = IndexIter<Self>;
 
@@ -123,18 +124,18 @@ impl<'a, T> DynamicObservableListRef<T> for ConstantObsListRef<'a, T> {
     }
 }
 
-struct MapDynObsList<T, F> {
+struct MapDynObsList<T: ?Sized, F> {
     s: ObsList<T>,
     f: F,
 }
-struct MapDynObsListRef<'a, T, F> {
+struct MapDynObsListRef<'a, T: ?Sized, F> {
     s: ObsListRef<'a, T>,
     f: &'a F,
 }
 
 impl<T, U, F> DynamicObservableList<U> for MapDynObsList<T, F>
 where
-    T: 'static,
+    T: ?Sized + 'static,
     U: ?Sized,
     F: Fn(&T) -> &U,
 {
@@ -151,6 +152,7 @@ where
 }
 impl<'a, T, U, F> DynamicObservableListRef<U> for MapDynObsListRef<'a, T, F>
 where
+    T: ?Sized,
     U: ?Sized,
     F: Fn(&T) -> &U,
 {
