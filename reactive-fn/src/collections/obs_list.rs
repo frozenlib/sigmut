@@ -2,14 +2,14 @@ use super::*;
 use crate::*;
 use std::{any::Any, borrow::Borrow, ops::Index, rc::Rc};
 
-pub(crate) trait DynamicObservableList<T> {
+pub(crate) trait DynamicObservableList<T: ?Sized> {
     fn borrow<'a>(
         &'a self,
         rs_self: &dyn Any,
         bc: &mut BindContext,
     ) -> Box<dyn DynamicObservableListRef<T> + 'a>;
 }
-pub(crate) trait DynamicObservableListRef<T> {
+pub(crate) trait DynamicObservableListRef<T: ?Sized> {
     fn age(&self) -> ObsListAge;
     fn len(&self) -> usize;
     fn get(&self, index: usize) -> Option<&T>;
@@ -18,7 +18,7 @@ pub(crate) trait DynamicObservableListRef<T> {
 
 #[derive(Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ObsList<T>(pub(crate) Rc<dyn DynamicObservableList<T>>);
+pub struct ObsList<T: ?Sized>(pub(crate) Rc<dyn DynamicObservableList<T>>);
 pub struct ObsListRef<'a, T>(Box<dyn DynamicObservableListRef<T> + 'a>);
 
 #[derive(Derivative)]
@@ -41,7 +41,7 @@ impl<T: 'static> ObsList<T> {
         ObsListRef(DynamicObservableList::borrow(&*self.0, &self.0, bc))
     }
 
-    pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> ObsList<U> {
+    pub fn map<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> ObsList<U> {
         ObsList(Rc::new(MapDynObsList { s: self.clone(), f }))
     }
     pub fn map_borrow<U: 'static>(&self) -> ObsList<U>
@@ -135,6 +135,7 @@ struct MapDynObsListRef<'a, T, F> {
 impl<T, U, F> DynamicObservableList<U> for MapDynObsList<T, F>
 where
     T: 'static,
+    U: ?Sized,
     F: Fn(&T) -> &U,
 {
     fn borrow<'a>(
@@ -150,6 +151,7 @@ where
 }
 impl<'a, T, U, F> DynamicObservableListRef<U> for MapDynObsListRef<'a, T, F>
 where
+    U: ?Sized,
     F: Fn(&T) -> &U,
 {
     fn age(&self) -> ObsListAge {
