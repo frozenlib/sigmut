@@ -113,7 +113,7 @@ impl<C: Collect> Drop for ObsCollectorObserver<C> {
         }
     }
 }
-impl<C: Collect> RawSink2 for ObsCollector<C> {
+impl<C: Collect> RawSink for ObsCollector<C> {
     type Item = C::Input;
     type Observer = ObsCollectorObserver<C>;
     fn connect(&self, value: C::Input) -> Self::Observer {
@@ -123,17 +123,17 @@ impl<C: Collect> RawSink2 for ObsCollector<C> {
     }
 }
 
-impl<C: Collect> IntoSink2<C::Input> for ObsCollector<C> {
+impl<C: Collect> IntoSink<C::Input> for ObsCollector<C> {
     type RawSink = Self;
 
-    fn into_sink(self) -> Sink2<Self::RawSink> {
-        Sink2(self)
+    fn into_sink(self) -> Sink<Self::RawSink> {
+        Sink(self)
     }
 }
-impl<C: Collect> IntoSink2<C::Input> for &ObsCollector<C> {
+impl<C: Collect> IntoSink<C::Input> for &ObsCollector<C> {
     type RawSink = ObsCollector<C>;
 
-    fn into_sink(self) -> Sink2<Self::RawSink> {
+    fn into_sink(self) -> Sink<Self::RawSink> {
         self.clone().into_sink()
     }
 }

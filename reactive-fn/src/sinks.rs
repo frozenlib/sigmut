@@ -1,13 +1,13 @@
 use super::*;
 use either::Either;
 
-impl<S> RawSink2 for Obs<S>
+impl<S> RawSink for Obs<S>
 where
     S: Observable + Clone,
-    S::Item: RawSink2,
-    <S::Item as RawSink2>::Item: Clone,
+    S::Item: RawSink,
+    <S::Item as RawSink>::Item: Clone,
 {
-    type Item = <S::Item as RawSink2>::Item;
+    type Item = <S::Item as RawSink>::Item;
     type Observer = ObsSinkObserver<S::Item>;
 
     fn connect(&self, value: Self::Item) -> Self::Observer {
@@ -19,9 +19,9 @@ where
     }
 }
 
-impl<T> RawSink2 for DynObs<T>
+impl<T> RawSink for DynObs<T>
 where
-    T: ?Sized + RawSink2,
+    T: ?Sized + RawSink,
     T::Item: Clone,
 {
     type Item = T::Item;
@@ -31,13 +31,13 @@ where
         ObsSinkObserver(self.subscribe_to(ObsSinkState { value, o: None }))
     }
 }
-impl<T> RawSink2 for MayObs<T>
+impl<T> RawSink for MayObs<T>
 where
-    T: RawSink2,
+    T: RawSink,
     T::Item: Clone,
 {
     type Item = T::Item;
-    type Observer = Either<T::Observer, <DynObs<T> as RawSink2>::Observer>;
+    type Observer = Either<T::Observer, <DynObs<T> as RawSink>::Observer>;
 
     fn connect(&self, value: Self::Item) -> Self::Observer {
         match self {
@@ -47,10 +47,10 @@ where
     }
 }
 
-pub struct ObsSinkObserver<S: ?Sized + RawSink2>(DynSubscriber<ObsSinkState<S::Item, S::Observer>>);
+pub struct ObsSinkObserver<S: ?Sized + RawSink>(DynSubscriber<ObsSinkState<S::Item, S::Observer>>);
 impl<S> Observer<S::Item> for ObsSinkObserver<S>
 where
-    S: ?Sized + RawSink2,
+    S: ?Sized + RawSink,
     S::Item: Clone,
 {
     fn next(&mut self, value: S::Item) {
@@ -68,7 +68,7 @@ struct ObsSinkState<T, O> {
 }
 impl<'a, S> Observer<&'a S> for ObsSinkState<S::Item, S::Observer>
 where
-    S: ?Sized + RawSink2,
+    S: ?Sized + RawSink,
     S::Item: Clone,
 {
     fn next(&mut self, value: &'a S) {
@@ -76,72 +76,72 @@ where
     }
 }
 
-impl<S> IntoSink2<<S::Item as RawSink2>::Item> for Obs<S>
+impl<S> IntoSink<<S::Item as RawSink>::Item> for Obs<S>
 where
     S: Observable,
-    S::Item: RawSink2,
-    <S::Item as RawSink2>::Item: Clone,
+    S::Item: RawSink,
+    <S::Item as RawSink>::Item: Clone,
 {
     type RawSink = DynObs<S::Item>;
 
-    fn into_sink(self) -> Sink2<Self::RawSink> {
+    fn into_sink(self) -> Sink<Self::RawSink> {
         self.into_dyn().into_sink()
     }
 }
-impl<S> IntoSink2<<S::Item as RawSink2>::Item> for &Obs<S>
+impl<S> IntoSink<<S::Item as RawSink>::Item> for &Obs<S>
 where
     S: Observable + Clone,
-    S::Item: RawSink2,
-    <S::Item as RawSink2>::Item: Clone,
+    S::Item: RawSink,
+    <S::Item as RawSink>::Item: Clone,
 {
     type RawSink = DynObs<S::Item>;
 
-    fn into_sink(self) -> Sink2<Self::RawSink> {
+    fn into_sink(self) -> Sink<Self::RawSink> {
         self.clone().into_sink()
     }
 }
 
-impl<T> IntoSink2<T::Item> for DynObs<T>
+impl<T> IntoSink<T::Item> for DynObs<T>
 where
-    T: ?Sized + RawSink2,
+    T: ?Sized + RawSink,
     T::Item: Clone,
 {
     type RawSink = Self;
 
-    fn into_sink(self) -> Sink2<Self::RawSink> {
-        Sink2(self)
+    fn into_sink(self) -> Sink<Self::RawSink> {
+        Sink(self)
     }
 }
-impl<T> IntoSink2<T::Item> for &DynObs<T>
+impl<T> IntoSink<T::Item> for &DynObs<T>
 where
-    T: ?Sized + RawSink2,
+    T: ?Sized + RawSink,
     T::Item: Clone,
 {
     type RawSink = DynObs<T>;
 
-    fn into_sink(self) -> Sink2<Self::RawSink> {
+    fn into_sink(self) -> Sink<Self::RawSink> {
         self.clone().into_sink()
     }
 }
-impl<T> IntoSink2<T::Item> for MayObs<T>
+impl<T> IntoSink<T::Item> for MayObs<T>
 where
-    T: RawSink2,
+    T: RawSink,
     T::Item: Clone,
 {
     type RawSink = Self;
 
-    fn into_sink(self) -> Sink2<Self::RawSink> {
-        Sink2(self)
+    fn into_sink(self) -> Sink<Self::RawSink> {
+        Sink(self)
     }
 }
-impl<T> IntoSink2<T::Item> for &MayObs<T>
+impl<T> IntoSink<T::Item> for &MayObs<T>
 where
-    T: RawSink2 + Clone,
+    T: RawSink + Clone,
     T::Item: Clone,
 {
     type RawSink = MayObs<T>;
 
-    fn into_sink(self) -> Sink2<Self::RawSink> {
+    fn into_sink(self) -> Sink<Self::RawSink> {
         self.clone().into_sink()
     }
 }

@@ -1,26 +1,26 @@
 use super::*;
 
-pub trait IntoSink2<T> {
-    type RawSink: RawSink2<Item = T>;
-    fn into_sink(self) -> Sink2<Self::RawSink>;
+pub trait IntoSink<T> {
+    type RawSink: RawSink<Item = T>;
+    fn into_sink(self) -> Sink<Self::RawSink>;
 }
 
-pub trait RawSink2: 'static {
+pub trait RawSink: 'static {
     type Item;
     type Observer: Observer<Self::Item>;
     fn connect(&self, value: Self::Item) -> Self::Observer;
 }
 
-pub struct Sink2<S>(pub(crate) S);
+pub struct Sink<S>(pub(crate) S);
 
-impl<S> Sink2<S> {
+impl<S> Sink<S> {
     pub fn into_raw(self) -> S {
         self.0
     }
 }
-impl<S: RawSink2> IntoSink2<S::Item> for Sink2<S> {
+impl<S: RawSink> IntoSink<S::Item> for Sink<S> {
     type RawSink = S;
-    fn into_sink(self) -> Sink2<Self::RawSink> {
+    fn into_sink(self) -> Sink<Self::RawSink> {
         self
     }
 }
