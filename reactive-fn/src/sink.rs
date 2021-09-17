@@ -11,7 +11,7 @@ pub trait RawSink2: 'static {
     fn connect(&self, value: Self::Item) -> Self::Observer;
 }
 
-pub struct Sink2<S>(S);
+pub struct Sink2<S>(pub(crate) S);
 
 impl<S> Sink2<S> {
     pub fn into_raw(self) -> S {
@@ -22,53 +22,6 @@ impl<S: RawSink2> IntoSink2<S::Item> for Sink2<S> {
     type RawSink = S;
     fn into_sink(self) -> Sink2<Self::RawSink> {
         self
-    }
-}
-
-impl<S> RawSink2 for Obs<S>
-where
-    S: Observable + Clone,
-    S::Item: RawSink2,
-    <S::Item as RawSink2>::Item: Clone,
-{
-    type Item = <S::Item as RawSink2>::Item;
-    type Observer = ObsSinkObserver<Self::Item, <S::Item as RawSink2>::Observer>;
-
-    fn connect(&self, value: Self::Item) -> Self::Observer {
-        ObsSinkObserver(
-            self.clone()
-                .subscribe_to(ObsSinkState { value, o: None })
-                .into_dyn(),
-        )
-    }
-}
-
-pub struct ObsSinkObserver<T, O>(DynSubscriber<ObsSinkState<T, O>>);
-impl<T, O> Observer<T> for ObsSinkObserver<T, O>
-where
-    T: Clone + 'static,
-    O: Observer<T>,
-{
-    fn next(&mut self, value: T) {
-        let mut b = self.0.borrow_mut();
-        b.value = value.clone();
-        if let Some(o) = &mut b.o {
-            o.next(value);
-        }
-    }
-}
-
-struct ObsSinkState<T, O> {
-    value: T,
-    o: Option<O>,
-}
-impl<'a, S> Observer<&'a S> for ObsSinkState<S::Item, S::Observer>
-where
-    S: ?Sized + RawSink2,
-    S::Item: Clone,
-{
-    fn next(&mut self, value: &'a S) {
-        self.o = Some(value.connect(self.value.clone()));
     }
 }
 

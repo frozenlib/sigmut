@@ -11,6 +11,7 @@ futures = "0.3"
 derivative = "2.2"
 slabmap = "0.1"
 serde = "1.0.125"
+either = "1.6.1"
 
 [lib]
 bench = false
