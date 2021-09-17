@@ -19,7 +19,7 @@ pub trait Collect: 'static {
     fn collect(&self) -> Self::Output;
 }
 
-struct ObsCollectorObserver<C: Collect> {
+pub struct ObsCollectorObserver<C: Collect> {
     collector: Rc<ObsCollectorData<C>>,
     key: Option<C::Key>,
 }
@@ -31,7 +31,7 @@ impl<C: Collect> ObsCollector<C> {
         Default::default()
     }
 
-    pub fn insert(&self) -> impl Observer<C::Input> {
+    pub fn insert(&self) -> ObsCollectorObserver<C> {
         let (key, is_modified) = self.0.collector.borrow_mut().insert();
         if is_modified {
             Runtime::spawn_notify(self.0.clone());
@@ -113,15 +113,27 @@ impl<C: Collect> Drop for ObsCollectorObserver<C> {
         }
     }
 }
-impl<C: Collect> Sink<C::Input> for ObsCollector<C> {
-    fn connect(self, value: C::Input) -> DynObserver<C::Input> {
-        (&self).connect(value)
-    }
-}
-impl<C: Collect> Sink<C::Input> for &ObsCollector<C> {
-    fn connect(self, value: C::Input) -> DynObserver<C::Input> {
+impl<C: Collect> RawSink2 for ObsCollector<C> {
+    type Item = C::Input;
+    type Observer = ObsCollectorObserver<C>;
+    fn connect(&self, value: C::Input) -> Self::Observer {
         let mut o = self.insert();
         o.next(value);
-        o.into_dyn()
+        o
+    }
+}
+
+impl<C: Collect> IntoSink2<C::Input> for ObsCollector<C> {
+    type RawSink = Self;
+
+    fn into_sink(self) -> Sink2<Self::RawSink> {
+        Sink2(self)
+    }
+}
+impl<C: Collect> IntoSink2<C::Input> for &ObsCollector<C> {
+    type RawSink = ObsCollector<C>;
+
+    fn into_sink(self) -> Sink2<Self::RawSink> {
+        self.clone().into_sink()
     }
 }
