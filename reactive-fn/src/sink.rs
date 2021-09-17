@@ -1,5 +1,63 @@
 use super::*;
 
+pub trait IntoSink2<T> {
+    type RawSink: RawSink2<Item = T>;
+    fn into_sink(self) -> Sink2<Self::RawSink>;
+}
+
+pub trait RawSink2 {
+    type Item;
+    type Observer: Observer<Self::Item>;
+    fn next(&self, value: Self::Item, bc: &mut BindContext);
+    fn connect(self, value: Self::Item) -> Self::Observer;
+}
+
+pub struct Sink2<S>(S);
+
+impl<S> Sink2<S> {
+    pub fn into_raw(self) -> S {
+        self.0
+    }
+}
+impl<S: RawSink2> IntoSink2<S::Item> for Sink2<S> {
+    type RawSink = S;
+    fn into_sink(self) -> Sink2<Self::RawSink> {
+        self
+    }
+}
+
+impl<S> RawSink2 for Obs<S>
+where
+    S: Observable,
+    S::Item: RawSink2,
+    <S::Item as RawSink2>::Item: Clone,
+{
+    type Item = <S::Item as RawSink2>::Item;
+    type Observer = DynSubscriber<ObsCell<Self::Item>>;
+
+    fn next(&self, value: Self::Item, bc: &mut BindContext) {
+        self.with(|item, bc| item.next(value, bc), bc)
+    }
+    fn connect(self, value: Self::Item) -> Self::Observer {
+        subscribe_to(ObsCell::new(value), move |st, bc| {
+            self.with(|sink, bc| sink.next(st.get(bc), bc), bc)
+        })
+        .into_dyn()
+    }
+}
+impl<S> IntoSink2<<S::Item as RawSink2>::Item> for Obs<S>
+where
+    S: Observable,
+    S::Item: RawSink2,
+    <S::Item as RawSink2>::Item: Clone,
+{
+    type RawSink = Self;
+
+    fn into_sink(self) -> Sink2<Self::RawSink> {
+        Sink2(self)
+    }
+}
+
 pub trait Sink<T> {
     fn connect(self, value: T) -> DynObserver<T>;
 }

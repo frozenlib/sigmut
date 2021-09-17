@@ -126,6 +126,12 @@ impl<T> Clone for ObsCell<T> {
         Self(self.0.clone())
     }
 }
+impl<T> Observer<T> for ObsCell<T> {
+    fn next(&mut self, value: T) {
+        self.set(value)
+    }
+}
+
 impl<T: Serialize> Serialize for ObsCell<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
