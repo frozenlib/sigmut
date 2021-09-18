@@ -31,7 +31,7 @@ impl<C: Collect> ObsCollector<C> {
         Default::default()
     }
 
-    pub fn insert(&self) -> ObsCollectorObserver<C> {
+    fn insert(&self) -> ObsCollectorObserver<C> {
         let (key, is_modified) = self.0.collector.borrow_mut().insert();
         if is_modified {
             Runtime::spawn_notify(self.0.clone());
