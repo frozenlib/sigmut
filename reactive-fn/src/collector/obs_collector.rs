@@ -18,6 +18,8 @@ pub trait Collect: 'static {
     fn set(&mut self, key: Self::Key, value: Self::Input) -> CollectModify<Self::Key>;
     fn collect(&self) -> Self::Output;
 }
+
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
 pub struct CollectModify<K = ()> {
     pub key: K,
     pub is_modified: bool,
