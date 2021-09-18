@@ -18,6 +18,15 @@ impl<S> Sink<S> {
         self.0
     }
 }
+impl<S: RawSink> RawSink for Sink<S> {
+    type Item = S::Item;
+    type Observer = S::Observer;
+
+    fn connect(&self, value: Self::Item) -> Self::Observer {
+        self.0.connect(value)
+    }
+}
+
 impl<S: RawSink> IntoSink<S::Item> for Sink<S> {
     type RawSink = S;
     fn into_sink(self) -> Sink<Self::RawSink> {
