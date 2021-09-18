@@ -11,27 +11,34 @@ impl Collect for AnyCollector {
     type Output = bool;
     type Key = bool;
 
-    fn insert(&mut self) -> (Self::Key, bool) {
-        (false, false)
+    fn insert(&mut self) -> CollectModify<Self::Key> {
+        CollectModify {
+            key: false,
+            is_modified: false,
+        }
     }
 
-    fn remove(&mut self, key: Self::Key) -> bool {
-        if key {
+    fn remove(&mut self, key: Self::Key) -> CollectModify {
+        CollectModify::from_is_modified(if key {
             self.count -= 1;
             self.count == 0
         } else {
             false
-        }
+        })
     }
 
-    fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool) {
-        match (key, value) {
-            (true, false) => (false, self.remove(key)),
+    fn set(&mut self, key: Self::Key, value: Self::Input) -> CollectModify<Self::Key> {
+        let is_modified = match (key, value) {
+            (true, false) => self.remove(key).is_modified,
             (false, true) => {
                 self.count += 1;
-                (true, self.count == 1)
+                self.count == 1
             }
-            _ => (false, value),
+            _ => false,
+        };
+        CollectModify {
+            key: value,
+            is_modified,
         }
     }
 
@@ -54,27 +61,36 @@ impl<T: Clone + 'static> Collect for SomeCollector<T> {
     type Output = Option<T>;
     type Key = Option<usize>;
 
-    fn insert(&mut self) -> (Self::Key, bool) {
-        (None, false)
+    fn insert(&mut self) -> CollectModify<Self::Key> {
+        CollectModify {
+            key: None,
+            is_modified: false,
+        }
     }
 
-    fn remove(&mut self, key: Self::Key) -> bool {
-        if let Some(key) = key {
+    fn remove(&mut self, key: Self::Key) -> CollectModify {
+        CollectModify::from_is_modified(if let Some(key) = key {
             let is_modified = self.is_result(key);
             self.0.remove(key);
             is_modified
         } else {
             false
-        }
+        })
     }
 
-    fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool) {
-        let is_modified = self.remove(key);
+    fn set(&mut self, key: Self::Key, value: Self::Input) -> CollectModify<Self::Key> {
+        let is_modified = self.remove(key).is_modified;
         if let Some(value) = value {
             let key = self.0.insert(value);
-            (Some(key), is_modified || self.is_result(key))
+            CollectModify {
+                key: Some(key),
+                is_modified: is_modified || self.is_result(key),
+            }
         } else {
-            (None, is_modified)
+            CollectModify {
+                key: None,
+                is_modified,
+            }
         }
     }
 

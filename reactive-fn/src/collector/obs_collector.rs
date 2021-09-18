@@ -13,10 +13,23 @@ pub trait Collect: 'static {
     type Input;
     type Output;
     type Key;
-    fn insert(&mut self) -> (Self::Key, bool);
-    fn remove(&mut self, key: Self::Key) -> bool;
-    fn set(&mut self, key: Self::Key, value: Self::Input) -> (Self::Key, bool);
+    fn insert(&mut self) -> CollectModify<Self::Key>;
+    fn remove(&mut self, key: Self::Key) -> CollectModify;
+    fn set(&mut self, key: Self::Key, value: Self::Input) -> CollectModify<Self::Key>;
     fn collect(&self) -> Self::Output;
+}
+pub struct CollectModify<K = ()> {
+    pub key: K,
+    pub is_modified: bool,
+}
+
+impl CollectModify<()> {
+    pub fn from_is_modified(is_modified: bool) -> Self {
+        Self {
+            key: (),
+            is_modified,
+        }
+    }
 }
 
 pub struct ObsCollectorObserver<C: Collect> {
@@ -32,13 +45,13 @@ impl<C: Collect> ObsCollector<C> {
     }
 
     fn insert(&self) -> ObsCollectorObserver<C> {
-        let (key, is_modified) = self.0.collector.borrow_mut().insert();
-        if is_modified {
+        let m = self.0.collector.borrow_mut().insert();
+        if m.is_modified {
             Runtime::spawn_notify(self.0.clone());
         }
         ObsCollectorObserver {
             collector: self.0.clone(),
-            key: Some(key),
+            key: Some(m.key),
         }
     }
 
@@ -90,13 +103,13 @@ impl<C: 'static> BindSource for ObsCollectorData<C> {
 
 impl<C: Collect> Observer<C::Input> for ObsCollectorObserver<C> {
     fn next(&mut self, value: C::Input) {
-        let (key, is_modified) = self
+        let m = self
             .collector
             .collector
             .borrow_mut()
             .set(self.key.take().unwrap(), value);
-        self.key = Some(key);
-        if is_modified {
+        self.key = Some(m.key);
+        if m.is_modified {
             Runtime::spawn_notify(self.collector.clone());
         }
     }
@@ -108,6 +121,7 @@ impl<C: Collect> Drop for ObsCollectorObserver<C> {
             .collector
             .borrow_mut()
             .remove(self.key.take().unwrap())
+            .is_modified
         {
             Runtime::spawn_notify(self.collector.clone());
         }
