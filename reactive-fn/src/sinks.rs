@@ -18,6 +18,30 @@ where
         )
     }
 }
+impl<S> IntoSink<<S::Item as RawSink>::Item> for Obs<S>
+where
+    S: Observable,
+    S::Item: RawSink,
+    <S::Item as RawSink>::Item: Clone,
+{
+    type RawSink = DynObs<S::Item>;
+
+    fn into_sink(self) -> Sink<Self::RawSink> {
+        self.into_dyn().into_sink()
+    }
+}
+impl<S> IntoSink<<S::Item as RawSink>::Item> for &Obs<S>
+where
+    S: Observable + Clone,
+    S::Item: RawSink,
+    <S::Item as RawSink>::Item: Clone,
+{
+    type RawSink = DynObs<S::Item>;
+
+    fn into_sink(self) -> Sink<Self::RawSink> {
+        self.clone().into_sink()
+    }
+}
 
 impl<T> RawSink for DynObs<T>
 where
@@ -73,31 +97,6 @@ where
 {
     fn next(&mut self, value: &'a S) {
         self.o = Some(value.connect(self.value.clone()));
-    }
-}
-
-impl<S> IntoSink<<S::Item as RawSink>::Item> for Obs<S>
-where
-    S: Observable,
-    S::Item: RawSink,
-    <S::Item as RawSink>::Item: Clone,
-{
-    type RawSink = DynObs<S::Item>;
-
-    fn into_sink(self) -> Sink<Self::RawSink> {
-        self.into_dyn().into_sink()
-    }
-}
-impl<S> IntoSink<<S::Item as RawSink>::Item> for &Obs<S>
-where
-    S: Observable + Clone,
-    S::Item: RawSink,
-    <S::Item as RawSink>::Item: Clone,
-{
-    type RawSink = DynObs<S::Item>;
-
-    fn into_sink(self) -> Sink<Self::RawSink> {
-        self.clone().into_sink()
     }
 }
 

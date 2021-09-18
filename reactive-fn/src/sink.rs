@@ -11,6 +11,7 @@ pub trait RawSink: 'static {
     fn connect(&self, value: Self::Item) -> Self::Observer;
 }
 
+#[derive(Clone)]
 pub struct Sink<S>(pub(crate) S);
 
 impl<S> Sink<S> {
@@ -31,5 +32,11 @@ impl<S: RawSink> IntoSink<S::Item> for Sink<S> {
     type RawSink = S;
     fn into_sink(self) -> Sink<Self::RawSink> {
         self
+    }
+}
+impl<S: RawSink + Clone> IntoSink<S::Item> for &Sink<S> {
+    type RawSink = S;
+    fn into_sink(self) -> Sink<Self::RawSink> {
+        self.clone().into_sink()
     }
 }
