@@ -1,23 +1,6 @@
 use super::*;
 use either::Either;
 
-impl<S> RawSink for Obs<S>
-where
-    S: Observable + Clone,
-    S::Item: RawSink,
-    <S::Item as RawSink>::Item: Clone,
-{
-    type Item = <S::Item as RawSink>::Item;
-    type Observer = ObsSinkObserver<S::Item>;
-
-    fn connect(&self, value: Self::Item) -> Self::Observer {
-        ObsSinkObserver(
-            self.clone()
-                .subscribe_to(ObsSinkState { value, o: None })
-                .into_dyn(),
-        )
-    }
-}
 impl<S> IntoSink<<S::Item as RawSink>::Item> for Obs<S>
 where
     S: Observable,
