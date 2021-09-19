@@ -14,12 +14,13 @@ pub trait ObservableDisplay {
     {
         ObsDisplay(self)
     }
+    fn get(&self, bc: &mut BindContext) -> String {
+        let mut s = String::new();
+        write_to(&mut s, self, bc).unwrap();
+        s
+    }
     fn get_head(&self) -> String {
-        BindContext::nul(move |bc| {
-            let mut s = String::new();
-            write_to(&mut s, self, bc).unwrap();
-            s
-        })
+        BindContext::nul(|bc| self.get(bc))
     }
 }
 
@@ -152,9 +153,9 @@ format_trait!(
 ///
 /// let x = ObsCell::new(0);
 /// let s = obs_format!("x = {}", x.obs());
-/// assert_eq!(s.head(), "x = 0");
+/// assert_eq!(s.get_head(), "x = 0");
 /// x.set(10);
-/// assert_eq!(s.head(), "x = 10");
+/// assert_eq!(s.get_head(), "x = 10");
 /// ```
 #[macro_export]
 macro_rules! obs_format {
