@@ -14,7 +14,7 @@ pub trait ObservableDisplay {
     {
         ObsDisplay(self)
     }
-    fn head(&self) -> String {
+    fn get_head(&self) -> String {
         BindContext::nul(move |bc| {
             let mut s = String::new();
             write_to(&mut s, self, bc).unwrap();
