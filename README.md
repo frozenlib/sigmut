@@ -1,5 +1,9 @@
 # reactive-fn
 
+[![Crates.io](https://img.shields.io/crates/v/reactive-fn.svg)](https://crates.io/crates/reactive-fn)
+[![Docs.rs](https://docs.rs/ctxmap/badge.svg)](https://docs.rs/reactive-fn/)
+[![Actions Status](https://github.com/frozenlib/reactive-fn/workflows/CI/badge.svg)](https://github.com/frozenlib/reactive-fn/actions)
+
 Reactive programming framework for data binding.
 
 Warning: This library is at a very early stage of development.
