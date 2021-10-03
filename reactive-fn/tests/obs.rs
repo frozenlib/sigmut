@@ -70,7 +70,7 @@ fn flat_map() {
 }
 
 #[test]
-fn cahced() {
+fn cached() {
     let cell = ObsCell::new(0);
     let r = cell.obs().map(|x| x + 1).cached().collect_vec();
 

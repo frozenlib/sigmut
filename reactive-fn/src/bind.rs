@@ -41,7 +41,7 @@ impl BindingsBuilder {
         if self.len < self.bindings.len() {
             #[allow(clippy::vtable_address_comparisons)]
             // The purpose of this `if` is little optimization,
-            // so it doesn't matter if the block is executed by diffreent vtable address.
+            // so it doesn't matter if the block is executed by different vtable address.
             if self.sink_changed || !Rc::ptr_eq(&self.bindings[self.len].source, &source) {
                 let idx_old = self.len;
                 let idx_new = self.bindings.len();
