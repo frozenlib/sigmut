@@ -21,7 +21,7 @@ impl<T: 'static> ObsCell<T> {
     }
     pub fn set(&self, value: T) {
         *self.0.value.borrow_mut() = value;
-        Runtime::spawn_notify(self.0.clone());
+        self.0.notify_schedule();
     }
     pub fn set_dedup(&self, value: T)
     where
@@ -30,7 +30,7 @@ impl<T: 'static> ObsCell<T> {
         let mut b = self.0.value.borrow_mut();
         if *b != value {
             *b = value;
-            Runtime::spawn_notify(self.0.clone());
+            self.0.notify_schedule();
         }
     }
     pub fn get(&self, bc: &mut BindContext) -> T
@@ -171,7 +171,7 @@ impl<T> DerefMut for RefMut<'_, T> {
 impl<T> Drop for RefMut<'_, T> {
     fn drop(&mut self) {
         if self.modified {
-            Runtime::spawn_notify(self.s.take().unwrap().0);
+            self.s.take().unwrap().0.notify_schedule();
         }
     }
 }
@@ -198,7 +198,7 @@ impl<T: 'static + PartialEq> Drop for RefMutDedup<'_, T> {
     fn drop(&mut self) {
         if let Some(old) = &self.old {
             if old != &*self.b {
-                Runtime::spawn_notify(self.s.take().unwrap().0);
+                self.s.take().unwrap().0.notify_schedule()
             }
         }
     }

@@ -358,7 +358,7 @@ impl<'a, T> Drop for ObsListCellRefMut<'a, T> {
         let logs_len = self.state.logs.len();
         unsafe { ManuallyDrop::drop(&mut self.state) }
         if self.logs_len_old != logs_len {
-            Runtime::spawn_notify(self.source.clone());
+            self.source.notify_schedule();
         }
         self.source.try_clean_logs();
     }
