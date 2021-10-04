@@ -45,7 +45,7 @@ impl Runtime {
             RuntimeState::None => panic!("called `notify_defer` while task was not running."),
         }
     }
-    fn notify(&self, task: Rc<dyn NotifyTask>) {
+    fn notify_schedule(&self, task: Rc<dyn NotifyTask>) {
         let mut d = self.0.borrow_mut();
         match d.state {
             RuntimeState::None => self.notify_start(d, |scope| task.run(scope)),
@@ -80,6 +80,15 @@ impl Runtime {
             RuntimeState::Notify | RuntimeState::Bind => d.tasks_bind(priority).push_back(task),
         }
     }
+    fn bind_schedule(&self, task: Rc<dyn BindTask>, priority: TaskPriority) {
+        let mut d = self.0.borrow_mut();
+        match d.state {
+            RuntimeState::None => self.bind_start(d, |scope| task.run(scope)),
+            RuntimeState::Notify => task.run(self.as_bind_scope()),
+            RuntimeState::Bind => d.tasks_bind(priority).push_back(task),
+        }
+    }
+
     fn as_notify_scope(&self) -> &NotifyScope {
         unsafe { &*(self as *const Self as *const NotifyScope) }
     }
@@ -165,6 +174,16 @@ pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindScope);
 }
 
+pub trait BindTaskExt {
+    fn bind_schedule(&self);
+}
+impl<T: BindTask> BindTaskExt for Rc<T> {
+    fn bind_schedule(&self) {
+        let task = self.clone();
+        Runtime::with(|rt| rt.bind_schedule(task, TaskPriority::Normal))
+    }
+}
+
 pub trait NotifyTask: 'static {
     fn run(self: Rc<Self>, scope: &NotifyScope);
 }
@@ -174,6 +193,6 @@ pub trait NotifyTaskExt {
 impl<T: NotifyTask> NotifyTaskExt for Rc<T> {
     fn notify_schedule(&self) {
         let task = self.clone();
-        Runtime::with(|rt| rt.notify(task))
+        Runtime::with(|rt| rt.notify_schedule(task))
     }
 }
