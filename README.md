@@ -12,31 +12,32 @@ Warning: This library is at a very early stage of development.
 
 TODO
 
-## Cheet sheet for Rx users
+## Cheat sheet for Rx users
 
 | Rx                | reactive-fn            |
 | ----------------- | ---------------------- |
 | `Obsrevable`      | `Obs`                  |
 | `IObsrevable`     | `Obsrevable`, `DynObs` |
-| `IObserver`       | `Observer`,`FnMut`     |
+| `IObserver`       | `Observer`, `FnMut`    |
 | `BehaviorSubject` | `ObsCell`              |
 
 ### `System.Reactive.Linq.Obsrevable` methods
 
-| Rx                     | reactive-fn      |
-| ---------------------- | ---------------- |
-| `Aggregate`            | `fold`           |
-| `DistinctUntilChanged` | `dedup`          |
-| `First`                | `get`            |
-| `Return`               | `obs_constant`   |
-| `Select`               | `map`            |
-| `SelectMany`           | `flat_map`       |
-| `Scan`                 | `scan`           |
-| `Switch`               | `obs`            |
-| `ToArray`              | `collect_to_vec` |
-| `ToDictionary`         | `collect`        |
-| `ToList`               | `collect_to_vec` |
-| `Where`                | `filter`         |
+| Rx                     | reactive-fn             |
+| ---------------------- | ----------------------- |
+| `Aggregate`            | `fold`                  |
+| `DistinctUntilChanged` | `dedup`                 |
+| `First`                | `get_head`, `with_head` |
+| `Publish`              | `hot`                   |
+| `Return`               | `obs_constant`          |
+| `Select`               | `map`                   |
+| `SelectMany`           | `flat_map`              |
+| `Scan`                 | `scan`                  |
+| `Switch`               | `obs`                   |
+| `ToArray`              | `collect_to_vec`        |
+| `ToDictionary`         | `collect`               |
+| `ToList`               | `collect_to_vec`        |
+| `Where`                | `filter`                |
 
 ## License
 
