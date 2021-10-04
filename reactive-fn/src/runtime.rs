@@ -172,7 +172,7 @@ impl NotifyScope {
 
 pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindScope);
-    fn bind_schedule(self: &Rc<Self>)
+    fn schedule(self: &Rc<Self>)
     where
         Self: Sized,
     {
@@ -183,7 +183,7 @@ pub trait BindTask: 'static {
 
 pub trait NotifyTask: 'static {
     fn run(self: Rc<Self>, scope: &NotifyScope);
-    fn notify_schedule(self: &Rc<Self>)
+    fn schedule(self: &Rc<Self>)
     where
         Self: Sized,
     {
