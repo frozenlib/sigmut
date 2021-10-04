@@ -172,13 +172,10 @@ impl NotifyScope {
 
 pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindScope);
-}
-
-pub trait BindTaskExt {
-    fn bind_schedule(&self);
-}
-impl<T: BindTask> BindTaskExt for Rc<T> {
-    fn bind_schedule(&self) {
+    fn bind_schedule(self: &Rc<Self>)
+    where
+        Self: Sized,
+    {
         let task = self.clone();
         Runtime::with(|rt| rt.bind_schedule(task, TaskPriority::Normal))
     }
@@ -186,12 +183,10 @@ impl<T: BindTask> BindTaskExt for Rc<T> {
 
 pub trait NotifyTask: 'static {
     fn run(self: Rc<Self>, scope: &NotifyScope);
-}
-pub trait NotifyTaskExt {
-    fn notify_schedule(&self);
-}
-impl<T: NotifyTask> NotifyTaskExt for Rc<T> {
-    fn notify_schedule(&self) {
+    fn notify_schedule(self: &Rc<Self>)
+    where
+        Self: Sized,
+    {
         let task = self.clone();
         Runtime::with(|rt| rt.notify_schedule(task))
     }
