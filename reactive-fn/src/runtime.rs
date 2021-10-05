@@ -5,8 +5,7 @@ pub struct Runtime(RefCell<RuntimeData>);
 struct RuntimeData {
     state: RuntimeState,
     tasks_notify: VecDeque<Rc<dyn NotifyTask>>,
-    tasks_bind_normal: VecDeque<Rc<dyn BindTask>>,
-    tasks_bind_idle: VecDeque<Rc<dyn BindTask>>,
+    tasks_bind: VecDeque<Rc<dyn BindTask>>,
 }
 
 impl Runtime {
@@ -14,8 +13,7 @@ impl Runtime {
         Self(RefCell::new(RuntimeData {
             state: RuntimeState::None,
             tasks_notify: VecDeque::new(),
-            tasks_bind_normal: VecDeque::new(),
-            tasks_bind_idle: VecDeque::new(),
+            tasks_bind: VecDeque::new(),
         }))
     }
     fn notify_inline<T>(&self, f: impl FnOnce(&NotifyScope) -> T) -> T {
@@ -73,19 +71,19 @@ impl Runtime {
         self.run_tasks();
         retval
     }
-    fn bind_defer(&self, task: Rc<dyn BindTask>, priority: TaskPriority) {
+    fn bind_defer(&self, task: Rc<dyn BindTask>) {
         let mut d = self.0.borrow_mut();
         match d.state {
             RuntimeState::None => panic!("called `notify_defer` while task was not running."),
-            RuntimeState::Notify | RuntimeState::Bind => d.tasks_bind(priority).push_back(task),
+            RuntimeState::Notify | RuntimeState::Bind => d.tasks_bind.push_back(task),
         }
     }
-    fn bind_schedule(&self, task: Rc<dyn BindTask>, priority: TaskPriority) {
+    fn bind_schedule(&self, task: Rc<dyn BindTask>) {
         let mut d = self.0.borrow_mut();
         match d.state {
             RuntimeState::None => self.bind_start(d, |scope| task.run(scope)),
             RuntimeState::Notify => task.run(self.as_bind_scope()),
-            RuntimeState::Bind => d.tasks_bind(priority).push_back(task),
+            RuntimeState::Bind => d.tasks_bind.push_back(task),
         }
     }
 
@@ -105,7 +103,7 @@ impl Runtime {
                 task.run(self.as_notify_scope());
                 continue;
             }
-            if let Some(task) = d.pop_bind_task() {
+            if let Some(task) = d.tasks_bind.pop_front() {
                 d.state = RuntimeState::Bind;
                 drop(d);
                 task.run(self.as_bind_scope());
@@ -119,25 +117,6 @@ impl Runtime {
         thread_local!(static RT: Runtime = Runtime::new());
         RT.with(|rt| f(rt))
     }
-}
-impl RuntimeData {
-    fn tasks_bind(&mut self, priority: TaskPriority) -> &mut VecDeque<Rc<dyn BindTask>> {
-        match priority {
-            TaskPriority::Normal => &mut self.tasks_bind_normal,
-            TaskPriority::Idle => &mut self.tasks_bind_idle,
-        }
-    }
-    fn pop_bind_task(&mut self) -> Option<Rc<dyn BindTask>> {
-        self.tasks_bind_normal
-            .pop_back()
-            .or_else(|| self.tasks_bind_idle.pop_back())
-    }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum TaskPriority {
-    Normal,
-    Idle,
 }
 
 enum RuntimeState {
@@ -166,7 +145,7 @@ impl NotifyScope {
         Runtime::with(|rt| rt.notify_inline(f))
     }
     pub fn defer_bind(&self, task: Rc<dyn BindTask>) {
-        self.0.bind_defer(task, TaskPriority::Normal)
+        self.0.bind_defer(task)
     }
 }
 
@@ -177,7 +156,7 @@ pub trait BindTask: 'static {
         Self: Sized,
     {
         let task = self.clone();
-        Runtime::with(|rt| rt.bind_schedule(task, TaskPriority::Normal))
+        Runtime::with(|rt| rt.bind_schedule(task))
     }
 }
 
