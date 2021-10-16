@@ -1,6 +1,6 @@
 use std::{cell::RefCell, cell::RefMut, collections::VecDeque, rc::Rc};
 
-pub struct Runtime(RefCell<RuntimeData>);
+struct Runtime(RefCell<RuntimeData>);
 
 struct RuntimeData {
     state: RuntimeState,
