@@ -151,12 +151,17 @@ impl NotifyScope {
 
 pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindScope);
+    fn run_defer(self: &Rc<Self>)
+    where
+        Self: Sized,
+    {
+        Runtime::with(|rt| rt.bind_defer(self.clone()))
+    }
     fn run_inline_or_defer(self: &Rc<Self>)
     where
         Self: Sized,
     {
-        let task = self.clone();
-        Runtime::with(|rt| rt.bind_inline_or_defer(task))
+        Runtime::with(|rt| rt.bind_inline_or_defer(self.clone()))
     }
 }
 
