@@ -43,7 +43,7 @@ impl Runtime {
             RuntimeState::None => panic!("called `notify_defer` while task was not running."),
         }
     }
-    fn notify_schedule(&self, task: Rc<dyn NotifyTask>) {
+    fn notify_inline_or_defer(&self, task: Rc<dyn NotifyTask>) {
         let mut d = self.0.borrow_mut();
         match d.state {
             RuntimeState::None => self.notify_start(d, |scope| task.run(scope)),
@@ -78,7 +78,7 @@ impl Runtime {
             RuntimeState::Notify | RuntimeState::Bind => d.tasks_bind.push_back(task),
         }
     }
-    fn bind_schedule(&self, task: Rc<dyn BindTask>) {
+    fn bind_inline_or_defer(&self, task: Rc<dyn BindTask>) {
         let mut d = self.0.borrow_mut();
         match d.state {
             RuntimeState::None => self.bind_start(d, |scope| task.run(scope)),
@@ -151,22 +151,22 @@ impl NotifyScope {
 
 pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindScope);
-    fn schedule(self: &Rc<Self>)
+    fn run_inline_or_defer(self: &Rc<Self>)
     where
         Self: Sized,
     {
         let task = self.clone();
-        Runtime::with(|rt| rt.bind_schedule(task))
+        Runtime::with(|rt| rt.bind_inline_or_defer(task))
     }
 }
 
 pub trait NotifyTask: 'static {
     fn run(self: Rc<Self>, scope: &NotifyScope);
-    fn schedule(self: &Rc<Self>)
+    fn run_inline_or_defer(self: &Rc<Self>)
     where
         Self: Sized,
     {
         let task = self.clone();
-        Runtime::with(|rt| rt.notify_schedule(task))
+        Runtime::with(|rt| rt.notify_inline_or_defer(task))
     }
 }

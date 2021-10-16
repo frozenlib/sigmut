@@ -21,7 +21,7 @@ impl<T: 'static> ObsCell<T> {
     }
     pub fn set(&self, value: T) {
         *self.0.value.borrow_mut() = value;
-        self.0.schedule();
+        self.0.run_inline_or_defer();
     }
     pub fn set_dedup(&self, value: T)
     where
@@ -30,7 +30,7 @@ impl<T: 'static> ObsCell<T> {
         let mut b = self.0.value.borrow_mut();
         if *b != value {
             *b = value;
-            self.0.schedule();
+            self.0.run_inline_or_defer();
         }
     }
     pub fn get(&self, bc: &mut BindContext) -> T
@@ -171,7 +171,7 @@ impl<T> DerefMut for RefMut<'_, T> {
 impl<T> Drop for RefMut<'_, T> {
     fn drop(&mut self) {
         if self.modified {
-            self.s.take().unwrap().0.schedule();
+            self.s.take().unwrap().0.run_inline_or_defer();
         }
     }
 }
@@ -198,7 +198,7 @@ impl<T: 'static + PartialEq> Drop for RefMutDedup<'_, T> {
     fn drop(&mut self) {
         if let Some(old) = &self.old {
             if old != &*self.b {
-                self.s.take().unwrap().0.schedule()
+                self.s.take().unwrap().0.run_inline_or_defer()
             }
         }
     }
