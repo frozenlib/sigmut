@@ -137,7 +137,7 @@ impl<T: Serialize> Serialize for ObsCell<T> {
     where
         S: Serializer,
     {
-        self.deref().serialize(serializer)
+        self.with_head(|value| value.serialize(serializer))
     }
 }
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for ObsCell<T> {
