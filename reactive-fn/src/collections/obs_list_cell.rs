@@ -1,5 +1,6 @@
 use super::*;
 use crate::*;
+use derive_ex::derive_ex;
 use slabmap::SlabMap;
 use std::{
     any::Any,
@@ -10,8 +11,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
+#[derive_ex(Clone(bound()))]
 pub struct ObsListCell<T>(Rc<Inner<T>>);
 
 impl<T: 'static> ObsListCell<T> {

@@ -1,14 +1,12 @@
-use futures::{Future, Stream};
-
 use crate::*;
+use derive_ex::derive_ex;
+use futures::{Future, Stream};
 use std::{any::Any, borrow::Borrow, rc::Rc, task::Poll};
 
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
+#[derive_ex(Clone(bound()))]
 pub struct DynObs<T: 'static + ?Sized>(DynObsData<T>);
 
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
+#[derive_ex(Clone(bound()))]
 enum DynObsData<T: 'static + ?Sized> {
     Static(&'static T),
     Dyn(Rc<dyn DynamicObservable<Item = T>>),

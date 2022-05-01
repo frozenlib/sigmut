@@ -31,7 +31,6 @@ mod subscribe_async;
 mod subscriber;
 mod tail;
 
-use derivative::Derivative;
 use dynamic_obs::*;
 
 pub use bind::*;

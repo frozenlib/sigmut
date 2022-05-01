@@ -1,5 +1,6 @@
 use super::*;
 use crate::*;
+use derive_ex::derive_ex;
 use std::{any::Any, borrow::Borrow, ops::Index, rc::Rc};
 
 pub(crate) trait DynamicObservableList<T: ?Sized> {
@@ -16,13 +17,11 @@ pub(crate) trait DynamicObservableListRef<T: ?Sized> {
     fn changes(&self, since: &ObsListAge, f: &mut dyn FnMut(ListChange<&T>));
 }
 
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
+#[derive_ex(Clone(bound()))]
 pub struct ObsList<T: ?Sized>(pub(crate) Rc<dyn DynamicObservableList<T>>);
 pub struct ObsListRef<'a, T: ?Sized>(Box<dyn DynamicObservableListRef<T> + 'a>);
 
-#[derive(Derivative)]
-#[derivative(Clone(bound = ""))]
+#[derive_ex(Clone(bound()))]
 pub enum ObsListAge {
     Empty,
     Last,
