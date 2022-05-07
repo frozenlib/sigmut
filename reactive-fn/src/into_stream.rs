@@ -1,5 +1,5 @@
 use crate::*;
-use futures::Stream;
+use futures_core::Stream;
 use std::{
     cell::RefCell,
     pin::Pin,

@@ -1,6 +1,6 @@
 use crate::*;
 use derive_ex::derive_ex;
-use futures::{Future, Stream};
+use futures_core::{Future, Stream};
 use std::{any::Any, borrow::Borrow, rc::Rc, task::Poll};
 
 #[derive_ex(Clone(bound()))]

@@ -2,7 +2,7 @@ use crate::*;
 use crate::{
     hot::*, into_stream::IntoStream, map_async::MapAsync, map_stream::MapStream, observables::*,
 };
-use futures::{Future, Stream};
+use futures_core::{Future, Stream};
 use std::marker::PhantomData;
 use std::{borrow::Borrow, iter::once, task::Poll};
 

@@ -1,6 +1,6 @@
 use crate::observables::*;
 use crate::*;
-use futures::Stream;
+use futures_core::Stream;
 use std::{
     any::Any,
     cell::{Ref, RefCell, RefMut},

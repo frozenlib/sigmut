@@ -1,6 +1,6 @@
 use crate::async_runtime::*;
 use crate::*;
-use futures::Stream;
+use futures_core::Stream;
 use std::{
     cell::RefCell,
     mem,

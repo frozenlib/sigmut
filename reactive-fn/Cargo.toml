@@ -7,7 +7,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures = "0.3"
+futures-core = "0.3"
 slabmap = "0.1"
 serde = "1.0.125"
 either = "1.6.1"
