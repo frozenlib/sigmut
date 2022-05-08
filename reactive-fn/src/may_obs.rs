@@ -18,10 +18,7 @@ where
         Obs(self.clone())
     }
 
-    pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> MayObs<U>
-    where
-        U: Clone,
-    {
+    pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> MayObs<U> {
         match self {
             MayObs::Constant(value) => MayObs::Constant(f(value)),
             MayObs::Obs(o) => MayObs::Obs(o.map(move |value| f(value.clone()))),
@@ -30,7 +27,7 @@ where
 }
 impl<T> Observable for MayObs<T>
 where
-    T: Clone + 'static,
+    T: 'static,
 {
     type Item = T;
 
