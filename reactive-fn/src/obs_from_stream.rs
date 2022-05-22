@@ -1,6 +1,6 @@
-use crate::async_runtime::*;
 use crate::*;
 use futures_core::Stream;
+use rt_local::Task;
 use std::{
     cell::RefCell,
     pin::Pin,
@@ -20,7 +20,7 @@ struct ObsFromStreamData<St>
 where
     St: Stream + 'static,
 {
-    task: Option<AsyncTaskHandle>,
+    task: Option<Task<()>>,
     stream: Option<Pin<Box<St>>>,
     value: St::Item,
 }
@@ -80,11 +80,13 @@ where
     }
 }
 
-impl<St> AsyncTask for ObsFromStream<St>
+impl<St> RcFuture for ObsFromStream<St>
 where
     St: Stream + 'static,
 {
-    fn poll(self: Rc<Self>, cx: &mut Context) {
+    type Output = ();
+
+    fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
         let mut is_notify = false;
         {
             let d = &mut *self.data.borrow_mut();
@@ -110,5 +112,6 @@ where
         if is_notify {
             NotifyScope::with(|scope| self.sinks.notify(scope));
         }
+        Poll::Pending
     }
 }

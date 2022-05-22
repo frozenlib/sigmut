@@ -1,5 +1,5 @@
-use crate::async_runtime::*;
 use crate::*;
+use rt_local::Task;
 use std::future::Future;
 use std::{
     cell::RefCell,
@@ -25,7 +25,7 @@ where
 {
     f: F,
     bindings: Bindings,
-    task: Option<AsyncTaskHandle>,
+    task: Option<Task<()>>,
     fut: Pin<Box<Option<Fut>>>,
     waker: Option<Waker>,
     value: Poll<Fut::Output>,
@@ -145,12 +145,14 @@ where
     }
 }
 
-impl<F, Fut> AsyncTask for MapAsync<F, Fut>
+impl<F, Fut> RcFuture for MapAsync<F, Fut>
 where
     F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
-    fn poll(self: Rc<Self>, cx: &mut Context) {
+    type Output = ();
+
+    fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
         let mut is_notify = false;
         {
             let mut d = self.data.borrow_mut();
@@ -167,5 +169,6 @@ where
         if is_notify {
             NotifyScope::with(|scope| self.sinks.notify(scope));
         }
+        Poll::Pending
     }
 }

@@ -1,4 +1,3 @@
-pub mod async_runtime;
 pub mod cell;
 pub mod collections;
 pub mod collector;
@@ -30,6 +29,7 @@ mod sinks;
 mod subscribe_async;
 mod subscriber;
 mod tail;
+mod utils;
 
 use dynamic_obs::*;
 
@@ -56,3 +56,4 @@ pub use scan::*;
 pub use sink::*;
 pub use subscriber::*;
 pub use tail::*;
+pub(crate) use utils::*;

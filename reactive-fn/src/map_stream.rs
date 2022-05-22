@@ -1,6 +1,6 @@
-use crate::async_runtime::*;
 use crate::*;
 use futures_core::Stream;
+use rt_local::Task;
 use std::{
     cell::RefCell,
     mem,
@@ -25,7 +25,7 @@ where
 {
     f: F,
     bindings: Bindings,
-    task: Option<AsyncTaskHandle>,
+    task: Option<Task<()>>,
     stream: Pin<Box<Option<St>>>,
     waker: Option<Waker>,
     value: Option<St::Item>,
@@ -147,12 +147,14 @@ where
     }
 }
 
-impl<F, St> AsyncTask for MapStream<F, St>
+impl<F, St> RcFuture for MapStream<F, St>
 where
     F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
     St: Stream + 'static,
 {
-    fn poll(self: Rc<Self>, cx: &mut Context) {
+    type Output = ();
+
+    fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
         let mut is_notify = false;
         {
             let mut d = self.data.borrow_mut();
@@ -173,5 +175,6 @@ where
         if is_notify {
             NotifyScope::with(|scope| self.sinks.notify(scope));
         }
+        Poll::Pending
     }
 }

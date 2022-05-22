@@ -1,5 +1,5 @@
-use crate::async_runtime::*;
 use crate::*;
+use rt_local::Task;
 use std::future::Future;
 use std::{
     cell::RefCell,
@@ -20,7 +20,7 @@ struct ObsFromAsyncData<Fut>
 where
     Fut: Future + 'static,
 {
-    task: Option<AsyncTaskHandle>,
+    task: Option<Task<()>>,
     fut: Option<Pin<Box<Fut>>>,
     value: Poll<Fut::Output>,
 }
@@ -80,11 +80,12 @@ where
     }
 }
 
-impl<Fut> AsyncTask for ObsFromAsync<Fut>
+impl<Fut> RcFuture for ObsFromAsync<Fut>
 where
     Fut: Future + 'static,
 {
-    fn poll(self: Rc<Self>, cx: &mut Context) {
+    type Output = ();
+    fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
         let mut is_notify = false;
         {
             let d = &mut *self.data.borrow_mut();
@@ -102,5 +103,6 @@ where
         if is_notify {
             NotifyScope::with(|scope| self.sinks.notify(scope));
         }
+        Poll::Pending
     }
 }

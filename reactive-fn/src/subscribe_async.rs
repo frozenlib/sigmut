@@ -1,11 +1,11 @@
-use crate::async_runtime::*;
 use crate::*;
+use rt_local::Task;
 use std::{
     cell::RefCell,
     future::Future,
     pin::Pin,
     rc::Rc,
-    task::{Context, Waker},
+    task::{Context, Poll, Waker},
 };
 
 pub struct SubscribeAsync<F, Fut>(RefCell<SubscribeAsyncData<F, Fut>>)
@@ -20,7 +20,7 @@ where
 {
     f: F,
     bindings: Bindings,
-    task: Option<AsyncTaskHandle>,
+    task: Option<Task<()>>,
     fut: Pin<Box<Option<Fut>>>,
     waker: Option<Waker>,
     is_loaded: bool,
@@ -45,12 +45,14 @@ where
     }
 }
 
-impl<F, Fut> AsyncTask for SubscribeAsync<F, Fut>
+impl<F, Fut> RcFuture for SubscribeAsync<F, Fut>
 where
     F: FnMut(&mut BindContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
-    fn poll(self: Rc<Self>, cx: &mut Context) {
+    type Output = ();
+
+    fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<Self::Output> {
         let d = &mut *self.0.borrow_mut();
         if !d.is_loaded {
             d.is_loaded = true;
@@ -66,6 +68,7 @@ where
             }
         }
         d.waker = Some(cx.waker().clone());
+        Poll::Pending
     }
 }
 
