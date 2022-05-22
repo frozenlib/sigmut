@@ -16,6 +16,8 @@ rt-local = { path = "../../rt-local/rt-local" }
 
 [dev-dependencies]
 bincode = "1.3.3"
+smol = "1.2.5"
+futures = "0.3.21"
 
 [lib]
 bench = false
