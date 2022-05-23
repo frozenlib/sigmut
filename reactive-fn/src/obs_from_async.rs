@@ -1,6 +1,7 @@
 use crate::*;
 use rt_local::Task;
 use std::future::Future;
+use std::task::Waker;
 use std::{
     cell::RefCell,
     pin::Pin,
@@ -22,6 +23,7 @@ where
 {
     task: Option<Task<()>>,
     fut: Option<Pin<Box<Fut>>>,
+    waker: Option<Waker>,
     value: Poll<Fut::Output>,
 }
 impl<Fut> ObsFromAsyncData<Fut>
@@ -32,8 +34,12 @@ where
         Self {
             task: None,
             fut: Some(Box::pin(future)),
+            waker: None,
             value: Poll::Pending,
         }
+    }
+    fn is_need_wake(&self) -> bool {
+        self.fut.is_some() && (self.task.is_none() || self.waker.is_some())
     }
 }
 
@@ -47,10 +53,14 @@ where
             sinks: BindSinks::new(),
         })
     }
-    fn update(self: &Rc<Self>) {
-        let d = &mut *self.data.borrow_mut();
-        if !self.sinks.is_empty() && d.fut.is_some() && d.task.is_none() {
-            d.task = Some(spawn_local_weak(self));
+    fn wake(self: &Rc<Self>) {
+        if !self.sinks.is_empty() && self.data.borrow().is_need_wake() {
+            let mut d = self.data.borrow_mut();
+            if d.task.is_none() {
+                d.task = Some(spawn_local_weak(self));
+            } else if let Some(waker) = d.waker.take() {
+                waker.wake();
+            }
         }
     }
 }
@@ -66,7 +76,7 @@ where
         bc: &mut BindContext,
     ) -> U {
         bc.bind(self.clone());
-        self.update();
+        self.wake();
         f(&self.data.borrow().value, bc)
     }
 }
@@ -86,22 +96,18 @@ where
 {
     type Output = ();
     fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
-        let mut is_notify = false;
-        {
-            let d = &mut *self.data.borrow_mut();
-            if d.value.is_pending() {
-                if let Some(fut) = d.fut.as_mut() {
-                    d.value = fut.as_mut().poll(cx);
-                    if d.value.is_ready() {
-                        is_notify = true;
-                        d.task.take();
-                        d.fut.take();
-                    }
-                }
+        let mut d = self.data.borrow_mut();
+        if self.sinks.is_empty() {
+            d.waker = Some(cx.waker().clone());
+        } else if let Some(fut) = d.fut.as_mut() {
+            d.value = fut.as_mut().poll(cx);
+            if d.value.is_ready() {
+                d.task.take();
+                d.fut.take();
+                d.waker.take();
+                NotifyScope::with(|scope| self.sinks.notify(scope));
+                return Poll::Ready(());
             }
-        }
-        if is_notify {
-            NotifyScope::with(|scope| self.sinks.notify(scope));
         }
         Poll::Pending
     }
