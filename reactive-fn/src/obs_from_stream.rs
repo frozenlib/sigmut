@@ -5,7 +5,7 @@ use std::{
     cell::RefCell,
     pin::Pin,
     rc::Rc,
-    task::{Context, Poll},
+    task::{Context, Poll, Waker},
 };
 
 pub struct ObsFromStream<St>
@@ -22,6 +22,7 @@ where
 {
     task: Option<Task<()>>,
     stream: Option<Pin<Box<St>>>,
+    waker: Option<Waker>,
     value: St::Item,
 }
 impl<St> ObsFromStreamData<St>
@@ -32,8 +33,12 @@ where
         Self {
             task: None,
             stream: Some(Box::pin(stream)),
+            waker: None,
             value: initial_value,
         }
+    }
+    fn is_need_wake(&self) -> bool {
+        self.stream.is_some() && (self.task.is_none() || self.waker.is_some())
     }
 }
 
@@ -47,10 +52,14 @@ where
             sinks: BindSinks::new(),
         })
     }
-    fn update(self: &Rc<Self>) {
-        let d = &mut *self.data.borrow_mut();
-        if !self.sinks.is_empty() && d.stream.is_some() && d.task.is_none() {
-            d.task = Some(spawn_local_weak(self));
+    fn wake(self: &Rc<Self>) {
+        if !self.sinks.is_empty() && self.data.borrow().is_need_wake() {
+            let mut d = self.data.borrow_mut();
+            if d.task.is_none() {
+                d.task = Some(spawn_local_weak(self));
+            } else if let Some(waker) = d.waker.take() {
+                waker.wake();
+            }
         }
     }
 }
@@ -66,7 +75,7 @@ where
         bc: &mut BindContext,
     ) -> U {
         bc.bind(self.clone());
-        self.update();
+        self.wake();
         f(&self.data.borrow().value, bc)
     }
 }
@@ -87,31 +96,25 @@ where
     type Output = ();
 
     fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
-        let mut is_notify = false;
-        {
-            let d = &mut *self.data.borrow_mut();
+        let mut d = self.data.borrow_mut();
+        if !self.sinks.is_empty() {
             if let Some(stream) = d.stream.as_mut() {
-                loop {
-                    match stream.as_mut().poll_next(cx) {
-                        Poll::Ready(Some(value)) => {
-                            d.value = value;
-                            is_notify = true;
-                        }
-                        Poll::Ready(None) => {
-                            d.stream.take();
-                            d.task.take();
-                            break;
-                        }
-                        Poll::Pending => {
-                            break;
-                        }
+                match stream.as_mut().poll_next(cx) {
+                    Poll::Ready(Some(value)) => {
+                        d.value = value;
+                        NotifyScope::with(|scope| self.sinks.notify(scope))
                     }
+                    Poll::Ready(None) => {
+                        d.task.take();
+                        d.stream.take();
+                        d.waker.take();
+                        return Poll::Ready(());
+                    }
+                    Poll::Pending => return Poll::Pending,
                 }
             }
         }
-        if is_notify {
-            NotifyScope::with(|scope| self.sinks.notify(scope));
-        }
+        d.waker = Some(cx.waker().clone());
         Poll::Pending
     }
 }

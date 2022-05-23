@@ -97,18 +97,21 @@ where
     type Output = ();
     fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
         let mut d = self.data.borrow_mut();
-        if self.sinks.is_empty() {
-            d.waker = Some(cx.waker().clone());
-        } else if let Some(fut) = d.fut.as_mut() {
-            d.value = fut.as_mut().poll(cx);
-            if d.value.is_ready() {
-                d.task.take();
-                d.fut.take();
-                d.waker.take();
-                NotifyScope::with(|scope| self.sinks.notify(scope));
-                return Poll::Ready(());
+        if !self.sinks.is_empty() {
+            if let Some(fut) = d.fut.as_mut() {
+                d.value = fut.as_mut().poll(cx);
+                return if d.value.is_ready() {
+                    d.task.take();
+                    d.fut.take();
+                    d.waker.take();
+                    NotifyScope::with(|scope| self.sinks.notify(scope));
+                    Poll::Ready(())
+                } else {
+                    Poll::Pending
+                };
             }
         }
+        d.waker = Some(cx.waker().clone());
         Poll::Pending
     }
 }
