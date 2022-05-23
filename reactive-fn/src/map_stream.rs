@@ -3,7 +3,6 @@ use futures_core::Stream;
 use rt_local::Task;
 use std::{
     cell::RefCell,
-    mem,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll, Waker},
@@ -11,16 +10,17 @@ use std::{
 
 pub struct MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
+    F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
+    initial_value: St::Item,
     data: RefCell<MapStreamData<F, St>>,
     sinks: BindSinks,
 }
 
 struct MapStreamData<F, St>
 where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
+    F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
     f: F,
@@ -29,11 +29,11 @@ where
     stream: Pin<Box<Option<St>>>,
     waker: Option<Waker>,
     value: Option<St::Item>,
-    is_loaded: bool,
+    is_dirty: bool,
 }
 impl<F, St> MapStreamData<F, St>
 where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
+    F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
     fn new(f: F) -> Self {
@@ -44,50 +44,42 @@ where
             waker: None,
             stream: Box::pin(None),
             value: None,
-            is_loaded: false,
+            is_dirty: false,
         }
+    }
+    fn is_need_wake(&self) -> bool {
+        self.value.is_none()
+            && self.stream.is_none()
+            && (self.task.is_none() || self.waker.is_some())
     }
 }
 
 impl<F, St> MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
+    F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
-    pub fn new(f: F) -> Rc<Self> {
+    pub fn new(initial_value: St::Item, f: F) -> Rc<Self> {
         Rc::new(Self {
+            initial_value,
             data: RefCell::new(MapStreamData::new(f)),
             sinks: BindSinks::new(),
         })
     }
-    fn update(self: &Rc<Self>, scope: &BindScope) {
-        let d = &mut *self.data.borrow_mut();
-        if !d.is_loaded {
-            d.value.take();
-            d.stream.set(None);
-            if self.sinks.is_empty() {
-                d.task.take();
-                d.waker.take();
-            }
-        }
-        if !d.is_loaded {
-            d.is_loaded = true;
-            let (value, stream) = d.bindings.update(scope, self, &mut d.f);
-            d.stream.set(Some(stream));
-            d.value = Some(value);
-            if !self.sinks.is_empty() {
-                if d.task.is_none() {
-                    d.task = Some(spawn_local_weak(self));
-                } else if let Some(waker) = d.waker.take() {
-                    waker.wake();
-                }
+    fn wake(self: &Rc<Self>) {
+        if !self.sinks.is_empty() && self.data.borrow().is_need_wake() {
+            let mut d = self.data.borrow_mut();
+            if d.task.is_none() {
+                d.task = Some(spawn_local_weak(self));
+            } else if let Some(waker) = d.waker.take() {
+                waker.wake();
             }
         }
     }
 }
 impl<F, St> Observable for Rc<MapStream<F, St>>
 where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
+    F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
     type Item = St::Item;
@@ -98,80 +90,95 @@ where
         bc: &mut BindContext,
     ) -> U {
         bc.bind(self.clone());
-        self.update(bc.scope());
-        f(self.data.borrow().value.as_ref().unwrap(), bc)
+        self.wake();
+        f(
+            self.data
+                .borrow()
+                .value
+                .as_ref()
+                .unwrap_or(&self.initial_value),
+            bc,
+        )
     }
 }
 
 impl<F, St> BindSource for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
+    F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
     fn on_sinks_empty(self: Rc<Self>) {
-        let d = &mut *self.data.borrow_mut();
-        d.bindings.clear();
-        if d.is_loaded {
-            d.is_loaded = false;
-            // Runtime::spawn_bind(self);
-        }
+        call_on_idle(&self);
     }
 }
 impl<F, St> BindSink for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
+    F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
-    fn notify(self: Rc<Self>, scope: &NotifyScope) {
+    fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         let mut d = self.data.borrow_mut();
-        if mem::replace(&mut d.is_loaded, false) {
-            self.sinks.notify(scope);
-            drop(d);
-            scope.defer_bind(self);
+        d.is_dirty |= d.value.is_some();
+        d.value = None;
+        d.stream.set(None);
+        if let Some(waker) = d.waker.take() {
+            waker.wake();
         }
-    }
-}
-impl<F, St> BindTask for MapStream<F, St>
-where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
-    St: Stream + 'static,
-{
-    fn run(self: Rc<Self>, scope: &BindScope) {
-        self.update(scope);
     }
 }
 
 impl<F, St> RcFuture for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> (St::Item, St) + 'static,
+    F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
     type Output = ();
 
     fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
-        let mut is_notify = false;
-        {
-            let mut d = self.data.borrow_mut();
-            let d = &mut *d;
-            if let Some(mut s) = d.stream.as_mut().as_pin_mut() {
-                while let Poll::Ready(value) = s.as_mut().poll_next(cx) {
-                    if let Some(value) = value {
-                        is_notify = true;
+        let mut d = &mut *self.data.borrow_mut();
+        d.waker = Some(cx.waker().clone());
+        if !self.sinks.is_empty() && d.value.is_none() {
+            if d.stream.is_none() {
+                let stream = BindScope::with(|scope| d.bindings.update(scope, &self, &mut d.f));
+                d.stream.set(Some(stream));
+            }
+            if let Some(stream) = d.stream.as_mut().as_pin_mut() {
+                let value = stream.poll_next(cx);
+                let is_notify = match value {
+                    Poll::Ready(Some(value)) => {
                         d.value = Some(value);
-                    } else {
-                        d.stream.set(None);
-                        break;
+                        true
                     }
+                    Poll::Ready(None) => {
+                        d.stream.set(None);
+                        false
+                    }
+                    Poll::Pending => false,
+                };
+                if is_notify || d.is_dirty {
+                    d.is_dirty = false;
+                    NotifyScope::with(|scope| self.sinks.notify(scope));
                 }
             }
-            d.waker = Some(cx.waker().clone());
-        }
-        if is_notify {
-            NotifyScope::with(|scope| self.sinks.notify(scope));
         }
         Poll::Pending
+    }
+}
+
+impl<F, St> IdleTask for MapStream<F, St>
+where
+    F: Fn(&mut BindContext) -> St + 'static,
+    St: Stream + 'static,
+{
+    fn call(self: Rc<Self>) {
+        if self.sinks.is_empty() {
+            let mut d = self.data.borrow_mut();
+            d.bindings.clear();
+            d.stream.set(None);
+            d.value = None;
+        }
     }
 }

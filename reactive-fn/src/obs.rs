@@ -282,9 +282,10 @@ impl<S: Observable> Obs<S> {
     }
     pub fn map_stream<St: Stream + 'static>(
         self,
-        f: impl Fn(&S::Item) -> (St::Item, St) + 'static,
+        initial_value: St::Item,
+        f: impl Fn(&S::Item) -> St + 'static,
     ) -> Obs<impl Observable<Item = St::Item>> {
-        Obs(MapStream::new(move |bc| {
+        Obs(MapStream::new(initial_value, move |bc| {
             self.with(|value, _bc| f(value), bc)
         }))
     }
