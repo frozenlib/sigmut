@@ -55,7 +55,7 @@ impl BindingsBuilder {
     }
     fn bind_new(&mut self, source: Rc<dyn BindSource>) {
         let sink = self.sink.clone();
-        let idx = source.attach_sink(sink);
+        let idx = source.sinks().attach(sink);
         let binding = Binding { source, idx };
         self.bindings.push(binding);
     }
@@ -68,12 +68,7 @@ impl BindingsBuilder {
 
 pub trait BindSource: 'static {
     fn sinks(&self) -> &BindSinks;
-    fn attach_sink(&self, sink: Weak<dyn BindSink>) -> usize {
-        self.sinks().attach(sink)
-    }
-    fn detach_sink(self: Rc<Self>, idx: usize) {
-        self.sinks().detach(idx)
-    }
+    fn on_sinks_empty(self: Rc<Self>) {}
 }
 impl<T: BindSource> NotifyTask for T {
     fn run(self: Rc<Self>, scope: &NotifyScope) {
@@ -91,7 +86,11 @@ struct Binding {
 }
 impl Drop for Binding {
     fn drop(&mut self) {
-        self.source.clone().detach_sink(self.idx);
+        let sinks = self.source.sinks();
+        sinks.detach(self.idx);
+        if sinks.is_empty() {
+            self.source.clone().on_sinks_empty();
+        }
     }
 }
 pub struct Bindings {

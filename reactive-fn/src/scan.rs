@@ -127,13 +127,10 @@ where
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
-    fn detach_sink(self: Rc<Self>, idx: usize) {
-        self.sinks.detach(idx);
-        if self.sinks.is_empty() {
-            let d = &mut *self.data.borrow_mut();
-            d.bindings.clear();
-            d.is_loaded = false;
-        }
+    fn on_sinks_empty(self: Rc<Self>) {
+        let d = &mut *self.data.borrow_mut();
+        d.bindings.clear();
+        d.is_loaded = false;
     }
 }
 impl<St, F, M> BindSink for Scan<St, F, M>
@@ -214,13 +211,10 @@ where
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
-    fn detach_sink(self: Rc<Self>, idx: usize) {
-        self.sinks.detach(idx);
-        if self.sinks.is_empty() {
-            let d = &mut *self.data.borrow_mut();
-            d.bindings.clear();
-            d.is_loaded = false;
-        }
+    fn on_sinks_empty(self: Rc<Self>) {
+        let d = &mut *self.data.borrow_mut();
+        d.bindings.clear();
+        d.is_loaded = false;
     }
 }
 impl<St, F, M> BindSink for FilterScan<St, F, M>

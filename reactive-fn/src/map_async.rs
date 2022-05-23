@@ -101,11 +101,8 @@ where
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
-    fn detach_sink(self: Rc<Self>, idx: usize) {
-        self.sinks.detach(idx);
-        if self.sinks.is_empty() {
-            call_on_idle(&self);
-        }
+    fn on_sinks_empty(self: Rc<Self>) {
+        call_on_idle(&self);
     }
 }
 impl<F, Fut> BindSink for MapAsync<F, Fut>

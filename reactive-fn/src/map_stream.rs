@@ -111,15 +111,12 @@ where
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
-    fn detach_sink(self: Rc<Self>, idx: usize) {
-        self.sinks.detach(idx);
-        if self.sinks.is_empty() {
-            let d = &mut *self.data.borrow_mut();
-            d.bindings.clear();
-            if d.is_loaded {
-                d.is_loaded = false;
-                // Runtime::spawn_bind(self);
-            }
+    fn on_sinks_empty(self: Rc<Self>) {
+        let d = &mut *self.data.borrow_mut();
+        d.bindings.clear();
+        if d.is_loaded {
+            d.is_loaded = false;
+            // Runtime::spawn_bind(self);
         }
     }
 }
