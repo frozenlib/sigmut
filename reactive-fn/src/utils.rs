@@ -9,8 +9,11 @@ use std::{
 };
 
 pub fn spawn_local_weak<F: RcFuture<Output = ()>>(f: &Rc<F>) -> Task<()> {
-    let f: Rc<dyn RcFuture<Output = ()>> = f.clone();
-    spawn_local(WeakRcFuture(Rc::downgrade(&f)))
+    spawn_local_weak_raw(Rc::downgrade(f))
+}
+pub fn spawn_local_weak_raw<F: RcFuture<Output = ()>>(f: Weak<F>) -> Task<()> {
+    let f: Weak<dyn RcFuture<Output = ()>> = f;
+    spawn_local(WeakRcFuture(f))
 }
 
 pub trait RcFuture: 'static {

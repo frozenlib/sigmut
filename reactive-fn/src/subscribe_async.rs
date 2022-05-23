@@ -20,10 +20,10 @@ where
 {
     f: F,
     bindings: Bindings,
-    task: Option<Task<()>>,
+    _task: Task<()>,
     fut: Pin<Box<Option<Fut>>>,
     waker: Option<Waker>,
-    is_loaded: bool,
+    is_dirty: bool,
 }
 
 impl<F, Fut> SubscribeAsync<F, Fut>
@@ -32,16 +32,16 @@ where
     Fut: Future<Output = ()> + 'static,
 {
     pub fn new(f: F) -> Rc<Self> {
-        let this = Rc::new(Self(RefCell::new(SubscribeAsyncData {
-            f,
-            bindings: Bindings::new(),
-            task: None,
-            fut: Box::pin(None),
-            waker: None,
-            is_loaded: false,
-        })));
-        this.0.borrow_mut().task = Some(spawn_local_weak(&this));
-        this
+        Rc::new_cyclic(|this| {
+            Self(RefCell::new(SubscribeAsyncData {
+                f,
+                bindings: Bindings::new(),
+                _task: spawn_local_weak_raw(this.clone()),
+                fut: Box::pin(None),
+                waker: None,
+                is_dirty: true,
+            }))
+        })
     }
 }
 
@@ -54,17 +54,19 @@ where
 
     fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<Self::Output> {
         let d = &mut *self.0.borrow_mut();
-        if !d.is_loaded {
-            d.is_loaded = true;
+        if d.is_dirty {
+            d.is_dirty = false;
             d.fut.set(None);
-            let bindings = &mut d.bindings;
-            let f = &mut d.f;
-            let fut = BindScope::with(|scope| bindings.update(scope, &self, f));
+        }
+        if d.fut.is_none() {
+            let fut = BindScope::with(|scope| d.bindings.update(scope, &self, &mut d.f));
             d.fut.set(Some(fut));
         }
         if let Some(fut) = d.fut.as_mut().as_pin_mut() {
             if fut.poll(cx).is_ready() {
                 d.fut.set(None);
+            } else {
+                return Poll::Pending;
             }
         }
         d.waker = Some(cx.waker().clone());
@@ -79,8 +81,8 @@ where
 {
     fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         let d = &mut *self.0.borrow_mut();
-        if d.is_loaded {
-            d.is_loaded = false;
+        if !d.is_dirty {
+            d.is_dirty = true;
             if let Some(waker) = d.waker.take() {
                 waker.wake();
             }
