@@ -71,7 +71,7 @@ pub trait BindSource: 'static {
     fn attach_sink(&self, sink: Weak<dyn BindSink>) -> usize {
         self.sinks().attach(sink)
     }
-    fn detach_sink(&self, idx: usize) {
+    fn detach_sink(self: Rc<Self>, idx: usize) {
         self.sinks().detach(idx)
     }
 }
@@ -91,7 +91,7 @@ struct Binding {
 }
 impl Drop for Binding {
     fn drop(&mut self) {
-        self.source.detach_sink(self.idx);
+        self.source.clone().detach_sink(self.idx);
     }
 }
 pub struct Bindings {

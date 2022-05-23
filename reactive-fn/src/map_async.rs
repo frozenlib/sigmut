@@ -3,7 +3,6 @@ use rt_local::Task;
 use std::future::Future;
 use std::{
     cell::RefCell,
-    mem,
     pin::Pin,
     rc::Rc,
     task::{Context, Poll, Waker},
@@ -29,7 +28,7 @@ where
     fut: Pin<Box<Option<Fut>>>,
     waker: Option<Waker>,
     value: Poll<Fut::Output>,
-    is_loaded: bool,
+    is_dirty: bool,
 }
 impl<F, Fut> MapAsyncData<F, Fut>
 where
@@ -44,8 +43,13 @@ where
             waker: None,
             fut: Box::pin(None),
             value: Poll::Pending,
-            is_loaded: false,
+            is_dirty: false,
         }
+    }
+    fn is_need_wake(&self) -> bool {
+        self.value.is_pending()
+            && self.fut.is_none()
+            && (self.task.is_none() || self.waker.is_some())
     }
 }
 
@@ -60,19 +64,9 @@ where
             sinks: BindSinks::new(),
         })
     }
-    fn update(self: &Rc<Self>, scope: &BindScope) {
-        let d = &mut *self.data.borrow_mut();
-        if !d.is_loaded {
-            d.value = Poll::Pending;
-            d.fut.set(None);
-            if self.sinks.is_empty() {
-                d.task.take();
-                d.waker.take();
-            }
-        }
-        if !self.sinks.is_empty() && !d.is_loaded {
-            d.is_loaded = true;
-            d.fut.set(Some(d.bindings.update(scope, self, &mut d.f)));
+    fn wake(self: &Rc<Self>) {
+        if !self.sinks.is_empty() && self.data.borrow().is_need_wake() {
+            let mut d = self.data.borrow_mut();
             if d.task.is_none() {
                 d.task = Some(spawn_local_weak(self));
             } else if let Some(waker) = d.waker.take() {
@@ -94,7 +88,7 @@ where
         bc: &mut BindContext,
     ) -> U {
         bc.bind(self.clone());
-        self.update(bc.scope());
+        self.wake();
         f(&self.data.borrow().value, bc)
     }
 }
@@ -107,15 +101,10 @@ where
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
-    fn detach_sink(&self, idx: usize) {
+    fn detach_sink(self: Rc<Self>, idx: usize) {
         self.sinks.detach(idx);
         if self.sinks.is_empty() {
-            let d = &mut *self.data.borrow_mut();
-            d.bindings.clear();
-            if d.is_loaded {
-                d.is_loaded = false;
-                // Runtime::spawn_bind(self);
-            }
+            call_on_idle(&self);
         }
     }
 }
@@ -124,24 +113,14 @@ where
     F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
-    fn notify(self: Rc<Self>, scope: &NotifyScope) {
+    fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         let mut d = self.data.borrow_mut();
-        if mem::replace(&mut d.is_loaded, false) {
-            if d.value.is_ready() {
-                self.sinks.notify(scope);
-            }
-            drop(d);
-            scope.defer_bind(self);
+        d.is_dirty |= d.value.is_ready();
+        d.value = Poll::Pending;
+        d.fut.set(None);
+        if let Some(waker) = d.waker.take() {
+            waker.wake();
         }
-    }
-}
-impl<F, Fut> BindTask for MapAsync<F, Fut>
-where
-    F: Fn(&mut BindContext) -> Fut + 'static,
-    Fut: Future + 'static,
-{
-    fn run(self: Rc<Self>, scope: &BindScope) {
-        self.update(scope);
     }
 }
 
@@ -153,22 +132,36 @@ where
     type Output = ();
 
     fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<()> {
-        let mut is_notify = false;
-        {
-            let mut d = self.data.borrow_mut();
-            let d = &mut *d;
+        let mut d = &mut *self.data.borrow_mut();
+        d.waker = Some(cx.waker().clone());
+        if !self.sinks.is_empty() && d.value.is_pending() {
+            if d.fut.is_none() {
+                let fut = BindScope::with(|scope| d.bindings.update(scope, &self, &mut d.f));
+                d.fut.set(Some(fut));
+            }
             if let Some(fut) = d.fut.as_mut().as_pin_mut() {
                 d.value = fut.poll(cx);
-                if d.value.is_ready() {
-                    d.fut.set(None);
-                    is_notify = true;
+                if d.value.is_ready() || d.is_dirty {
+                    d.is_dirty = false;
+                    NotifyScope::with(|scope| self.sinks.notify(scope));
                 }
             }
-            d.waker = Some(cx.waker().clone());
-        }
-        if is_notify {
-            NotifyScope::with(|scope| self.sinks.notify(scope));
         }
         Poll::Pending
+    }
+}
+
+impl<F, Fut> IdleTask for MapAsync<F, Fut>
+where
+    F: Fn(&mut BindContext) -> Fut + 'static,
+    Fut: Future + 'static,
+{
+    fn call(self: Rc<Self>) {
+        if self.sinks.is_empty() {
+            let mut d = self.data.borrow_mut();
+            d.bindings.clear();
+            d.fut.set(None);
+            d.value = Poll::Pending;
+        }
     }
 }

@@ -34,7 +34,7 @@ impl Future for WeakRcFuture {
 pub trait IdleTask: 'static {
     fn call(self: Rc<Self>);
 }
-pub fn spawn_idle(task: &Rc<impl IdleTask>) {
+pub fn call_on_idle(task: &Rc<impl IdleTask>) {
     IdleTaskRunner::with(|r| r.push_task(task.clone()));
 }
 
@@ -45,7 +45,7 @@ thread_local! {
 struct IdleTaskRunner {
     tasks: Vec<Rc<dyn IdleTask>>,
     waker: Option<Waker>,
-    task: Task<()>,
+    _task: Task<()>,
 }
 
 impl IdleTaskRunner {
@@ -53,7 +53,7 @@ impl IdleTaskRunner {
         Self {
             tasks: Vec::new(),
             waker: None,
-            task: spawn_local(async {
+            _task: spawn_local(async {
                 let mut tasks = Vec::new();
                 loop {
                     yield_now().await;
