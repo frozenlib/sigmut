@@ -1,6 +1,6 @@
 use crate::*;
 use futures_core::Stream;
-use rt_local::Task;
+use rt_local_core::Task;
 use std::{
     cell::RefCell,
     pin::Pin,

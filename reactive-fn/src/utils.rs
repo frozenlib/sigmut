@@ -1,5 +1,5 @@
 use futures_core::Future;
-use rt_local::{spawn_local, yield_now, Task};
+use rt_local_core::{spawn_local, yield_now, Task};
 use std::{
     cell::RefCell,
     mem::swap,

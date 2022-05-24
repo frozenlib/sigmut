@@ -1,5 +1,5 @@
 use crate::*;
-use rt_local::Task;
+use rt_local_core::Task;
 use std::future::Future;
 use std::{
     cell::RefCell,

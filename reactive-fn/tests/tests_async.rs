@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use reactive_fn::*;
-use rt_local::spawn_local;
+use rt_local_core::spawn_local;
 use std::{
     fmt::Debug,
     future::Future,
@@ -26,7 +26,7 @@ async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Opti
     }
 }
 fn run(f: impl Future<Output = ()>) {
-    rt_local::runtime::run(f);
+    rt_local_core::runtime::core::run(f);
 }
 
 const DUR: Duration = Duration::from_millis(300);
