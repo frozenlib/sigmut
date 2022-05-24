@@ -48,38 +48,29 @@ thread_local! {
 struct IdleTaskRunner {
     tasks: Vec<Rc<dyn IdleTask>>,
     waker: Option<Waker>,
-    _task: Task<()>,
 }
 
 impl IdleTaskRunner {
     fn new() -> Self {
+        spawn_local(async {
+            let mut tasks = Vec::new();
+            loop {
+                yield_now().await;
+                Self::with(|r| swap(&mut tasks, &mut r.tasks));
+                for task in tasks.drain(..) {
+                    task.call();
+                }
+            }
+        })
+        .detach();
         Self {
             tasks: Vec::new(),
             waker: None,
-            _task: spawn_local(async {
-                let mut tasks = Vec::new();
-                loop {
-                    yield_now().await;
-                    Self::with(|r| swap(&mut tasks, &mut r.tasks));
-                    for task in tasks.drain(..) {
-                        task.call();
-                    }
-                }
-            }),
         }
     }
 
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
-        IDLE_TASK_RUNNER.with(|r| {
-            let mut r = r.borrow_mut();
-            loop {
-                if let Some(r) = r.as_mut() {
-                    return f(r);
-                } else {
-                    *r = Some(IdleTaskRunner::new());
-                }
-            }
-        })
+        IDLE_TASK_RUNNER.with(|r| f(r.borrow_mut().get_or_insert_with(IdleTaskRunner::new)))
     }
     fn push_task(&mut self, task: Rc<dyn IdleTask>) {
         self.tasks.push(task);
