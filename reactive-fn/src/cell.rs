@@ -21,7 +21,7 @@ impl<T: 'static> ObsCell<T> {
     }
     pub fn set(&self, value: T) {
         *self.0.value.borrow_mut() = value;
-        self.0.run_inline_or_defer();
+        schedule_notify(&self.0);
     }
     pub fn set_dedup(&self, value: T)
     where
@@ -30,7 +30,7 @@ impl<T: 'static> ObsCell<T> {
         let mut b = self.0.value.borrow_mut();
         if *b != value {
             *b = value;
-            self.0.run_inline_or_defer();
+            schedule_notify(&self.0);
         }
     }
     pub fn get(&self, bc: &mut BindContext) -> T
@@ -59,7 +59,7 @@ impl<T: 'static> ObsCell<T> {
     pub fn borrow_mut(&self) -> RefMut<T> {
         RefMut {
             b: self.0.value.borrow_mut(),
-            s: Some(self.clone()),
+            s: self.clone(),
             modified: false,
         }
     }
@@ -69,7 +69,7 @@ impl<T: 'static> ObsCell<T> {
     {
         RefMutDedup {
             b: self.0.value.borrow_mut(),
-            s: Some(self.clone()),
+            s: self.clone(),
             old: None,
         }
     }
@@ -152,7 +152,7 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for ObsCell<T> {
 /// A wrapper type for a mutably borrowed value from a [`ObsCell`].
 pub struct RefMut<'a, T: 'static> {
     b: std::cell::RefMut<'a, T>,
-    s: Option<ObsCell<T>>,
+    s: ObsCell<T>,
     modified: bool,
 }
 
@@ -171,13 +171,13 @@ impl<T> DerefMut for RefMut<'_, T> {
 impl<T> Drop for RefMut<'_, T> {
     fn drop(&mut self) {
         if self.modified {
-            self.s.take().unwrap().0.run_inline_or_defer();
+            schedule_notify(&self.s.0);
         }
     }
 }
 pub struct RefMutDedup<'a, T: 'static + PartialEq> {
     b: std::cell::RefMut<'a, T>,
-    s: Option<ObsCell<T>>,
+    s: ObsCell<T>,
     old: Option<T>,
 }
 impl<T: 'static + PartialEq> Deref for RefMutDedup<'_, T> {
@@ -198,7 +198,7 @@ impl<T: 'static + PartialEq> Drop for RefMutDedup<'_, T> {
     fn drop(&mut self) {
         if let Some(old) = &self.old {
             if old != &*self.b {
-                self.s.take().unwrap().0.run_inline_or_defer()
+                schedule_notify(&self.s.0);
             }
         }
     }

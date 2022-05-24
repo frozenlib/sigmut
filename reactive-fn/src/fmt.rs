@@ -149,6 +149,8 @@ format_trait!(
 /// # Example
 ///
 /// ```
+/// #[::rt_local::main]
+/// # async fn main() {
 /// use reactive_fn::*;
 ///
 /// let x = ObsCell::new(0);
@@ -156,6 +158,7 @@ format_trait!(
 /// assert_eq!(s.get_head(), "x = 0");
 /// x.set(10);
 /// assert_eq!(s.get_head(), "x = 10");
+/// # }
 /// ```
 #[macro_export]
 macro_rules! obs_format {

@@ -49,7 +49,7 @@ impl<C: Collect> ObsCollector<C> {
     fn insert(&self) -> ObsCollectorObserver<C> {
         let m = self.0.collector.borrow_mut().insert();
         if m.is_modified {
-            self.0.run_inline_or_defer();
+            schedule_notify(&self.0);
         }
         ObsCollectorObserver {
             collector: self.0.clone(),
@@ -112,7 +112,7 @@ impl<C: Collect> Observer<C::Input> for ObsCollectorObserver<C> {
             .set(self.key.take().unwrap(), value);
         self.key = Some(m.key);
         if m.is_modified {
-            self.collector.run_inline_or_defer();
+            schedule_notify(&self.collector);
         }
     }
 }
@@ -125,7 +125,7 @@ impl<C: Collect> Drop for ObsCollectorObserver<C> {
             .remove(self.key.take().unwrap())
             .is_modified
         {
-            self.collector.run_inline_or_defer();
+            schedule_notify(&self.collector);
         }
     }
 }

@@ -51,6 +51,7 @@ pub use obs::*;
 pub use observable::*;
 pub use observables::ConstantObservable;
 pub use observer::*;
+pub use rt_local_core as rt_local;
 pub use runtime::*;
 pub use scan::*;
 pub use sink::*;

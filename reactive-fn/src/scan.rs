@@ -223,9 +223,9 @@ where
     F: FnMut(&mut St, &mut BindContext) -> bool + 'static,
     M: Map<St>,
 {
-    fn notify(self: Rc<Self>, scope: &NotifyScope) {
+    fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         if mem::replace(&mut self.data.borrow_mut().is_loaded, false) && !self.sinks.is_empty() {
-            scope.defer_bind(self);
+            schedule_bind(&self);
         }
     }
 }
@@ -240,7 +240,7 @@ where
             // Cannot be combined into a single `if`
             // because return value of `borrow()` need to be released before `self.load()`.
             if self.load(scope) {
-                scope.defer_notify(self);
+                schedule_notify(&self);
             }
         }
     }

@@ -28,8 +28,8 @@ impl<S> BindSink for DynamicObs<Hot<S>>
 where
     Self: HotReady,
 {
-    fn notify(self: Rc<Self>, scope: &NotifyScope) {
-        scope.defer_bind(self);
+    fn notify(self: Rc<Self>, _scope: &NotifyScope) {
+        schedule_bind(&self);
     }
 }
 impl<S> BindTask for DynamicObs<Hot<S>>

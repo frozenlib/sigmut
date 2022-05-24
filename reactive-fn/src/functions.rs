@@ -105,11 +105,10 @@ where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
 {
-    fn notify(self: Rc<Self>, scope: &NotifyScope) {
+    fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         let mut b = self.0.borrow_mut();
         if mem::replace(&mut b.is_loaded, false) && !b.bindings.is_empty() {
-            drop(b);
-            scope.defer_bind(self)
+            schedule_bind(&self);
         }
     }
 }
