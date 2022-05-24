@@ -21,12 +21,13 @@
       "presentation": {
         "panel": "dedicated",
         "clear": true
+      },
+      "options": {
+        "env": {
+          "CARGO_NET_GIT_FETCH_WITH_CLI": "true",
+          // "RUST_BACKTRACE": "1"
+        }
       }
-      // "options": {
-      //   "env": {
-      //     "RUST_BACKTRACE": "1"
-      //   }
-      // }
     },
     {
       "type": "shell",
