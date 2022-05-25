@@ -35,9 +35,9 @@ impl Future for WeakRcFuture {
 }
 
 pub trait IdleTask: 'static {
-    fn call(self: Rc<Self>);
+    fn run(self: Rc<Self>);
 }
-pub fn call_on_idle(task: &Rc<impl IdleTask>) {
+pub fn schedule_idle(task: &Rc<impl IdleTask>) {
     IdleTaskRunner::with(|r| r.push_task(task.clone()));
 }
 
@@ -58,7 +58,7 @@ impl IdleTaskRunner {
                 yield_now().await;
                 Self::with(|r| swap(&mut tasks, &mut r.tasks));
                 for task in tasks.drain(..) {
-                    task.call();
+                    task.run();
                 }
             }
         })

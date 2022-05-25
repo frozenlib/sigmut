@@ -102,7 +102,7 @@ where
         &self.sinks
     }
     fn on_sinks_empty(self: Rc<Self>) {
-        call_on_idle(&self);
+        schedule_idle(&self);
     }
 }
 impl<F, Fut> BindSink for MapAsync<F, Fut>
@@ -153,7 +153,7 @@ where
     F: Fn(&mut BindContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
-    fn call(self: Rc<Self>) {
+    fn run(self: Rc<Self>) {
         if self.sinks.is_empty() {
             let mut d = self.data.borrow_mut();
             d.bindings.clear();

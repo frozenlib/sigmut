@@ -111,7 +111,7 @@ where
         &self.sinks
     }
     fn on_sinks_empty(self: Rc<Self>) {
-        call_on_idle(&self);
+        schedule_idle(&self);
     }
 }
 impl<F, St> BindSink for MapStream<F, St>
@@ -173,7 +173,7 @@ where
     F: Fn(&mut BindContext) -> St + 'static,
     St: Stream + 'static,
 {
-    fn call(self: Rc<Self>) {
+    fn run(self: Rc<Self>) {
         if self.sinks.is_empty() {
             let mut d = self.data.borrow_mut();
             d.bindings.clear();
