@@ -23,21 +23,28 @@ TODO
 
 ### `System.Reactive.Linq.Obsrevable` methods
 
-| Rx                     | reactive-fn             |
-| ---------------------- | ----------------------- |
-| `Aggregate`            | `fold`                  |
-| `DistinctUntilChanged` | `dedup`                 |
-| `First`                | `get_head`, `with_head` |
-| `Publish`              | `hot`                   |
-| `Return`               | `obs_constant`          |
-| `Select`               | `map`                   |
-| `SelectMany`           | `flat_map`              |
-| `Scan`                 | `scan`                  |
-| `Switch`               | `obs`                   |
-| `ToArray`              | `collect_to_vec`        |
-| `ToDictionary`         | `collect`               |
-| `ToList`               | `collect_to_vec`        |
-| `Where`                | `filter`                |
+| Rx                     | reactive-fn                          |
+| ---------------------- | ------------------------------------ |
+| `Aggregate`            | `fold`                               |
+| `DistinctUntilChanged` | `dedup`                              |
+| `First`                | `get_head`, `with_head`              |
+| `Publish`              | `hot`                                |
+| `Return`               | `obs_constant`                       |
+| `Select`               | `map`                                |
+| `SelectMany`           | `flat_map`, `map_async`,`map_stream` |
+| `Scan`                 | `scan`                               |
+| `Subscribe`            | `subscribe`                          |
+| `Switch`               | `obs`                                |
+| `ToArray`              | `collect_to_vec`                     |
+| `ToDictionary`         | `collect`                            |
+| `ToList`               | `collect_to_vec`                     |
+
+### `System.Reactive.Threading.Tasks.TaskObservableExtensions` methods
+
+| Rx             | reactive-fn                         |
+| -------------- | ----------------------------------- |
+| `ToTask`       | `stream`                            |
+| `ToObservable` | `obs_from_async`, `obs_from_stream` |
 
 ## License
 
