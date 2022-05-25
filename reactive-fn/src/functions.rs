@@ -82,9 +82,7 @@ where
     }
     fn load(self: &Rc<Self>, scope: &BindScope) -> bool {
         let b = &mut *self.0.borrow_mut();
-        let st = &mut b.st;
-        let f = &mut b.f;
-        b.bindings.update(scope, self, |bc| f(st, bc));
+        b.bindings.update(scope, self, |bc| (b.f)(&mut b.st, bc));
         b.is_loaded = true;
         !b.bindings.is_empty()
     }
