@@ -64,14 +64,8 @@ where
             is_loaded: false,
             bindings: Bindings::new(),
         })));
-        if BindScope::with(|scope| s.load(scope)) {
-            Ok(s)
-        } else {
-            match Rc::try_unwrap(s) {
-                Ok(s) => Err(s.0.into_inner().st),
-                Err(s) => Ok(s),
-            }
-        }
+        schedule_bind(&s);
+        Ok(s)
     }
     pub(crate) fn new_tail(st: St, f: F, is_modified: bool, bindings: Bindings) -> Rc<Self> {
         let s = Rc::new(Self(RefCell::new(SubscribeData {
@@ -140,11 +134,6 @@ where
         RefMut::map(self.0.borrow_mut(), |x| x.st.borrow_mut())
     }
     fn to_subscription(self: Rc<Self>) -> Subscription {
-        if let Ok(data) = self.0.try_borrow() {
-            if data.bindings.is_empty() {
-                return Subscription::empty();
-            }
-        }
         Subscription(Some(self))
     }
 }
