@@ -1,3 +1,4 @@
+use crate::BindSource;
 use rt_local_core::spawn_local;
 use std::{
     cell::RefCell,
@@ -42,11 +43,13 @@ pub fn schedule_bind(task: &Rc<impl BindTask>) {
     Runtime::with(|rt| rt.push_bind_task(task.clone()));
 }
 
-pub trait NotifyTask: 'static {
+pub(crate) trait NotifyTask: 'static {
     fn run(self: Rc<Self>, scope: &NotifyScope);
 }
-pub fn schedule_notify(task: &Rc<impl NotifyTask>) {
-    Runtime::with(|rt| rt.push_notify_task(task.clone()));
+pub fn schedule_notify(source: &Rc<impl BindSource>) {
+    if source.sinks().set_scheduled() {
+        Runtime::with(|rt| rt.push_notify_task(source.clone()));
+    }
 }
 
 thread_local! {

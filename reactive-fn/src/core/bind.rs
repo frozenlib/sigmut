@@ -1,6 +1,6 @@
 use crate::{BindScope, NotifyScope, NotifyTask};
 use slabmap::SlabMap;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::mem;
 use std::rc::{Rc, Weak};
 
@@ -147,6 +147,7 @@ impl Default for Bindings {
 pub struct BindSinks {
     sinks: RefCell<SlabMap<Weak<dyn BindSink>>>,
     detach_idxs: RefCell<Vec<usize>>,
+    scheduled: Cell<bool>,
 }
 
 impl BindSinks {
@@ -154,6 +155,7 @@ impl BindSinks {
         Default::default()
     }
     pub fn notify(&self, scope: &NotifyScope) {
+        self.scheduled.set(false);
         let mut sinks = self.sinks.borrow_mut();
         sinks.optimize();
         for (_, sink) in sinks.iter() {
@@ -172,6 +174,14 @@ impl BindSinks {
     }
     pub fn is_empty(&self) -> bool {
         self.sinks.borrow().is_empty()
+    }
+    pub(crate) fn set_scheduled(&self) -> bool {
+        if !self.is_empty() && !self.scheduled.get() {
+            self.scheduled.set(true);
+            true
+        } else {
+            false
+        }
     }
     pub fn attach(&self, sink: Weak<dyn BindSink>) -> usize {
         self.sinks.borrow_mut().insert(sink)
