@@ -1,5 +1,3 @@
 [workspace]
+resolver = "2"
 members = ["reactive-fn"]
-
-[profile.bench]
-lto = true
