@@ -1,3 +1,5 @@
+//! Observable and shareable mutable container.
+
 use super::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{
@@ -6,7 +8,7 @@ use std::{
     rc::Rc,
 };
 
-/// A `Rc<RefCell>` like type that implement [`Observable`].
+/// An `Rc<RefCell>` like type that implement [`Observable`].
 pub struct ObsCell<T: 'static>(Rc<ObsRefCellData<T>>);
 struct ObsRefCellData<T> {
     value: RefCell<T>,
@@ -149,7 +151,7 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for ObsCell<T> {
     }
 }
 
-/// A wrapper type for a mutably borrowed value from a [`ObsCell`].
+/// A wrapper type for a mutably borrowed value from [`ObsCell`].
 pub struct RefMut<'a, T: 'static> {
     b: std::cell::RefMut<'a, T>,
     s: ObsCell<T>,
@@ -175,6 +177,8 @@ impl<T> Drop for RefMut<'_, T> {
         }
     }
 }
+
+/// A variant of [`RefMut`] with the added ability to omit notification if the value does not change.
 pub struct RefMutDedup<'a, T: 'static + PartialEq> {
     b: std::cell::RefMut<'a, T>,
     s: ObsCell<T>,
