@@ -21,10 +21,9 @@ pub fn subscribe_to<St: 'static>(
     st: St,
     mut f: impl FnMut(&mut St, &mut BindContext) + 'static,
 ) -> impl Subscriber<St = St> {
-    match Subscribe::new(SubscribeToData(st), move |st, bc| f(&mut st.0, bc)) {
-        Ok(s) => MayConstantSubscriber::Subscriber(subscriber(s)),
-        Err(st) => MayConstantSubscriber::Constant(RefCell::new(st.0)),
-    }
+    subscriber(Subscribe::new(SubscribeToData(st), move |st, bc| {
+        f(&mut st.0, bc)
+    }))
 }
 
 pub fn subscribe_async<Fut: Future<Output = ()> + 'static>(
@@ -57,15 +56,15 @@ where
     St: 'static,
     F: FnMut(&mut St, &mut BindContext) + 'static,
 {
-    pub(crate) fn new(st: St, f: F) -> Result<Rc<Self>, St> {
-        let s = Rc::new(Self(RefCell::new(SubscribeData {
+    pub(crate) fn new(st: St, f: F) -> Rc<Self> {
+        let this = Rc::new(Self(RefCell::new(SubscribeData {
             st,
             f,
             is_loaded: false,
             bindings: Bindings::new(),
         })));
-        schedule_bind(&s);
-        Ok(s)
+        schedule_bind(&this);
+        this
     }
     pub(crate) fn new_tail(st: St, f: F, is_modified: bool, bindings: Bindings) -> Rc<Self> {
         let s = Rc::new(Self(RefCell::new(SubscribeData {
