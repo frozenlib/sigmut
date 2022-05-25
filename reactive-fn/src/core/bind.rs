@@ -1,4 +1,4 @@
-use crate::{BindScope, NotifyScope, NotifyTask};
+use crate::{BindScope, NotifyScope};
 use slabmap::SlabMap;
 use std::cell::{Cell, RefCell};
 use std::mem;
@@ -70,12 +70,6 @@ pub trait BindSource: 'static {
     fn sinks(&self) -> &BindSinks;
     fn on_sinks_empty(self: Rc<Self>) {}
 }
-impl<T: BindSource> NotifyTask for T {
-    fn run(self: Rc<Self>, scope: &NotifyScope) {
-        self.sinks().notify(scope)
-    }
-}
-
 pub trait BindSink: 'static {
     fn notify(self: Rc<Self>, scope: &NotifyScope);
 }
