@@ -149,7 +149,7 @@ format_trait!(
 /// # Example
 ///
 /// ```
-/// # #[::rt_local::main]
+/// # #[::rt_local::runtime::core::main]
 /// # async fn main() {
 /// use reactive_fn::*;
 ///

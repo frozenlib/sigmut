@@ -1,8 +1,8 @@
-use ::rt_local;
+use ::rt_local::runtime::core::test;
 use ::rt_local::yield_now;
 use reactive_fn::*;
 
-#[rt_local::test]
+#[test]
 async fn obs_cell_dyn() {
     let cell = ObsCell::new(1);
     let r = cell.as_dyn().collect_vec();
@@ -17,7 +17,7 @@ async fn obs_cell_dyn() {
     assert_eq!(r.stop(), vec![1, 5, 10]);
 }
 
-#[rt_local::test]
+#[test]
 async fn obs_cell() {
     let cell = ObsCell::new(1);
     let r = cell.obs().collect_vec();
@@ -32,7 +32,7 @@ async fn obs_cell() {
     assert_eq!(r.stop(), vec![1, 5, 10]);
 }
 
-#[rt_local::test]
+#[test]
 async fn obs_ref_cell_dyn() {
     let cell = ObsCell::new(1);
     let r = cell.as_dyn().collect_vec();
@@ -47,7 +47,7 @@ async fn obs_ref_cell_dyn() {
     assert_eq!(r.stop(), vec![1, 5, 10]);
 }
 
-#[rt_local::test]
+#[test]
 async fn obs_ref_cell() {
     let cell = ObsCell::new(1);
     let r = cell.obs().collect_vec();
@@ -62,7 +62,7 @@ async fn obs_ref_cell() {
     assert_eq!(r.stop(), vec![1, 5, 10]);
 }
 
-#[rt_local::test]
+#[test]
 async fn serailize() {
     let c0 = ObsCell::new(1);
     let bytes = bincode::serialize(&c0).expect("failed to serialize.");

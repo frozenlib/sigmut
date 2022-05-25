@@ -1,9 +1,9 @@
-use ::rt_local;
+use ::rt_local::runtime::core::test;
 use ::rt_local::yield_now;
 use reactive_fn::*;
 use std::collections::HashSet;
 
-#[rt_local::test]
+#[test]
 async fn map() {
     let a = ObsCell::new(2);
     let r = a.as_dyn().map(|x| x * 2).collect_vec();
@@ -18,7 +18,7 @@ async fn map() {
     assert_eq!(r.stop(), vec![4, 10, 14]);
 }
 
-#[rt_local::test]
+#[test]
 async fn flat_map() {
     let a = [ObsCell::new(5), ObsCell::new(10)];
     let a_ = a.clone();
@@ -44,7 +44,7 @@ async fn flat_map() {
     assert_eq!(r.stop(), vec![5, 6, 7, 13, 14]);
 }
 
-#[rt_local::test]
+#[test]
 async fn cahced() {
     let cell = ObsCell::new(0);
     let r = cell.as_dyn().map(|x| x + 1).cached().collect_vec();
@@ -59,7 +59,7 @@ async fn cahced() {
     assert_eq!(r.stop(), vec![1, 6, 11]);
 }
 
-#[rt_local::test]
+#[test]
 async fn scan() {
     let cell = ObsCell::new(2);
     let r = cell.as_dyn().scan(10, |s, x| *s += x).collect_vec();
@@ -76,7 +76,7 @@ async fn scan() {
 
     assert_eq!(r.stop(), vec![12, 15, 19, 24]);
 }
-#[rt_local::test]
+#[test]
 async fn filter_scan() {
     let cell = ObsCell::new(2);
     let r = cell
@@ -100,7 +100,7 @@ async fn filter_scan() {
     assert_eq!(r.stop(), vec![10, 13, 18]);
 }
 
-#[rt_local::test]
+#[test]
 async fn same_value() {
     let cell = ObsCell::new(5);
     let r = cell.as_dyn().collect_vec();
@@ -115,7 +115,7 @@ async fn same_value() {
     assert_eq!(r.stop(), vec![5, 5, 5]);
 }
 
-#[rt_local::test]
+#[test]
 async fn dedup() {
     let cell = ObsCell::new(5);
     let r = cell.as_dyn().dedup().collect_vec();
@@ -139,7 +139,7 @@ async fn dedup() {
     assert_eq!(r.stop(), vec![5, 6, 5]);
 }
 
-#[rt_local::test]
+#[test]
 async fn re_dedup_by_key_1() {
     let cell = ObsCell::new((5, 1));
     let r = cell.as_dyn().dedup_by_key(|&(x, _)| x).collect_vec();
@@ -163,7 +163,7 @@ async fn re_dedup_by_key_1() {
     assert_eq!(r.stop(), vec![(5, 1), (6, 2), (5, 2)]);
 }
 
-#[rt_local::test]
+#[test]
 async fn re_dedup_by_key_2() {
     let cell = ObsCell::new((5, 1));
     let obs = cell.as_dyn().dedup_by_key(|&(x, _)| x);
@@ -190,7 +190,7 @@ async fn re_dedup_by_key_2() {
     assert_eq!(r.stop(), vec![(5, 2), (6, 2), (5, 2)]);
 }
 
-#[rt_local::test]
+#[test]
 async fn dedup_by() {
     let cell = ObsCell::new((5, 1));
     let r = cell
@@ -217,7 +217,7 @@ async fn dedup_by() {
     assert_eq!(r.stop(), vec![(5, 1), (6, 2), (5, 2)]);
 }
 
-#[rt_local::test]
+#[test]
 async fn fold() {
     let cell = ObsCell::new(1);
     let fold = cell.as_dyn().fold(2, |s, x| *s += x);
@@ -231,7 +231,7 @@ async fn fold() {
 
     assert_eq!(fold.stop(), 18);
 }
-#[rt_local::test]
+#[test]
 async fn collect_to() {
     let cell = ObsCell::new(1);
     let fold = cell.as_dyn().collect_to(HashSet::new());
@@ -249,7 +249,7 @@ async fn collect_to() {
     let e: HashSet<_> = vec![1, 2, 3].into_iter().collect();
     assert_eq!(fold.stop(), e);
 }
-#[rt_local::test]
+#[test]
 async fn collect() {
     let cell = ObsCell::new(1);
     let fold = cell.as_dyn().collect_to(HashSet::new());
@@ -269,7 +269,7 @@ async fn collect() {
     assert_eq!(a, e);
 }
 
-#[rt_local::test]
+#[test]
 async fn collect_vec() {
     let cell = ObsCell::new(1);
     let fold = cell.as_dyn().collect_vec();
@@ -287,7 +287,7 @@ async fn collect_vec() {
     assert_eq!(fold.stop(), vec![1, 2, 1, 3]);
 }
 
-#[rt_local::test]
+#[test]
 async fn subscribe() {
     use std::cell::RefCell;
     use std::rc::Rc;
@@ -312,7 +312,7 @@ async fn subscribe() {
     assert_eq!(*vs.borrow(), vec![0, 5, 10]);
 }
 
-#[rt_local::test]
+#[test]
 async fn hot() {
     let cell = ObsCell::new(1);
     let obs = cell.as_dyn().scan(0, |s, x| *s += x);
@@ -328,7 +328,7 @@ async fn hot() {
     assert_eq!(hot.collect_vec().stop(), vec![13]);
 }
 
-#[rt_local::test]
+#[test]
 async fn hot_no() {
     let cell = ObsCell::new(1);
     let obs = cell.as_dyn().scan(0, |s, x| *s += x);
@@ -343,7 +343,7 @@ async fn hot_no() {
     assert_eq!(obs.collect_vec().stop(), vec![10]);
 }
 
-#[rt_local::test]
+#[test]
 async fn flatten() {
     let cell = ObsCell::new(obs_constant(1));
     let vs = cell.as_dyn().flatten().collect_vec();
@@ -364,7 +364,7 @@ async fn flatten() {
     assert_eq!(vs.stop(), vec![1, 2, 3, 4, 5]);
 }
 
-#[rt_local::test]
+#[test]
 async fn get_head_tail() {
     let a = ObsCell::new(2);
     let (head, tail) = a.as_dyn().get_head_tail();
@@ -381,7 +381,7 @@ async fn get_head_tail() {
     assert_eq!(r.stop(), vec![5, 7]);
 }
 
-#[rt_local::test]
+#[test]
 async fn get_head_tail_after_set() {
     let a = ObsCell::new(2);
     let (head, tail) = a.as_dyn().get_head_tail();

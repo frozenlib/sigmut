@@ -1,8 +1,8 @@
-use ::rt_local;
+use ::rt_local::runtime::core::test;
 use ::rt_local::yield_now;
 use reactive_fn::*;
 
-#[rt_local::test]
+#[test]
 async fn impl_observable_display() {
     fn check(_s: impl ObservableDisplay) {}
 
@@ -11,7 +11,7 @@ async fn impl_observable_display() {
     check(s_dyn);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_obs_display_map_str() {
     let s = ObsCell::new(1);
     let d = obs_display({
@@ -29,7 +29,7 @@ async fn test_obs_display_map_str() {
 
     assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
-#[rt_local::test]
+#[test]
 async fn test_obs_display_map_string() {
     let s = ObsCell::new(1);
     let d = obs_display({
@@ -48,7 +48,7 @@ async fn test_obs_display_map_string() {
     assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_bind_write_constant() {
     let o = obs_display(move |f, bc| bind_write!(f, bc, "abc{}", 10));
     let v = o.obs().collect_vec();
@@ -56,7 +56,7 @@ async fn test_bind_write_constant() {
     assert_eq!(v.stop(), vec!["abc10"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_bind_write_constant_ref() {
     let o = obs_display(move |f, bc| bind_write!(f, bc, "abc{}", &10));
     let v = o.obs().collect_vec();
@@ -64,7 +64,7 @@ async fn test_bind_write_constant_ref() {
     assert_eq!(v.stop(), vec!["abc10"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_bind_write_obs() {
     let s = ObsCell::new(1);
     let o = obs_display({
@@ -82,7 +82,7 @@ async fn test_bind_write_obs() {
 
     assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
-#[rt_local::test]
+#[test]
 async fn test_bind_write_obs2() {
     let s0 = ObsCell::new(0);
     let s1 = ObsCell::new(1);
@@ -103,7 +103,7 @@ async fn test_bind_write_obs2() {
     assert_eq!(v.stop(), vec!["abc0-1", "abc5-1", "abc5-10"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_bind_write_obs_format() {
     let s = ObsCell::new(1);
     let o = obs_display({
@@ -122,7 +122,7 @@ async fn test_bind_write_obs_format() {
     assert_eq!(v.stop(), vec!["abc-<1>", "abc-<5>", "abc-<10>"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_bind_format_obs() {
     let s = ObsCell::new(1);
     let o = obs({
@@ -141,7 +141,7 @@ async fn test_bind_format_obs() {
     assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_bind_format_name() {
     let s0 = ObsCell::new(1);
     let s1 = ObsCell::new(5);
@@ -162,7 +162,7 @@ async fn test_bind_format_name() {
     assert_eq!(v.stop(), vec!["5-1", "5-7", "10-7"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_bind_format_debug() {
     let s = ObsCell::new(Some(1));
     let o = obs({
@@ -181,7 +181,7 @@ async fn test_bind_format_debug() {
     assert_eq!(v.stop(), vec!["abc-Some(1)", "abc-None", "abc-Some(5)"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_bind_format_hex() {
     let s = ObsCell::new(10);
     let o = obs({
@@ -200,7 +200,7 @@ async fn test_bind_format_hex() {
     assert_eq!(v.stop(), vec!["abc-a", "abc-10", "abc-14"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_obs_format() {
     let s = ObsCell::new(10);
     let v = obs_format!("abc-{}", s.clone()).obs().collect_vec();
@@ -215,7 +215,7 @@ async fn test_obs_format() {
     assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_obs_format_obs_display() {
     let s = ObsCell::new(10);
     let d = s.obs().display();
@@ -230,7 +230,7 @@ async fn test_obs_format_obs_display() {
 
     assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
 }
-#[rt_local::test]
+#[test]
 async fn test_obs_format_dyn_obs_dyn_obs_display() {
     let s = ObsCell::new(10);
     let d = s.as_dyn().map_ref(|x| x as &dyn ObservableDisplay);
@@ -246,14 +246,14 @@ async fn test_obs_format_dyn_obs_dyn_obs_display() {
     assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_obs_format_hex() {
     let v = obs_format!("abc-{:x}", 0xa0).obs().collect_vec();
     yield_now().await;
     assert_eq!(v.stop(), vec!["abc-a0"]);
 }
 
-#[rt_local::test]
+#[test]
 async fn test_obs_format_obs_hex() {
     let s = ObsCell::new(0xff);
     let v = obs_format!("abc-{:x}", s.obs()).obs().collect_vec();
