@@ -57,26 +57,22 @@ where
     F: FnMut(&mut St, &mut BindContext) + 'static,
 {
     pub(crate) fn new(st: St, f: F) -> Rc<Self> {
+        Self::new_with(st, f, false, Bindings::new())
+    }
+    pub(crate) fn new_tail(st: St, f: F, is_modified: bool, bindings: Bindings) -> Rc<Self> {
+        Self::new_with(st, f, !is_modified, bindings)
+    }
+    fn new_with(st: St, f: F, is_loaded: bool, bindings: Bindings) -> Rc<Self> {
         let this = Rc::new(Self(RefCell::new(SubscribeData {
             st,
             f,
-            is_loaded: false,
-            bindings: Bindings::new(),
-        })));
-        schedule_bind(&this);
-        this
-    }
-    pub(crate) fn new_tail(st: St, f: F, is_modified: bool, bindings: Bindings) -> Rc<Self> {
-        let s = Rc::new(Self(RefCell::new(SubscribeData {
-            st,
-            f,
-            is_loaded: !is_modified,
+            is_loaded,
             bindings,
         })));
-        if is_modified {
-            BindScope::with(|scope| s.load(scope));
+        if !is_loaded {
+            schedule_bind(&this);
         }
-        s
+        this
     }
 
     fn ready(self: &Rc<Self>, scope: &BindScope) {
