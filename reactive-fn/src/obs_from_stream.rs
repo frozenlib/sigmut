@@ -56,7 +56,7 @@ where
         if !self.sinks.is_empty() && self.data.borrow().is_need_wake() {
             let mut d = self.data.borrow_mut();
             if d.task.is_none() {
-                d.task = Some(spawn_local_weak(self));
+                d.task = Some(spawn_local_weak_from(self));
             } else if let Some(waker) = d.waker.take() {
                 waker.wake();
             }

@@ -36,7 +36,7 @@ where
             Self(RefCell::new(SubscribeAsyncData {
                 f,
                 bindings: Bindings::new(),
-                _task: spawn_local_weak_raw(this.clone()),
+                _task: spawn_local_weak(this.clone()),
                 fut: Box::pin(None),
                 waker: None,
                 is_dirty: true,

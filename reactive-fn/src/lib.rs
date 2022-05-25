@@ -1,10 +1,10 @@
 pub mod cell;
 pub mod collections;
 pub mod collector;
+pub mod core;
 pub mod fmt;
 pub mod observables;
 
-mod bind;
 mod cache;
 mod dyn_obs;
 mod dynamic_obs;
@@ -22,7 +22,6 @@ mod obs_from_async;
 mod obs_from_stream;
 mod observable;
 mod observer;
-mod runtime;
 mod scan;
 mod sink;
 mod sinks;
@@ -30,11 +29,6 @@ mod subscribe_async;
 mod subscriber;
 mod tail;
 mod utils;
-
-pub mod core {
-    pub use crate::bind::*;
-    pub use crate::runtime::*;
-}
 
 use crate::core::*;
 use dynamic_obs::*;
@@ -62,4 +56,3 @@ pub use scan::*;
 pub use sink::*;
 pub use subscriber::*;
 pub use tail::*;
-pub(crate) use utils::*;
