@@ -81,9 +81,7 @@ where
     }
     fn load(self: &Rc<Self>, scope: &BindScope) {
         let mut b = &mut *self.data.borrow_mut();
-        let f = &mut b.f;
-        let st = &mut b.st;
-        b.bindings.update(scope, self, |bc| f(st, bc));
+        b.bindings.update(scope, self, |bc| (b.f)(&mut b.st, bc));
         b.is_loaded = true;
     }
 }
@@ -166,10 +164,8 @@ where
     }
     fn load(self: &Rc<Self>, scope: &BindScope) -> bool {
         let mut b = &mut *self.data.borrow_mut();
-        let f = &mut b.f;
-        let st = &mut b.st;
         b.is_loaded = true;
-        b.bindings.update(scope, self, |bc| f(st, bc))
+        b.bindings.update(scope, self, |bc| (b.f)(&mut b.st, bc))
     }
 }
 impl<St, F, M> Observable for Rc<FilterScan<St, F, M>>
