@@ -99,6 +99,11 @@ macro_rules! format_trait {
                 self.with(|value, bc| value.obs_fmt(f, bc), bc)
             }
         }
+        impl<T: $ot> $ot for MayObs<T> {
+            fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
+                self.with(|value, bc| value.obs_fmt(f, bc), bc)
+            }
+        }
         impl<T: $ot> $ot for ObsCell<T> {
             fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
                 self.with(|value, bc| value.obs_fmt(f, bc), bc)
