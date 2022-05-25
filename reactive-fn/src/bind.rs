@@ -167,6 +167,9 @@ impl BindSinks {
         }
         detach_idxs.clear();
     }
+    pub fn notify_with_new_scope(&self) {
+        NotifyScope::with(|scope| self.notify(scope))
+    }
     pub fn is_empty(&self) -> bool {
         self.sinks.borrow().is_empty()
     }

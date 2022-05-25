@@ -104,7 +104,7 @@ where
                     d.task.take();
                     d.fut.take();
                     d.waker.take();
-                    NotifyScope::with(|scope| self.sinks.notify(scope));
+                    self.sinks.notify_with_new_scope();
                     Poll::Ready(())
                 } else {
                     Poll::Pending

@@ -140,7 +140,7 @@ where
                 d.value = fut.poll(cx);
                 if d.value.is_ready() || d.is_dirty {
                     d.is_dirty = false;
-                    NotifyScope::with(|scope| self.sinks.notify(scope));
+                    self.sinks.notify_with_new_scope();
                 }
             }
         }
