@@ -99,12 +99,25 @@ impl BindingsBuilder {
     }
 }
 
+pub trait BindSink: 'static {
+    fn notify(self: Rc<Self>, scope: &NotifyScope);
+}
+
 pub trait BindSource: 'static {
     fn sinks(&self) -> &BindSinks;
     fn on_sinks_empty(self: Rc<Self>) {}
 }
-pub trait BindSink: 'static {
-    fn notify(self: Rc<Self>, scope: &NotifyScope);
+pub fn schedule_notify(source: &Rc<impl BindSource>) {
+    if source.sinks().set_scheduled() {
+        Runtime::with(|rt| rt.push_notify(source.clone()));
+    }
+}
+
+pub trait BindTask: 'static {
+    fn run(self: Rc<Self>, scope: &BindScope);
+}
+pub fn schedule_bind(task: &Rc<impl BindTask>) {
+    Runtime::with(|rt| rt.push_bind(task.clone()));
 }
 
 struct Binding {
@@ -219,19 +232,6 @@ impl BindSinks {
         } else {
             self.detach_idxs.borrow_mut().push(idx);
         }
-    }
-}
-
-pub trait BindTask: 'static {
-    fn run(self: Rc<Self>, scope: &BindScope);
-}
-pub fn schedule_bind(task: &Rc<impl BindTask>) {
-    Runtime::with(|rt| rt.push_bind(task.clone()));
-}
-
-pub fn schedule_notify(source: &Rc<impl BindSource>) {
-    if source.sinks().set_scheduled() {
-        Runtime::with(|rt| rt.push_notify(source.clone()));
     }
 }
 
