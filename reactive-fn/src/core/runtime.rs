@@ -78,8 +78,8 @@ impl Runtime {
         self.bind_tasks.push_back(task);
         self.wake();
     }
-    fn push_notify(&mut self, task: Rc<dyn BindSource>) {
-        self.notify_sources.push(task);
+    fn push_notify(&mut self, source: Rc<dyn BindSource>) {
+        self.notify_sources.push(source);
         self.wake();
     }
     fn wake(&mut self) {
@@ -112,7 +112,7 @@ impl Runtime {
         self.depth_notify -= 1;
     }
 
-    fn get_tasks(&mut self, runner: &mut TaskRunner, cx: &mut Context) -> bool {
+    fn get_task(&mut self, runner: &mut TaskRunner, cx: &mut Context) -> bool {
         swap(&mut self.notify_sources, &mut runner.notify_sources);
         if !runner.notify_sources.is_empty() {
             return true;
@@ -142,7 +142,7 @@ impl Future for TaskRunner {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        while Runtime::with(|rt| rt.get_tasks(&mut self, cx)) {
+        while Runtime::with(|rt| rt.get_task(&mut self, cx)) {
             if !self.notify_sources.is_empty() {
                 NotifyScope::with(|scope| {
                     for s in self.notify_sources.drain(..) {
