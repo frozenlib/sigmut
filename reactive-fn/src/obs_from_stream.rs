@@ -102,7 +102,7 @@ where
                 match stream.as_mut().poll_next(cx) {
                     Poll::Ready(Some(value)) => {
                         d.value = value;
-                        NotifyScope::with(|scope| self.sinks.notify(scope))
+                        self.sinks.notify_with_new_scope();
                     }
                     Poll::Ready(None) => {
                         d.task.take();
