@@ -69,3 +69,74 @@ impl<T: 'static> BindSource for CacheData<T> {
         &self.sinks
     }
 }
+
+pub struct CacheBuf<T>(Rc<CacheBufData<T>>);
+
+struct CacheBufData<T> {
+    sinks: BindSinks,
+    state: RefCell<CacheBufState<T>>,
+    clear: Box<dyn Fn(&mut T)>,
+}
+
+struct CacheBufState<T> {
+    value: T,
+    is_cached: bool,
+    bindings: Bindings,
+}
+
+impl<T: Default> CacheBuf<T> {
+    pub fn new(clear: impl Fn(&mut T) + 'static) -> Self {
+        Self(Rc::new(CacheBufData {
+            sinks: BindSinks::new(),
+            state: RefCell::new(CacheBufState {
+                value: Default::default(),
+                is_cached: false,
+                bindings: Bindings::new(),
+            }),
+            clear: Box::new(clear),
+        }))
+    }
+    pub fn is_cached(&self) -> bool {
+        self.0.state.borrow().is_cached
+    }
+    pub fn cache(&self) -> Option<Ref<T>> {
+        let r = self.0.state.borrow();
+        if r.is_cached {
+            Some(Ref::map(r, |x| &x.value))
+        } else {
+            None
+        }
+    }
+}
+
+impl<T: Default + 'static> CacheBuf<T> {
+    pub fn borrow(&self, f: impl FnOnce(&mut T, &mut BindContext), bc: &mut BindContext) -> Ref<T> {
+        self.load(f, bc.scope());
+        bc.bind(self.0.clone());
+        self.cache().unwrap()
+    }
+    fn load(&self, f: impl FnOnce(&mut T, &mut BindContext), scope: &BindScope) {
+        if self.0.state.borrow().is_cached {
+            return;
+        }
+        let b = &mut *self.0.state.borrow_mut();
+        b.bindings.update(scope, &self.0, |bc| f(&mut b.value, bc));
+        b.is_cached = true;
+    }
+}
+
+impl<T: Default + 'static> BindSink for CacheBufData<T> {
+    fn notify(self: Rc<Self>, scope: &NotifyScope) {
+        let mut b = self.state.borrow_mut();
+        if b.is_cached {
+            b.is_cached = false;
+            (self.clear)(&mut b.value);
+            self.sinks.notify(scope);
+        }
+    }
+}
+impl<T: Default + 'static> BindSource for CacheBufData<T> {
+    fn sinks(&self) -> &BindSinks {
+        &self.sinks
+    }
+}

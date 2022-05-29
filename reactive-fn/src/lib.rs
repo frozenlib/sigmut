@@ -34,7 +34,7 @@ use crate::core::*;
 use dynamic_obs::*;
 
 pub use crate::core::BindContext;
-pub use cache::Cache;
+pub use cache::{Cache, CacheBuf};
 pub use cell::ObsCell;
 pub use collections::{
     ListChange, ListChangeKind, ObsList, ObsListAge, ObsListCell, ObsListCellAge,
