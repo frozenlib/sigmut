@@ -25,10 +25,6 @@ impl<T: 'static> Cache<T> {
             }),
         }))
     }
-
-    pub fn is_cached(&self) -> bool {
-        self.0.state.borrow().value.is_some()
-    }
     pub fn borrow_mut(
         &self,
         f: impl FnOnce(&mut BindContext) -> T,
@@ -65,6 +61,9 @@ impl<T: 'static> Cache<T> {
             None
         }
     }
+    pub fn is_cached(&self) -> bool {
+        self.0.state.borrow().value.is_some()
+    }
     pub fn cache(&self) -> Option<Ref<T>> {
         let r = Ref::map(self.0.state.borrow(), |x| &x.value);
         if r.is_some() {
@@ -73,7 +72,13 @@ impl<T: 'static> Cache<T> {
             None
         }
     }
+    pub fn clear(&self) {
+        if self.0.state.borrow_mut().value.take().is_some() {
+            schedule_notify(&self.0)
+        }
+    }
 }
+
 impl<T: 'static> Default for Cache<T> {
     fn default() -> Self {
         Self::new()
@@ -81,8 +86,9 @@ impl<T: 'static> Default for Cache<T> {
 }
 impl<T: 'static> BindSink for CacheData<T> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
-        self.state.borrow_mut().value.take();
-        self.sinks.notify(scope);
+        if self.state.borrow_mut().value.take().is_some() {
+            self.sinks.notify(scope);
+        }
     }
 }
 impl<T: 'static> BindSource for CacheData<T> {
