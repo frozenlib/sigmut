@@ -98,8 +98,11 @@ struct CacheBufState<T> {
     bindings: Bindings,
 }
 
-impl<T: Default> CacheBuf<T> {
-    pub fn new(clear: impl Fn(&mut T) + 'static) -> Self {
+impl<T> CacheBuf<T> {
+    pub fn new(clear: impl Fn(&mut T) + 'static) -> Self
+    where
+        T: Default,
+    {
         Self(Rc::new(CacheBufData {
             sinks: BindSinks::new(),
             state: RefCell::new(CacheBufState {
@@ -123,7 +126,7 @@ impl<T: Default> CacheBuf<T> {
     }
 }
 
-impl<T: Default + 'static> CacheBuf<T> {
+impl<T: 'static> CacheBuf<T> {
     pub fn borrow(&self, f: impl FnOnce(&mut T, &mut BindContext), bc: &mut BindContext) -> Ref<T> {
         self.load(f, bc.scope());
         bc.bind(self.0.clone());
@@ -145,19 +148,19 @@ impl<T: Default + 'static> CacheBuf<T> {
     }
 }
 
-impl<T: Default + 'static> BindSink for CacheBufData<T> {
+impl<T: 'static> BindSink for CacheBufData<T> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
         if self.clear() {
             self.sinks.notify(scope);
         }
     }
 }
-impl<T: Default + 'static> BindSource for CacheBufData<T> {
+impl<T: 'static> BindSource for CacheBufData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
 }
-impl<T: Default + 'static> CacheBufData<T> {
+impl<T: 'static> CacheBufData<T> {
     fn clear(&self) -> bool {
         let mut b = self.state.borrow_mut();
         if b.is_cached {
