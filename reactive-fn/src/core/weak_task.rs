@@ -6,15 +6,15 @@ use std::{
     task::{Context, Poll},
 };
 
-pub fn spawn_local_weak_from<F: RcFuture<Output = ()>>(f: &Rc<F>) -> Task<()> {
+pub fn spawn_local_weak_from<F: RcFuture<Output = ()> + 'static>(f: &Rc<F>) -> Task<()> {
     spawn_local_weak(Rc::downgrade(f))
 }
-pub fn spawn_local_weak<F: RcFuture<Output = ()>>(f: Weak<F>) -> Task<()> {
+pub fn spawn_local_weak<F: RcFuture<Output = ()> + 'static>(f: Weak<F>) -> Task<()> {
     let f: Weak<dyn RcFuture<Output = ()>> = f;
     spawn_local(WeakFuture(f))
 }
 
-pub trait RcFuture: 'static {
+pub trait RcFuture {
     type Output;
     fn poll(self: Rc<Self>, cx: &mut Context) -> Poll<Self::Output>;
 }
