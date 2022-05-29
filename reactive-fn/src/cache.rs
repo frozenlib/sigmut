@@ -70,6 +70,10 @@ impl<T: 'static> BindSource for CacheData<T> {
     }
 }
 
+/// Buffer reusable version of [`Cache`].
+///
+/// Unlike [`Cache`], it does not drop values when the cache becomes invalid,
+/// making it suitable for caching dynamically allocated buffer such as `Vec` and reusing buffers.
 pub struct CacheBuf<T>(Rc<CacheBufData<T>>);
 
 struct CacheBufData<T> {
