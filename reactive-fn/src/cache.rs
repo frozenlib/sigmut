@@ -55,11 +55,16 @@ impl<T: 'static> Cache<T> {
         let mut b = self.0.state.borrow_mut();
         b.value = Some(b.bindings.update(scope, &self.0, f));
     }
+    pub fn clear(&self) {
+        if self.0.clear() {
+            schedule_notify(&self.0);
+        }
+    }
 }
 
 impl<T: 'static> BindSink for CacheData<T> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
-        if self.state.borrow_mut().value.take().is_some() {
+        if self.clear() {
             self.sinks.notify(scope);
         }
     }
@@ -67,6 +72,11 @@ impl<T: 'static> BindSink for CacheData<T> {
 impl<T: 'static> BindSource for CacheData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
+    }
+}
+impl<T: 'static> CacheData<T> {
+    fn clear(&self) -> bool {
+        self.state.borrow_mut().value.take().is_some()
     }
 }
 
@@ -127,14 +137,17 @@ impl<T: Default + 'static> CacheBuf<T> {
         b.bindings.update(scope, &self.0, |bc| f(&mut b.value, bc));
         b.is_cached = true;
     }
+
+    pub fn clear(&self) {
+        if self.0.clear() {
+            schedule_notify(&self.0);
+        }
+    }
 }
 
 impl<T: Default + 'static> BindSink for CacheBufData<T> {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
-        let mut b = self.state.borrow_mut();
-        if b.is_cached {
-            b.is_cached = false;
-            (self.clear)(&mut b.value);
+        if self.clear() {
             self.sinks.notify(scope);
         }
     }
@@ -142,5 +155,17 @@ impl<T: Default + 'static> BindSink for CacheBufData<T> {
 impl<T: Default + 'static> BindSource for CacheBufData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
+    }
+}
+impl<T: Default + 'static> CacheBufData<T> {
+    fn clear(&self) -> bool {
+        let mut b = self.state.borrow_mut();
+        if b.is_cached {
+            b.is_cached = false;
+            (self.clear)(&mut b.value);
+            true
+        } else {
+            false
+        }
     }
 }
