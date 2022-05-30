@@ -5,7 +5,6 @@ use std::{
     cell::RefCell,
     collections::VecDeque,
     future::Future,
-    mem::swap,
     pin::Pin,
     rc::{Rc, Weak},
     task::{Context, Poll, Waker},
@@ -19,7 +18,9 @@ impl BindScope {
     pub fn with<T>(f: impl FnOnce(&BindScope) -> T) -> T {
         Runtime::with(|rt| rt.bind_start());
         let value = f(&BindScope { _dummy: () });
-        Runtime::with(|rt| rt.bind_end());
+        if !Runtime::with(|rt| rt.bind_end()) {
+            run_all_notify_tasks();
+        }
         value
     }
 }
@@ -108,9 +109,27 @@ pub trait BindSource: 'static {
     fn on_sinks_empty(self: Rc<Self>) {}
 }
 pub fn schedule_notify(source: &Rc<impl BindSource>) {
-    if source.sinks().set_scheduled() {
-        Runtime::with(|rt| rt.push_notify(source.clone()));
+    if Runtime::with(|rt| {
+        if rt.depth_bind == 0 {
+            rt.notify_start();
+            true
+        } else {
+            if source.sinks().set_scheduled() {
+                rt.push_notify(source.clone());
+            }
+            false
+        }
+    }) {
+        source.sinks().notify(&NotifyScope { _dummy: () });
+        Runtime::with(|rt| rt.notify_end());
     }
+}
+fn run_all_notify_tasks() {
+    NotifyScope::with(|scope| {
+        while let Some(s) = Runtime::with(|rt| rt.notify_sources.pop_front()) {
+            s.sinks().notify(scope);
+        }
+    });
 }
 
 pub trait BindTask: 'static {
@@ -242,17 +261,17 @@ thread_local! {
 struct Runtime {
     depth_notify: usize,
     depth_bind: usize,
-    notify_sources: Vec<Rc<dyn BindSource>>,
+    notify_sources: VecDeque<Rc<dyn BindSource>>,
     bind_tasks: VecDeque<Rc<dyn BindTask>>,
     waker: Option<Waker>,
 }
 impl Runtime {
     fn new() -> Self {
-        spawn_local(TaskRunner::new()).detach();
+        spawn_local(TaskRunner).detach();
         Self {
             depth_notify: 0,
             depth_bind: 0,
-            notify_sources: Vec::new(),
+            notify_sources: VecDeque::new(),
             bind_tasks: VecDeque::new(),
             waker: None,
         }
@@ -265,8 +284,7 @@ impl Runtime {
         self.wake();
     }
     fn push_notify(&mut self, source: Rc<dyn BindSource>) {
-        self.notify_sources.push(source);
-        self.wake();
+        self.notify_sources.push_back(source);
     }
     fn wake(&mut self) {
         if let Some(waker) = self.waker.take() {
@@ -282,8 +300,9 @@ impl Runtime {
         }
         self.depth_bind += 1;
     }
-    fn bind_end(&mut self) {
+    fn bind_end(&mut self) -> bool {
         self.depth_bind -= 1;
+        self.depth_bind != 0
     }
     fn notify_start(&mut self) {
         if self.depth_bind != 0 {
@@ -297,49 +316,21 @@ impl Runtime {
     fn notify_end(&mut self) {
         self.depth_notify -= 1;
     }
+}
+struct TaskRunner;
 
-    fn ready_task(&mut self, runner: &mut TaskRunner, cx: &mut Context) -> bool {
-        swap(&mut self.notify_sources, &mut runner.notify_sources);
-        if !runner.notify_sources.is_empty() {
-            return true;
-        }
-        runner.bind_task = self.bind_tasks.pop_front();
-        if runner.bind_task.is_some() {
-            return true;
-        }
-        self.waker = Some(cx.waker().clone());
-        false
-    }
-}
-struct TaskRunner {
-    notify_sources: Vec<Rc<dyn BindSource>>,
-    bind_task: Option<Rc<dyn BindTask>>,
-}
-
-impl TaskRunner {
-    fn new() -> Self {
-        Self {
-            notify_sources: Vec::new(),
-            bind_task: None,
-        }
-    }
-}
 impl Future for TaskRunner {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        while Runtime::with(|rt| rt.ready_task(&mut self, cx)) {
-            if !self.notify_sources.is_empty() {
-                NotifyScope::with(|scope| {
-                    for s in self.notify_sources.drain(..) {
-                        s.sinks().notify(scope);
-                    }
-                });
-            }
-            if let Some(task) = self.bind_task.take() {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        loop {
+            run_all_notify_tasks();
+            if let Some(task) = Runtime::with(|rt| rt.bind_tasks.pop_front()) {
                 BindScope::with(|scope| task.run(scope));
+            } else {
+                Runtime::with(|rt| rt.waker = Some(cx.waker().clone()));
+                return Poll::Pending;
             }
         }
-        Poll::Pending
     }
 }
