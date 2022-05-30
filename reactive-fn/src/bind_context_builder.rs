@@ -26,6 +26,9 @@ impl BindContextBuilder {
     pub fn with<T>(&self, f: impl FnOnce(&mut BindContext) -> T, scope: &BindScope) -> T {
         self.0.bindings.borrow_mut().update(scope, &self.0, f)
     }
+    pub fn with_new_scope<T>(&self, f: impl FnOnce(&mut BindContext) -> T) -> T {
+        BindScope::with(|scope| self.with(f, scope))
+    }
 }
 impl BindSink for Data {
     fn notify(self: Rc<Self>, scope: &NotifyScope) {
