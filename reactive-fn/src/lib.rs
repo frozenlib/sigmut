@@ -5,6 +5,7 @@ pub mod core;
 pub mod fmt;
 pub mod observables;
 
+mod bind_context_builder;
 mod cache;
 mod dyn_obs;
 mod dynamic_obs;
@@ -34,6 +35,7 @@ use crate::core::*;
 use dynamic_obs::*;
 
 pub use crate::core::BindContext;
+pub use bind_context_builder::BindContextBuilder;
 pub use cache::{Cache, CacheBuf};
 pub use cell::ObsCell;
 pub use collections::{
