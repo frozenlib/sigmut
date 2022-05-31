@@ -1,18 +1,18 @@
 use ::rt_local::runtime::core::test;
-use ::rt_local::yield_now;
+use ::rt_local::wait_for_idle;
 use reactive_fn::*;
 
 #[test]
 async fn obs_cell_dyn() {
     let cell = ObsCell::new(1);
     let r = cell.as_dyn().collect_vec();
-    yield_now().await;
+    wait_for_idle().await;
 
     cell.set(5);
-    yield_now().await;
+    wait_for_idle().await;
 
     cell.set(10);
-    yield_now().await;
+    wait_for_idle().await;
 
     assert_eq!(r.stop(), vec![1, 5, 10]);
 }
@@ -21,13 +21,13 @@ async fn obs_cell_dyn() {
 async fn obs_cell() {
     let cell = ObsCell::new(1);
     let r = cell.obs().collect_vec();
-    yield_now().await;
+    wait_for_idle().await;
 
     cell.set(5);
-    yield_now().await;
+    wait_for_idle().await;
 
     cell.set(10);
-    yield_now().await;
+    wait_for_idle().await;
 
     assert_eq!(r.stop(), vec![1, 5, 10]);
 }
@@ -36,13 +36,13 @@ async fn obs_cell() {
 async fn obs_ref_cell_dyn() {
     let cell = ObsCell::new(1);
     let r = cell.as_dyn().collect_vec();
-    yield_now().await;
+    wait_for_idle().await;
 
     cell.set(5);
-    yield_now().await;
+    wait_for_idle().await;
 
     cell.set(10);
-    yield_now().await;
+    wait_for_idle().await;
 
     assert_eq!(r.stop(), vec![1, 5, 10]);
 }
@@ -51,13 +51,13 @@ async fn obs_ref_cell_dyn() {
 async fn obs_ref_cell() {
     let cell = ObsCell::new(1);
     let r = cell.obs().collect_vec();
-    yield_now().await;
+    wait_for_idle().await;
 
     cell.set(5);
-    yield_now().await;
+    wait_for_idle().await;
 
     cell.set(10);
-    yield_now().await;
+    wait_for_idle().await;
 
     assert_eq!(r.stop(), vec![1, 5, 10]);
 }

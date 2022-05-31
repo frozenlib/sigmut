@@ -12,13 +12,13 @@ slabmap = "0.1"
 serde = "1.0.125"
 either = "1.6.1"
 derive-ex = "0.1.0"
-rt-local-core = { path = "../../rt-local/rt-local-core" }
+rt-local-core = { version = "0.1.0" }
 
 [dev-dependencies]
 bincode = "1.3.3"
 smol = "1.2.5"
 futures = "0.3.21"
-rt-local = { path = "../../rt-local/rt-local" }
+rt-local = { version = "0.1.1" }
 
 [lib]
 bench = false

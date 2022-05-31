@@ -1,4 +1,4 @@
-use rt_local_core::{spawn_local, yield_now};
+use rt_local_core::{spawn_local, wait_for_idle};
 use std::{cell::RefCell, mem::swap, rc::Rc, task::Waker};
 
 pub trait IdleTask: 'static {
@@ -22,7 +22,7 @@ impl IdleTaskRunner {
         spawn_local(async {
             let mut tasks = Vec::new();
             loop {
-                yield_now().await;
+                wait_for_idle().await;
                 Self::with(|r| swap(&mut tasks, &mut r.tasks));
                 for task in tasks.drain(..) {
                     task.run();
