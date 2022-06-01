@@ -83,6 +83,11 @@ impl<T: 'static> ObsCell<T> {
         Obs(self.clone())
     }
 }
+impl<T: Default + 'static> Default for ObsCell<T> {
+    fn default() -> Self {
+        Self::new(T::default())
+    }
+}
 impl<T: 'static> ObsRefCellData<T> {
     pub fn borrow<'a>(self: &'a Rc<Self>, bc: &mut BindContext) -> Ref<'a, T> {
         bc.bind(self.clone());
