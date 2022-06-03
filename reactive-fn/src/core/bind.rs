@@ -136,7 +136,10 @@ pub trait BindTask: 'static {
     fn run(self: Rc<Self>, scope: &BindScope);
 }
 pub fn schedule_bind(task: &Rc<impl BindTask>) {
-    Runtime::with(|rt| rt.push_bind(task.clone()));
+    schedule_bind_raw(task.clone())
+}
+pub fn schedule_bind_raw(task: Rc<dyn BindTask>) {
+    Runtime::with(|rt| rt.push_bind(task));
 }
 
 struct Binding {
