@@ -3,6 +3,7 @@ use std::{
     any::Any,
     cell::RefCell,
     future::Future,
+    hint::unreachable_unchecked,
     mem::swap,
     pin::Pin,
     rc::Rc,
@@ -24,7 +25,15 @@ impl Action {
     {
         Action {
             s,
-            f: Box::new(move |this| f(this.downcast::<T>().unwrap())),
+            f: Box::new(move |s| {
+                if let Ok(s) = s.downcast::<T>() {
+                    f(s);
+                } else {
+                    unsafe {
+                        unreachable_unchecked();
+                    }
+                }
+            }),
         }
     }
     pub fn schedule_idle(self) {
