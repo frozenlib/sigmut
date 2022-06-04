@@ -76,6 +76,14 @@ where
             }
         }
     }
+    fn on_idle(self: Rc<Self>) {
+        if self.sinks.is_empty() {
+            let mut d = self.data.borrow_mut();
+            d.bindings.clear();
+            d.stream.set(None);
+            d.value = None;
+        }
+    }
 }
 impl<F, St> Observable for Rc<MapStream<F, St>>
 where
@@ -111,7 +119,7 @@ where
         &self.sinks
     }
     fn on_sinks_empty(self: Rc<Self>) {
-        schedule_idle(&self);
+        Action::new(self, Self::on_idle).schedule_idle();
     }
 }
 impl<F, St> BindSink for MapStream<F, St>
@@ -165,20 +173,5 @@ where
             }
         }
         Poll::Pending
-    }
-}
-
-impl<F, St> IdleTask for MapStream<F, St>
-where
-    F: Fn(&mut BindContext) -> St + 'static,
-    St: Stream + 'static,
-{
-    fn run(self: Rc<Self>) {
-        if self.sinks.is_empty() {
-            let mut d = self.data.borrow_mut();
-            d.bindings.clear();
-            d.stream.set(None);
-            d.value = None;
-        }
     }
 }

@@ -10,20 +10,20 @@ use std::{
 };
 
 pub struct Action {
-    this: Rc<dyn Any>,
+    s: Rc<dyn Any>,
     f: Box<dyn Fn(Rc<dyn Any>)>,
 }
 impl Action {
     /// Create a new action.
     ///
     /// Should be zero sized type for `f` to avoid heap allocation.
-    pub fn new<T, F>(this: Rc<T>, f: F) -> Action
+    pub fn new<T, F>(s: Rc<T>, f: F) -> Action
     where
         T: 'static,
         F: Fn(Rc<T>) + 'static,
     {
         Action {
-            this,
+            s,
             f: Box::new(move |this| f(this.downcast::<T>().unwrap())),
         }
     }
@@ -38,20 +38,13 @@ impl Action {
     }
 
     fn run(self) {
-        (self.f)(self.this)
+        (self.f)(self.s)
     }
 }
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum ActionPriority {
     Idle,
     Normal,
-}
-
-pub trait IdleTask: 'static {
-    fn run(self: Rc<Self>);
-}
-pub fn schedule_idle(task: &Rc<impl IdleTask>) {
-    Action::new(task.clone(), IdleTask::run);
 }
 
 thread_local! {
