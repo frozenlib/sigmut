@@ -1,5 +1,13 @@
 use rt_local_core::{spawn_local, wait_for_idle};
-use std::{any::Any, cell::RefCell, mem::swap, rc::Rc, task::Waker};
+use std::{
+    any::Any,
+    cell::RefCell,
+    future::Future,
+    mem::swap,
+    pin::Pin,
+    rc::Rc,
+    task::{Context, Poll, Waker},
+};
 
 pub struct Action {
     this: Rc<dyn Any>,
@@ -19,16 +27,24 @@ impl Action {
             f: Box::new(move |this| f(this.downcast::<T>().unwrap())),
         }
     }
-    pub fn schedule_normal(self) {
-        TaskRunner::with_normal(|runner| runner.push_task(self));
-    }
     pub fn schedule_idle(self) {
-        TaskRunner::with_idle(|runner| runner.push_task(self));
+        self.schedule(ActionPriority::Idle)
+    }
+    pub fn schedule_normal(self) {
+        self.schedule(ActionPriority::Normal)
+    }
+    fn schedule(self, priority: ActionPriority) {
+        TaskRunner::with(priority, |runner| runner.push_task(self));
     }
 
     fn run(self) {
         (self.f)(self.this)
     }
+}
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+enum ActionPriority {
+    Idle,
+    Normal,
 }
 
 pub trait IdleTask: 'static {
@@ -49,17 +65,20 @@ struct TaskRunner {
 }
 
 impl TaskRunner {
-    fn new(is_idle: bool) -> Self {
+    fn new(priority: ActionPriority) -> Self {
         spawn_local(async move {
             let mut tasks = Vec::new();
             loop {
-                if is_idle {
+                if priority == ActionPriority::Idle {
                     wait_for_idle().await;
                 }
-                if is_idle {
-                    Self::with_idle(|r| swap(&mut tasks, &mut r.tasks));
-                } else {
-                    Self::with_normal(|r| swap(&mut tasks, &mut r.tasks));
+                Self::with(priority, |r| swap(&mut tasks, &mut r.tasks));
+                if tasks.is_empty() {
+                    SetWaker(Some(|waker| {
+                        Self::with(priority, |this| this.waker = Some(waker))
+                    }))
+                    .await;
+                    continue;
                 }
                 for task in tasks.drain(..) {
                     task.run();
@@ -73,16 +92,34 @@ impl TaskRunner {
         }
     }
 
-    fn with_normal<T>(f: impl FnOnce(&mut Self) -> T) -> T {
-        TASK_RUNNER_NORMAL.with(|r| f(r.borrow_mut().get_or_insert_with(|| TaskRunner::new(false))))
-    }
-    fn with_idle<T>(f: impl FnOnce(&mut Self) -> T) -> T {
-        TASK_RUNNER_IDLE.with(|r| f(r.borrow_mut().get_or_insert_with(|| TaskRunner::new(true))))
+    fn with<T>(priority: ActionPriority, f: impl FnOnce(&mut Self) -> T) -> T {
+        let key = match priority {
+            ActionPriority::Idle => &TASK_RUNNER_IDLE,
+            ActionPriority::Normal => &TASK_RUNNER_NORMAL,
+        };
+        key.with(|r| {
+            f(r.borrow_mut()
+                .get_or_insert_with(|| TaskRunner::new(priority)))
+        })
     }
     fn push_task(&mut self, task: Action) {
         self.tasks.push(task);
         if let Some(waker) = self.waker.take() {
             waker.wake();
+        }
+    }
+}
+
+struct SetWaker<F>(Option<F>);
+
+impl<F: FnOnce(Waker) + Unpin> Future for SetWaker<F> {
+    type Output = ();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(f) = self.0.take() {
+            f(cx.waker().clone());
+            Poll::Pending
+        } else {
+            Poll::Ready(())
         }
     }
 }
