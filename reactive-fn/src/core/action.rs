@@ -10,9 +10,15 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-pub struct Action {
-    s: Rc<dyn Any>,
-    f: Box<dyn Fn(Rc<dyn Any>)>,
+pub struct Action(RawAction);
+enum RawAction {
+    Instance {
+        s: Rc<dyn Any>,
+        f: Box<dyn Fn(Rc<dyn Any>)>,
+    },
+    Static {
+        f: Box<dyn Fn()>,
+    },
 }
 impl Action {
     /// Create a new action.
@@ -23,7 +29,7 @@ impl Action {
         T: 'static,
         F: Fn(Rc<T>) + 'static,
     {
-        Action {
+        Self(RawAction::Instance {
             s,
             f: Box::new(move |s| {
                 if let Ok(s) = s.downcast::<T>() {
@@ -34,8 +40,19 @@ impl Action {
                     }
                 }
             }),
-        }
+        })
     }
+
+    /// Create a new action.
+    ///
+    /// Should be zero sized type for `f` to avoid heap allocation.
+    pub fn new_static<F>(f: F) -> Action
+    where
+        F: Fn() + 'static,
+    {
+        Self(RawAction::Static { f: Box::new(f) })
+    }
+
     pub fn schedule_idle(self) {
         self.schedule(ActionPriority::Idle)
     }
@@ -47,7 +64,10 @@ impl Action {
     }
 
     fn run(self) {
-        (self.f)(self.s)
+        match self.0 {
+            RawAction::Instance { s, f } => f(s),
+            RawAction::Static { f } => f(),
+        }
     }
 }
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
