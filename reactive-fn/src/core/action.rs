@@ -10,6 +10,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
+#[must_use]
 pub struct Action(RawAction);
 enum RawAction {
     Instance {
