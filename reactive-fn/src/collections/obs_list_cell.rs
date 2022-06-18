@@ -3,7 +3,6 @@ use crate::*;
 use derive_ex::derive_ex;
 use slabmap::SlabMap;
 use std::{
-    any::Any,
     cell::{Ref, RefCell, RefMut},
     collections::VecDeque,
     mem::ManuallyDrop,
@@ -16,7 +15,7 @@ pub struct ObsListCell<T>(Rc<Inner<T>>);
 
 impl<T: 'static> ObsListCell<T> {
     pub fn new() -> Self {
-        Self(Rc::new(Inner::new()))
+        Self(Rc::new_cyclic(Inner::new))
     }
     pub fn borrow(&self, bc: &mut BindContext) -> ObsListCellRef<T> {
         bc.bind(self.0.clone());
@@ -146,6 +145,7 @@ struct Inner<T> {
     state: RefCell<State<T>>,
     log_refs: RefCell<LogRefs>,
     sinks: BindSinks,
+    this: Weak<Self>,
 }
 
 struct State<T> {
@@ -173,11 +173,12 @@ struct Log {
 }
 
 impl<T: 'static> Inner<T> {
-    fn new() -> Self {
+    fn new(this: &Weak<Self>) -> Self {
         Self {
             state: RefCell::new(State::new()),
             log_refs: RefCell::new(LogRefs::new()),
             sinks: BindSinks::new(),
+            this: this.clone(),
         }
     }
     fn try_clean_logs(&self) {
@@ -405,16 +406,12 @@ impl<'a, T> IntoIterator for &'a mut ObsListCellRefMut<'_, T> {
 }
 
 impl<T: 'static> DynamicObservableList<T> for Inner<T> {
-    fn borrow<'a>(
-        &'a self,
-        rc_self: &dyn Any,
-        bc: &mut BindContext,
-    ) -> Box<dyn DynamicObservableListRef<T> + 'a> {
-        let this = rc_self.downcast_ref::<Rc<Inner<T>>>().unwrap();
-        bc.bind(this.clone());
+    fn borrow<'a>(&'a self, bc: &mut BindContext) -> Box<dyn DynamicObservableListRef<T> + 'a> {
+        let source = self.this.upgrade().unwrap();
+        bc.bind(source.clone());
         self.log_refs.borrow_mut().set_read();
         Box::new(ObsListCellRef {
-            source: this.clone(),
+            source,
             state: ManuallyDrop::new(self.state.borrow()),
         })
     }
