@@ -1,6 +1,7 @@
 use std::{
     any::{Any, TypeId},
     mem::swap,
+    ops::{Deref, DerefMut},
 };
 #[inline]
 pub fn cast_or_convert<T: 'static, M: 'static>(value: T, convert: impl FnOnce(T) -> M) -> M {
@@ -18,4 +19,27 @@ fn cast<T: 'static, M: 'static>(value: T) -> M {
         &mut value_typed,
     );
     value_typed.unwrap()
+}
+
+pub(crate) struct SafeManuallyDrop<T>(Option<T>);
+
+impl<T> SafeManuallyDrop<T> {
+    pub fn new(value: T) -> Self {
+        Self(Some(value))
+    }
+    pub fn drop(this: &mut Self) {
+        this.0.take();
+    }
+}
+impl<T> Deref for SafeManuallyDrop<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().expect("already dropped")
+    }
+}
+impl<T> DerefMut for SafeManuallyDrop<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut().expect("already dropped")
+    }
 }

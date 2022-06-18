@@ -1,11 +1,10 @@
 use super::*;
-use crate::*;
+use crate::{utils::SafeManuallyDrop, *};
 use derive_ex::derive_ex;
 use slabmap::SlabMap;
 use std::{
     cell::{Ref, RefCell, RefMut},
     collections::VecDeque,
-    mem::ManuallyDrop,
     ops::{Index, IndexMut},
     rc::{Rc, Weak},
 };
@@ -22,11 +21,11 @@ impl<T: 'static> ObsListCell<T> {
         self.0.log_refs.borrow_mut().set_read();
         ObsListCellRef {
             source: self.0.clone(),
-            state: ManuallyDrop::new(self.0.state.borrow()),
+            state: SafeManuallyDrop::new(self.0.state.borrow()),
         }
     }
     pub fn borrow_mut(&self) -> ObsListCellRefMut<T> {
-        let state = ManuallyDrop::new(self.0.state.borrow_mut());
+        let state = SafeManuallyDrop::new(self.0.state.borrow_mut());
         let logs_len_old = state.logs.len();
         ObsListCellRefMut {
             source: &self.0,
@@ -57,7 +56,7 @@ impl<A: 'static> FromIterator<A> for ObsListCell<A> {
 }
 pub struct ObsListCellRef<'a, T: 'static> {
     source: Rc<Inner<T>>,
-    state: ManuallyDrop<Ref<'a, State<T>>>,
+    state: SafeManuallyDrop<Ref<'a, State<T>>>,
 }
 impl<'a, T: 'static> ObsListCellRef<'a, T> {
     pub fn age(&self) -> ObsListCellAge<T> {
@@ -116,7 +115,7 @@ impl<'a, T: 'static> ObsListCellRef<'a, T> {
 }
 impl<'a, T: 'static> Drop for ObsListCellRef<'a, T> {
     fn drop(&mut self) {
-        unsafe { ManuallyDrop::drop(&mut self.state) }
+        SafeManuallyDrop::drop(&mut self.state);
         self.source.try_clean_logs()
     }
 }
@@ -137,7 +136,7 @@ impl<'a, T> IntoIterator for &'a ObsListCellRef<'_, T> {
 
 pub struct ObsListCellRefMut<'a, T: 'static> {
     source: &'a Rc<Inner<T>>,
-    state: ManuallyDrop<RefMut<'a, State<T>>>,
+    state: SafeManuallyDrop<RefMut<'a, State<T>>>,
     logs_len_old: usize,
 }
 
@@ -369,7 +368,7 @@ impl<'a, T> ObsListCellRefMut<'a, T> {
 impl<'a, T> Drop for ObsListCellRefMut<'a, T> {
     fn drop(&mut self) {
         let logs_len = self.state.logs.len();
-        unsafe { ManuallyDrop::drop(&mut self.state) }
+        SafeManuallyDrop::drop(&mut self.state);
         if self.logs_len_old != logs_len {
             schedule_notify(self.source);
         }
@@ -412,7 +411,7 @@ impl<T: 'static> DynamicObservableList<T> for Inner<T> {
         self.log_refs.borrow_mut().set_read();
         Box::new(ObsListCellRef {
             source,
-            state: ManuallyDrop::new(self.state.borrow()),
+            state: SafeManuallyDrop::new(self.state.borrow()),
         })
     }
 }
