@@ -44,6 +44,18 @@ impl<T: 'static> Default for ObsListCell<T> {
         Self::new()
     }
 }
+impl<A: 'static> FromIterator<A> for ObsListCell<A> {
+    fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
+        let this = Self::new();
+        {
+            let mut b = this.borrow_mut();
+            for i in iter {
+                b.push(i)
+            }
+        }
+        this
+    }
+}
 pub struct ObsListCellRef<'a, T: 'static> {
     source: Rc<Inner<T>>,
     state: ManuallyDrop<Ref<'a, State<T>>>,
