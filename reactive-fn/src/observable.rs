@@ -9,7 +9,7 @@ pub trait Observable: 'static {
         bc: &mut BindContext,
     ) -> U;
     fn with_head<U>(&self, f: impl FnOnce(&Self::Item) -> U) -> U {
-        BindContext::nul(|bc| self.with(|value, _| f(value), bc))
+        BindContext::null(|bc| self.with(|value, _| f(value), bc))
     }
 
     fn get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
@@ -22,7 +22,7 @@ pub trait Observable: 'static {
     where
         Self::Item: ToOwned,
     {
-        BindContext::nul(|bc| self.get(bc))
+        BindContext::null(|bc| self.get(bc))
     }
 
     fn into_dyn(self) -> DynObs<Self::Item>

@@ -20,7 +20,7 @@ pub trait ObservableDisplay {
         s
     }
     fn get_head(&self) -> String {
-        BindContext::nul(|bc| self.get(bc))
+        BindContext::null(|bc| self.get(bc))
     }
 }
 
