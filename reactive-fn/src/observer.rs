@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use either::Either;
 pub trait Observer<T>: 'static {
     fn next(&mut self, value: T);
@@ -5,7 +7,7 @@ pub trait Observer<T>: 'static {
     where
         Self: Sized,
     {
-        DynObserver(Some(Box::new(self)))
+        DynObserver::from_box(Box::new(self))
     }
 }
 impl<T, F: FnMut(T) + 'static> Observer<T> for F {
@@ -26,24 +28,41 @@ where
     }
 }
 
-pub struct DynObserver<T>(Option<Box<dyn Observer<T>>>);
+pub struct DynObserver<T>(RawDynObserver<T>);
+
+enum RawDynObserver<T> {
+    Null,
+    Box(Box<dyn Observer<T>>),
+    Rc(Rc<dyn RcObserver<T>>),
+}
 
 impl<T> DynObserver<T> {
+    pub fn from_box(o: Box<dyn Observer<T>>) -> Self {
+        Self(RawDynObserver::Box(o))
+    }
+    pub(crate) fn from_rc(o: Rc<dyn RcObserver<T>>) -> Self {
+        Self(RawDynObserver::Rc(o))
+    }
     pub fn null() -> Self {
-        Self(None)
+        Self(RawDynObserver::Null)
     }
     pub fn is_null(&self) -> bool {
-        self.0.is_none()
+        matches!(self.0, RawDynObserver::Null)
     }
 }
 
 impl<T: 'static> Observer<T> for DynObserver<T> {
     fn next(&mut self, value: T) {
-        if let Some(o) = &mut self.0 {
-            o.next(value);
+        match &mut self.0 {
+            RawDynObserver::Null => {}
+            RawDynObserver::Box(o) => o.next(value),
+            RawDynObserver::Rc(o) => o.clone().next(value),
         }
     }
     fn into_dyn(self) -> DynObserver<T> {
         self
     }
+}
+pub(crate) trait RcObserver<T> {
+    fn next(self: Rc<Self>, value: T);
 }

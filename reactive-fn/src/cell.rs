@@ -22,8 +22,7 @@ impl<T: 'static> ObsCell<T> {
         }))
     }
     pub fn set(&self, value: T) {
-        *self.0.value.borrow_mut() = value;
-        schedule_notify(&self.0);
+        self.0.set(value);
     }
     pub fn set_dedup(&self, value: T)
     where
@@ -82,6 +81,9 @@ impl<T: 'static> ObsCell<T> {
     pub fn obs(&self) -> Obs<ObsCell<T>> {
         Obs(self.clone())
     }
+    pub fn as_observer(&self) -> DynObserver<T> {
+        DynObserver::from_rc(self.0.clone())
+    }
 }
 impl<T: Default + 'static> Default for ObsCell<T> {
     fn default() -> Self {
@@ -89,11 +91,16 @@ impl<T: Default + 'static> Default for ObsCell<T> {
     }
 }
 impl<T: 'static> ObsRefCellData<T> {
-    pub fn borrow<'a>(self: &'a Rc<Self>, bc: &mut BindContext) -> Ref<'a, T> {
+    fn borrow<'a>(self: &'a Rc<Self>, bc: &mut BindContext) -> Ref<'a, T> {
         bc.bind(self.clone());
         self.value.borrow()
     }
+    fn set(self: &Rc<Self>, value: T) {
+        *self.value.borrow_mut() = value;
+        schedule_notify(self);
+    }
 }
+
 impl<T: 'static> Observable for ObsCell<T> {
     type Item = T;
 
@@ -128,14 +135,15 @@ impl<T: 'static> BindSource for ObsRefCellData<T> {
         &self.sinks
     }
 }
+
 impl<T> Clone for ObsCell<T> {
     fn clone(&self) -> Self {
         Self(self.0.clone())
     }
 }
-impl<T> Observer<T> for ObsCell<T> {
-    fn next(&mut self, value: T) {
-        self.set(value)
+impl<T: 'static> RcObserver<T> for ObsRefCellData<T> {
+    fn next(self: Rc<Self>, value: T) {
+        self.set(value);
     }
 }
 

@@ -46,11 +46,6 @@ impl<St: 'static> From<DynSubscriber<St>> for Subscription {
         s.into_subscription()
     }
 }
-impl<T> Observer<T> for DynSubscriber<ObsCell<T>> {
-    fn next(&mut self, value: T) {
-        self.borrow_mut().next(value)
-    }
-}
 
 pub(crate) trait InnerSubscriber: 'static {
     type St;
