@@ -9,14 +9,14 @@ use std::{
 };
 
 /// An `Rc<RefCell>` like type that implement [`Observable`].
-pub struct ObsCell<T: 'static>(Rc<ObsRefCellData<T>>);
-struct ObsRefCellData<T> {
+pub struct ObsCell<T: 'static>(Rc<ObsCellData<T>>);
+struct ObsCellData<T> {
     value: RefCell<T>,
     sinks: BindSinks,
 }
 impl<T: 'static> ObsCell<T> {
     pub fn new(value: T) -> Self {
-        Self(Rc::new(ObsRefCellData {
+        Self(Rc::new(ObsCellData {
             value: RefCell::new(value),
             sinks: BindSinks::new(),
         }))
@@ -90,7 +90,7 @@ impl<T: Default + 'static> Default for ObsCell<T> {
         Self::new(T::default())
     }
 }
-impl<T: 'static> ObsRefCellData<T> {
+impl<T: 'static> ObsCellData<T> {
     fn borrow<'a>(self: &'a Rc<Self>, bc: &mut BindContext) -> Ref<'a, T> {
         bc.bind(self.clone());
         self.value.borrow()
@@ -119,7 +119,7 @@ impl<T: 'static> Observable for ObsCell<T> {
     }
 }
 
-impl<T: 'static> DynamicObservableInner for ObsRefCellData<T> {
+impl<T: 'static> DynamicObservableInner for ObsCellData<T> {
     type Item = T;
     fn dyn_with(
         self: Rc<Self>,
@@ -130,7 +130,7 @@ impl<T: 'static> DynamicObservableInner for ObsRefCellData<T> {
     }
 }
 
-impl<T: 'static> BindSource for ObsRefCellData<T> {
+impl<T: 'static> BindSource for ObsCellData<T> {
     fn sinks(&self) -> &BindSinks {
         &self.sinks
     }
@@ -141,7 +141,7 @@ impl<T> Clone for ObsCell<T> {
         Self(self.0.clone())
     }
 }
-impl<T: 'static> RcObserver<T> for ObsRefCellData<T> {
+impl<T: 'static> RcObserver<T> for ObsCellData<T> {
     fn next(self: Rc<Self>, value: T) {
         self.set(value);
     }
