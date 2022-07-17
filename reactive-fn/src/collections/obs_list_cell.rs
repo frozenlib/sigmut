@@ -429,6 +429,6 @@ impl<'a, T> DynamicObservableListRef<T> for ObsListCellRef<'a, T> {
     }
 
     fn changes(&self, since: &ObsListAge, f: &mut dyn FnMut(ListChange<&T>)) {
-        self.changes((&self.to_obs_list_age(since)).as_ref(), f)
+        self.changes((self.to_obs_list_age(since)).as_ref(), f)
     }
 }
