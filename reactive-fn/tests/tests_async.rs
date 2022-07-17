@@ -13,10 +13,10 @@ fn local(fut: impl Future<Output = ()> + 'static) -> impl Future<Output = ()> {
     spawn_local(fut)
 }
 fn spawn(fut: impl Future<Output = ()> + 'static + Send) -> impl Future<Output = ()> {
-    smol::spawn(fut)
+    async_std::task::spawn(fut)
 }
 fn sleep(dur: Duration) -> impl Future {
-    smol::Timer::after(dur)
+    Box::pin(async_std::task::sleep(dur))
 }
 async fn timeout<T>(dur: Duration, fut: impl Future<Output = T> + Unpin) -> Option<T> {
     use futures::future::{select, Either};
