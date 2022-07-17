@@ -33,3 +33,18 @@ jobs:
         run: cargo +stable test --verbose --no-run
       - name: Run tests (minimal versions)
         run: cargo +stable test --verbose
+
+      - name: Run benchmark
+        run: cargo +nightly bench | tee output.txt
+        working-directory: ./reactive-fn-benchmark
+
+      - name: Store benchmark result
+        uses: rhysd/github-action-benchmark@v1
+        with:
+          name: reactive-fn Benchmark
+          tool: "cargo"
+          fail-on-alert: false
+          comment-on-alert: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          output-file-path: ./reactive-fn-benchmark/output.txt
