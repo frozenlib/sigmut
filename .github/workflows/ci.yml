@@ -35,10 +35,12 @@ jobs:
         run: cargo +stable test --verbose
 
       - name: Run benchmark
+        if : ${{ github.ref_name == 'master' }}
         run: cargo +nightly bench | tee output.txt
         working-directory: ./reactive-fn-benchmark
 
       - name: Store benchmark result
+        if : ${{ github.ref_name == 'master' }}
         uses: rhysd/github-action-benchmark@v1
         with:
           name: reactive-fn Benchmark
