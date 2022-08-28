@@ -25,6 +25,19 @@ impl<'a, T: ?Sized> ObsCallback<'a, T> {
     pub fn ret_flat(self, o: &impl Observable<Item = T>, bc: &mut BindContext) -> ObsRet<'a> {
         o.with(|value, bc| self.ret(value, bc), bc)
     }
+    pub fn context<'b, 'bc>(self, bc: &'b mut BindContext<'bc>) -> ObsContext<'a, 'b, 'bc, T> {
+        ObsContext { cb: self, bc }
+    }
+}
+impl<T: ?Sized> ObsCallback<'_, T> {
+    pub fn with<R>(
+        f0: impl for<'a> FnOnce(ObsCallback<'a, T>) -> ObsRet<'a>,
+        f1: impl FnOnce(&T, &mut BindContext) -> R,
+    ) -> R {
+        let mut b = ObsCallbackBuilder::new(f1);
+        f0(b.build());
+        b.result()
+    }
 }
 
 /// Type to ensure that [`ObsCallback`] is consumed.
@@ -36,7 +49,7 @@ impl<'a> ObsRet<'a> {
     }
 }
 
-pub struct ObsCallbackBuilder<F, T: ?Sized, R> {
+struct ObsCallbackBuilder<F, T: ?Sized, R> {
     state: State<F, R>,
     _phantom: PhantomData<fn(&T)>,
 }
@@ -70,15 +83,6 @@ where
     }
     pub fn build(&mut self) -> ObsCallback<T> {
         ObsCallback(self)
-    }
-    pub fn build_context<'a, 'b, 'bc>(
-        &'a mut self,
-        bc: &'b mut BindContext<'bc>,
-    ) -> ObsContext<'a, 'b, 'bc, T> {
-        ObsContext {
-            cb: self.build(),
-            bc,
-        }
     }
     pub fn result(mut self) -> R {
         if let State::Result(value) = self.state.take() {

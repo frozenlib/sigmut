@@ -281,13 +281,14 @@ impl<T: ?Sized> Observable for DynObs<T> {
         if let DynObsData::Static(x) = &self.0 {
             f(x, bc)
         } else {
-            let mut b = ObsCallbackBuilder::new(f);
-            match &self.0 {
-                DynObsData::Static(value) => b.build().ret(value, bc),
-                DynObsData::Dyn(x) => x.dyn_with(b.build_context(bc)),
-                DynObsData::DynInner(x) => x.clone().dyn_with(b.build_context(bc)),
-            };
-            b.result()
+            ObsCallback::with(
+                |cb| match &self.0 {
+                    DynObsData::Static(value) => cb.ret(value, bc),
+                    DynObsData::Dyn(x) => x.dyn_with(cb.context(bc)),
+                    DynObsData::DynInner(x) => x.clone().dyn_with(cb.context(bc)),
+                },
+                f,
+            )
         }
     }
     fn into_dyn(self) -> DynObs<Self::Item> {

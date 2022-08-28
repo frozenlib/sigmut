@@ -205,9 +205,7 @@ where
             f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
             bc: &mut BindContext,
         ) -> U {
-            let mut b = ObsCallbackBuilder::new(f);
-            self.dyn_with(b.build_context(bc));
-            b.result()
+            ObsCallback::with(|cb| self.dyn_with(cb.context(bc)), f)
         }
 
         #[inline]
