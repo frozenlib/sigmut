@@ -88,7 +88,7 @@ where
         if let State::Result(value) = self.state.take() {
             value
         } else {
-            panic!("`OnceObserver::ret` was not called.");
+            unreachable!()
         }
     }
 }
@@ -101,7 +101,7 @@ where
         if let State::FnOnce(f) = self.state.take() {
             self.state = State::Result(f(value, bc));
         } else {
-            panic!("`OnceObserver::ret` called twice.");
+            unreachable!()
         }
     }
 }
