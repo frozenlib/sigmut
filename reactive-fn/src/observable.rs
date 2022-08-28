@@ -8,11 +8,11 @@ pub trait Observable: 'static {
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         bc: &mut BindContext,
     ) -> U;
-    fn with_head<U>(&self, f: impl FnOnce(&Self::Item) -> U) -> U {
-        BindContext::null(|bc| self.with(|value, _| f(value), bc))
-    }
     fn with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
         self.with(|value, bc| o.cb.ret(value, bc), o.bc)
+    }
+    fn with_head<U>(&self, f: impl FnOnce(&Self::Item) -> U) -> U {
+        BindContext::null(|bc| self.with(|value, _| f(value), bc))
     }
 
     fn get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
