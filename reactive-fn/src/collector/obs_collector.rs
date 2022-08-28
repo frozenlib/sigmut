@@ -94,7 +94,8 @@ impl<C: Collect> DynamicObservableInner for ObsCollectorData<C> {
         self: Rc<Self>,
         oc: ObserverContext<'a, '_, '_, Self::Item>,
     ) -> ObserverResult<'a> {
-        oc.f.ret(&self.get(oc.bc), oc.bc)
+        let value = self.get(oc.bc);
+        oc.ret(&value)
     }
 }
 impl<C: 'static> BindSource for ObsCollectorData<C> {

@@ -126,7 +126,8 @@ impl<T: 'static> DynamicObservableInner for ObsCellData<T> {
         self: Rc<Self>,
         oc: ObserverContext<'a, '_, '_, Self::Item>,
     ) -> ObserverResult<'a> {
-        oc.f.ret(&self.borrow(oc.bc), oc.bc)
+        let value = self.borrow(oc.bc);
+        oc.ret(&value)
     }
 }
 
