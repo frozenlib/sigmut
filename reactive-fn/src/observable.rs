@@ -11,6 +11,9 @@ pub trait Observable: 'static {
     fn with_head<U>(&self, f: impl FnOnce(&Self::Item) -> U) -> U {
         BindContext::null(|bc| self.with(|value, _| f(value), bc))
     }
+    fn with_dyn<'a>(&self, o: ObserverContext<'a, '_, '_, Self::Item>) -> ObserverResult<'a> {
+        self.with(|value, bc| o.f.ret(value, bc), o.bc)
+    }
 
     fn get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
     where

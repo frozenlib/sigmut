@@ -89,12 +89,12 @@ impl<C: Collect> ObsCollectorData<C> {
 }
 impl<C: Collect> DynamicObservableInner for ObsCollectorData<C> {
     type Item = C::Output;
-    fn dyn_with(
+
+    fn dyn_with<'a>(
         self: Rc<Self>,
-        f: &mut dyn FnMut(&Self::Item, &mut BindContext),
-        bc: &mut BindContext,
-    ) {
-        f(&self.get(bc), bc)
+        oc: ObserverContext<'a, '_, '_, Self::Item>,
+    ) -> ObserverResult<'a> {
+        oc.f.ret(&self.get(oc.bc), oc.bc)
     }
 }
 impl<C: 'static> BindSource for ObsCollectorData<C> {

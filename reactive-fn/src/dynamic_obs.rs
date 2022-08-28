@@ -3,22 +3,21 @@ use std::rc::Rc;
 
 pub trait DynamicObservable: 'static {
     type Item: ?Sized;
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &mut BindContext), bc: &mut BindContext);
+    fn dyn_with<'a>(&self, oc: ObserverContext<'a, '_, '_, Self::Item>) -> ObserverResult<'a>;
 }
 pub trait DynamicObservableInner: 'static {
     type Item: ?Sized;
-    fn dyn_with(
+    fn dyn_with<'a>(
         self: Rc<Self>,
-        f: &mut dyn FnMut(&Self::Item, &mut BindContext),
-        bc: &mut BindContext,
-    );
+        oc: ObserverContext<'a, '_, '_, Self::Item>,
+    ) -> ObserverResult<'a>;
 }
 pub struct DynamicObs<S>(pub S);
 impl<S: Observable> DynamicObservable for DynamicObs<S> {
     type Item = S::Item;
 
-    fn dyn_with(&self, f: &mut dyn FnMut(&Self::Item, &mut BindContext), bc: &mut BindContext) {
-        self.0.with(f, bc)
+    fn dyn_with<'a>(&self, oc: ObserverContext<'a, '_, '_, Self::Item>) -> ObserverResult<'a> {
+        self.0.with_dyn(oc)
     }
 }
 impl<S: Observable> Observable for DynamicObs<S> {
@@ -39,11 +38,10 @@ where
 {
     type Item = <Rc<S> as Observable>::Item;
 
-    fn dyn_with(
+    fn dyn_with<'a>(
         self: Rc<Self>,
-        f: &mut dyn FnMut(&Self::Item, &mut BindContext),
-        bc: &mut BindContext,
-    ) {
-        self.with(f, bc)
+        oc: ObserverContext<'a, '_, '_, Self::Item>,
+    ) -> ObserverResult<'a> {
+        self.with_dyn(oc)
     }
 }

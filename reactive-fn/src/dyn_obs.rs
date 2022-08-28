@@ -281,16 +281,13 @@ impl<T: ?Sized> Observable for DynObs<T> {
         if let DynObsData::Static(x) = &self.0 {
             f(x, bc)
         } else {
-            let mut output = None;
-            let mut f = Some(f);
-            let f: &mut dyn FnMut(&T, &mut BindContext) =
-                &mut |value, bc| output = Some((f.take().unwrap())(value, bc));
+            let mut b = DynOnceObserverBuilder::new(f);
             match &self.0 {
-                DynObsData::Static(value) => f(value, bc),
-                DynObsData::Dyn(x) => x.dyn_with(f, bc),
-                DynObsData::DynInner(x) => x.clone().dyn_with(f, bc),
-            }
-            output.unwrap()
+                DynObsData::Static(value) => b.build().ret(value, bc),
+                DynObsData::Dyn(x) => x.dyn_with(b.build_context(bc)),
+                DynObsData::DynInner(x) => x.clone().dyn_with(b.build_context(bc)),
+            };
+            b.result()
         }
     }
     fn into_dyn(self) -> DynObs<Self::Item> {

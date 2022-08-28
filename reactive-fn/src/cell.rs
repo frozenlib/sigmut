@@ -121,12 +121,12 @@ impl<T: 'static> Observable for ObsCell<T> {
 
 impl<T: 'static> DynamicObservableInner for ObsCellData<T> {
     type Item = T;
-    fn dyn_with(
+
+    fn dyn_with<'a>(
         self: Rc<Self>,
-        f: &mut dyn FnMut(&Self::Item, &mut BindContext),
-        bc: &mut BindContext,
-    ) {
-        f(&self.borrow(bc), bc)
+        oc: ObserverContext<'a, '_, '_, Self::Item>,
+    ) -> ObserverResult<'a> {
+        oc.f.ret(&self.borrow(oc.bc), oc.bc)
     }
 }
 

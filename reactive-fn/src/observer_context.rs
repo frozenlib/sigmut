@@ -77,6 +77,15 @@ where
     pub fn build(&mut self) -> DynOnceObserver<T> {
         DynOnceObserver(self)
     }
+    pub fn build_context<'a, 'b, 'bc>(
+        &'a mut self,
+        bc: &'b mut BindContext<'bc>,
+    ) -> ObserverContext<'a, 'b, 'bc, T> {
+        ObserverContext {
+            f: self.build(),
+            bc,
+        }
+    }
     pub fn result(mut self) -> R {
         if let State::Result(value) = self.state.take() {
             value
