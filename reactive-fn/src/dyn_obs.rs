@@ -281,7 +281,7 @@ impl<T: ?Sized> Observable for DynObs<T> {
         if let DynObsData::Static(x) = &self.0 {
             f(x, bc)
         } else {
-            let mut b = DynOnceObserverBuilder::new(f);
+            let mut b = ObsCallbackBuilder::new(f);
             match &self.0 {
                 DynObsData::Static(value) => b.build().ret(value, bc),
                 DynObsData::Dyn(x) => x.dyn_with(b.build_context(bc)),

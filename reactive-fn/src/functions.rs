@@ -180,7 +180,7 @@ pub fn obs<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> Obs<impl Observabl
 
 pub fn obs_with<S, T>(
     this: S,
-    f: impl for<'a> Fn(&S, ObserverContext<'a, '_, '_, T>) -> ObserverResult<'a> + 'static,
+    f: impl for<'a> Fn(&S, ObsContext<'a, '_, '_, T>) -> ObsRet<'a> + 'static,
 ) -> Obs<impl Observable<Item = T>>
 where
     S: 'static,
@@ -195,7 +195,7 @@ where
     where
         S: 'static,
         T: 'static + ?Sized,
-        F: for<'a> Fn(&S, ObserverContext<'a, '_, '_, T>) -> ObserverResult<'a> + 'static,
+        F: for<'a> Fn(&S, ObsContext<'a, '_, '_, T>) -> ObsRet<'a> + 'static,
     {
         type Item = T;
 
@@ -205,7 +205,7 @@ where
             f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
             bc: &mut BindContext,
         ) -> U {
-            let mut b = DynOnceObserverBuilder::new(f);
+            let mut b = ObsCallbackBuilder::new(f);
             self.dyn_with(b.build_context(bc));
             b.result()
         }
@@ -223,10 +223,10 @@ where
     where
         S: 'static,
         T: 'static + ?Sized,
-        F: for<'a> Fn(&S, ObserverContext<'a, '_, '_, T>) -> ObserverResult<'a> + 'static,
+        F: for<'a> Fn(&S, ObsContext<'a, '_, '_, T>) -> ObsRet<'a> + 'static,
     {
         type Item = T;
-        fn dyn_with<'a>(&self, oc: ObserverContext<'a, '_, '_, Self::Item>) -> ObserverResult<'a> {
+        fn dyn_with<'a>(&self, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
             (self.f)(&self.this, oc)
         }
     }

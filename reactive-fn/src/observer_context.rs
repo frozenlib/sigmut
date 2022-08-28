@@ -1,48 +1,42 @@
 use super::*;
 use std::{marker::PhantomData, mem};
 
-pub struct ObserverContext<'a, 'b, 'bc, T: ?Sized> {
-    pub f: DynOnceObserver<'a, T>,
+pub struct ObsContext<'a, 'b, 'bc, T: ?Sized> {
+    pub cb: ObsCallback<'a, T>,
     pub bc: &'b mut BindContext<'bc>,
 }
 
-impl<'a, 'b, 'bc, T: ?Sized> ObserverContext<'a, 'b, 'bc, T> {
-    pub fn ret(self, value: &T) -> ObserverResult<'a> {
-        self.f.ret(value, self.bc)
+impl<'a, 'b, 'bc, T: ?Sized> ObsContext<'a, 'b, 'bc, T> {
+    pub fn ret(self, value: &T) -> ObsRet<'a> {
+        self.cb.ret(value, self.bc)
     }
-    pub fn ret_flat(self, o: &impl Observable<Item = T>) -> ObserverResult<'a> {
-        self.f.ret_flat(o, self.bc)
+    pub fn ret_flat(self, o: &impl Observable<Item = T>) -> ObsRet<'a> {
+        self.cb.ret_flat(o, self.bc)
     }
 }
 
-pub struct DynOnceObserver<'a, T: ?Sized>(&'a mut dyn RawDynOnceObserver<T>);
+pub struct ObsCallback<'a, T: ?Sized>(&'a mut dyn RawObsCallback<T>);
 
-impl<'a, T: ?Sized> DynOnceObserver<'a, T> {
-    pub fn ret(self, value: &T, bc: &mut BindContext) -> ObserverResult<'a> {
+impl<'a, T: ?Sized> ObsCallback<'a, T> {
+    pub fn ret(self, value: &T, bc: &mut BindContext) -> ObsRet<'a> {
         self.0.ret(value, bc);
-        ObserverResult::new()
+        ObsRet::new()
     }
-    pub fn ret_flat(
-        self,
-        o: &impl Observable<Item = T>,
-        bc: &mut BindContext,
-    ) -> ObserverResult<'a> {
+    pub fn ret_flat(self, o: &impl Observable<Item = T>, bc: &mut BindContext) -> ObsRet<'a> {
         o.with(|value, bc| self.ret(value, bc), bc)
     }
 }
-pub struct ObserverResult<'a> {
-    _phantom: PhantomData<&'a mut ()>,
-}
 
-impl<'a> ObserverResult<'a> {
+/// Type to ensure that [`ObsCallback`] is consumed.
+pub struct ObsRet<'a>(PhantomData<&'a mut ()>);
+
+impl<'a> ObsRet<'a> {
     fn new() -> Self {
-        ObserverResult {
-            _phantom: PhantomData,
-        }
+        ObsRet(PhantomData)
     }
 }
 
-pub struct DynOnceObserverBuilder<F, T: ?Sized, R> {
+pub struct ObsCallbackBuilder<F, T: ?Sized, R> {
     state: State<F, R>,
     _phantom: PhantomData<fn(&T)>,
 }
@@ -59,11 +53,11 @@ impl<F, R> State<F, R> {
     }
 }
 
-trait RawDynOnceObserver<T: ?Sized> {
+trait RawObsCallback<T: ?Sized> {
     fn ret(&mut self, value: &T, bc: &mut BindContext);
 }
 
-impl<F, T, R> DynOnceObserverBuilder<F, T, R>
+impl<F, T, R> ObsCallbackBuilder<F, T, R>
 where
     T: ?Sized,
     F: FnOnce(&T, &mut BindContext) -> R,
@@ -74,15 +68,15 @@ where
             _phantom: PhantomData,
         }
     }
-    pub fn build(&mut self) -> DynOnceObserver<T> {
-        DynOnceObserver(self)
+    pub fn build(&mut self) -> ObsCallback<T> {
+        ObsCallback(self)
     }
     pub fn build_context<'a, 'b, 'bc>(
         &'a mut self,
         bc: &'b mut BindContext<'bc>,
-    ) -> ObserverContext<'a, 'b, 'bc, T> {
-        ObserverContext {
-            f: self.build(),
+    ) -> ObsContext<'a, 'b, 'bc, T> {
+        ObsContext {
+            cb: self.build(),
             bc,
         }
     }
@@ -94,7 +88,7 @@ where
         }
     }
 }
-impl<F, T, R> RawDynOnceObserver<T> for DynOnceObserverBuilder<F, T, R>
+impl<F, T, R> RawObsCallback<T> for ObsCallbackBuilder<F, T, R>
 where
     T: ?Sized,
     F: FnOnce(&T, &mut BindContext) -> R,
