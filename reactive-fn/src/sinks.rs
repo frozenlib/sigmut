@@ -3,7 +3,7 @@ use either::Either;
 
 impl<S> IntoSink<<S::Item as RawSink>::Item> for Obs<S>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: RawSink,
     <S::Item as RawSink>::Item: Clone,
 {
@@ -15,7 +15,7 @@ where
 }
 impl<S> IntoSink<<S::Item as RawSink>::Item> for &Obs<S>
 where
-    S: Observable + Clone,
+    S: Observable + Clone + 'static,
     S::Item: RawSink,
     <S::Item as RawSink>::Item: Clone,
 {

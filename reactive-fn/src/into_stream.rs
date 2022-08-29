@@ -34,7 +34,7 @@ impl<S> IntoStream<S> {
 
 impl<S> BindSink for IntoStreamData<S>
 where
-    S: Observable,
+    S: Observable + 'static,
 {
     fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         let waker = {
@@ -49,7 +49,7 @@ where
 }
 impl<S> Stream for IntoStream<S>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: ToOwned,
 {
     type Item = <S::Item as ToOwned>::Owned;

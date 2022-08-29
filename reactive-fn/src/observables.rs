@@ -13,7 +13,7 @@ pub struct MapIntoObservable<S: Observable, T>(
 
 impl<S, T> Observable for MapIntoObservable<S, T>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: Clone + Into<T>,
     T: 'static,
 {
@@ -41,7 +41,7 @@ pub struct MapBorrowObservable<S: Observable, T: ?Sized>(
 
 impl<S, T> Observable for MapBorrowObservable<S, T>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: Borrow<T>,
     T: ?Sized + 'static,
 {
@@ -69,7 +69,7 @@ pub struct MapAsRefObservable<S: Observable, T: ?Sized>(
 
 impl<S, T> Observable for MapAsRefObservable<S, T>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: AsRef<T>,
     T: ?Sized + 'static,
 {
@@ -90,10 +90,14 @@ where
     }
 }
 
-fn into_dyn_by_convert<Outer: Observable, Inner: Observable>(
+fn into_dyn_by_convert<Outer, Inner>(
     s: Outer,
     f: impl FnOnce(Outer) -> Inner,
-) -> DynObs<Outer::Item> {
+) -> DynObs<Outer::Item>
+where
+    Outer: Observable + 'static,
+    Inner: Observable + 'static,
+{
     if TypeId::of::<Outer::Item>() == TypeId::of::<Inner>() {
         (*<dyn Any>::downcast_ref::<DynObs<Outer::Item>>(&f(s).into_dyn()).unwrap()).clone()
     } else {
@@ -151,7 +155,7 @@ where
 
 impl<S> Observable for OptionObservable<S>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: ToOwned,
 {
     type Item = Option<<S::Item as ToOwned>::Owned>;
@@ -200,7 +204,7 @@ where
 
 impl<S, E> Observable for ResultObservable<S, E>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: ToOwned,
     E: 'static,
 {

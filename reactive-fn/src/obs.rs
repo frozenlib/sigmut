@@ -9,7 +9,7 @@ use std::{borrow::Borrow, iter::once, task::Poll};
 #[derive(Clone)]
 pub struct Obs<S>(pub(crate) S);
 
-impl<S: Observable> Obs<S> {
+impl<S: Observable + 'static> Obs<S> {
     pub fn into_dyn(self) -> DynObs<S::Item> {
         self.0.into_dyn()
     }
@@ -83,7 +83,7 @@ impl<S: Observable> Obs<S> {
     }
 
     #[inline]
-    pub fn flat_map<U: Observable>(
+    pub fn flat_map<U: Observable + 'static>(
         self,
         f: impl Fn(&S::Item) -> U + 'static,
     ) -> Obs<impl Observable<Item = U::Item>> {
@@ -91,7 +91,7 @@ impl<S: Observable> Obs<S> {
     }
 
     #[inline]
-    pub fn flat_map_ref<U: Observable>(
+    pub fn flat_map_ref<U: Observable + 'static>(
         self,
         f: impl Fn(&S::Item) -> &U + 'static,
     ) -> Obs<impl Observable<Item = U::Item>> {
@@ -356,7 +356,7 @@ impl<S: Observable> Obs<S> {
         self.into_obs_display()
     }
 }
-impl<S: Observable> Observable for Obs<S> {
+impl<S: Observable + 'static> Observable for Obs<S> {
     type Item = S::Item;
     fn with<U>(
         &self,

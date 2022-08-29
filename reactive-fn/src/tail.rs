@@ -60,7 +60,7 @@ impl<T: ?Sized + 'static> DynTail<T> {
 
 pub struct Tail<S>(Option<TailData<S>>);
 
-impl<S: Observable> Tail<S> {
+impl<S: Observable + 'static> Tail<S> {
     pub(crate) fn new<U>(source: S, scope: &BindScope, f: impl FnOnce(&S::Item) -> U) -> (U, Self) {
         let state = TailState::new();
         let mut b = state.borrow_mut();
@@ -139,7 +139,7 @@ struct TailData<S> {
     source: S,
     state: Rc<RefCell<TailState>>,
 }
-impl<S: Observable> TailData<S> {
+impl<S: Observable + 'static> TailData<S> {
     fn subscribe_new<St: 'static>(
         self,
         st: St,

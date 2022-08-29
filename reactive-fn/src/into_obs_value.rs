@@ -2,11 +2,11 @@ use crate::observables::*;
 use crate::*;
 
 pub trait IntoObsValue<T> {
-    type Observable: Observable<Item = T>;
+    type Observable: Observable<Item = T> + 'static;
     fn into_obs_value(self) -> Obs<Self::Observable>;
 }
 
-impl<S: Observable, U> IntoObsValue<U> for Obs<S>
+impl<S: Observable + 'static, U> IntoObsValue<U> for Obs<S>
 where
     S::Item: Clone + Into<U>,
     U: 'static,

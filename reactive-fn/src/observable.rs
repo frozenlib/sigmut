@@ -1,7 +1,7 @@
 use crate::*;
 use std::{any::Any, ops::Deref, rc::Rc};
 
-pub trait Observable: 'static {
+pub trait Observable {
     type Item: ?Sized;
     fn with<U>(
         &self,
@@ -30,20 +30,20 @@ pub trait Observable: 'static {
 
     fn into_dyn(self) -> DynObs<Self::Item>
     where
-        Self: Sized,
+        Self: Sized + 'static,
     {
         DynObs::new_dyn(Rc::new(DynamicObs(self)))
     }
     fn into_may(self) -> MayObs<Self::Item>
     where
-        Self: Sized,
+        Self: Sized + 'static,
         Self::Item: Sized,
     {
         MayObs::Obs(self.into_dyn())
     }
 }
 
-impl<S: Observable> Observable for Rc<S> {
+impl<S: Observable + 'static> Observable for Rc<S> {
     type Item = S::Item;
 
     fn with<U>(

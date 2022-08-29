@@ -10,7 +10,7 @@ pub trait DynamicObservableInner: 'static {
     fn dyn_with<'a>(self: Rc<Self>, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a>;
 }
 pub struct DynamicObs<S>(pub S);
-impl<S: Observable> DynamicObservable for DynamicObs<S> {
+impl<S: Observable + 'static> DynamicObservable for DynamicObs<S> {
     type Item = S::Item;
 
     fn dyn_with<'a>(&self, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
@@ -31,6 +31,7 @@ impl<S: Observable> Observable for DynamicObs<S> {
 
 impl<S> DynamicObservableInner for S
 where
+    S: 'static,
     Rc<S>: Observable,
 {
     type Item = <Rc<S> as Observable>::Item;

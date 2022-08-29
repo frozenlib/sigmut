@@ -87,7 +87,7 @@ macro_rules! format_trait {
         }
         impl<S> $ot for Obs<S>
         where
-            S: Observable,
+            S: Observable + 'static,
             S::Item: $ot,
         {
             fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
@@ -287,7 +287,7 @@ impl<T: ObservableDisplay + 'static> IntoObsStr for ObsDisplay<T> {
 
 impl<S> ObservableDisplay for Obs<S>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: ObservableDisplay,
 {
     fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result {
@@ -296,7 +296,7 @@ where
 }
 impl<S> IntoObsStr for Obs<S>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: ObservableDisplay,
 {
     type Observable = DynObs<str>;

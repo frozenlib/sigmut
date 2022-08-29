@@ -296,7 +296,7 @@ impl<T: ?Sized> Observable for DynObs<T> {
     }
 }
 
-impl<S: Observable> From<Obs<S>> for DynObs<S::Item> {
+impl<S: Observable + 'static> From<Obs<S>> for DynObs<S::Item> {
     fn from(s: Obs<S>) -> Self {
         s.into_dyn()
     }

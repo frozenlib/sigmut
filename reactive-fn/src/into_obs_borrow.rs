@@ -7,9 +7,9 @@ pub trait IntoObsBorrow<T: ?Sized> {
     fn into_obs_borrow(self) -> Obs<Self::Observable>;
 }
 
-impl<S: Observable, U> IntoObsBorrow<U> for Obs<S>
+impl<S, U> IntoObsBorrow<U> for Obs<S>
 where
-    S: Observable,
+    S: Observable + 'static,
     S::Item: Borrow<U>,
     U: 'static + ?Sized,
 {
