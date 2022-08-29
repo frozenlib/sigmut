@@ -8,7 +8,7 @@ pub trait Observable {
         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
         bc: &mut BindContext,
     ) -> U;
-    fn with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
+    fn with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a> {
         self.with(|value, bc| o.cb.ret(value, bc), o.bc)
     }
     fn with_head<U>(&self, f: impl FnOnce(&Self::Item) -> U) -> U {

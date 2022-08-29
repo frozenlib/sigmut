@@ -7,10 +7,10 @@ pub struct ObsContext<'a, 'b, 'bc, T: ?Sized> {
 }
 
 impl<'a, 'b, 'bc, T: ?Sized> ObsContext<'a, 'b, 'bc, T> {
-    pub fn ret(self, value: &T) -> ObsRet<'a> {
+    pub fn ret(self, value: &T) -> Ret<'a> {
         self.cb.ret(value, self.bc)
     }
-    pub fn ret_flat(self, o: &impl Observable<Item = T>) -> ObsRet<'a> {
+    pub fn ret_flat(self, o: &impl Observable<Item = T>) -> Ret<'a> {
         self.cb.ret_flat(o, self.bc)
     }
 }
@@ -18,11 +18,11 @@ impl<'a, 'b, 'bc, T: ?Sized> ObsContext<'a, 'b, 'bc, T> {
 pub struct ObsCallback<'a, T: ?Sized>(&'a mut dyn RawObsCallback<T>);
 
 impl<'a, T: ?Sized> ObsCallback<'a, T> {
-    pub fn ret(self, value: &T, bc: &mut BindContext) -> ObsRet<'a> {
+    pub fn ret(self, value: &T, bc: &mut BindContext) -> Ret<'a> {
         self.0.ret(value, bc);
-        ObsRet::new()
+        Ret::new()
     }
-    pub fn ret_flat(self, o: &impl Observable<Item = T>, bc: &mut BindContext) -> ObsRet<'a> {
+    pub fn ret_flat(self, o: &impl Observable<Item = T>, bc: &mut BindContext) -> Ret<'a> {
         o.with(|value, bc| self.ret(value, bc), bc)
     }
     pub fn context<'b, 'bc>(self, bc: &'b mut BindContext<'bc>) -> ObsContext<'a, 'b, 'bc, T> {
@@ -31,7 +31,7 @@ impl<'a, T: ?Sized> ObsCallback<'a, T> {
 }
 impl<T: ?Sized> ObsCallback<'_, T> {
     pub fn with<R>(
-        f0: impl for<'a> FnOnce(ObsCallback<'a, T>) -> ObsRet<'a>,
+        f0: impl for<'a> FnOnce(ObsCallback<'a, T>) -> Ret<'a>,
         f1: impl FnOnce(&T, &mut BindContext) -> R,
     ) -> R {
         let mut b = ObsCallbackBuilder::new(f1);
@@ -40,18 +40,32 @@ impl<T: ?Sized> ObsCallback<'_, T> {
     }
 }
 
-/// Type to ensure that [`ObsCallback`] is consumed.
-pub struct ObsRet<'a>(PhantomData<std::cell::Cell<&'a ()>>);
+pub struct Callback<'a, T: ?Sized>(&'a mut dyn RawCallback<T>);
 
-impl<'a> ObsRet<'a> {
-    fn new() -> Self {
-        ObsRet(PhantomData)
+impl<'a, T: ?Sized> Callback<'a, T> {
+    pub fn ret(self, value: &T) -> Ret<'a> {
+        self.0.ret(value);
+        Ret::new()
+    }
+}
+impl<T: ?Sized> Callback<'_, T> {
+    pub fn with<R>(
+        f0: impl for<'a> FnOnce(Callback<'a, T>) -> Ret<'a>,
+        f1: impl FnOnce(&T) -> R,
+    ) -> R {
+        let mut b = CallbackBuilder::new(f1);
+        f0(b.build());
+        b.result()
     }
 }
 
-struct ObsCallbackBuilder<F, T: ?Sized, R> {
-    state: State<F, R>,
-    _phantom: PhantomData<fn(&T)>,
+/// Type to ensure that [`ObsCallback`] is consumed.
+pub struct Ret<'a>(PhantomData<std::cell::Cell<&'a ()>>);
+
+impl<'a> Ret<'a> {
+    fn new() -> Self {
+        Ret(PhantomData)
+    }
 }
 
 enum State<F, R> {
@@ -59,15 +73,26 @@ enum State<F, R> {
     Result(R),
     None,
 }
-
 impl<F, R> State<F, R> {
-    fn take(&mut self) -> Self {
-        mem::replace(self, State::None)
+    fn apply(&mut self, f: impl FnOnce(F) -> R) {
+        if let Self::FnOnce(f0) = mem::replace(self, State::None) {
+            *self = Self::Result(f(f0));
+        } else {
+            unreachable!()
+        }
+    }
+    fn into_result(self) -> R {
+        if let Self::Result(r) = self {
+            r
+        } else {
+            unreachable!()
+        }
     }
 }
 
-trait RawObsCallback<T: ?Sized> {
-    fn ret(&mut self, value: &T, bc: &mut BindContext);
+struct ObsCallbackBuilder<F, T: ?Sized, R> {
+    state: State<F, R>,
+    _phantom: PhantomData<fn(&T)>,
 }
 
 impl<F, T, R> ObsCallbackBuilder<F, T, R>
@@ -84,13 +109,12 @@ where
     pub fn build(&mut self) -> ObsCallback<T> {
         ObsCallback(self)
     }
-    pub fn result(mut self) -> R {
-        if let State::Result(value) = self.state.take() {
-            value
-        } else {
-            unreachable!()
-        }
+    pub fn result(self) -> R {
+        self.state.into_result()
     }
+}
+trait RawObsCallback<T: ?Sized> {
+    fn ret(&mut self, value: &T, bc: &mut BindContext);
 }
 impl<F, T, R> RawObsCallback<T> for ObsCallbackBuilder<F, T, R>
 where
@@ -98,10 +122,42 @@ where
     F: FnOnce(&T, &mut BindContext) -> R,
 {
     fn ret(&mut self, value: &T, bc: &mut BindContext) {
-        if let State::FnOnce(f) = self.state.take() {
-            self.state = State::Result(f(value, bc));
-        } else {
-            unreachable!()
+        self.state.apply(|f| f(value, bc))
+    }
+}
+
+struct CallbackBuilder<F, T: ?Sized, R> {
+    state: State<F, R>,
+    _phantom: PhantomData<fn(&T)>,
+}
+
+impl<F, T, R> CallbackBuilder<F, T, R>
+where
+    T: ?Sized,
+    F: FnOnce(&T) -> R,
+{
+    pub fn new(f: F) -> Self {
+        Self {
+            state: State::FnOnce(f),
+            _phantom: PhantomData,
         }
+    }
+    pub fn build(&mut self) -> Callback<T> {
+        Callback(self)
+    }
+    pub fn result(self) -> R {
+        self.state.into_result()
+    }
+}
+trait RawCallback<T: ?Sized> {
+    fn ret(&mut self, value: &T);
+}
+impl<F, T, R> RawCallback<T> for CallbackBuilder<F, T, R>
+where
+    T: ?Sized,
+    F: FnOnce(&T) -> R,
+{
+    fn ret(&mut self, value: &T) {
+        self.state.apply(|f| f(value))
     }
 }
