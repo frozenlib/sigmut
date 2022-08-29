@@ -205,7 +205,10 @@ where
             f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
             bc: &mut BindContext,
         ) -> U {
-            ObsCallback::with(|cb| self.dyn_with(cb.context(bc)), f)
+            ObsCallback::with(|cb| self.with_dyn(cb.context(bc)), f)
+        }
+        fn with_dyn<'a>(&self, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
+            (self.f)(&self.this, oc)
         }
 
         #[inline]
@@ -216,19 +219,6 @@ where
             DynObs::new_dyn(Rc::new(self))
         }
     }
-
-    impl<S, T, F> DynamicObservable for ObsWithFn<S, T, F>
-    where
-        S: 'static,
-        T: 'static + ?Sized,
-        F: for<'a> Fn(&S, ObsContext<'a, '_, '_, T>) -> ObsRet<'a> + 'static,
-    {
-        type Item = T;
-        fn dyn_with<'a>(&self, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
-            (self.f)(&self.this, oc)
-        }
-    }
-
     Obs(ObsWithFn {
         this,
         f,

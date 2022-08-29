@@ -1,4 +1,3 @@
-use crate::dynamic_obs::*;
 use crate::*;
 use std::{cell::RefCell, rc::Rc};
 
@@ -12,19 +11,19 @@ pub trait HotReady: 'static {
 
 impl<S> Hot<S>
 where
-    DynamicObs<Self>: HotReady,
+    Self: HotReady,
 {
-    pub fn new(source: S) -> Rc<DynamicObs<Self>> {
-        let rc = Rc::new(DynamicObs(Self {
+    pub fn new(source: S) -> Rc<Self> {
+        let rc = Rc::new(Self {
             source,
             bindings: RefCell::new(Bindings::new()),
-        }));
+        });
         let this = rc.clone();
         BindScope::with(|scope| this.ready(scope));
         rc
     }
 }
-impl<S> BindSink for DynamicObs<Hot<S>>
+impl<S> BindSink for Hot<S>
 where
     Self: HotReady,
 {
@@ -32,7 +31,7 @@ where
         schedule_bind(&self);
     }
 }
-impl<S> BindTask for DynamicObs<Hot<S>>
+impl<S> BindTask for Hot<S>
 where
     Self: HotReady,
 {
@@ -41,22 +40,20 @@ where
     }
 }
 
-impl<T: 'static + ?Sized> HotReady for DynamicObs<Hot<DynObs<T>>> {
+impl<T: 'static + ?Sized> HotReady for Hot<DynObs<T>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
-        self.0
-            .bindings
+        self.bindings
             .borrow_mut()
-            .update(scope, &this, |bc| self.0.source.with(|_, _| {}, bc));
+            .update(scope, &this, |bc| self.source.with(|_, _| {}, bc));
     }
 }
-impl<S: Observable + 'static> HotReady for DynamicObs<Hot<Obs<S>>> {
+impl<S: Observable + 'static> HotReady for Hot<Obs<S>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
-        self.0
-            .bindings
+        self.bindings
             .borrow_mut()
-            .update(scope, &this, |bc| self.0.source.with(|_, _| {}, bc));
+            .update(scope, &this, |bc| self.source.with(|_, _| {}, bc));
     }
 }
 

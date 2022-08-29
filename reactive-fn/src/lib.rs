@@ -8,7 +8,7 @@ pub mod observables;
 mod bind_context_builder;
 mod cache;
 mod dyn_obs;
-mod dynamic_obs;
+mod dyn_observable;
 mod fold;
 mod functions;
 mod hot;
@@ -30,10 +30,8 @@ mod subscriber;
 mod tail;
 mod utils;
 
-use crate::core::*;
-use dynamic_obs::*;
-
 pub use crate::core::BindContext;
+use crate::core::*;
 pub use bind_context_builder::BindContextBuilder;
 pub use cache::{Cache, CacheBuf};
 pub use cell::ObsCell;
@@ -42,6 +40,7 @@ pub use collections::{
 };
 pub use collector::{Collect, ObsAnyCollector, ObsCollector, ObsSomeCollector};
 pub use dyn_obs::*;
+pub use dyn_observable::*;
 pub use fmt::{obs_display, IntoObsStr, ObsDisplay, ObservableDisplay};
 pub use fold::*;
 pub use functions::*;

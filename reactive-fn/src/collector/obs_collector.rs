@@ -87,10 +87,10 @@ impl<C: Collect> ObsCollectorData<C> {
         value
     }
 }
-impl<C: Collect> DynamicObservableInner for ObsCollectorData<C> {
+impl<C: Collect> DynObservableInner for ObsCollectorData<C> {
     type Item = C::Output;
 
-    fn dyn_with<'a>(self: Rc<Self>, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
+    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
         let value = self.get(oc.bc);
         oc.ret(&value)
     }

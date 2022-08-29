@@ -9,18 +9,18 @@ pub struct DynObs<T: 'static + ?Sized>(DynObsData<T>);
 #[derive_ex(Clone(bound()))]
 enum DynObsData<T: 'static + ?Sized> {
     Static(&'static T),
-    Dyn(Rc<dyn DynamicObservable<Item = T>>),
-    DynInner(Rc<dyn DynamicObservableInner<Item = T>>),
+    Dyn(Rc<dyn DynObservable<Item = T>>),
+    DynInner(Rc<dyn DynObservableInner<Item = T>>),
 }
 
 impl<T: 'static + ?Sized> DynObs<T> {
     pub(crate) fn new_static(value: &'static T) -> Self {
         Self(DynObsData::Static(value))
     }
-    pub(crate) fn new_dyn(rc: Rc<dyn DynamicObservable<Item = T>>) -> Self {
+    pub(crate) fn new_dyn(rc: Rc<dyn DynObservable<Item = T>>) -> Self {
         Self(DynObsData::Dyn(rc))
     }
-    pub(crate) fn new_dyn_inner(rc: Rc<dyn DynamicObservableInner<Item = T>>) -> Self {
+    pub(crate) fn new_dyn_inner(rc: Rc<dyn DynObservableInner<Item = T>>) -> Self {
         Self(DynObsData::DynInner(rc))
     }
 
@@ -284,8 +284,8 @@ impl<T: ?Sized> Observable for DynObs<T> {
             ObsCallback::with(
                 |cb| match &self.0 {
                     DynObsData::Static(value) => cb.ret(value, bc),
-                    DynObsData::Dyn(x) => x.dyn_with(cb.context(bc)),
-                    DynObsData::DynInner(x) => x.clone().dyn_with(cb.context(bc)),
+                    DynObsData::Dyn(x) => x.d_with_dyn(cb.context(bc)),
+                    DynObsData::DynInner(x) => x.clone().d_with_dyn(cb.context(bc)),
                 },
                 f,
             )

@@ -32,7 +32,7 @@ pub trait Observable {
     where
         Self: Sized + 'static,
     {
-        DynObs::new_dyn(Rc::new(DynamicObs(self)))
+        DynObs::new_dyn(Rc::new(self))
     }
     fn into_may(self) -> MayObs<Self::Item>
     where
@@ -40,40 +40,6 @@ pub trait Observable {
         Self::Item: Sized,
     {
         MayObs::Obs(self.into_dyn())
-    }
-}
-
-pub trait DynObservable {
-    type Item: ?Sized;
-
-    fn d_with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a>;
-    fn d_get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
-    where
-        Self::Item: ToOwned;
-}
-impl<S: Observable> DynObservable for S {
-    type Item = S::Item;
-
-    fn d_with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
-        self.with_dyn(o)
-    }
-
-    fn d_get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
-    where
-        Self::Item: ToOwned,
-    {
-        self.get(bc)
-    }
-}
-impl<T: ?Sized> Observable for &dyn DynObservable<Item = T> {
-    type Item = T;
-
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
-        ObsCallback::with(|cb| self.d_with_dyn(cb.context(bc)), f)
     }
 }
 

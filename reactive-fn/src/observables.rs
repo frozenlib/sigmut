@@ -101,7 +101,7 @@ where
     if TypeId::of::<Outer::Item>() == TypeId::of::<Inner>() {
         (*<dyn Any>::downcast_ref::<DynObs<Outer::Item>>(&f(s).into_dyn()).unwrap()).clone()
     } else {
-        DynObs::new_dyn(Rc::new(DynamicObs(s)))
+        DynObs::new_dyn(Rc::new(s))
     }
 }
 

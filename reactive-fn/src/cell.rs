@@ -119,10 +119,10 @@ impl<T: 'static> Observable for ObsCell<T> {
     }
 }
 
-impl<T: 'static> DynamicObservableInner for ObsCellData<T> {
+impl<T: 'static> DynObservableInner for ObsCellData<T> {
     type Item = T;
 
-    fn dyn_with<'a>(self: Rc<Self>, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
+    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
         let value = self.borrow(oc.bc);
         oc.ret(&value)
     }
