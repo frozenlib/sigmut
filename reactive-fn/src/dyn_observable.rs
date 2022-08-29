@@ -37,7 +37,7 @@ impl<S: Observable> DynObservable for S {
         self.get(bc)
     }
 }
-impl<T: ?Sized> Observable for &dyn DynObservable<Item = T> {
+impl<T: ?Sized> Observable for dyn DynObservable<Item = T> {
     type Item = T;
 
     fn with<U>(
