@@ -59,7 +59,7 @@ impl<T: ?Sized> Callback<'_, T> {
     }
 }
 
-/// Type to ensure that [`ObsCallback`] is consumed.
+/// Type to ensure that [`Callback`] or [`ObsCallback`] was consumed.
 pub struct Ret<'a>(PhantomData<std::cell::Cell<&'a ()>>);
 
 impl<'a> Ret<'a> {
