@@ -94,6 +94,14 @@ impl<C: Collect> DynObservableInner for ObsCollectorData<C> {
         let value = self.get(oc.bc);
         oc.ret(&value)
     }
+
+    #[allow(clippy::redundant_clone)]
+    fn d_get(self: Rc<Self>, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    where
+        Self::Item: ToOwned,
+    {
+        self.get(bc).to_owned()
+    }
 }
 impl<C: 'static> BindSource for ObsCollectorData<C> {
     fn sinks(&self) -> &BindSinks {
