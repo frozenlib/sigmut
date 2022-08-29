@@ -65,6 +65,17 @@ impl<S: Observable> DynObservable for S {
         self.get(bc)
     }
 }
+impl<T: ?Sized> Observable for &dyn DynObservable<Item = T> {
+    type Item = T;
+
+    fn with<U>(
+        &self,
+        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+        bc: &mut BindContext,
+    ) -> U {
+        ObsCallback::with(|cb| self.d_with_dyn(cb.context(bc)), f)
+    }
+}
 
 impl<S: Observable + 'static> Observable for Rc<S> {
     type Item = S::Item;
