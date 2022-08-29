@@ -34,9 +34,12 @@ impl<T: ?Sized> ObsCallback<'_, T> {
         f0: impl for<'a> FnOnce(ObsCallback<'a, T>) -> Ret<'a>,
         f1: impl FnOnce(&T, &mut BindContext) -> R,
     ) -> R {
-        let mut b = ObsCallbackBuilder::new(f1);
-        f0(b.build());
-        b.result()
+        let mut b = ObsCallbackBuilder {
+            state: State::FnOnce(f1),
+            _phantom: PhantomData,
+        };
+        f0(ObsCallback(&mut b));
+        b.state.into_result()
     }
 }
 
@@ -53,9 +56,12 @@ impl<T: ?Sized> Callback<'_, T> {
         f0: impl for<'a> FnOnce(Callback<'a, T>) -> Ret<'a>,
         f1: impl FnOnce(&T) -> R,
     ) -> R {
-        let mut b = CallbackBuilder::new(f1);
-        f0(b.build());
-        b.result()
+        let mut b = CallbackBuilder {
+            state: State::FnOnce(f1),
+            _phantom: PhantomData,
+        };
+        f0(Callback(&mut b));
+        b.state.into_result()
     }
 }
 
@@ -94,25 +100,6 @@ struct ObsCallbackBuilder<F, T: ?Sized, R> {
     state: State<F, R>,
     _phantom: PhantomData<fn(&T)>,
 }
-
-impl<F, T, R> ObsCallbackBuilder<F, T, R>
-where
-    T: ?Sized,
-    F: FnOnce(&T, &mut BindContext) -> R,
-{
-    pub fn new(f: F) -> Self {
-        Self {
-            state: State::FnOnce(f),
-            _phantom: PhantomData,
-        }
-    }
-    pub fn build(&mut self) -> ObsCallback<T> {
-        ObsCallback(self)
-    }
-    pub fn result(self) -> R {
-        self.state.into_result()
-    }
-}
 trait RawObsCallback<T: ?Sized> {
     fn ret(&mut self, value: &T, bc: &mut BindContext);
 }
@@ -129,25 +116,6 @@ where
 struct CallbackBuilder<F, T: ?Sized, R> {
     state: State<F, R>,
     _phantom: PhantomData<fn(&T)>,
-}
-
-impl<F, T, R> CallbackBuilder<F, T, R>
-where
-    T: ?Sized,
-    F: FnOnce(&T) -> R,
-{
-    pub fn new(f: F) -> Self {
-        Self {
-            state: State::FnOnce(f),
-            _phantom: PhantomData,
-        }
-    }
-    pub fn build(&mut self) -> Callback<T> {
-        Callback(self)
-    }
-    pub fn result(self) -> R {
-        self.state.into_result()
-    }
 }
 trait RawCallback<T: ?Sized> {
     fn ret(&mut self, value: &T);
