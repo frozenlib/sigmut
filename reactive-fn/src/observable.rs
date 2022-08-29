@@ -43,6 +43,29 @@ pub trait Observable {
     }
 }
 
+pub trait DynObservable {
+    type Item: ?Sized;
+
+    fn d_with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a>;
+    fn d_get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    where
+        Self::Item: ToOwned;
+}
+impl<S: Observable> DynObservable for S {
+    type Item = S::Item;
+
+    fn d_with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
+        self.with_dyn(o)
+    }
+
+    fn d_get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    where
+        Self::Item: ToOwned,
+    {
+        self.get(bc)
+    }
+}
+
 impl<S: Observable + 'static> Observable for Rc<S> {
     type Item = S::Item;
 
