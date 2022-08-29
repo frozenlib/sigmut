@@ -281,16 +281,27 @@ impl<T: ?Sized> Observable for DynObs<T> {
         if let DynObsData::Static(x) = &self.0 {
             f(x, bc)
         } else {
-            ObsCallback::with(
-                |cb| match &self.0 {
-                    DynObsData::Static(value) => cb.ret(value, bc),
-                    DynObsData::Dyn(x) => x.d_with_dyn(cb.context(bc)),
-                    DynObsData::DynInner(x) => x.clone().d_with_dyn(cb.context(bc)),
-                },
-                f,
-            )
+            ObsCallback::with(|cb| self.with_dyn(cb.context(bc)), f)
         }
     }
+    fn with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> ObsRet<'a> {
+        match &self.0 {
+            DynObsData::Static(value) => o.ret(value),
+            DynObsData::Dyn(x) => x.d_with_dyn(o),
+            DynObsData::DynInner(x) => x.clone().d_with_dyn(o),
+        }
+    }
+    fn get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    where
+        Self::Item: ToOwned,
+    {
+        match &self.0 {
+            DynObsData::Static(value) => <Self::Item as ToOwned>::to_owned(value),
+            DynObsData::Dyn(x) => x.d_get(bc),
+            DynObsData::DynInner(x) => x.clone().d_get(bc),
+        }
+    }
+
     fn into_dyn(self) -> DynObs<Self::Item> {
         self
     }
