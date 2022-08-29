@@ -34,9 +34,9 @@ impl<T: ?Sized> ObsCallback<'_, T> {
         f0: impl for<'a> FnOnce(ObsCallback<'a, T>) -> Ret<'a>,
         f1: impl FnOnce(&T, &mut BindContext) -> R,
     ) -> R {
-        let mut b = Builder::new(f1);
-        f0(ObsCallback(&mut b));
-        b.state.into_result()
+        let mut s = State::new(f1);
+        f0(ObsCallback(&mut s));
+        s.into_result()
     }
 }
 
@@ -53,9 +53,9 @@ impl<T: ?Sized> Callback<'_, T> {
         f0: impl for<'a> FnOnce(Callback<'a, T>) -> Ret<'a>,
         f1: impl FnOnce(&T) -> R,
     ) -> R {
-        let mut b = Builder::new(f1);
-        f0(Callback(&mut b));
-        b.state.into_result()
+        let mut s = State::new(f1);
+        f0(Callback(&mut s));
+        s.into_result()
     }
 }
 
@@ -74,6 +74,9 @@ enum State<F, R> {
     None,
 }
 impl<F, R> State<F, R> {
+    fn new(f: F) -> Self {
+        Self::FnOnce(f)
+    }
     fn apply(&mut self, f: impl FnOnce(F) -> R) {
         if let Self::FnOnce(f0) = mem::replace(self, State::None) {
             *self = Self::Result(f(f0));
@@ -90,41 +93,28 @@ impl<F, R> State<F, R> {
     }
 }
 
-struct Builder<F, T: ?Sized, R> {
-    state: State<F, R>,
-    _phantom: PhantomData<fn(&T)>,
-}
-
-impl<F, T: ?Sized, R> Builder<F, T, R> {
-    fn new(f: F) -> Self {
-        Self {
-            state: State::FnOnce(f),
-            _phantom: PhantomData,
-        }
-    }
-}
 trait RawObsCallback<T: ?Sized> {
     fn ret(&mut self, value: &T, bc: &mut BindContext);
 }
-impl<F, T, R> RawObsCallback<T> for Builder<F, T, R>
+impl<F, T, R> RawObsCallback<T> for State<F, R>
 where
     T: ?Sized,
     F: FnOnce(&T, &mut BindContext) -> R,
 {
     fn ret(&mut self, value: &T, bc: &mut BindContext) {
-        self.state.apply(|f| f(value, bc))
+        self.apply(|f| f(value, bc))
     }
 }
 
 trait RawCallback<T: ?Sized> {
     fn ret(&mut self, value: &T);
 }
-impl<F, T, R> RawCallback<T> for Builder<F, T, R>
+impl<F, T, R> RawCallback<T> for State<F, R>
 where
     T: ?Sized,
     F: FnOnce(&T) -> R,
 {
     fn ret(&mut self, value: &T) {
-        self.state.apply(|f| f(value))
+        self.apply(|f| f(value))
     }
 }
