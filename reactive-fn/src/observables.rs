@@ -141,92 +141,92 @@ impl<T: ?Sized> Observable for StaticObservable<T> {
     }
 }
 
-pub struct OptionObservable<S>(Option<S>);
+// pub struct OptionObservable<S>(Option<S>);
 
-impl<S> OptionObservable<S>
-where
-    S: Observable,
-    S::Item: ToOwned,
-{
-    pub(crate) fn new(source: Option<S>) -> Self {
-        Self(source)
-    }
-}
+// impl<S> OptionObservable<S>
+// where
+//     S: Observable,
+//     S::Item: ToOwned,
+// {
+//     pub(crate) fn new(source: Option<S>) -> Self {
+//         Self(source)
+//     }
+// }
 
-impl<S> Observable for OptionObservable<S>
-where
-    S: Observable + 'static,
-    S::Item: ToOwned,
-{
-    type Item = Option<<S::Item as ToOwned>::Owned>;
+// impl<S> Observable for OptionObservable<S>
+// where
+//     S: Observable + 'static,
+//     S::Item: ToOwned,
+// {
+//     type Item = Option<<S::Item as ToOwned>::Owned>;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
-        if let Some(s) = &self.0 {
-            s.with(|value, bc| f(&Some(value.to_owned()), bc), bc)
-        } else {
-            f(&None, bc)
-        }
-    }
-    fn into_dyn(self) -> DynObs<Self::Item>
-    where
-        Self: Sized,
-    {
-        if let Some(s) = self.0 {
-            Obs(s).map(|value| Some(value.to_owned())).into_dyn()
-        } else {
-            DynObs::new_static(&None)
-        }
-    }
-}
+//     fn with<U>(
+//         &self,
+//         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+//         bc: &mut BindContext,
+//     ) -> U {
+//         if let Some(s) = &self.0 {
+//             s.with(|value, bc| f(&Some(value.to_owned()), bc), bc)
+//         } else {
+//             f(&None, bc)
+//         }
+//     }
+//     fn into_dyn(self) -> DynObs<Self::Item>
+//     where
+//         Self: Sized,
+//     {
+//         if let Some(s) = self.0 {
+//             Obs(s).map(|value| Some(value.to_owned())).into_dyn()
+//         } else {
+//             DynObs::new_static(&None)
+//         }
+//     }
+// }
 
-pub struct ResultObservable<S, E>(Result<S, Result<<S::Item as ToOwned>::Owned, E>>)
-where
-    S: Observable,
-    S::Item: ToOwned;
+// pub struct ResultObservable<S, E>(Result<S, Result<<S::Item as ToOwned>::Owned, E>>)
+// where
+//     S: Observable,
+//     S::Item: ToOwned;
 
-impl<S, E> ResultObservable<S, E>
-where
-    S: Observable,
-    S::Item: ToOwned,
-    E: 'static,
-{
-    pub(crate) fn new(result: Result<S, E>) -> Self {
-        Self(match result {
-            Ok(s) => Ok(s),
-            Err(e) => Err(Err(e)),
-        })
-    }
-}
+// impl<S, E> ResultObservable<S, E>
+// where
+//     S: Observable,
+//     S::Item: ToOwned,
+//     E: 'static,
+// {
+//     pub(crate) fn new(result: Result<S, E>) -> Self {
+//         Self(match result {
+//             Ok(s) => Ok(s),
+//             Err(e) => Err(Err(e)),
+//         })
+//     }
+// }
 
-impl<S, E> Observable for ResultObservable<S, E>
-where
-    S: Observable + 'static,
-    S::Item: ToOwned,
-    E: 'static,
-{
-    type Item = Result<<S::Item as ToOwned>::Owned, E>;
+// impl<S, E> Observable for ResultObservable<S, E>
+// where
+//     S: Observable + 'static,
+//     S::Item: ToOwned,
+//     E: 'static,
+// {
+//     type Item = Result<<S::Item as ToOwned>::Owned, E>;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
-        match &self.0 {
-            Ok(s) => s.with(|value, bc| f(&Ok(value.to_owned()), bc), bc),
-            Err(e) => f(e, bc),
-        }
-    }
-    fn into_dyn(self) -> DynObs<Self::Item>
-    where
-        Self: Sized,
-    {
-        match self.0 {
-            Ok(s) => Obs(s).map(|value| Ok(value.to_owned())).into_dyn(),
-            Err(e) => obs_constant(e).into_dyn(),
-        }
-    }
-}
+//     fn with<U>(
+//         &self,
+//         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
+//         bc: &mut BindContext,
+//     ) -> U {
+//         match &self.0 {
+//             Ok(s) => s.with(|value, bc| f(&Ok(value.to_owned()), bc), bc),
+//             Err(e) => f(e, bc),
+//         }
+//     }
+//     fn into_dyn(self) -> DynObs<Self::Item>
+//     where
+//         Self: Sized,
+//     {
+//         match self.0 {
+//             Ok(s) => Obs(s).map(|value| Ok(value.to_owned())).into_dyn(),
+//             Err(e) => obs_constant(e).into_dyn(),
+//         }
+//     }
+// }
