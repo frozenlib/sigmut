@@ -41,7 +41,7 @@ impl<T: ?Sized> ObsCallback<'_, T> {
 }
 
 /// Type to ensure that [`ObsCallback`] is consumed.
-pub struct ObsRet<'a>(PhantomData<&'a mut ()>);
+pub struct ObsRet<'a>(PhantomData<std::cell::Cell<&'a ()>>);
 
 impl<'a> ObsRet<'a> {
     fn new() -> Self {
