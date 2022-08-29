@@ -15,6 +15,9 @@ impl<'a, 'b, 'bc, T: ?Sized> ObsContext<'a, 'b, 'bc, T> {
     }
 }
 
+/// Something like trait object of `FnOnce(&T, &mut BindContext)`.
+///
+/// Unlike `Box<dyn FnOnce(&T, &mut BindContext)>`, no heap allocation.
 pub struct ObsCallback<'a, T: ?Sized>(&'a mut dyn RawObsCallback<T>);
 
 impl<'a, T: ?Sized> ObsCallback<'a, T> {
@@ -40,6 +43,9 @@ impl<T: ?Sized> ObsCallback<'_, T> {
     }
 }
 
+/// Something like trait object of `FnOnce(&T)`.
+///
+/// Unlike `Box<dyn FnOnce(&T)>`, no heap allocation.
 pub struct Callback<'a, T: ?Sized>(&'a mut dyn RawCallback<T>);
 
 impl<'a, T: ?Sized> Callback<'a, T> {
@@ -59,7 +65,7 @@ impl<T: ?Sized> Callback<'_, T> {
     }
 }
 
-/// Type to ensure that [`Callback`] or [`ObsCallback`] was consumed.
+/// Value that guarantees that the value identified by `'a` has been consumed.
 pub struct Ret<'a>(PhantomData<std::cell::Cell<&'a ()>>);
 
 impl<'a> Ret<'a> {
