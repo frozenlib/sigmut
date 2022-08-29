@@ -34,10 +34,7 @@ impl<T: ?Sized> ObsCallback<'_, T> {
         f0: impl for<'a> FnOnce(ObsCallback<'a, T>) -> Ret<'a>,
         f1: impl FnOnce(&T, &mut BindContext) -> R,
     ) -> R {
-        let mut b = ObsCallbackBuilder {
-            state: State::FnOnce(f1),
-            _phantom: PhantomData,
-        };
+        let mut b = Builder::new(f1);
         f0(ObsCallback(&mut b));
         b.state.into_result()
     }
@@ -56,10 +53,7 @@ impl<T: ?Sized> Callback<'_, T> {
         f0: impl for<'a> FnOnce(Callback<'a, T>) -> Ret<'a>,
         f1: impl FnOnce(&T) -> R,
     ) -> R {
-        let mut b = CallbackBuilder {
-            state: State::FnOnce(f1),
-            _phantom: PhantomData,
-        };
+        let mut b = Builder::new(f1);
         f0(Callback(&mut b));
         b.state.into_result()
     }
@@ -96,14 +90,23 @@ impl<F, R> State<F, R> {
     }
 }
 
-struct ObsCallbackBuilder<F, T: ?Sized, R> {
+struct Builder<F, T: ?Sized, R> {
     state: State<F, R>,
     _phantom: PhantomData<fn(&T)>,
+}
+
+impl<F, T: ?Sized, R> Builder<F, T, R> {
+    fn new(f: F) -> Self {
+        Self {
+            state: State::FnOnce(f),
+            _phantom: PhantomData,
+        }
+    }
 }
 trait RawObsCallback<T: ?Sized> {
     fn ret(&mut self, value: &T, bc: &mut BindContext);
 }
-impl<F, T, R> RawObsCallback<T> for ObsCallbackBuilder<F, T, R>
+impl<F, T, R> RawObsCallback<T> for Builder<F, T, R>
 where
     T: ?Sized,
     F: FnOnce(&T, &mut BindContext) -> R,
@@ -113,14 +116,10 @@ where
     }
 }
 
-struct CallbackBuilder<F, T: ?Sized, R> {
-    state: State<F, R>,
-    _phantom: PhantomData<fn(&T)>,
-}
 trait RawCallback<T: ?Sized> {
     fn ret(&mut self, value: &T);
 }
-impl<F, T, R> RawCallback<T> for CallbackBuilder<F, T, R>
+impl<F, T, R> RawCallback<T> for Builder<F, T, R>
 where
     T: ?Sized,
     F: FnOnce(&T) -> R,
