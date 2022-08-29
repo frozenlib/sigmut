@@ -257,7 +257,7 @@ macro_rules! bind_impl {
 }
 
 pub trait IntoObsStr {
-    type Observable: Observable<Item = str>;
+    type Observable: Observable<Item = str> + 'static;
     fn into_obs_str(self) -> Obs<Self::Observable>;
 }
 
