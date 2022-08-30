@@ -34,11 +34,11 @@ impl<'a, T: ?Sized> ObsCallback<'a, T> {
 }
 impl<T: ?Sized> ObsCallback<'_, T> {
     pub fn with<R>(
-        f0: impl for<'a> FnOnce(ObsCallback<'a, T>) -> Ret<'a>,
-        f1: impl FnOnce(&T, &mut BindContext) -> R,
+        get: impl for<'a> FnOnce(ObsCallback<'a, T>) -> Ret<'a>,
+        f: impl FnOnce(&T, &mut BindContext) -> R,
     ) -> R {
-        let mut s = State::new(f1);
-        f0(ObsCallback(&mut s));
+        let mut s = State::new(f);
+        get(ObsCallback(&mut s));
         s.into_result()
     }
 }
@@ -56,11 +56,11 @@ impl<'a, T: ?Sized> Callback<'a, T> {
 }
 impl<T: ?Sized> Callback<'_, T> {
     pub fn with<R>(
-        f0: impl for<'a> FnOnce(Callback<'a, T>) -> Ret<'a>,
-        f1: impl FnOnce(&T) -> R,
+        get: impl for<'a> FnOnce(Callback<'a, T>) -> Ret<'a>,
+        f: impl FnOnce(&T) -> R,
     ) -> R {
-        let mut s = State::new(f1);
-        f0(Callback(&mut s));
+        let mut s = State::new(f);
+        get(Callback(&mut s));
         s.into_result()
     }
 }
