@@ -2,8 +2,8 @@
 
 extern crate test;
 
+use reactive_fn::exports::rt_local_core::{self, wait_for_idle};
 use reactive_fn::*;
-use reactive_fn::exports::rt_local_core::wait_for_idle;
 use std::future::Future;
 use test::black_box;
 
@@ -12,7 +12,7 @@ const SUBSCRIPTIONS: usize = 10000;
 const SOURCES: usize = 10000;
 
 fn iter_async<Fut: Future>(b: &mut test::Bencher, mut f: impl FnMut() -> Fut) {
-    b.iter(|| rt_local::runtime::core::run(f()));
+    b.iter(|| rt_local_core::runtime::core::run(f()));
 }
 
 #[bench]
