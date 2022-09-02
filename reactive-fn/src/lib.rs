@@ -54,3 +54,7 @@ pub use scan::*;
 pub use sink::*;
 pub use subscriber::*;
 pub use tail::*;
+
+pub mod exports {
+    pub use rt_local_core;
+}
