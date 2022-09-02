@@ -50,7 +50,6 @@ pub use obs_callback::*;
 pub use observable::*;
 pub use observables::ConstantObservable;
 pub use observer::*;
-pub use rt_local_core as rt_local;
 pub use scan::*;
 pub use sink::*;
 pub use subscriber::*;

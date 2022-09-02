@@ -178,24 +178,20 @@ pub fn obs<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> Obs<impl Observabl
     Obs(ObsFn(f))
 }
 
-pub fn obs_with<S, T>(
-    this: S,
-    f: impl for<'a> Fn(&S, ObsContext<'a, '_, '_, T>) -> Ret<'a> + 'static,
+pub fn obs_with<T>(
+    f: impl for<'a> Fn(ObsContext<'a, '_, '_, T>) -> Ret<'a>,
 ) -> Obs<impl Observable<Item = T>>
 where
-    S: 'static,
-    T: ?Sized + 'static,
+    T: ?Sized,
 {
-    struct ObsWithFn<S, T: ?Sized, F> {
-        this: S,
+    struct ObsWithFn<T: ?Sized, F> {
         f: F,
         _phantom: PhantomData<fn(&Self) -> &T>,
     }
-    impl<S, T, F> Observable for ObsWithFn<S, T, F>
+    impl<T, F> Observable for ObsWithFn<T, F>
     where
-        S: 'static,
-        T: 'static + ?Sized,
-        F: for<'a> Fn(&S, ObsContext<'a, '_, '_, T>) -> Ret<'a> + 'static,
+        T: ?Sized,
+        F: for<'a> Fn(ObsContext<'a, '_, '_, T>) -> Ret<'a>,
     {
         type Item = T;
 
@@ -208,19 +204,18 @@ where
             ObsCallback::with(|cb| self.with_dyn(cb.context(bc)), f)
         }
         fn with_dyn<'a>(&self, oc: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a> {
-            (self.f)(&self.this, oc)
+            (self.f)(oc)
         }
 
         #[inline]
         fn into_dyn(self) -> DynObs<Self::Item>
         where
-            Self: Sized,
+            Self: Sized + 'static,
         {
             DynObs::new_dyn(Rc::new(self))
         }
     }
     Obs(ObsWithFn {
-        this,
         f,
         _phantom: PhantomData,
     })
