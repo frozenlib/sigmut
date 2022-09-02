@@ -2,7 +2,8 @@
 
 extern crate test;
 
-use reactive_fn::{rt_local::wait_for_idle, *};
+use reactive_fn::*;
+use reactive_fn::exports::rt_local_core::wait_for_idle;
 use std::future::Future;
 use test::black_box;
 
