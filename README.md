@@ -6,7 +6,7 @@
 
 Reactive programming framework for data binding.
 
-Warning: This library is at a very early stage of development.
+Warning: This library is still in the very early stages of development. APIs will change. Documentation is sparse.
 
 ## Example
 
