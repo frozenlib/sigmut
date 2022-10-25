@@ -53,7 +53,7 @@ where
             if let Ok(a) = r.try_recv() {
                 a
             } else {
-                panic!("value {:?} : timeout.", value);
+                panic!("value {value:?} : timeout.");
             }
         };
         assert_eq!(a, value);

@@ -131,6 +131,30 @@
         "panel": "dedicated",
         "clear": true
       }
-    }
+    },
+    {
+      "type": "shell",
+      "label": "cargo clippy nightly",
+      "command": "cargo",
+      "args": [
+        "+nightly",
+        "clippy",
+        "--target-dir",
+        "target/debug-nightly",
+        "--all-features",
+        "--tests",
+        "--lib",
+        "--",
+        "-W",
+        "clippy::all"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
   ]
 }
