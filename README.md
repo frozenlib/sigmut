@@ -46,6 +46,15 @@ TODO
 | `ToTask`       | `stream`                            |
 | `ToObservable` | `obs_from_async`, `obs_from_stream` |
 
+## Cheat sheet for Flutter users
+
+| Flutter           | reactive-fn                  |
+| ----------------- | ---------------------------- |
+| `ValueNotifier`   | `ObsCell`                    |
+| `ValueListenable` | `Observable`,`Obs`, `DynObs` |
+| `ChangeNotifier`  | `BindSinks`                  |
+| `Listenable`      | `BindSource`                 |
+
 ## License
 
 This project is dual licensed under Apache-2.0/MIT. See the two LICENSE-\* files for details.
