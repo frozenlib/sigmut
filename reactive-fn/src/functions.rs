@@ -179,7 +179,7 @@ pub fn obs<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> ImplObs<impl Obser
 }
 
 pub fn obs_with<T>(
-    f: impl for<'a> Fn(ObsContext<'a, '_, '_, T>) -> Ret<'a>,
+    f: impl for<'a> Fn(ObsSink<'a, '_, '_, T>) -> Ret<'a>,
 ) -> ImplObs<impl Observable<Item = T>>
 where
     T: ?Sized,
@@ -191,7 +191,7 @@ where
     impl<T, F> Observable for ObsWithFn<T, F>
     where
         T: ?Sized,
-        F: for<'a> Fn(ObsContext<'a, '_, '_, T>) -> Ret<'a>,
+        F: for<'a> Fn(ObsSink<'a, '_, '_, T>) -> Ret<'a>,
     {
         type Item = T;
 
@@ -203,7 +203,7 @@ where
         ) -> U {
             ObsCallback::with(|cb| self.with_dyn(cb.context(bc)), f)
         }
-        fn with_dyn<'a>(&self, oc: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a> {
+        fn with_dyn<'a>(&self, oc: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a> {
             (self.f)(oc)
         }
 

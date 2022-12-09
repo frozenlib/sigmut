@@ -1,12 +1,12 @@
 use super::*;
 use std::{marker::PhantomData, mem};
 
-pub struct ObsContext<'a, 'b, 'bc, T: ?Sized> {
+pub struct ObsSink<'a, 'b, 'bc, T: ?Sized> {
     pub cb: ObsCallback<'a, T>,
     pub bc: &'b mut BindContext<'bc>,
 }
 
-impl<'a, 'b, 'bc, T: ?Sized> ObsContext<'a, 'b, 'bc, T> {
+impl<'a, 'b, 'bc, T: ?Sized> ObsSink<'a, 'b, 'bc, T> {
     pub fn ret(self, value: &T) -> Ret<'a> {
         self.cb.ret(value, self.bc)
     }
@@ -28,8 +28,8 @@ impl<'a, T: ?Sized> ObsCallback<'a, T> {
     pub fn ret_flat(self, o: &impl Observable<Item = T>, bc: &mut BindContext) -> Ret<'a> {
         o.with(|value, bc| self.ret(value, bc), bc)
     }
-    pub fn context<'b, 'bc>(self, bc: &'b mut BindContext<'bc>) -> ObsContext<'a, 'b, 'bc, T> {
-        ObsContext { cb: self, bc }
+    pub fn context<'b, 'bc>(self, bc: &'b mut BindContext<'bc>) -> ObsSink<'a, 'b, 'bc, T> {
+        ObsSink { cb: self, bc }
     }
 }
 impl<T: ?Sized> ObsCallback<'_, T> {

@@ -284,7 +284,7 @@ impl<T: ?Sized> Observable for DynObs<T> {
             ObsCallback::with(|cb| self.with_dyn(cb.context(bc)), f)
         }
     }
-    fn with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a> {
+    fn with_dyn<'a>(&self, o: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a> {
         match &self.0 {
             DynObsData::Static(value) => o.ret(value),
             DynObsData::Dyn(x) => x.d_with_dyn(o),

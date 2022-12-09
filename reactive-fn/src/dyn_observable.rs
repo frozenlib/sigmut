@@ -4,7 +4,7 @@ use std::rc::Rc;
 pub trait DynObservable {
     type Item: ?Sized;
 
-    fn d_with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a>;
+    fn d_with_dyn<'a>(&self, o: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a>;
     fn d_get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned;
@@ -26,7 +26,7 @@ pub trait DynObservable {
 impl<S: Observable> DynObservable for S {
     type Item = S::Item;
 
-    fn d_with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a> {
+    fn d_with_dyn<'a>(&self, o: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a> {
         self.with_dyn(o)
     }
 
@@ -63,7 +63,7 @@ impl<T: ?Sized> Observable for dyn DynObservable<Item = T> {
         ObsCallback::with(|cb| self.d_with_dyn(cb.context(bc)), f)
     }
 
-    fn with_dyn<'a>(&self, o: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a> {
+    fn with_dyn<'a>(&self, o: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a> {
         self.d_with_dyn(o)
     }
 
@@ -77,7 +77,7 @@ impl<T: ?Sized> Observable for dyn DynObservable<Item = T> {
 
 pub(super) trait DynObservableInner: 'static {
     type Item: ?Sized;
-    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a>;
+    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a>;
     fn d_get(self: Rc<Self>, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
@@ -96,7 +96,7 @@ where
 {
     type Item = <Rc<S> as Observable>::Item;
 
-    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a> {
+    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a> {
         self.with_dyn(oc)
     }
 

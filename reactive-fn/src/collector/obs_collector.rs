@@ -90,7 +90,7 @@ impl<C: Collect> ObsCollectorData<C> {
 impl<C: Collect> DynObservableInner for ObsCollectorData<C> {
     type Item = C::Output;
 
-    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsContext<'a, '_, '_, Self::Item>) -> Ret<'a> {
+    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a> {
         let value = self.get(oc.bc);
         oc.ret(&value)
     }
