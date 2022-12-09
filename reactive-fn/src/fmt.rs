@@ -94,7 +94,7 @@ macro_rules! format_trait {
                 self.with(|value, bc| value.obs_fmt(f, bc), bc)
             }
         }
-        impl<T: $ot> $ot for DynObs<T> {
+        impl<T: $ot> $ot for Obs<T> {
             fn obs_fmt(&self, f: &mut Formatter, bc: &mut ObsContext) -> Result {
                 self.with(|value, bc| value.obs_fmt(f, bc), bc)
             }
@@ -279,7 +279,7 @@ impl<T: ObservableDisplay> ObservableDisplay for ObsDisplay<T> {
     }
 }
 impl<T: ObservableDisplay + 'static> IntoObsStr for ObsDisplay<T> {
-    type Observable = DynObs<str>;
+    type Observable = Obs<str>;
     fn into_obs_str(self) -> ImplObs<Self::Observable> {
         ImplObs(self.obs().into_dyn())
     }
@@ -299,19 +299,19 @@ where
     S: Observable + 'static,
     S::Item: ObservableDisplay,
 {
-    type Observable = DynObs<str>;
+    type Observable = Obs<str>;
     fn into_obs_str(self) -> ImplObs<Self::Observable> {
         self.into_obs_display().into_obs_str()
     }
 }
 
-impl<T: ?Sized + ObservableDisplay> ObservableDisplay for DynObs<T> {
+impl<T: ?Sized + ObservableDisplay> ObservableDisplay for Obs<T> {
     fn obs_fmt(&self, f: &mut Formatter, bc: &mut ObsContext) -> Result {
         self.with(|value, bc| value.obs_fmt(f, bc), bc)
     }
 }
-impl<T: ?Sized + ObservableDisplay> IntoObsStr for DynObs<T> {
-    type Observable = DynObs<str>;
+impl<T: ?Sized + ObservableDisplay> IntoObsStr for Obs<T> {
+    type Observable = Obs<str>;
     fn into_obs_str(self) -> ImplObs<Self::Observable> {
         self.into_obs_display().into_obs_str()
     }
@@ -323,7 +323,7 @@ impl<T: ObservableDisplay + 'static> ObservableDisplay for ObsCell<T> {
     }
 }
 impl<T: ObservableDisplay + 'static> IntoObsStr for ObsCell<T> {
-    type Observable = DynObs<str>;
+    type Observable = Obs<str>;
     fn into_obs_str(self) -> ImplObs<Self::Observable> {
         self.into_obs_display().into_obs_str()
     }

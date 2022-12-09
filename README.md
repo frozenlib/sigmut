@@ -14,12 +14,12 @@ TODO
 
 ## Cheat sheet for Rx users
 
-| Rx                | reactive-fn            |
-| ----------------- | ---------------------- |
-| `Obsrevable`      | `Obs`                  |
-| `IObsrevable`     | `Obsrevable`, `DynObs` |
-| `IObserver`       | `Observer`, `FnMut`    |
-| `BehaviorSubject` | `ObsCell`              |
+| Rx                | reactive-fn         |
+| ----------------- | ------------------- |
+| `Obsrevable`      | `Obs`               |
+| `IObsrevable`     | `Obsrevable`, `Obs` |
+| `IObserver`       | `Observer`, `FnMut` |
+| `BehaviorSubject` | `ObsCell`           |
 
 ### `System.Reactive.Linq.Obsrevable` methods
 
@@ -48,12 +48,12 @@ TODO
 
 ## Cheat sheet for Flutter users
 
-| Flutter           | reactive-fn                  |
-| ----------------- | ---------------------------- |
-| `ValueNotifier`   | `ObsCell`                    |
-| `ValueListenable` | `Observable`,`Obs`, `DynObs` |
-| `ChangeNotifier`  | `BindSinks`                  |
-| `Listenable`      | `BindSource`                 |
+| Flutter           | reactive-fn               |
+| ----------------- | ------------------------- |
+| `ValueNotifier`   | `ObsCell`                 |
+| `ValueListenable` | `Observable`,`Obs`, `Obs` |
+| `ChangeNotifier`  | `BindSinks`               |
+| `Listenable`      | `BindSource`              |
 
 ## License
 

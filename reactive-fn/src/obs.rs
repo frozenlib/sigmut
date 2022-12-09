@@ -10,7 +10,7 @@ use std::{borrow::Borrow, iter::once, task::Poll};
 pub struct ImplObs<S>(pub(crate) S);
 
 impl<S: Observable + 'static> ImplObs<S> {
-    pub fn into_dyn(self) -> DynObs<S::Item> {
+    pub fn into_dyn(self) -> Obs<S::Item> {
         self.0.into_dyn()
     }
 
@@ -362,7 +362,7 @@ impl<S: Observable + 'static> Observable for ImplObs<S> {
         self.0.with(f, bc)
     }
 
-    fn into_dyn(self) -> DynObs<Self::Item> {
+    fn into_dyn(self) -> Obs<Self::Item> {
         self.0.into_dyn()
     }
 }

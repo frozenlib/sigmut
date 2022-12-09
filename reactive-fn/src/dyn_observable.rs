@@ -9,11 +9,11 @@ pub trait DynObservable {
     where
         Self::Item: ToOwned;
 
-    fn d_into_dyn(self) -> DynObs<Self::Item>
+    fn d_into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized + 'static,
     {
-        DynObs::new_dyn(Rc::new(self))
+        Obs::new_dyn(Rc::new(self))
     }
     fn d_into_may(self) -> MayObs<Self::Item>
     where
@@ -37,7 +37,7 @@ impl<S: Observable> DynObservable for S {
         self.get(bc)
     }
 
-    fn d_into_dyn(self) -> DynObs<Self::Item>
+    fn d_into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized + 'static,
     {

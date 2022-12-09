@@ -4,7 +4,7 @@ use futures_core::{Future, Stream};
 use std::{any::Any, borrow::Borrow, rc::Rc, task::Poll};
 
 #[derive_ex(Clone(bound()))]
-pub struct DynObs<T: 'static + ?Sized>(DynObsData<T>);
+pub struct Obs<T: 'static + ?Sized>(DynObsData<T>);
 
 #[derive_ex(Clone(bound()))]
 enum DynObsData<T: 'static + ?Sized> {
@@ -13,7 +13,7 @@ enum DynObsData<T: 'static + ?Sized> {
     DynInner(Rc<dyn DynObservableInner<Item = T>>),
 }
 
-impl<T: 'static + ?Sized> DynObs<T> {
+impl<T: 'static + ?Sized> Obs<T> {
     pub(crate) fn new_static(value: &'static T) -> Self {
         Self(DynObsData::Static(value))
     }
@@ -43,53 +43,53 @@ impl<T: 'static + ?Sized> DynObs<T> {
             }
         })
     }
-    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> DynObs<U> {
+    pub fn map<U>(&self, f: impl Fn(&T) -> U + 'static) -> Obs<U> {
         self.obs().map(f).into_dyn()
     }
-    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> DynObs<U> {
+    pub fn map_ref<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U> {
         if let DynObsData::Static(x) = &self.0 {
-            DynObs::new_static(f(x))
+            Obs::new_static(f(x))
         } else {
             self.obs().map_ref(f).into_dyn()
         }
     }
-    pub fn map_into<U>(&self) -> DynObs<U>
+    pub fn map_into<U>(&self) -> Obs<U>
     where
         T: Clone + Into<U>,
     {
-        if let Some(o) = <dyn Any>::downcast_ref::<DynObs<U>>(self) {
+        if let Some(o) = <dyn Any>::downcast_ref::<Obs<U>>(self) {
             o.clone()
         } else {
             self.map(|v| v.clone().into())
         }
     }
-    pub fn map_borrow<B: ?Sized>(&self) -> DynObs<B>
+    pub fn map_borrow<B: ?Sized>(&self) -> Obs<B>
     where
         T: Borrow<B>,
     {
-        if let Some(b) = <dyn Any>::downcast_ref::<DynObs<B>>(self) {
+        if let Some(b) = <dyn Any>::downcast_ref::<Obs<B>>(self) {
             b.clone()
         } else {
             self.map_ref(|x| x.borrow())
         }
     }
-    pub fn map_as_ref<U: ?Sized>(&self) -> DynObs<U>
+    pub fn map_as_ref<U: ?Sized>(&self) -> Obs<U>
     where
         T: AsRef<U>,
     {
-        if let Some(s) = <dyn Any>::downcast_ref::<DynObs<U>>(self) {
+        if let Some(s) = <dyn Any>::downcast_ref::<Obs<U>>(self) {
             s.clone()
         } else {
             self.map_ref(|x| x.as_ref())
         }
     }
-    pub fn flat_map<U>(&self, f: impl Fn(&T) -> DynObs<U> + 'static) -> DynObs<U> {
+    pub fn flat_map<U>(&self, f: impl Fn(&T) -> Obs<U> + 'static) -> Obs<U> {
         self.obs().flat_map(f).into_dyn()
     }
-    pub fn flat_map_ref<U>(&self, f: impl Fn(&T) -> &DynObs<U> + 'static) -> DynObs<U> {
+    pub fn flat_map_ref<U>(&self, f: impl Fn(&T) -> &Obs<U> + 'static) -> Obs<U> {
         self.obs().flat_map_ref(f).into_dyn()
     }
-    pub fn flatten(&self) -> DynObs<T::Item>
+    pub fn flatten(&self) -> Obs<T::Item>
     where
         T: Observable,
     {
@@ -100,7 +100,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         &self,
         initial_state: St,
         f: impl Fn(&mut St, &T) + 'static,
-    ) -> DynObs<St> {
+    ) -> Obs<St> {
         self.obs().scan(initial_state, f).into_dyn()
     }
     pub fn scan_map<St, U>(
@@ -108,7 +108,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         initial_state: St,
         f: impl FnMut(&mut St, &T) + 'static,
         m: impl Fn(&St) -> U + 'static,
-    ) -> DynObs<U>
+    ) -> Obs<U>
     where
         St: 'static,
         U: 'static,
@@ -120,14 +120,14 @@ impl<T: 'static + ?Sized> DynObs<T> {
         initial_state: St,
         f: impl FnMut(&mut St, &T) + 'static,
         m: impl Fn(&St) -> &U + 'static,
-    ) -> DynObs<U>
+    ) -> Obs<U>
     where
         St: 'static,
         U: ?Sized + 'static,
     {
         self.obs().scan_map_ref(initial_state, f, m).into_dyn()
     }
-    pub fn cached(&self) -> DynObs<<T as ToOwned>::Owned>
+    pub fn cached(&self) -> Obs<<T as ToOwned>::Owned>
     where
         T: ToOwned,
     {
@@ -139,7 +139,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         initial_state: St,
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl Fn(&mut St, &T) + 'static,
-    ) -> DynObs<St> {
+    ) -> Obs<St> {
         self.obs()
             .filter_scan(initial_state, predicate, f)
             .into_dyn()
@@ -150,7 +150,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl FnMut(&mut St, &T) + 'static,
         m: impl Fn(&St) -> U + 'static,
-    ) -> DynObs<U>
+    ) -> Obs<U>
     where
         St: 'static,
         U: 'static,
@@ -165,7 +165,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         predicate: impl Fn(&St, &T) -> bool + 'static,
         f: impl FnMut(&mut St, &T) + 'static,
         m: impl Fn(&St) -> &U + 'static,
-    ) -> DynObs<U>
+    ) -> Obs<U>
     where
         St: 'static,
         U: ?Sized + 'static,
@@ -175,20 +175,20 @@ impl<T: 'static + ?Sized> DynObs<T> {
             .into_dyn()
     }
 
-    pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> DynObs<T>
+    pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> Obs<T>
     where
         T: ToOwned,
     {
         self.obs().dedup_by(eq).into_dyn()
     }
-    pub fn dedup_by_key<K>(&self, to_key: impl Fn(&T) -> K + 'static) -> DynObs<T>
+    pub fn dedup_by_key<K>(&self, to_key: impl Fn(&T) -> K + 'static) -> Obs<T>
     where
         K: PartialEq + 'static,
         T: ToOwned,
     {
         self.obs().dedup_by_key(to_key).into_dyn()
     }
-    pub fn dedup(&self) -> DynObs<T>
+    pub fn dedup(&self) -> Obs<T>
     where
         T: ToOwned + PartialEq,
     {
@@ -198,14 +198,14 @@ impl<T: 'static + ?Sized> DynObs<T> {
     pub fn map_async<Fut: Future + 'static>(
         &self,
         f: impl Fn(&T) -> Fut + 'static,
-    ) -> DynObs<Poll<Fut::Output>> {
+    ) -> Obs<Poll<Fut::Output>> {
         self.obs().map_async(f).into_dyn()
     }
     pub fn map_stream<St: Stream + 'static>(
         &self,
         initial_value: St::Item,
         f: impl Fn(&T) -> St + 'static,
-    ) -> DynObs<St::Item> {
+    ) -> Obs<St::Item> {
         self.obs().map_stream(initial_value, f).into_dyn()
     }
 
@@ -270,7 +270,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
         self.obs().display()
     }
 }
-impl<T: ?Sized> Observable for DynObs<T> {
+impl<T: ?Sized> Observable for Obs<T> {
     type Item = T;
 
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
@@ -298,12 +298,12 @@ impl<T: ?Sized> Observable for DynObs<T> {
         }
     }
 
-    fn into_dyn(self) -> DynObs<Self::Item> {
+    fn into_dyn(self) -> Obs<Self::Item> {
         self
     }
 }
 
-impl<S: Observable + 'static> From<ImplObs<S>> for DynObs<S::Item> {
+impl<S: Observable + 'static> From<ImplObs<S>> for Obs<S::Item> {
     fn from(s: ImplObs<S>) -> Self {
         s.into_dyn()
     }

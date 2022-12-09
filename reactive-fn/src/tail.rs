@@ -1,14 +1,10 @@
 use crate::*;
 use std::{cell::RefCell, iter::once, mem, rc::Rc};
 
-pub struct DynTail<T: ?Sized + 'static>(Tail<DynObs<T>>);
+pub struct DynTail<T: ?Sized + 'static>(Tail<Obs<T>>);
 
 impl<T: ?Sized + 'static> DynTail<T> {
-    pub(super) fn new<U>(
-        source: DynObs<T>,
-        scope: &BindScope,
-        f: impl FnOnce(&T) -> U,
-    ) -> (U, Self) {
+    pub(super) fn new<U>(source: Obs<T>, scope: &BindScope, f: impl FnOnce(&T) -> U) -> (U, Self) {
         let (head, tail) = Tail::new(source, scope, f);
         (head, Self(tail))
     }

@@ -7,7 +7,7 @@ where
     S::Item: RawSink,
     <S::Item as RawSink>::Item: Clone,
 {
-    type RawSink = DynObs<S::Item>;
+    type RawSink = Obs<S::Item>;
 
     fn into_sink(self) -> Sink<Self::RawSink> {
         self.into_dyn().into_sink()
@@ -19,14 +19,14 @@ where
     S::Item: RawSink,
     <S::Item as RawSink>::Item: Clone,
 {
-    type RawSink = DynObs<S::Item>;
+    type RawSink = Obs<S::Item>;
 
     fn into_sink(self) -> Sink<Self::RawSink> {
         self.clone().into_sink()
     }
 }
 
-impl<T> RawSink for DynObs<T>
+impl<T> RawSink for Obs<T>
 where
     T: ?Sized + RawSink,
     T::Item: Clone,
@@ -44,7 +44,7 @@ where
     T::Item: Clone,
 {
     type Item = T::Item;
-    type Observer = Either<T::Observer, <DynObs<T> as RawSink>::Observer>;
+    type Observer = Either<T::Observer, <Obs<T> as RawSink>::Observer>;
 
     fn connect(&self, value: Self::Item) -> Self::Observer {
         match self {
@@ -83,7 +83,7 @@ where
     }
 }
 
-impl<T> IntoSink<T::Item> for DynObs<T>
+impl<T> IntoSink<T::Item> for Obs<T>
 where
     T: ?Sized + RawSink,
     T::Item: Clone,
@@ -94,12 +94,12 @@ where
         Sink(self)
     }
 }
-impl<T> IntoSink<T::Item> for &DynObs<T>
+impl<T> IntoSink<T::Item> for &Obs<T>
 where
     T: ?Sized + RawSink,
     T::Item: Clone,
 {
-    type RawSink = DynObs<T>;
+    type RawSink = Obs<T>;
 
     fn into_sink(self) -> Sink<Self::RawSink> {
         self.clone().into_sink()

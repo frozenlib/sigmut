@@ -57,7 +57,7 @@ impl<C: Collect> ObsCollector<C> {
         }
     }
 
-    pub fn as_dyn(&self) -> DynObs<C::Output> {
+    pub fn as_dyn(&self) -> Obs<C::Output> {
         self.obs().into_dyn()
     }
     pub fn obs(&self) -> ImplObs<ObsCollector<C>> {

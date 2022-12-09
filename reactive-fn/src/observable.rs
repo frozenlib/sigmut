@@ -24,11 +24,11 @@ pub trait Observable {
         ObsContext::null(|bc| self.get(bc))
     }
 
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized + 'static,
     {
-        DynObs::new_dyn(Rc::new(self))
+        Obs::new_dyn(Rc::new(self))
     }
     fn into_may(self) -> MayObs<Self::Item>
     where
@@ -45,11 +45,11 @@ impl<S: Observable + 'static> Observable for Rc<S> {
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.deref().with(f, bc)
     }
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized,
     {
-        DynObs::new_dyn_inner(self)
+        Obs::new_dyn_inner(self)
     }
 }
 

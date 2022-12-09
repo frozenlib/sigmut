@@ -75,7 +75,7 @@ impl<T: 'static> ObsCell<T> {
         }
     }
 
-    pub fn as_dyn(&self) -> DynObs<T> {
+    pub fn as_dyn(&self) -> Obs<T> {
         self.obs().into_dyn()
     }
     pub fn obs(&self) -> ImplObs<ObsCell<T>> {
@@ -107,11 +107,11 @@ impl<T: 'static> Observable for ObsCell<T> {
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.with(f, bc)
     }
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized,
     {
-        DynObs::new_dyn_inner(self.0)
+        Obs::new_dyn_inner(self.0)
     }
 }
 

@@ -60,7 +60,7 @@ where
     }
     assert_eq!(r.recv_timeout(dur), Err(RecvTimeoutError::Timeout));
 }
-async fn assert_values<T>(source: DynObs<T>, values: Vec<T>, dur: Duration)
+async fn assert_values<T>(source: Obs<T>, values: Vec<T>, dur: Duration)
 where
     T: 'static + PartialEq + Debug + Clone,
 {

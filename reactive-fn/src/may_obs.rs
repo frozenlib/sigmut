@@ -7,7 +7,7 @@ where
     T: 'static,
 {
     Constant(T),
-    Obs(DynObs<T>),
+    Obs(Obs<T>),
 }
 
 impl<T> MayObs<T>
@@ -37,7 +37,7 @@ where
             Self::Obs(obs) => obs.with(|value, bc| f(value, bc), bc),
         }
     }
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized,
     {

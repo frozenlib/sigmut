@@ -208,11 +208,11 @@ where
         }
 
         #[inline]
-        fn into_dyn(self) -> DynObs<Self::Item>
+        fn into_dyn(self) -> Obs<Self::Item>
         where
             Self: Sized + 'static,
         {
-            DynObs::new_dyn(Rc::new(self))
+            Obs::new_dyn(Rc::new(self))
         }
     }
     ImplObs(ObsWithFn {

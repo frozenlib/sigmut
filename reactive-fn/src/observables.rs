@@ -22,7 +22,7 @@ where
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.0.with(|value, bc| f(&value.clone().into(), bc), bc)
     }
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized,
     {
@@ -46,7 +46,7 @@ where
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.0.with(|value, bc| f(value.borrow(), bc), bc)
     }
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized,
     {
@@ -70,7 +70,7 @@ where
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.0.with(|value, bc| f(value.as_ref(), bc), bc)
     }
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized,
     {
@@ -78,18 +78,15 @@ where
     }
 }
 
-fn into_dyn_by_convert<Outer, Inner>(
-    s: Outer,
-    f: impl FnOnce(Outer) -> Inner,
-) -> DynObs<Outer::Item>
+fn into_dyn_by_convert<Outer, Inner>(s: Outer, f: impl FnOnce(Outer) -> Inner) -> Obs<Outer::Item>
 where
     Outer: Observable + 'static,
     Inner: Observable + 'static,
 {
     if TypeId::of::<Outer::Item>() == TypeId::of::<Inner>() {
-        (*<dyn Any>::downcast_ref::<DynObs<Outer::Item>>(&f(s).into_dyn()).unwrap()).clone()
+        (*<dyn Any>::downcast_ref::<Obs<Outer::Item>>(&f(s).into_dyn()).unwrap()).clone()
     } else {
-        DynObs::new_dyn(Rc::new(s))
+        Obs::new_dyn(Rc::new(s))
     }
 }
 
@@ -116,8 +113,8 @@ impl<T: ?Sized> Observable for StaticObservable<T> {
         f(self.0, bc)
     }
     #[inline]
-    fn into_dyn(self) -> DynObs<Self::Item> {
-        DynObs::new_static(self.0)
+    fn into_dyn(self) -> Obs<Self::Item> {
+        Obs::new_static(self.0)
     }
 }
 
@@ -151,14 +148,14 @@ impl<T: ?Sized> Observable for StaticObservable<T> {
 //             f(&None, bc)
 //         }
 //     }
-//     fn into_dyn(self) -> DynObs<Self::Item>
+//     fn into_dyn(self) -> Obs<Self::Item>
 //     where
 //         Self: Sized,
 //     {
 //         if let Some(s) = self.0 {
 //             Obs(s).map(|value| Some(value.to_owned())).into_dyn()
 //         } else {
-//             DynObs::new_static(&None)
+//             Obs::new_static(&None)
 //         }
 //     }
 // }
@@ -200,7 +197,7 @@ impl<T: ?Sized> Observable for StaticObservable<T> {
 //             Err(e) => f(e, bc),
 //         }
 //     }
-//     fn into_dyn(self) -> DynObs<Self::Item>
+//     fn into_dyn(self) -> Obs<Self::Item>
 //     where
 //         Self: Sized,
 //     {

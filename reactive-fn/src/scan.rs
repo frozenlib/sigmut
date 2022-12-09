@@ -104,11 +104,11 @@ where
         b.m.map(&b.st, |value| f(value, bc))
     }
 
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized,
     {
-        DynObs::new_dyn_inner(self)
+        Obs::new_dyn_inner(self)
     }
 }
 
@@ -183,11 +183,11 @@ where
         b.m.map(&b.st, |value| f(value, bc))
     }
 
-    fn into_dyn(self) -> DynObs<Self::Item>
+    fn into_dyn(self) -> Obs<Self::Item>
     where
         Self: Sized,
     {
-        DynObs::new_dyn_inner(self)
+        Obs::new_dyn_inner(self)
     }
 }
 impl<St, F, M> BindSource for FilterScan<St, F, M>
