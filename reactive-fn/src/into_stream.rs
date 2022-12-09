@@ -9,7 +9,7 @@ use std::{
 
 pub struct IntoStream<S>(Rc<IntoStreamData<S>>);
 struct IntoStreamData<S> {
-    source: Obs<S>,
+    source: ImplObs<S>,
     state: RefCell<IntoStreamState>,
 }
 
@@ -20,7 +20,7 @@ struct IntoStreamState {
 }
 
 impl<S> IntoStream<S> {
-    pub fn new(source: Obs<S>) -> Self {
+    pub fn new(source: ImplObs<S>) -> Self {
         Self(Rc::new(IntoStreamData {
             source,
             state: RefCell::new(IntoStreamState {

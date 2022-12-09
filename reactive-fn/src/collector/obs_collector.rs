@@ -60,8 +60,8 @@ impl<C: Collect> ObsCollector<C> {
     pub fn as_dyn(&self) -> DynObs<C::Output> {
         self.obs().into_dyn()
     }
-    pub fn obs(&self) -> Obs<ObsCollector<C>> {
-        Obs(self.clone())
+    pub fn obs(&self) -> ImplObs<ObsCollector<C>> {
+        ImplObs(self.clone())
     }
 }
 impl<C: Collect> Observable for ObsCollector<C> {

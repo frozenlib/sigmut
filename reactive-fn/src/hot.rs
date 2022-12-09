@@ -48,7 +48,7 @@ impl<T: 'static + ?Sized> HotReady for Hot<DynObs<T>> {
             .update(scope, &this, |bc| self.source.with(|_, _| {}, bc));
     }
 }
-impl<S: Observable + 'static> HotReady for Hot<Obs<S>> {
+impl<S: Observable + 'static> HotReady for Hot<ImplObs<S>> {
     fn ready(self: Rc<Self>, scope: &BindScope) {
         let this = self.clone();
         self.bindings

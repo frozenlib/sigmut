@@ -161,7 +161,7 @@ where
 }
 
 #[inline]
-pub fn obs<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> Obs<impl Observable<Item = T>> {
+pub fn obs<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> ImplObs<impl Observable<Item = T>> {
     struct ObsFn<F>(F);
     impl<F: Fn(&mut BindContext) -> T + 'static, T> Observable for ObsFn<F> {
         type Item = T;
@@ -175,12 +175,12 @@ pub fn obs<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> Obs<impl Observabl
             f(&(self.0)(bc), bc)
         }
     }
-    Obs(ObsFn(f))
+    ImplObs(ObsFn(f))
 }
 
 pub fn obs_with<T>(
     f: impl for<'a> Fn(ObsContext<'a, '_, '_, T>) -> Ret<'a>,
-) -> Obs<impl Observable<Item = T>>
+) -> ImplObs<impl Observable<Item = T>>
 where
     T: ?Sized,
 {
@@ -215,30 +215,30 @@ where
             DynObs::new_dyn(Rc::new(self))
         }
     }
-    Obs(ObsWithFn {
+    ImplObs(ObsWithFn {
         f,
         _phantom: PhantomData,
     })
 }
 
 #[inline]
-pub fn obs_constant<T: 'static>(value: T) -> Obs<ConstantObservable<T>> {
-    Obs(ConstantObservable(value))
+pub fn obs_constant<T: 'static>(value: T) -> ImplObs<ConstantObservable<T>> {
+    ImplObs(ConstantObservable(value))
 }
 
 #[inline]
-pub fn obs_static<T: ?Sized>(value: &'static T) -> Obs<StaticObservable<T>> {
-    Obs(StaticObservable(value))
+pub fn obs_static<T: ?Sized>(value: &'static T) -> ImplObs<StaticObservable<T>> {
+    ImplObs(StaticObservable(value))
 }
 
 pub fn obs_from_async<Fut: Future + 'static>(
     future: Fut,
-) -> Obs<impl Observable<Item = Poll<Fut::Output>>> {
-    Obs(crate::obs_from_async::ObsFromAsync::new(future))
+) -> ImplObs<impl Observable<Item = Poll<Fut::Output>>> {
+    ImplObs(crate::obs_from_async::ObsFromAsync::new(future))
 }
 pub fn obs_from_stream<St: Stream + 'static>(
     initial_value: St::Item,
     stream: St,
-) -> Obs<impl Observable<Item = St::Item>> {
-    Obs(obs_from_stream::ObsFromStream::new(initial_value, stream))
+) -> ImplObs<impl Observable<Item = St::Item>> {
+    ImplObs(obs_from_stream::ObsFromStream::new(initial_value, stream))
 }

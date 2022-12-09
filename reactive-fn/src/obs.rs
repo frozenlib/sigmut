@@ -7,9 +7,9 @@ use std::marker::PhantomData;
 use std::{borrow::Borrow, iter::once, task::Poll};
 
 #[derive(Clone)]
-pub struct Obs<S>(pub(crate) S);
+pub struct ImplObs<S>(pub(crate) S);
 
-impl<S: Observable + 'static> Obs<S> {
+impl<S: Observable + 'static> ImplObs<S> {
     pub fn into_dyn(self) -> DynObs<S::Item> {
         self.0.into_dyn()
     }
@@ -28,7 +28,7 @@ impl<S: Observable + 'static> Obs<S> {
     pub fn map<T: 'static>(
         self,
         f: impl Fn(&S::Item) -> T + 'static,
-    ) -> Obs<impl Observable<Item = T>> {
+    ) -> ImplObs<impl Observable<Item = T>> {
         obs(move |bc| self.with(|x, _| f(x), bc))
     }
 
@@ -36,7 +36,7 @@ impl<S: Observable + 'static> Obs<S> {
     pub fn map_ref<T: ?Sized + 'static>(
         self,
         f: impl Fn(&S::Item) -> &T + 'static,
-    ) -> Obs<impl Observable<Item = T>> {
+    ) -> ImplObs<impl Observable<Item = T>> {
         struct MapRefObservable<S, F> {
             s: S,
             f: F,
@@ -59,34 +59,34 @@ impl<S: Observable + 'static> Obs<S> {
             }
         }
 
-        Obs(MapRefObservable { s: self, f })
+        ImplObs(MapRefObservable { s: self, f })
     }
 
-    pub fn map_borrow<B: ?Sized + 'static>(self) -> Obs<MapBorrowObservable<S, B>>
+    pub fn map_borrow<B: ?Sized + 'static>(self) -> ImplObs<MapBorrowObservable<S, B>>
     where
         S::Item: Borrow<B>,
     {
-        Obs(MapBorrowObservable(self.0, PhantomData))
+        ImplObs(MapBorrowObservable(self.0, PhantomData))
     }
 
-    pub fn map_as_ref<U: ?Sized + 'static>(self) -> Obs<MapAsRefObservable<S, U>>
+    pub fn map_as_ref<U: ?Sized + 'static>(self) -> ImplObs<MapAsRefObservable<S, U>>
     where
         S::Item: AsRef<U>,
     {
-        Obs(MapAsRefObservable(self.0, PhantomData))
+        ImplObs(MapAsRefObservable(self.0, PhantomData))
     }
-    pub fn map_into<U: 'static>(self) -> Obs<MapIntoObservable<S, U>>
+    pub fn map_into<U: 'static>(self) -> ImplObs<MapIntoObservable<S, U>>
     where
         S::Item: Clone + Into<U>,
     {
-        Obs(MapIntoObservable(self.0, PhantomData))
+        ImplObs(MapIntoObservable(self.0, PhantomData))
     }
 
     #[inline]
     pub fn flat_map<U: Observable + 'static>(
         self,
         f: impl Fn(&S::Item) -> U + 'static,
-    ) -> Obs<impl Observable<Item = U::Item>> {
+    ) -> ImplObs<impl Observable<Item = U::Item>> {
         self.map(f).flatten()
     }
 
@@ -94,12 +94,12 @@ impl<S: Observable + 'static> Obs<S> {
     pub fn flat_map_ref<U: Observable + 'static>(
         self,
         f: impl Fn(&S::Item) -> &U + 'static,
-    ) -> Obs<impl Observable<Item = U::Item>> {
+    ) -> ImplObs<impl Observable<Item = U::Item>> {
         self.map_ref(f).flatten()
     }
 
     #[inline]
-    pub fn flatten(self) -> Obs<impl Observable<Item = <S::Item as Observable>::Item>>
+    pub fn flatten(self) -> ImplObs<impl Observable<Item = <S::Item as Observable>::Item>>
     where
         S::Item: Observable,
     {
@@ -121,14 +121,14 @@ impl<S: Observable + 'static> Obs<S> {
                     .with(|s, bc| s.with(|value, bc| f(value, bc), bc), bc)
             }
         }
-        Obs(Flatten(self))
+        ImplObs(Flatten(self))
     }
 
     pub fn scan<St: 'static>(
         self,
         initial_state: St,
         f: impl FnMut(&mut St, &S::Item) + 'static,
-    ) -> Obs<impl Observable<Item = St>> {
+    ) -> ImplObs<impl Observable<Item = St>> {
         self.scan_with(initial_state, f, MapId)
     }
     pub fn scan_map<St, T>(
@@ -136,7 +136,7 @@ impl<S: Observable + 'static> Obs<S> {
         initial_state: St,
         f: impl FnMut(&mut St, &S::Item) + 'static,
         m: impl Fn(&St) -> T + 'static,
-    ) -> Obs<impl Observable<Item = T>>
+    ) -> ImplObs<impl Observable<Item = T>>
     where
         St: 'static,
         T: 'static,
@@ -148,7 +148,7 @@ impl<S: Observable + 'static> Obs<S> {
         initial_state: St,
         f: impl FnMut(&mut St, &S::Item) + 'static,
         m: impl Fn(&St) -> &T + 'static,
-    ) -> Obs<impl Observable<Item = T>>
+    ) -> ImplObs<impl Observable<Item = T>>
     where
         St: 'static,
         T: ?Sized + 'static,
@@ -160,7 +160,7 @@ impl<S: Observable + 'static> Obs<S> {
         initial_state: St,
         mut f: impl FnMut(&mut St, &S::Item) + 'static,
         m: M,
-    ) -> Obs<impl Observable<Item = M::Output>> {
+    ) -> ImplObs<impl Observable<Item = M::Output>> {
         obs_scan_with(
             initial_state,
             move |st, bc| {
@@ -175,7 +175,7 @@ impl<S: Observable + 'static> Obs<S> {
         initial_state: St,
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl FnMut(&mut St, &S::Item) + 'static,
-    ) -> Obs<impl Observable<Item = St>> {
+    ) -> ImplObs<impl Observable<Item = St>> {
         self.filter_scan_with(initial_state, predicate, f, MapId)
     }
     pub fn filter_scan_map<St: 'static, T: 'static>(
@@ -184,7 +184,7 @@ impl<S: Observable + 'static> Obs<S> {
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl FnMut(&mut St, &S::Item) + 'static,
         m: impl Fn(&St) -> T + 'static,
-    ) -> Obs<impl Observable<Item = T>> {
+    ) -> ImplObs<impl Observable<Item = T>> {
         self.filter_scan_with(initial_state, predicate, f, MapValue(m))
     }
     pub fn filter_scan_map_ref<St: 'static, T: ?Sized + 'static>(
@@ -193,7 +193,7 @@ impl<S: Observable + 'static> Obs<S> {
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         f: impl FnMut(&mut St, &S::Item) + 'static,
         m: impl Fn(&St) -> &T + 'static,
-    ) -> Obs<impl Observable<Item = T>> {
+    ) -> ImplObs<impl Observable<Item = T>> {
         self.filter_scan_with(initial_state, predicate, f, MapRef(m))
     }
     fn filter_scan_with<St: 'static, M: Map<St>>(
@@ -202,7 +202,7 @@ impl<S: Observable + 'static> Obs<S> {
         predicate: impl Fn(&St, &S::Item) -> bool + 'static,
         mut f: impl FnMut(&mut St, &S::Item) + 'static,
         m: M,
-    ) -> Obs<impl Observable<Item = M::Output>> {
+    ) -> ImplObs<impl Observable<Item = M::Output>> {
         obs_filter_scan_with(
             initial_state,
             move |st, bc| {
@@ -223,7 +223,7 @@ impl<S: Observable + 'static> Obs<S> {
         )
     }
 
-    pub fn cached(self) -> Obs<impl Observable<Item = <S::Item as ToOwned>::Owned>>
+    pub fn cached(self) -> ImplObs<impl Observable<Item = <S::Item as ToOwned>::Owned>>
     where
         S::Item: ToOwned,
     {
@@ -237,7 +237,7 @@ impl<S: Observable + 'static> Obs<S> {
     pub fn dedup_by(
         self,
         eq: impl Fn(&S::Item, &S::Item) -> bool + 'static,
-    ) -> Obs<impl Observable<Item = S::Item>>
+    ) -> ImplObs<impl Observable<Item = S::Item>>
     where
         S::Item: ToOwned,
     {
@@ -258,14 +258,14 @@ impl<S: Observable + 'static> Obs<S> {
     pub fn dedup_by_key<K>(
         self,
         to_key: impl Fn(&S::Item) -> K + 'static,
-    ) -> Obs<impl Observable<Item = S::Item>>
+    ) -> ImplObs<impl Observable<Item = S::Item>>
     where
         K: PartialEq,
         S::Item: ToOwned,
     {
         self.dedup_by(move |old, new| to_key(old) == to_key(new))
     }
-    pub fn dedup(self) -> Obs<impl Observable<Item = S::Item>>
+    pub fn dedup(self) -> ImplObs<impl Observable<Item = S::Item>>
     where
         S::Item: ToOwned + PartialEq,
     {
@@ -275,8 +275,8 @@ impl<S: Observable + 'static> Obs<S> {
     pub fn map_async<Fut: Future + 'static>(
         self,
         f: impl Fn(&S::Item) -> Fut + 'static,
-    ) -> Obs<impl Observable<Item = Poll<Fut::Output>>> {
-        Obs(MapAsync::new(move |bc| {
+    ) -> ImplObs<impl Observable<Item = Poll<Fut::Output>>> {
+        ImplObs(MapAsync::new(move |bc| {
             self.with(|value, _bc| f(value), bc)
         }))
     }
@@ -284,8 +284,8 @@ impl<S: Observable + 'static> Obs<S> {
         self,
         initial_value: St::Item,
         f: impl Fn(&S::Item) -> St + 'static,
-    ) -> Obs<impl Observable<Item = St::Item>> {
-        Obs(MapStream::new(initial_value, move |bc| {
+    ) -> ImplObs<impl Observable<Item = St::Item>> {
+        ImplObs(MapStream::new(initial_value, move |bc| {
             self.with(|value, _bc| f(value), bc)
         }))
     }
@@ -333,8 +333,8 @@ impl<S: Observable + 'static> Obs<S> {
         subscribe_async(move |bc| self.with(|value, _bc| f(value), bc))
     }
 
-    pub fn hot(self) -> Obs<impl Observable<Item = S::Item>> {
-        Obs(Hot::new(self))
+    pub fn hot(self) -> ImplObs<impl Observable<Item = S::Item>> {
+        ImplObs(Hot::new(self))
     }
 
     pub fn stream(self) -> impl Stream<Item = <S::Item as ToOwned>::Owned>
@@ -356,7 +356,7 @@ impl<S: Observable + 'static> Obs<S> {
         self.into_obs_display()
     }
 }
-impl<S: Observable + 'static> Observable for Obs<S> {
+impl<S: Observable + 'static> Observable for ImplObs<S> {
     type Item = S::Item;
     fn with<U>(
         &self,

@@ -24,8 +24,8 @@ impl<T: 'static + ?Sized> DynObs<T> {
         Self(DynObsData::DynInner(rc))
     }
 
-    pub fn obs(&self) -> Obs<Self> {
-        Obs(self.clone())
+    pub fn obs(&self) -> ImplObs<Self> {
+        ImplObs(self.clone())
     }
 
     pub fn get_head_tail(&self) -> (T::Owned, DynTail<T>)
@@ -307,8 +307,8 @@ impl<T: ?Sized> Observable for DynObs<T> {
     }
 }
 
-impl<S: Observable + 'static> From<Obs<S>> for DynObs<S::Item> {
-    fn from(s: Obs<S>) -> Self {
+impl<S: Observable + 'static> From<ImplObs<S>> for DynObs<S::Item> {
+    fn from(s: ImplObs<S>) -> Self {
         s.into_dyn()
     }
 }

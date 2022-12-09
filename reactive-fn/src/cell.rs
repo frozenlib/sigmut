@@ -78,8 +78,8 @@ impl<T: 'static> ObsCell<T> {
     pub fn as_dyn(&self) -> DynObs<T> {
         self.obs().into_dyn()
     }
-    pub fn obs(&self) -> Obs<ObsCell<T>> {
-        Obs(self.clone())
+    pub fn obs(&self) -> ImplObs<ObsCell<T>> {
+        ImplObs(self.clone())
     }
     pub fn as_observer(&self) -> DynObserver<T> {
         DynObserver::from_rc(self.0.clone())

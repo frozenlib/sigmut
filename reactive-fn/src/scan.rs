@@ -4,14 +4,14 @@ use std::{cell::RefCell, mem, rc::Rc};
 pub fn obs_scan<T: 'static>(
     initial_state: T,
     f: impl FnMut(&mut T, &mut BindContext) + 'static,
-) -> Obs<impl Observable<Item = T>> {
+) -> ImplObs<impl Observable<Item = T>> {
     obs_scan_with(initial_state, f, MapId)
 }
 pub fn obs_scan_map<St, T>(
     initial_state: St,
     f: impl FnMut(&mut St, &mut BindContext) + 'static,
     m: impl Fn(&St) -> T + 'static,
-) -> Obs<impl Observable<Item = T>>
+) -> ImplObs<impl Observable<Item = T>>
 where
     St: 'static,
     T: 'static,
@@ -22,7 +22,7 @@ pub fn obs_scan_map_ref<St, T>(
     initial_state: St,
     f: impl FnMut(&mut St, &mut BindContext) + 'static,
     m: impl Fn(&St) -> &T + 'static,
-) -> Obs<impl Observable<Item = T>>
+) -> ImplObs<impl Observable<Item = T>>
 where
     St: 'static,
     T: ?Sized + 'static,
@@ -33,16 +33,16 @@ pub(crate) fn obs_scan_with<St: 'static, M: Map<St>>(
     initial_state: St,
     f: impl FnMut(&mut St, &mut BindContext) + 'static,
     m: M,
-) -> Obs<impl Observable<Item = M::Output>> {
-    Obs(Scan::new(initial_state, f, m))
+) -> ImplObs<impl Observable<Item = M::Output>> {
+    ImplObs(Scan::new(initial_state, f, m))
 }
 
 pub(crate) fn obs_filter_scan_with<St: 'static, M: Map<St>>(
     initial_state: St,
     f: impl FnMut(&mut St, &mut BindContext) -> bool + 'static,
     m: M,
-) -> Obs<impl Observable<Item = M::Output>> {
-    Obs(FilterScan::new(initial_state, f, m))
+) -> ImplObs<impl Observable<Item = M::Output>> {
+    ImplObs(FilterScan::new(initial_state, f, m))
 }
 
 struct Scan<St, F, M> {

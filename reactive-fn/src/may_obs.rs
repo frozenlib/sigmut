@@ -14,8 +14,8 @@ impl<T> MayObs<T>
 where
     T: Clone + 'static,
 {
-    pub fn obs(&self) -> Obs<impl Observable<Item = T>> {
-        Obs(self.clone())
+    pub fn obs(&self) -> ImplObs<impl Observable<Item = T>> {
+        ImplObs(self.clone())
     }
 
     pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> MayObs<U> {

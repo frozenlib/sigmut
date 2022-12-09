@@ -1,7 +1,7 @@
 use super::*;
 use either::Either;
 
-impl<S> IntoSink<<S::Item as RawSink>::Item> for Obs<S>
+impl<S> IntoSink<<S::Item as RawSink>::Item> for ImplObs<S>
 where
     S: Observable + 'static,
     S::Item: RawSink,
@@ -13,7 +13,7 @@ where
         self.into_dyn().into_sink()
     }
 }
-impl<S> IntoSink<<S::Item as RawSink>::Item> for &Obs<S>
+impl<S> IntoSink<<S::Item as RawSink>::Item> for &ImplObs<S>
 where
     S: Observable + Clone + 'static,
     S::Item: RawSink,

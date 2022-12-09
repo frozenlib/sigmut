@@ -26,7 +26,7 @@ pub trait ObservableDisplay {
 
 pub struct ObsDisplay<S: ?Sized>(S);
 impl<S: ObservableDisplay> ObsDisplay<S> {
-    pub fn obs(self) -> Obs<impl Observable<Item = str>>
+    pub fn obs(self) -> ImplObs<impl Observable<Item = str>>
     where
         Self: 'static,
     {
@@ -85,7 +85,7 @@ macro_rules! format_trait {
         pub trait $ot {
             fn obs_fmt(&self, f: &mut Formatter, bc: &mut BindContext) -> Result;
         }
-        impl<S> $ot for Obs<S>
+        impl<S> $ot for ImplObs<S>
         where
             S: Observable + 'static,
             S::Item: $ot,
@@ -258,7 +258,7 @@ macro_rules! bind_impl {
 
 pub trait IntoObsStr {
     type Observable: Observable<Item = str> + 'static;
-    fn into_obs_str(self) -> Obs<Self::Observable>;
+    fn into_obs_str(self) -> ImplObs<Self::Observable>;
 }
 
 impl<T: Display> ObservableDisplay for T {
@@ -268,7 +268,7 @@ impl<T: Display> ObservableDisplay for T {
 }
 impl<T: Display> IntoObsStr for T {
     type Observable = MapBorrowObservable<ConstantObservable<String>, str>;
-    fn into_obs_str(self) -> Obs<Self::Observable> {
+    fn into_obs_str(self) -> ImplObs<Self::Observable> {
         obs_constant(self.to_string()).map_borrow()
     }
 }
@@ -280,12 +280,12 @@ impl<T: ObservableDisplay> ObservableDisplay for ObsDisplay<T> {
 }
 impl<T: ObservableDisplay + 'static> IntoObsStr for ObsDisplay<T> {
     type Observable = DynObs<str>;
-    fn into_obs_str(self) -> Obs<Self::Observable> {
-        Obs(self.obs().into_dyn())
+    fn into_obs_str(self) -> ImplObs<Self::Observable> {
+        ImplObs(self.obs().into_dyn())
     }
 }
 
-impl<S> ObservableDisplay for Obs<S>
+impl<S> ObservableDisplay for ImplObs<S>
 where
     S: Observable + 'static,
     S::Item: ObservableDisplay,
@@ -294,13 +294,13 @@ where
         self.with(|value, bc| value.obs_fmt(f, bc), bc)
     }
 }
-impl<S> IntoObsStr for Obs<S>
+impl<S> IntoObsStr for ImplObs<S>
 where
     S: Observable + 'static,
     S::Item: ObservableDisplay,
 {
     type Observable = DynObs<str>;
-    fn into_obs_str(self) -> Obs<Self::Observable> {
+    fn into_obs_str(self) -> ImplObs<Self::Observable> {
         self.into_obs_display().into_obs_str()
     }
 }
@@ -312,7 +312,7 @@ impl<T: ?Sized + ObservableDisplay> ObservableDisplay for DynObs<T> {
 }
 impl<T: ?Sized + ObservableDisplay> IntoObsStr for DynObs<T> {
     type Observable = DynObs<str>;
-    fn into_obs_str(self) -> Obs<Self::Observable> {
+    fn into_obs_str(self) -> ImplObs<Self::Observable> {
         self.into_obs_display().into_obs_str()
     }
 }
@@ -324,7 +324,7 @@ impl<T: ObservableDisplay + 'static> ObservableDisplay for ObsCell<T> {
 }
 impl<T: ObservableDisplay + 'static> IntoObsStr for ObsCell<T> {
     type Observable = DynObs<str>;
-    fn into_obs_str(self) -> Obs<Self::Observable> {
+    fn into_obs_str(self) -> ImplObs<Self::Observable> {
         self.into_obs_display().into_obs_str()
     }
 }
