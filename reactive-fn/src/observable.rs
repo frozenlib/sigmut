@@ -3,19 +3,15 @@ use std::{any::Any, ops::Deref, rc::Rc};
 
 pub trait Observable {
     type Item: ?Sized;
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U;
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U;
     fn with_dyn<'a>(&self, o: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a> {
         self.with(|value, bc| o.cb.ret(value, bc), o.bc)
     }
     fn with_head<U>(&self, f: impl FnOnce(&Self::Item) -> U) -> U {
-        BindContext::null(|bc| self.with(|value, _| f(value), bc))
+        ObsContext::null(|bc| self.with(|value, _| f(value), bc))
     }
 
-    fn get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    fn get(&self, bc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
@@ -25,7 +21,7 @@ pub trait Observable {
     where
         Self::Item: ToOwned,
     {
-        BindContext::null(|bc| self.get(bc))
+        ObsContext::null(|bc| self.get(bc))
     }
 
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -46,11 +42,7 @@ pub trait Observable {
 impl<S: Observable + 'static> Observable for Rc<S> {
     type Item = S::Item;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.deref().with(f, bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>

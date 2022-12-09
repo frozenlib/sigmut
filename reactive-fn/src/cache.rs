@@ -43,12 +43,12 @@ impl<T> Cache<T> {
 }
 
 impl<T: 'static> Cache<T> {
-    pub fn borrow(&self, f: impl FnOnce(&mut BindContext) -> T, bc: &mut BindContext) -> Ref<T> {
+    pub fn borrow(&self, f: impl FnOnce(&mut ObsContext) -> T, bc: &mut ObsContext) -> Ref<T> {
         self.load(f, bc.scope());
         bc.bind(self.0.clone());
         self.cache().unwrap()
     }
-    fn load(&self, f: impl FnOnce(&mut BindContext) -> T, scope: &BindScope) {
+    fn load(&self, f: impl FnOnce(&mut ObsContext) -> T, scope: &BindScope) {
         if self.0.state.borrow().value.is_some() {
             return;
         }
@@ -127,12 +127,12 @@ impl<T> CacheBuf<T> {
 }
 
 impl<T: 'static> CacheBuf<T> {
-    pub fn borrow(&self, f: impl FnOnce(&mut T, &mut BindContext), bc: &mut BindContext) -> Ref<T> {
+    pub fn borrow(&self, f: impl FnOnce(&mut T, &mut ObsContext), bc: &mut ObsContext) -> Ref<T> {
         self.load(f, bc.scope());
         bc.bind(self.0.clone());
         self.cache().unwrap()
     }
-    fn load(&self, f: impl FnOnce(&mut T, &mut BindContext), scope: &BindScope) {
+    fn load(&self, f: impl FnOnce(&mut T, &mut ObsContext), scope: &BindScope) {
         if self.0.state.borrow().is_cached {
             return;
         }

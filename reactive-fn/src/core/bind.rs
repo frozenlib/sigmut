@@ -38,12 +38,12 @@ impl NotifyScope {
     }
 }
 
-pub struct BindContext<'a> {
+pub struct ObsContext<'a> {
     scope: &'a BindScope,
     bb: Option<BindingsBuilder>,
 }
 
-impl<'a> BindContext<'a> {
+impl<'a> ObsContext<'a> {
     pub fn bind(&mut self, source: Rc<impl BindSource>) {
         if let Some(bb) = &mut self.bb {
             bb.bind(source);
@@ -52,8 +52,8 @@ impl<'a> BindContext<'a> {
     pub fn scope(&self) -> &BindScope {
         self.scope
     }
-    pub fn null<T>(f: impl FnOnce(&mut BindContext) -> T) -> T {
-        BindScope::with(|scope| f(&mut BindContext { scope, bb: None }))
+    pub fn null<T>(f: impl FnOnce(&mut ObsContext) -> T) -> T {
+        BindScope::with(|scope| f(&mut ObsContext { scope, bb: None }))
     }
 }
 struct BindingsBuilder {
@@ -174,7 +174,7 @@ impl Bindings {
         &mut self,
         scope: &BindScope,
         sink: &Rc<impl BindSink>,
-        f: impl FnOnce(&mut BindContext) -> T,
+        f: impl FnOnce(&mut ObsContext) -> T,
     ) -> T {
         let bindings = mem::take(&mut self.bindings);
         let sink = Rc::downgrade(sink) as Weak<dyn BindSink>;
@@ -182,7 +182,7 @@ impl Bindings {
         if sink_changed {
             self.sink = sink.clone();
         }
-        let mut bc = BindContext {
+        let mut bc = ObsContext {
             scope,
             bb: Some(BindingsBuilder::new(sink, sink_changed, bindings)),
         };

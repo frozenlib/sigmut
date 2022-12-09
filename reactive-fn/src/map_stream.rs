@@ -10,7 +10,7 @@ use std::{
 
 pub struct MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut ObsContext) -> St + 'static,
     St: Stream + 'static,
 {
     initial_value: St::Item,
@@ -20,7 +20,7 @@ where
 
 struct MapStreamData<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut ObsContext) -> St + 'static,
     St: Stream + 'static,
 {
     f: F,
@@ -33,7 +33,7 @@ where
 }
 impl<F, St> MapStreamData<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut ObsContext) -> St + 'static,
     St: Stream + 'static,
 {
     fn new(f: F) -> Self {
@@ -56,7 +56,7 @@ where
 
 impl<F, St> MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut ObsContext) -> St + 'static,
     St: Stream + 'static,
 {
     pub fn new(initial_value: St::Item, f: F) -> Rc<Self> {
@@ -87,16 +87,12 @@ where
 }
 impl<F, St> Observable for Rc<MapStream<F, St>>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut ObsContext) -> St + 'static,
     St: Stream + 'static,
 {
     type Item = St::Item;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         bc.bind(self.clone());
         self.wake();
         f(
@@ -112,7 +108,7 @@ where
 
 impl<F, St> BindSource for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut ObsContext) -> St + 'static,
     St: Stream + 'static,
 {
     fn sinks(&self) -> &BindSinks {
@@ -124,7 +120,7 @@ where
 }
 impl<F, St> BindSink for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut ObsContext) -> St + 'static,
     St: Stream + 'static,
 {
     fn notify(self: Rc<Self>, _scope: &NotifyScope) {
@@ -140,7 +136,7 @@ where
 
 impl<F, St> RcFuture for MapStream<F, St>
 where
-    F: Fn(&mut BindContext) -> St + 'static,
+    F: Fn(&mut ObsContext) -> St + 'static,
     St: Stream + 'static,
 {
     type Output = ();

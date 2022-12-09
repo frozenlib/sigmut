@@ -12,14 +12,14 @@ use std::{
 };
 
 #[inline]
-pub fn subscribe(mut f: impl FnMut(&mut BindContext) + 'static) -> Subscription {
+pub fn subscribe(mut f: impl FnMut(&mut ObsContext) + 'static) -> Subscription {
     subscribe_to((), move |_, bc| f(bc)).into_subscription()
 }
 
 #[inline]
 pub fn subscribe_to<St: 'static>(
     st: St,
-    mut f: impl FnMut(&mut St, &mut BindContext) + 'static,
+    mut f: impl FnMut(&mut St, &mut ObsContext) + 'static,
 ) -> impl Subscriber<St = St> {
     subscriber(Subscribe::new(SubscribeToData(st), move |st, bc| {
         f(&mut st.0, bc)
@@ -27,7 +27,7 @@ pub fn subscribe_to<St: 'static>(
 }
 
 pub fn subscribe_async<Fut: Future<Output = ()> + 'static>(
-    f: impl FnMut(&mut BindContext) -> Fut + 'static,
+    f: impl FnMut(&mut ObsContext) -> Fut + 'static,
 ) -> Subscription {
     Subscription(Some(subscribe_async::SubscribeAsync::new(f)))
 }
@@ -54,7 +54,7 @@ struct SubscribeData<St, F> {
 impl<St, F> Subscribe<St, F>
 where
     St: 'static,
-    F: FnMut(&mut St, &mut BindContext) + 'static,
+    F: FnMut(&mut St, &mut ObsContext) + 'static,
 {
     pub(crate) fn new(st: St, f: F) -> Rc<Self> {
         Self::new_with(st, f, false, Bindings::new())
@@ -90,7 +90,7 @@ where
 impl<St, F> BindSink for Subscribe<St, F>
 where
     St: 'static,
-    F: FnMut(&mut St, &mut BindContext) + 'static,
+    F: FnMut(&mut St, &mut ObsContext) + 'static,
 {
     fn notify(self: Rc<Self>, _scope: &NotifyScope) {
         let mut b = self.0.borrow_mut();
@@ -102,7 +102,7 @@ where
 impl<St, F> BindTask for Subscribe<St, F>
 where
     St: 'static,
-    F: FnMut(&mut St, &mut BindContext) + 'static,
+    F: FnMut(&mut St, &mut ObsContext) + 'static,
 {
     fn run(self: Rc<Self>, scope: &BindScope) {
         Subscribe::load(&self, scope);
@@ -117,7 +117,7 @@ pub(crate) trait SubscriberState {
 impl<St, F> InnerSubscriber for Subscribe<St, F>
 where
     St: SubscriberState + 'static,
-    F: FnMut(&mut St, &mut BindContext) + 'static,
+    F: FnMut(&mut St, &mut ObsContext) + 'static,
 {
     type St = St::St;
     fn borrow(&self) -> std::cell::Ref<Self::St> {
@@ -145,7 +145,7 @@ impl<T> FoldState for Option<T> {
 impl<T: FoldState, F> DynamicFold for Subscribe<T, F>
 where
     T: 'static,
-    F: FnMut(&mut T, &mut BindContext) + 'static,
+    F: FnMut(&mut T, &mut ObsContext) + 'static,
 {
     type Output = T::Output;
 
@@ -161,16 +161,16 @@ where
 }
 
 #[inline]
-pub fn obs<T>(f: impl Fn(&mut BindContext) -> T + 'static) -> ImplObs<impl Observable<Item = T>> {
+pub fn obs<T>(f: impl Fn(&mut ObsContext) -> T + 'static) -> ImplObs<impl Observable<Item = T>> {
     struct ObsFn<F>(F);
-    impl<F: Fn(&mut BindContext) -> T + 'static, T> Observable for ObsFn<F> {
+    impl<F: Fn(&mut ObsContext) -> T + 'static, T> Observable for ObsFn<F> {
         type Item = T;
 
         #[inline]
         fn with<U>(
             &self,
-            f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-            bc: &mut BindContext,
+            f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
+            bc: &mut ObsContext,
         ) -> U {
             f(&(self.0)(bc), bc)
         }
@@ -198,8 +198,8 @@ where
         #[inline]
         fn with<U>(
             &self,
-            f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-            bc: &mut BindContext,
+            f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
+            bc: &mut ObsContext,
         ) -> U {
             ObsCallback::with(|cb| self.with_dyn(cb.context(bc)), f)
         }

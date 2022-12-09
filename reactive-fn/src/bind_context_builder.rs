@@ -1,7 +1,7 @@
 use crate::{
     core::{BindScope, BindSink, Bindings, NotifyScope},
     utils::cast_or_convert,
-    BindContext,
+    ObsContext,
 };
 use std::{cell::RefCell, rc::Rc};
 
@@ -23,10 +23,10 @@ impl BindContextBuilder {
         }))
     }
 
-    pub fn with<T>(&self, f: impl FnOnce(&mut BindContext) -> T, scope: &BindScope) -> T {
+    pub fn with<T>(&self, f: impl FnOnce(&mut ObsContext) -> T, scope: &BindScope) -> T {
         self.0.bindings.borrow_mut().update(scope, &self.0, f)
     }
-    pub fn with_new_scope<T>(&self, f: impl FnOnce(&mut BindContext) -> T) -> T {
+    pub fn with_new_scope<T>(&self, f: impl FnOnce(&mut ObsContext) -> T) -> T {
         BindScope::with(|scope| self.with(f, scope))
     }
 }

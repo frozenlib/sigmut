@@ -19,11 +19,7 @@ where
 {
     type Item = T;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.0.with(|value, bc| f(&value.clone().into(), bc), bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -47,11 +43,7 @@ where
 {
     type Item = T;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.0.with(|value, bc| f(value.borrow(), bc), bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -75,11 +67,7 @@ where
 {
     type Item = T;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.0.with(|value, bc| f(value.as_ref(), bc), bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>
@@ -110,11 +98,7 @@ pub struct ConstantObservable<T>(pub(crate) T);
 impl<T: 'static> Observable for ConstantObservable<T> {
     type Item = T;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         f(&self.0, bc)
     }
     fn into_may(self) -> MayObs<Self::Item> {
@@ -128,11 +112,7 @@ impl<T: ?Sized> Observable for StaticObservable<T> {
     type Item = T;
 
     #[inline]
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         f(self.0, bc)
     }
     #[inline]
@@ -162,8 +142,8 @@ impl<T: ?Sized> Observable for StaticObservable<T> {
 
 //     fn with<U>(
 //         &self,
-//         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-//         bc: &mut BindContext,
+//         f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
+//         bc: &mut ObsContext,
 //     ) -> U {
 //         if let Some(s) = &self.0 {
 //             s.with(|value, bc| f(&Some(value.to_owned()), bc), bc)
@@ -212,8 +192,8 @@ impl<T: ?Sized> Observable for StaticObservable<T> {
 
 //     fn with<U>(
 //         &self,
-//         f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-//         bc: &mut BindContext,
+//         f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
+//         bc: &mut ObsContext,
 //     ) -> U {
 //         match &self.0 {
 //             Ok(s) => s.with(|value, bc| f(&Ok(value.to_owned()), bc), bc),

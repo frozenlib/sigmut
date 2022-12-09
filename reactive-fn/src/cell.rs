@@ -34,7 +34,7 @@ impl<T: 'static> ObsCell<T> {
             schedule_notify(&self.0);
         }
     }
-    pub fn get(&self, bc: &mut BindContext) -> T
+    pub fn get(&self, bc: &mut ObsContext) -> T
     where
         T: Clone,
     {
@@ -47,11 +47,11 @@ impl<T: 'static> ObsCell<T> {
         self.0.value.borrow().clone()
     }
 
-    pub fn with<U>(&self, f: impl FnOnce(&T, &mut BindContext) -> U, bc: &mut BindContext) -> U {
+    pub fn with<U>(&self, f: impl FnOnce(&T, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         f(&self.borrow(bc), bc)
     }
 
-    pub fn borrow(&self, bc: &mut BindContext) -> Ref<T> {
+    pub fn borrow(&self, bc: &mut ObsContext) -> Ref<T> {
         self.0.borrow(bc)
     }
     pub fn borrow_head(&self) -> Ref<T> {
@@ -91,7 +91,7 @@ impl<T: Default + 'static> Default for ObsCell<T> {
     }
 }
 impl<T: 'static> ObsCellData<T> {
-    fn borrow<'a>(self: &'a Rc<Self>, bc: &mut BindContext) -> Ref<'a, T> {
+    fn borrow<'a>(self: &'a Rc<Self>, bc: &mut ObsContext) -> Ref<'a, T> {
         bc.bind(self.clone());
         self.value.borrow()
     }
@@ -104,11 +104,7 @@ impl<T: 'static> ObsCellData<T> {
 impl<T: 'static> Observable for ObsCell<T> {
     type Item = T;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.with(f, bc)
     }
     fn into_dyn(self) -> DynObs<Self::Item>

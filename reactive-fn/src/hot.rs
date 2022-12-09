@@ -59,11 +59,7 @@ impl<S: Observable + 'static> HotReady for Hot<ImplObs<S>> {
 
 impl<S: Observable> Observable for Hot<S> {
     type Item = S::Item;
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.source.with(f, bc)
     }
 }

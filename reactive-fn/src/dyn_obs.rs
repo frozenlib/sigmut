@@ -273,11 +273,7 @@ impl<T: 'static + ?Sized> DynObs<T> {
 impl<T: ?Sized> Observable for DynObs<T> {
     type Item = T;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         if let DynObsData::Static(x) = &self.0 {
             f(x, bc)
         } else {
@@ -291,7 +287,7 @@ impl<T: ?Sized> Observable for DynObs<T> {
             DynObsData::DynInner(x) => x.clone().d_with_dyn(o),
         }
     }
-    fn get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    fn get(&self, bc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {

@@ -10,7 +10,7 @@ use std::{
 
 pub struct MapAsync<F, Fut>
 where
-    F: Fn(&mut BindContext) -> Fut + 'static,
+    F: Fn(&mut ObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
     data: RefCell<MapAsyncData<F, Fut>>,
@@ -19,7 +19,7 @@ where
 
 struct MapAsyncData<F, Fut>
 where
-    F: Fn(&mut BindContext) -> Fut + 'static,
+    F: Fn(&mut ObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
     f: F,
@@ -32,7 +32,7 @@ where
 }
 impl<F, Fut> MapAsyncData<F, Fut>
 where
-    F: Fn(&mut BindContext) -> Fut + 'static,
+    F: Fn(&mut ObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
     fn new(f: F) -> Self {
@@ -55,7 +55,7 @@ where
 
 impl<F, Fut> MapAsync<F, Fut>
 where
-    F: Fn(&mut BindContext) -> Fut + 'static,
+    F: Fn(&mut ObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
     pub fn new(f: F) -> Rc<Self> {
@@ -86,16 +86,12 @@ where
 }
 impl<F, Fut> Observable for Rc<MapAsync<F, Fut>>
 where
-    F: Fn(&mut BindContext) -> Fut + 'static,
+    F: Fn(&mut ObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
     type Item = Poll<Fut::Output>;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         bc.bind(self.clone());
         self.wake();
         f(&self.data.borrow().value, bc)
@@ -104,7 +100,7 @@ where
 
 impl<F, Fut> BindSource for MapAsync<F, Fut>
 where
-    F: Fn(&mut BindContext) -> Fut + 'static,
+    F: Fn(&mut ObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
     fn sinks(&self) -> &BindSinks {
@@ -116,7 +112,7 @@ where
 }
 impl<F, Fut> BindSink for MapAsync<F, Fut>
 where
-    F: Fn(&mut BindContext) -> Fut + 'static,
+    F: Fn(&mut ObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
     fn notify(self: Rc<Self>, _scope: &NotifyScope) {
@@ -132,7 +128,7 @@ where
 
 impl<F, Fut> RcFuture for MapAsync<F, Fut>
 where
-    F: Fn(&mut BindContext) -> Fut + 'static,
+    F: Fn(&mut ObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
     type Output = ();

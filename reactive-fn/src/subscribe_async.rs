@@ -10,12 +10,12 @@ use std::{
 
 pub struct SubscribeAsync<F, Fut>(RefCell<SubscribeAsyncData<F, Fut>>)
 where
-    F: FnMut(&mut BindContext) -> Fut + 'static,
+    F: FnMut(&mut ObsContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static;
 
 struct SubscribeAsyncData<F, Fut>
 where
-    F: FnMut(&mut BindContext) -> Fut + 'static,
+    F: FnMut(&mut ObsContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
     f: F,
@@ -28,7 +28,7 @@ where
 
 impl<F, Fut> SubscribeAsync<F, Fut>
 where
-    F: FnMut(&mut BindContext) -> Fut + 'static,
+    F: FnMut(&mut ObsContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
     pub fn new(f: F) -> Rc<Self> {
@@ -47,7 +47,7 @@ where
 
 impl<F, Fut> RcFuture for SubscribeAsync<F, Fut>
 where
-    F: FnMut(&mut BindContext) -> Fut + 'static,
+    F: FnMut(&mut ObsContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
     type Output = ();
@@ -76,7 +76,7 @@ where
 
 impl<F, Fut> BindSink for SubscribeAsync<F, Fut>
 where
-    F: FnMut(&mut BindContext) -> Fut + 'static,
+    F: FnMut(&mut ObsContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
     fn notify(self: Rc<Self>, _scope: &NotifyScope) {

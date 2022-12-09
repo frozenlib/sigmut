@@ -69,11 +69,7 @@ where
 {
     type Item = St::Item;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         bc.bind(self.clone());
         self.wake();
         f(&self.data.borrow().value, bc)

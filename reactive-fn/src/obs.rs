@@ -52,8 +52,8 @@ impl<S: Observable + 'static> ImplObs<S> {
             #[inline]
             fn with<U>(
                 &self,
-                f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-                bc: &mut BindContext,
+                f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
+                bc: &mut ObsContext,
             ) -> U {
                 self.s.with(|value, bc| f((self.f)(value), bc), bc)
             }
@@ -114,8 +114,8 @@ impl<S: Observable + 'static> ImplObs<S> {
             #[inline]
             fn with<U>(
                 &self,
-                f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-                bc: &mut BindContext,
+                f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
+                bc: &mut ObsContext,
             ) -> U {
                 self.0
                     .with(|s, bc| s.with(|value, bc| f(value, bc), bc), bc)
@@ -358,11 +358,7 @@ impl<S: Observable + 'static> ImplObs<S> {
 }
 impl<S: Observable + 'static> Observable for ImplObs<S> {
     type Item = S::Item;
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         self.0.with(f, bc)
     }
 

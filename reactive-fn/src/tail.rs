@@ -143,11 +143,11 @@ impl<S: Observable + 'static> TailData<S> {
     fn subscribe_new<St: 'static>(
         self,
         st: St,
-        mut f: impl FnMut(&mut St, &S::Item, &mut BindContext) + 'static,
+        mut f: impl FnMut(&mut St, &S::Item, &mut ObsContext) + 'static,
     ) -> Rc<
         Subscribe<
             TailSubscriberState<St>,
-            impl FnMut(&mut TailSubscriberState<St>, &mut BindContext),
+            impl FnMut(&mut TailSubscriberState<St>, &mut ObsContext),
         >,
     > {
         let mut state = self.state.borrow_mut();

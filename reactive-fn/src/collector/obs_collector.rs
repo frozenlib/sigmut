@@ -66,11 +66,7 @@ impl<C: Collect> ObsCollector<C> {
 }
 impl<C: Collect> Observable for ObsCollector<C> {
     type Item = C::Output;
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         f(&self.0.clone().get(bc), bc)
     }
 }
@@ -81,7 +77,7 @@ impl<C> Clone for ObsCollector<C> {
 }
 
 impl<C: Collect> ObsCollectorData<C> {
-    pub fn get(self: Rc<Self>, bc: &mut BindContext) -> C::Output {
+    pub fn get(self: Rc<Self>, bc: &mut ObsContext) -> C::Output {
         let value = self.collector.borrow().collect();
         bc.bind(self);
         value

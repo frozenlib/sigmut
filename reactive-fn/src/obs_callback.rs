@@ -3,7 +3,7 @@ use std::{marker::PhantomData, mem};
 
 pub struct ObsSink<'a, 'b, 'bc, T: ?Sized> {
     pub cb: ObsCallback<'a, T>,
-    pub bc: &'b mut BindContext<'bc>,
+    pub bc: &'b mut ObsContext<'bc>,
 }
 
 impl<'a, 'b, 'bc, T: ?Sized> ObsSink<'a, 'b, 'bc, T> {
@@ -15,27 +15,27 @@ impl<'a, 'b, 'bc, T: ?Sized> ObsSink<'a, 'b, 'bc, T> {
     }
 }
 
-/// Something like trait object of `FnOnce(&T, &mut BindContext)`.
+/// Something like trait object of `FnOnce(&T, &mut ObsContext)`.
 ///
-/// Unlike `Box<dyn FnOnce(&T, &mut BindContext)>`, no heap allocation.
+/// Unlike `Box<dyn FnOnce(&T, &mut ObsContext)>`, no heap allocation.
 pub struct ObsCallback<'a, T: ?Sized>(&'a mut dyn RawObsCallback<T>);
 
 impl<'a, T: ?Sized> ObsCallback<'a, T> {
-    pub fn ret(self, value: &T, bc: &mut BindContext) -> Ret<'a> {
+    pub fn ret(self, value: &T, bc: &mut ObsContext) -> Ret<'a> {
         self.0.ret(value, bc);
         Ret::new()
     }
-    pub fn ret_flat(self, o: &impl Observable<Item = T>, bc: &mut BindContext) -> Ret<'a> {
+    pub fn ret_flat(self, o: &impl Observable<Item = T>, bc: &mut ObsContext) -> Ret<'a> {
         o.with(|value, bc| self.ret(value, bc), bc)
     }
-    pub fn context<'b, 'bc>(self, bc: &'b mut BindContext<'bc>) -> ObsSink<'a, 'b, 'bc, T> {
+    pub fn context<'b, 'bc>(self, bc: &'b mut ObsContext<'bc>) -> ObsSink<'a, 'b, 'bc, T> {
         ObsSink { cb: self, bc }
     }
 }
 impl<T: ?Sized> ObsCallback<'_, T> {
     pub fn with<R>(
         get: impl for<'a> FnOnce(ObsCallback<'a, T>) -> Ret<'a>,
-        f: impl FnOnce(&T, &mut BindContext) -> R,
+        f: impl FnOnce(&T, &mut ObsContext) -> R,
     ) -> R {
         let mut s = State::new(f);
         get(ObsCallback(&mut s));
@@ -100,14 +100,14 @@ impl<F, R> State<F, R> {
 }
 
 trait RawObsCallback<T: ?Sized> {
-    fn ret(&mut self, value: &T, bc: &mut BindContext);
+    fn ret(&mut self, value: &T, bc: &mut ObsContext);
 }
 impl<F, T, R> RawObsCallback<T> for State<F, R>
 where
     T: ?Sized,
-    F: FnOnce(&T, &mut BindContext) -> R,
+    F: FnOnce(&T, &mut ObsContext) -> R,
 {
-    fn ret(&mut self, value: &T, bc: &mut BindContext) {
+    fn ret(&mut self, value: &T, bc: &mut ObsContext) {
         self.apply(|f| f(value, bc))
     }
 }

@@ -21,7 +21,7 @@ impl<T: 'static> Fold<T> {
     pub(crate) fn constant(st: T) -> Self {
         Self(FoldData::Constant(st))
     }
-    pub fn new(st: T, mut f: impl FnMut(&mut T, &mut BindContext) + 'static) -> Self {
+    pub fn new(st: T, mut f: impl FnMut(&mut T, &mut ObsContext) + 'static) -> Self {
         Fold::from_dyn(Subscribe::new(Some(st), move |st, bc| {
             if let Some(st) = st {
                 f(st, bc)

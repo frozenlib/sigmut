@@ -31,11 +31,7 @@ where
 {
     type Item = T;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         match self {
             Self::Constant(value) => f(value.borrow(), bc),
             Self::Obs(obs) => obs.with(|value, bc| f(value, bc), bc),

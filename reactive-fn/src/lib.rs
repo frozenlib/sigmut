@@ -30,7 +30,7 @@ mod subscriber;
 mod tail;
 mod utils;
 
-pub use crate::core::BindContext;
+pub use crate::core::ObsContext;
 use crate::core::*;
 pub use bind_context_builder::BindContextBuilder;
 pub use cache::{Cache, CacheBuf};

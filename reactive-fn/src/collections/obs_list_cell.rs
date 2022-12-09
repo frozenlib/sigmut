@@ -16,7 +16,7 @@ impl<T: 'static> ObsListCell<T> {
     pub fn new() -> Self {
         Self(Rc::new_cyclic(Inner::new))
     }
-    pub fn borrow(&self, bc: &mut BindContext) -> ObsListCellRef<T> {
+    pub fn borrow(&self, bc: &mut ObsContext) -> ObsListCellRef<T> {
         bc.bind(self.0.clone());
         self.0.log_refs.borrow_mut().set_read();
         ObsListCellRef {
@@ -405,7 +405,7 @@ impl<'a, T> IntoIterator for &'a mut ObsListCellRefMut<'_, T> {
 }
 
 impl<T: 'static> DynamicObservableList<T> for Inner<T> {
-    fn borrow<'a>(&'a self, bc: &mut BindContext) -> Box<dyn DynamicObservableListRef<T> + 'a> {
+    fn borrow<'a>(&'a self, bc: &mut ObsContext) -> Box<dyn DynamicObservableListRef<T> + 'a> {
         let source = self.this.upgrade().unwrap();
         bc.bind(source.clone());
         self.log_refs.borrow_mut().set_read();

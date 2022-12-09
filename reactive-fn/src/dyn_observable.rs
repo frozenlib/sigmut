@@ -5,7 +5,7 @@ pub trait DynObservable {
     type Item: ?Sized;
 
     fn d_with_dyn<'a>(&self, o: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a>;
-    fn d_get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    fn d_get(&self, bc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned;
 
@@ -30,7 +30,7 @@ impl<S: Observable> DynObservable for S {
         self.with_dyn(o)
     }
 
-    fn d_get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    fn d_get(&self, bc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
@@ -55,11 +55,7 @@ impl<S: Observable> DynObservable for S {
 impl<T: ?Sized> Observable for dyn DynObservable<Item = T> {
     type Item = T;
 
-    fn with<U>(
-        &self,
-        f: impl FnOnce(&Self::Item, &mut BindContext) -> U,
-        bc: &mut BindContext,
-    ) -> U {
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
         ObsCallback::with(|cb| self.d_with_dyn(cb.context(bc)), f)
     }
 
@@ -67,7 +63,7 @@ impl<T: ?Sized> Observable for dyn DynObservable<Item = T> {
         self.d_with_dyn(o)
     }
 
-    fn get(&self, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    fn get(&self, bc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
@@ -78,7 +74,7 @@ impl<T: ?Sized> Observable for dyn DynObservable<Item = T> {
 pub(super) trait DynObservableInner: 'static {
     type Item: ?Sized;
     fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a>;
-    fn d_get(self: Rc<Self>, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    fn d_get(self: Rc<Self>, bc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
@@ -100,7 +96,7 @@ where
         self.with_dyn(oc)
     }
 
-    fn d_get(self: Rc<Self>, bc: &mut BindContext) -> <Self::Item as ToOwned>::Owned
+    fn d_get(self: Rc<Self>, bc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
