@@ -21,6 +21,8 @@ jobs:
         run: cargo test --verbose --no-run
       - name: Run tests
         run: cargo test --verbose
+      # - name: Run compile fail tests
+      #   run: cargo test --test compile_fail --verbose -- --ignored
       - name: Clippy
         run: cargo clippy --all-features --tests --lib -- -W clippy::all
         env:
@@ -33,20 +35,3 @@ jobs:
         run: cargo +stable test --verbose --no-run
       - name: Run tests (minimal versions)
         run: cargo +stable test --verbose
-
-      - name: Run benchmark
-        if : ${{ github.event_name != 'schedule' }}
-        run: cargo +nightly bench | tee output.txt
-        working-directory: ./reactive-fn-benchmark
-
-      - name: Store benchmark result
-        if : ${{ github.event_name != 'schedule' }}
-        uses: rhysd/github-action-benchmark@v1
-        with:
-          name: reactive-fn Benchmark
-          tool: "cargo"
-          fail-on-alert: false
-          comment-on-alert: true
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          auto-push: true
-          output-file-path: ./reactive-fn-benchmark/output.txt

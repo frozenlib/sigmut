@@ -1,269 +1,213 @@
-use ::rt_local::runtime::core::test;
-use ::rt_local::wait_for_idle;
-use reactive_fn::*;
+use reactive_fn::{
+    core::DependencyContext, obs_format, observable::ObsCell, watch_format, watch_write,
+    watch_writeln,
+};
+use std::fmt::Write;
 
-#[test]
-async fn impl_observable_display() {
-    fn check(_s: impl ObservableDisplay) {}
-
-    let s = ObsCell::new(0);
-    let s_dyn = s.obs().map_ref(|x| x as &dyn ObservableDisplay).into_dyn();
-    check(s_dyn);
+struct DebugOnly(u32);
+impl std::fmt::Debug for DebugOnly {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "debug-{}", self.0)
+    }
 }
 
 #[test]
-async fn test_obs_display_map_str() {
-    let s = ObsCell::new(1);
-    let d = obs_display({
-        let s = s.clone();
-        move |f, bc| write!(f, "abc{}", s.get(bc))
+fn watch_write() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{}", 1 + 2);
+        assert_eq!(s, "3");
     });
-    let v = d.obs().map(|x| x.to_string()).collect_vec();
-    wait_for_idle().await;
-
-    s.set(5);
-    wait_for_idle().await;
-
-    s.set(10);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
+
 #[test]
-async fn test_obs_display_map_string() {
-    let s = ObsCell::new(1);
-    let d = obs_display({
-        let s = s.clone();
-        move |f, bc| write!(f, "abc{}", s.get(bc))
+fn watch_writeln() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let _ = watch_writeln!(&mut s, dc.ac().oc(), "{}", 1 + 2);
+        assert_eq!(s, "3\n");
     });
-    let v = d.obs().collect_vec();
-    wait_for_idle().await;
-
-    s.set(5);
-    wait_for_idle().await;
-
-    s.set(10);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
 
 #[test]
-async fn test_bind_write_constant() {
-    let o = obs_display(move |f, bc| bind_write!(f, bc, "abc{}", 10));
-    let v = o.obs().collect_vec();
-    wait_for_idle().await;
-    assert_eq!(v.stop(), vec!["abc10"]);
-}
-
-#[test]
-async fn test_bind_write_constant_ref() {
-    let o = obs_display(move |f, bc| bind_write!(f, bc, "abc{}", &10));
-    let v = o.obs().collect_vec();
-    wait_for_idle().await;
-    assert_eq!(v.stop(), vec!["abc10"]);
-}
-
-#[test]
-async fn test_bind_write_obs() {
-    let s = ObsCell::new(1);
-    let o = obs_display({
-        let s = s.clone();
-        move |f, bc| bind_write!(f, bc, "abc{}", s)
+fn watch_format() {
+    DependencyContext::with(|dc| {
+        let s = watch_format!(dc.ac().oc(), "{}", 1 + 2);
+        assert_eq!(s, "3");
     });
-    let v = o.obs().collect_vec();
-    wait_for_idle().await;
-
-    s.set(5);
-    wait_for_idle().await;
-
-    s.set(10);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
+
 #[test]
-async fn test_bind_write_obs2() {
-    let s0 = ObsCell::new(0);
-    let s1 = ObsCell::new(1);
-    let o = obs_display({
-        let s0 = s0.clone();
-        let s1 = s1.clone();
-        move |f, bc| bind_write!(f, bc, "abc{}-{}", s0, s1)
+fn watch_write_display() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{}", 1 + 2);
+        assert_eq!(s, "3");
     });
-    let v = o.obs().collect_vec();
-    wait_for_idle().await;
-
-    s0.set(5);
-    wait_for_idle().await;
-
-    s1.set(10);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc0-1", "abc5-1", "abc5-10"]);
 }
 
 #[test]
-async fn test_bind_write_obs_format() {
-    let s = ObsCell::new(1);
-    let o = obs_display({
-        let s = s.clone();
-        move |f, bc| bind_write!(f, bc, "abc-{}", obs_format!("<{}>", s.clone()))
+fn obs_format_display() {
+    DependencyContext::with(|dc| {
+        let s = obs_format!("{}", 1 + 2);
+        assert_eq!(s.get(dc.ac().oc()), "3");
     });
-    let v = o.obs().collect_vec();
-    wait_for_idle().await;
-
-    s.set(5);
-    wait_for_idle().await;
-
-    s.set(10);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc-<1>", "abc-<5>", "abc-<10>"]);
 }
 
 #[test]
-async fn test_bind_format_obs() {
-    let s = ObsCell::new(1);
-    let o = obs({
-        let s = s.clone();
-        move |bc| bind_format!(bc, "abc{}", s)
+fn watch_write_observable_display() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let a = ObsCell::new(1);
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{a}");
+        assert_eq!(s, "1");
     });
-    let v = o.collect_vec();
-    wait_for_idle().await;
-
-    s.set(5);
-    wait_for_idle().await;
-
-    s.set(10);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc1", "abc5", "abc10"]);
 }
-
 #[test]
-async fn test_bind_format_name() {
-    let s0 = ObsCell::new(1);
-    let s1 = ObsCell::new(5);
-    let o = obs({
-        let s0 = s0.clone();
-        let s1 = s1.clone();
-        move |bc| bind_format!(bc, "{abc}-{def}", def = s0, abc = s1)
+fn obs_format_observable_display() {
+    DependencyContext::with(|dc| {
+        let a = ObsCell::new(3);
+        let s = obs_format!("{a}");
+        assert_eq!(s.get(dc.ac().oc()), "3");
     });
-    let v = o.collect_vec();
-    wait_for_idle().await;
-
-    s0.set(7);
-    wait_for_idle().await;
-
-    s1.set(10);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["5-1", "5-7", "10-7"]);
 }
 
 #[test]
-async fn test_bind_format_debug() {
-    let s = ObsCell::new(Some(1));
-    let o = obs({
-        let s = s.clone();
-        move |bc| bind_format!(bc, "abc-{:?}", s)
+fn obs_format_observable_display_notify() {
+    DependencyContext::with(|dc| {
+        let a = ObsCell::new(3);
+        let s = obs_format!("{}", a.obs());
+        let sc = s.cached();
+        assert_eq!(sc.get(dc.ac().oc()), "3");
+
+        a.set(5, &mut dc.ac());
+        assert_eq!(sc.get(dc.ac().oc()), "5");
     });
-    let v = o.collect_vec();
-    wait_for_idle().await;
-
-    s.set(None);
-    wait_for_idle().await;
-
-    s.set(Some(5));
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc-Some(1)", "abc-None", "abc-Some(5)"]);
 }
 
 #[test]
-async fn test_bind_format_hex() {
-    let s = ObsCell::new(10);
-    let o = obs({
-        let s = s.clone();
-        move |bc| bind_format!(bc, "abc-{:x}", s)
+fn watch_write_debug() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{:?}", DebugOnly(3));
+        assert_eq!(s, "debug-3");
     });
-    let v = o.collect_vec();
-    wait_for_idle().await;
-
-    s.set(16);
-    wait_for_idle().await;
-
-    s.set(20);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc-a", "abc-10", "abc-14"]);
+}
+#[test]
+fn obs_format_debug() {
+    DependencyContext::with(|dc| {
+        let s = obs_format!("{:?}", DebugOnly(3));
+        assert_eq!(s.get(dc.ac().oc()), "debug-3");
+    });
 }
 
 #[test]
-async fn test_obs_format() {
-    let s = ObsCell::new(10);
-    let v = obs_format!("abc-{}", s.clone()).obs().collect_vec();
-    wait_for_idle().await;
-
-    s.set(16);
-    wait_for_idle().await;
-
-    s.set(20);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
+fn watch_write_index() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{1} {0}", 1 + 2, 3 + 4);
+        assert_eq!(s, "7 3");
+    });
+}
+#[test]
+fn obs_format_index() {
+    DependencyContext::with(|dc| {
+        let s = obs_format!("{1} {0}", 1 + 2, 3 + 4);
+        assert_eq!(s.get(dc.ac().oc()), "7 3");
+    });
 }
 
 #[test]
-async fn test_obs_format_obs_display() {
-    let s = ObsCell::new(10);
-    let d = s.obs().display();
-    let v = obs_format!("abc-{}", d).obs().collect_vec();
-    wait_for_idle().await;
-
-    s.set(16);
-    wait_for_idle().await;
-
-    s.set(20);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
+fn watch_write_key_value() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{a}", a = 1 + 2);
+        assert_eq!(s, "3");
+    });
 }
 #[test]
-async fn test_obs_format_dyn_obs_dyn_obs_display() {
-    let s = ObsCell::new(10);
-    let d = s.as_dyn().map_ref(|x| x as &dyn ObservableDisplay);
-    let v = obs_format!("abc-{}", d).obs().collect_vec();
-    wait_for_idle().await;
-
-    s.set(16);
-    wait_for_idle().await;
-
-    s.set(20);
-    wait_for_idle().await;
-
-    assert_eq!(v.stop(), vec!["abc-10", "abc-16", "abc-20"]);
+fn obs_format_key_value() {
+    DependencyContext::with(|dc| {
+        let s = obs_format!("{a}", a = 1 + 2);
+        assert_eq!(s.get(dc.ac().oc()), "3");
+    });
 }
 
 #[test]
-async fn test_obs_format_hex() {
-    let v = obs_format!("abc-{:x}", 0xa0).obs().collect_vec();
-    wait_for_idle().await;
-    assert_eq!(v.stop(), vec!["abc-a0"]);
+fn watch_write_key_value_2() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{b} {a}", a = 1 + 2, b = 5);
+        assert_eq!(s, "5 3");
+    });
+}
+#[test]
+fn obs_format_key_value_2() {
+    DependencyContext::with(|dc| {
+        let s = obs_format!("{b} {a}", a = 1 + 2, b = 5);
+        assert_eq!(s.get(dc.ac().oc()), "5 3");
+    });
 }
 
 #[test]
-async fn test_obs_format_obs_hex() {
-    let s = ObsCell::new(0xff);
-    let v = obs_format!("abc-{:x}", s.obs()).obs().collect_vec();
-    wait_for_idle().await;
+fn watch_write_key() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let a = 3;
+        let b = 5;
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{b} {a}");
+        assert_eq!(s, "5 3");
+    });
+}
 
-    s.set(0x10);
-    wait_for_idle().await;
+#[test]
+fn obs_format_key() {
+    DependencyContext::with(|dc| {
+        let a = ObsCell::new(3);
+        let b = ObsCell::new(5);
+        let s = obs_format!("{b} {a}");
+        assert_eq!(s.get(dc.ac().oc()), "5 3");
+    });
+}
 
-    s.set(0x20);
-    wait_for_idle().await;
+#[test]
+fn watch_write_mix() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let a = 1;
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{a} {x} {}", 5, x = 9);
+        assert_eq!(s, "1 9 5");
+    });
+}
 
-    assert_eq!(v.stop(), vec!["abc-ff", "abc-10", "abc-20"]);
+#[test]
+fn obs_format_mix() {
+    DependencyContext::with(|dc| {
+        let a = ObsCell::new(1);
+        let x = ObsCell::new(9);
+        let s = obs_format!("{a} {x} {}", 5);
+        assert_eq!(s.get(dc.ac().oc()), "1 9 5");
+    });
+}
+
+#[test]
+fn watch_not_consume() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        let a = String::from("abc");
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{a}");
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{a}");
+        assert_eq!(s, "abcabc");
+    });
+}
+
+#[test]
+fn watch_write_escape() {
+    DependencyContext::with(|dc| {
+        let mut s = String::new();
+        #[allow(unused)]
+        let a = 3;
+        let _ = watch_write!(&mut s, dc.ac().oc(), "{{a}}");
+        assert_eq!(s, "{a}");
+    });
 }

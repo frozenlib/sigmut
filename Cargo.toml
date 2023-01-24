@@ -1,3 +1,9 @@
 [workspace]
 resolver = "2"
-members = ["reactive-fn"]
+members = ["reactive-fn", "reactive-fn-macros"]
+exclude = ["reactive-fn-bench", "reactive-fn-bench-std"]
+
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true

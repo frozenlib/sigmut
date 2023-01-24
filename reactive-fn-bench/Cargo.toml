@@ -1,0 +1,27 @@
+[package]
+name = "reactive-fn-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+bench = false
+
+[[bench]]
+name = "benches"
+harness = false
+
+[dependencies]
+reactive-fn = { path = "../reactive-fn" }
+
+[dev-dependencies]
+criterion = "0.4"
+atty = "0.2.14"   # Because criterion depends on a version of atty that cannot be compiled.
+serde = "1.0.151" # Because criterion depends on a version of serde that cannot be compiled.
+regex = "1.7.0"   # Because criterion depends on a version of regex that cannot be compiled.
+
+
+[target.'cfg(unix)'.dev-dependencies]
+pprof = { version = "0.11.0", features = ["flamegraph"] }

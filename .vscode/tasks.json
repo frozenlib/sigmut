@@ -5,11 +5,46 @@
   "tasks": [
     {
       "type": "shell",
+      "label": "cargo build",
+      "command": "cargo",
+      "args": [
+        "build"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
+      // "options": {
+      //     "env": {
+      //         "RUST_BACKTRACE": "1",
+      //     }
+      // }
+    },
+    {
+      "type": "shell",
+      "label": "cargo build release",
+      "command": "cargo",
+      "args": [
+        "build",
+        "--release"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "type": "shell",
       "label": "cargo test",
       "command": "cargo",
       "args": [
-        "test",
-        "--all-features"
+        "test"
       ],
       "problemMatcher": [
         "$rustc"
@@ -22,71 +57,36 @@
         "panel": "dedicated",
         "clear": true
       },
-      "options": {
-        "env": {
-          "CARGO_NET_GIT_FETCH_WITH_CLI": "true",
-          // "RUST_BACKTRACE": "1"
-        }
-      }
+      "dependsOn": [
+        "include doc"
+      ],
     },
     {
       "type": "shell",
-      "label": "cargo test macro",
-      "command": "cargo",
+      "label": "cargo watch",
+      "command": "wt",
       "args": [
-        "+nightly",
-        "test",
-        "--target-dir",
-        "./target/macro_detail",
-        "--all-features"
+        "new-tab",
+        "cargo-watch",
+        "-c",
+        "-x",
+        "test"
       ],
-      "problemMatcher": [
-        "$rustc"
-      ],
+      "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
         "clear": true
-      },
-      "options": {
-        "env": {
-          "RUSTFLAGS": "-Z macro-backtrace"
-        }
       }
     },
     {
       "type": "shell",
-      "label": "cargo build",
+      "label": "cargo run exmaple",
       "command": "cargo",
       "args": [
-        "build"
+        "run",
+        "--example",
+        "${fileBasenameNoExtension}"
       ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-      // "group": {
-      //   "kind": "build",
-      //   "isDefault": true
-      // },
-      "presentation": {
-        "panel": "dedicated",
-        "clear": true
-      },
-      "options": {
-        "env": {
-          "RUST_BACKTRACE": "1"
-        }
-      }
-    },
-    {
-      "type": "shell",
-      "label": "cargo bench",
-      "command": "cargo",
-      "args": [
-        "bench"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}/reactive-fn-benchmark"
-      },
       "problemMatcher": [
         "$rustc"
       ],
@@ -111,7 +111,10 @@
       "presentation": {
         "panel": "dedicated",
         "clear": true
-      }
+      },
+      "dependsOn": [
+        "include doc"
+      ],
     },
     {
       "type": "shell",
@@ -120,9 +123,11 @@
       "args": [
         "clippy",
         "--all-features",
+        "--tests",
+        "--lib",
         "--",
         "-W",
-        "clippy::all",
+        "clippy::all"
       ],
       "problemMatcher": [
         "$rustc"
@@ -155,6 +160,157 @@
         "panel": "dedicated",
         "clear": true
       }
+    },
+    {
+      "type": "shell",
+      "label": "cargo fix & fmt",
+      "command": "cargo fix && cargo fmt",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true,
+      }
+    },
+    {
+      "type": "shell",
+      "label": "cargo bench std",
+      "command": "cargo",
+      "args": [
+        "bench"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/reactive-fn-bench-std"
+      },
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "type": "shell",
+      "label": "cargo bench",
+      "command": "cargo bench --bench benches -- --baseline target/bench-results/base",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      },
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+    },
+    {
+      "type": "shell",
+      "label": "cargo bench base",
+      "command": "cargo bench --bench benches -- --save-baseline target/bench-results/base",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      },
+    },
+    {
+      "type": "shell",
+      "label": "cargo update minimal-versions",
+      "command": "cargo",
+      "args": [
+        "+nightly",
+        "update",
+        "-Z",
+        "minimal-versions"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "type": "shell",
+      "label": "update compile error",
+      "command": "cargo",
+      "args": [
+        "test",
+        "--test",
+        "compile_fail",
+        "--",
+        "--ignored"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      },
+      "options": {
+        "env": {
+          "TRYBUILD": "overwrite"
+        }
+      }
+    },
+    {
+      "type": "shell",
+      "label": "include doc",
+      "command": "include-doc",
+      "args": [
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [
+        {
+          "owner": "include-doc",
+          "fileLocation": [
+            "relative",
+            "${workspaceFolder}"
+          ],
+          "pattern": [
+            {
+              "regexp": "^(error): (.*)$",
+              "severity": 1,
+              "message": 2,
+            },
+            {
+              "regexp": "^--> (.*):(\\d+)\\s*$",
+              "file": 1,
+              "line": 2,
+              "loop": true,
+            },
+          ]
+        },
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
+    },
+    {
+      "type": "shell",
+      "label": "profile",
+      "command": " cargo run --profile release-with-debug --example many_subscription",
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      }
+      // "options": {
+      //     "env": {
+      //         "RUST_BACKTRACE": "1",
+      //     }
+      // }
     },
   ]
 }

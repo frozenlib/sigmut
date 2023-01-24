@@ -1,4 +1,4 @@
-use super::*;
+use super::{CollectModify, Collector, ObsCollector};
 use slabmap::SlabMap;
 
 pub type ObsAnyCollector = ObsCollector<AnyCollector>;
@@ -6,7 +6,7 @@ pub type ObsAnyCollector = ObsCollector<AnyCollector>;
 pub struct AnyCollector {
     count: usize,
 }
-impl Collect for AnyCollector {
+impl Collector for AnyCollector {
     type Input = bool;
     type Output = bool;
     type Key = bool;
@@ -56,7 +56,7 @@ impl<T: Clone + 'static> SomeCollector<T> {
         self.0.keys().next() == Some(key)
     }
 }
-impl<T: Clone + 'static> Collect for SomeCollector<T> {
+impl<T: Clone + 'static> Collector for SomeCollector<T> {
     type Input = Option<T>;
     type Output = Option<T>;
     type Key = Option<usize>;

@@ -1,15 +1,13 @@
-use super::*;
+use crate::{
+    core::{Action, ActionContext, BindSource, ObsContext, Runtime, SinkBindings},
+    observable::{Obs, ObsBuilder, Observable, ObservableBuilder, RcObservable},
+};
+use derive_ex::derive_ex;
 use std::{cell::RefCell, rc::Rc};
 
-#[derive(Default)]
-pub struct ObsCollector<C>(Rc<ObsCollectorData<C>>);
+const PARAM: usize = 0;
 
-#[derive(Default)]
-struct ObsCollectorData<T> {
-    collector: RefCell<T>,
-    sinks: BindSinks,
-}
-pub trait Collect: 'static {
+pub trait Collector: 'static {
     type Input;
     type Output;
     type Key;
@@ -17,6 +15,54 @@ pub trait Collect: 'static {
     fn remove(&mut self, key: Self::Key) -> CollectModify;
     fn set(&mut self, key: Self::Key, value: Self::Input) -> CollectModify<Self::Key>;
     fn collect(&self) -> Self::Output;
+}
+
+struct RawObsCollector<C> {
+    value: RefCell<C>,
+    sinks: RefCell<SinkBindings>,
+}
+
+impl<C: Collector> RawObsCollector<C> {
+    fn new(collect: C) -> Self {
+        Self {
+            value: RefCell::new(collect),
+            sinks: RefCell::new(SinkBindings::new()),
+        }
+    }
+
+    fn notify(&self, ac: &mut ActionContext) {
+        self.sinks.borrow_mut().notify(true, ac.rt());
+    }
+
+    fn watch(self: &Rc<Self>, oc: &mut ObsContext) {
+        self.sinks.borrow_mut().watch(self.clone(), PARAM, oc);
+    }
+
+    fn output(self: &Rc<Self>, oc: &mut ObsContext) -> C::Output {
+        let value = self.value.borrow().collect();
+        self.watch(oc);
+        value
+    }
+}
+impl<C: Collector> RcObservable for RawObsCollector<C> {
+    type Item = C::Output;
+
+    fn rc_with<U>(
+        self: &Rc<Self>,
+        f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
+        oc: &mut ObsContext,
+    ) -> U {
+        f(&self.output(oc), oc)
+    }
+}
+
+impl<C: Collector> BindSource for RawObsCollector<C> {
+    fn flush(self: Rc<Self>, _param: usize, _rt: &mut Runtime) -> bool {
+        false
+    }
+    fn unbind(self: Rc<Self>, _param: usize, key: usize, _rt: &mut Runtime) {
+        self.sinks.borrow_mut().unbind(key);
+    }
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
@@ -34,116 +80,89 @@ impl CollectModify<()> {
     }
 }
 
-pub struct ObsCollectorObserver<C: Collect> {
-    collector: Rc<ObsCollectorData<C>>,
+#[derive_ex(Clone(bound()))]
+pub struct ObsCollector<C>(Rc<RawObsCollector<C>>);
+
+impl<C: Collector> ObsCollector<C> {
+    pub fn new(collect: C) -> Self {
+        Self(Rc::new(RawObsCollector::new(collect)))
+    }
+
+    pub fn insert(&self, ac: &mut ActionContext) -> ObsCollectorEntry<C> {
+        let m = self.0.value.borrow_mut().insert();
+        if m.is_modified {
+            self.0.notify(ac);
+        }
+        ObsCollectorEntry::new(self.0.clone(), m.key)
+    }
+
+    pub fn obs(&self) -> Obs<C::Output> {
+        self.obs_builder().obs()
+    }
+    pub fn obs_builder(&self) -> ObsBuilder<impl ObservableBuilder<Item = C::Output>> {
+        ObsBuilder::from_rc_rc(self.0.clone())
+    }
+}
+impl<C: Collector> Observable for ObsCollector<C> {
+    type Item = C::Output;
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
+        f(&self.0.clone().output(oc), oc)
+    }
+}
+
+struct RawObsCollectorEntry<C: Collector> {
+    owner: Rc<RawObsCollector<C>>,
     key: Option<C::Key>,
 }
-impl<C: Collect> ObsCollector<C> {
-    pub fn new() -> Self
-    where
-        C: Default,
-    {
-        Default::default()
-    }
 
-    fn insert(&self) -> ObsCollectorObserver<C> {
-        let m = self.0.collector.borrow_mut().insert();
-        if m.is_modified {
-            schedule_notify(&self.0);
-        }
-        ObsCollectorObserver {
-            collector: self.0.clone(),
-            key: Some(m.key),
+impl<C: Collector> RawObsCollectorEntry<C> {
+    fn try_set(&mut self, value: C::Input, ac: &mut ActionContext) {
+        if let Some(key) = self.key.take() {
+            let m = self.owner.value.borrow_mut().set(key, value);
+            self.key = Some(m.key);
+            if m.is_modified {
+                self.owner.notify(ac);
+            }
         }
     }
-
-    pub fn as_dyn(&self) -> Obs<C::Output> {
-        self.obs().into_dyn()
+    fn try_remove(&mut self, ac: &mut ActionContext) {
+        if let Some(key) = self.key.take() {
+            if self.owner.value.borrow_mut().remove(key).is_modified {
+                self.owner.notify(ac);
+            }
+        }
     }
-    pub fn obs(&self) -> ImplObs<ObsCollector<C>> {
-        ImplObs(self.clone())
-    }
-}
-impl<C: Collect> Observable for ObsCollector<C> {
-    type Item = C::Output;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, bc: &mut ObsContext) -> U {
-        f(&self.0.clone().get(bc), bc)
-    }
-}
-impl<C> Clone for ObsCollector<C> {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
-    }
-}
-
-impl<C: Collect> ObsCollectorData<C> {
-    pub fn get(self: Rc<Self>, bc: &mut ObsContext) -> C::Output {
-        let value = self.collector.borrow().collect();
-        bc.bind(self);
-        value
-    }
-}
-impl<C: Collect> DynObservableInner for ObsCollectorData<C> {
-    type Item = C::Output;
-
-    fn d_with_dyn<'a>(self: Rc<Self>, oc: ObsSink<'a, '_, '_, Self::Item>) -> Ret<'a> {
-        let value = self.get(oc.bc);
-        oc.ret(&value)
-    }
-}
-impl<C: 'static> BindSource for ObsCollectorData<C> {
-    fn sinks(&self) -> &BindSinks {
-        &self.sinks
-    }
-}
-
-impl<C: Collect> Observer<C::Input> for ObsCollectorObserver<C> {
-    fn next(&mut self, value: C::Input) {
-        let m = self
-            .collector
-            .collector
-            .borrow_mut()
-            .set(self.key.take().unwrap(), value);
-        self.key = Some(m.key);
-        if m.is_modified {
-            schedule_notify(&self.collector);
+    fn remove_lazy(&mut self) {
+        let key = self.key.take();
+        if key.is_some() {
+            let mut e = Self {
+                key,
+                owner: self.owner.clone(),
+            };
+            Action::new(move |ac| e.try_remove(ac)).schedule();
         }
     }
 }
-impl<C: Collect> Drop for ObsCollectorObserver<C> {
+
+pub struct ObsCollectorEntry<C: Collector>(RawObsCollectorEntry<C>);
+impl<C: Collector> ObsCollectorEntry<C> {
+    fn new(collector: Rc<RawObsCollector<C>>, key: C::Key) -> Self {
+        Self(RawObsCollectorEntry {
+            owner: collector,
+            key: Some(key),
+        })
+    }
+
+    pub fn set(&mut self, value: C::Input, ac: &mut ActionContext) {
+        self.0.try_set(value, ac)
+    }
+    pub fn remove(mut self, ac: &mut ActionContext) {
+        self.0.try_remove(ac)
+    }
+}
+
+impl<C: Collector> Drop for ObsCollectorEntry<C> {
     fn drop(&mut self) {
-        if self
-            .collector
-            .collector
-            .borrow_mut()
-            .remove(self.key.take().unwrap())
-            .is_modified
-        {
-            schedule_notify(&self.collector);
-        }
-    }
-}
-impl<C: Collect> RawSink for ObsCollector<C> {
-    type Item = C::Input;
-    type Observer = ObsCollectorObserver<C>;
-    fn connect(&self, value: C::Input) -> Self::Observer {
-        let mut o = self.insert();
-        o.next(value);
-        o
-    }
-}
-
-impl<C: Collect> IntoSink<C::Input> for ObsCollector<C> {
-    type RawSink = Self;
-
-    fn into_sink(self) -> Sink<Self::RawSink> {
-        Sink(self)
-    }
-}
-impl<C: Collect> IntoSink<C::Input> for &ObsCollector<C> {
-    type RawSink = ObsCollector<C>;
-
-    fn into_sink(self) -> Sink<Self::RawSink> {
-        self.clone().into_sink()
+        self.0.remove_lazy()
     }
 }

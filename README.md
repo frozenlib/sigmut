@@ -4,7 +4,7 @@
 [![Docs.rs](https://docs.rs/ctxmap/badge.svg)](https://docs.rs/reactive-fn/)
 [![Actions Status](https://github.com/frozenlib/reactive-fn/workflows/CI/badge.svg)](https://github.com/frozenlib/reactive-fn/actions)
 
-Reactive programming framework for data binding.
+State management framework.
 
 Warning: This library is still in the very early stages of development. APIs will change. Documentation is sparse.
 
@@ -18,7 +18,7 @@ TODO
 | ----------------- | ------------------- |
 | `Obsrevable`      | `Obs`               |
 | `IObsrevable`     | `Obsrevable`, `Obs` |
-| `IObserver`       | `Observer`, `FnMut` |
+| `IObserver`       | `FnMut`             |
 | `BehaviorSubject` | `ObsCell`           |
 
 ### `System.Reactive.Linq.Obsrevable` methods
@@ -29,7 +29,7 @@ TODO
 | `DistinctUntilChanged` | `dedup`                              |
 | `First`                | `get_head`, `with_head`              |
 | `Publish`              | `hot`                                |
-| `Return`               | `obs_constant`                       |
+| `Return`               | `from_value`                         |
 | `Select`               | `map`                                |
 | `SelectMany`           | `flat_map`, `map_async`,`map_stream` |
 | `Scan`                 | `scan`                               |
@@ -41,19 +41,28 @@ TODO
 
 ### `System.Reactive.Threading.Tasks.TaskObservableExtensions` methods
 
-| Rx             | reactive-fn                         |
-| -------------- | ----------------------------------- |
-| `ToTask`       | `stream`                            |
-| `ToObservable` | `obs_from_async`, `obs_from_stream` |
+| Rx             | reactive-fn                               |
+| -------------- | ----------------------------------------- |
+| `ToTask`       | `stream`                                  |
+| `ToObservable` | `from_async`,`from_future`, `from_stream` |
 
 ## Cheat sheet for Flutter users
 
-| Flutter           | reactive-fn               |
-| ----------------- | ------------------------- |
-| `ValueNotifier`   | `ObsCell`                 |
-| `ValueListenable` | `Observable`,`Obs`, `Obs` |
-| `ChangeNotifier`  | `BindSinks`               |
-| `Listenable`      | `BindSource`              |
+| Flutter           | reactive-fn         |
+| ----------------- | ------------------- |
+| `ValueNotifier`   | `ObsCell`           |
+| `ValueListenable` | `Observable`, `Obs` |
+| `ChangeNotifier`  | `BindSinks`         |
+| `Listenable`      | `BindSource`        |
+
+## Cheat sheet for Preact Signals users
+
+| Preact Signals | reactive-fn         |
+| -------------- | ------------------- |
+| `signal`       | `ObsCell::new`      |
+| `computed`     | `Obs::from_get`     |
+| `effect`       | `Subscription::new` |
+| `batch`        | `Action`            |
 
 ## License
 
