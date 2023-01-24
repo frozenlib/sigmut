@@ -99,6 +99,11 @@ impl<T> From<&'static [T]> for ObsVec<T> {
         Self::from_static(value)
     }
 }
+impl<T, const N: usize> From<[T; N]> for ObsVec<T> {
+    fn from(value: [T; N]) -> Self {
+        Self::from_rc(Rc::new(value))
+    }
+}
 
 pub struct ObsVecSession<T: 'static> {
     owner: ObsVec<T>,
@@ -307,11 +312,37 @@ impl<T> ObservableVec for Vec<T> {
         f(&self.as_slice(), oc)
     }
 }
+impl<T, const N: usize> ObservableVec for [T; N] {
+    type Item = T;
+
+    fn increment_ref_count(&self) -> usize {
+        0
+    }
+    fn decrement_ref_count(&self, _age: Option<usize>) {}
+    fn with(
+        self: Rc<Self>,
+        f: &mut dyn FnMut(&dyn ObservableVecItems<Item = Self::Item>, &mut ObsContext),
+        oc: &mut ObsContext,
+    ) {
+        f(&self.as_slice(), oc)
+    }
+}
 
 impl<T> ObservableVecItems for &[T] {
     type Item = T;
     fn len(&self) -> usize {
         <[T]>::len(self)
+    }
+    fn get(&self, index: usize) -> Option<&Self::Item> {
+        <[T]>::get(self, index)
+    }
+    fn changes(&self, _age: usize, _f: &mut dyn FnMut(ObsVecChange<Self::Item>)) {}
+}
+
+impl<T, const N: usize> ObservableVecItems for [T; N] {
+    type Item = T;
+    fn len(&self) -> usize {
+        N
     }
     fn get(&self, index: usize) -> Option<&Self::Item> {
         <[T]>::get(self, index)
