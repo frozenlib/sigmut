@@ -424,6 +424,11 @@ impl<T: Debug> Debug for ObsVecCell<T> {
         }
     }
 }
+impl<T> From<ObsVecCell<T>> for ObsVec<T> {
+    fn from(v: ObsVecCell<T>) -> Self {
+        v.obs()
+    }
+}
 
 impl<T: Serialize> Serialize for ObsVecCell<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
