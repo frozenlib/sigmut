@@ -80,11 +80,18 @@ impl CollectModify<()> {
     }
 }
 
-#[derive_ex(Clone(bound()))]
-pub struct ObsCollector<C>(Rc<RawObsCollector<C>>);
+#[derive_ex(Clone(bound()), Default(bound(C)))]
+#[default(Self::new())]
+pub struct ObsCollector<C: Collector>(Rc<RawObsCollector<C>>);
 
 impl<C: Collector> ObsCollector<C> {
-    pub fn new(collect: C) -> Self {
+    pub fn new() -> Self
+    where
+        C: Default,
+    {
+        Self::from(C::default())
+    }
+    pub fn from(collect: C) -> Self {
         Self(Rc::new(RawObsCollector::new(collect)))
     }
 
