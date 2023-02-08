@@ -23,21 +23,21 @@ TODO
 
 ### `System.Reactive.Linq.Obsrevable` methods
 
-| Rx                     | reactive-fn                          |
-| ---------------------- | ------------------------------------ |
-| `Aggregate`            | `fold`                               |
-| `DistinctUntilChanged` | `dedup`                              |
-| `First`                | `get_head`, `with_head`              |
-| `Publish`              | `hot`                                |
-| `Return`               | `from_value`                         |
-| `Select`               | `map`                                |
-| `SelectMany`           | `flat_map`, `map_async`,`map_stream` |
-| `Scan`                 | `scan`                               |
-| `Subscribe`            | `subscribe`                          |
-| `Switch`               | `obs`                                |
-| `ToArray`              | `collect_to_vec`                     |
-| `ToDictionary`         | `collect`                            |
-| `ToList`               | `collect_to_vec`                     |
+| Rx                     | reactive-fn                                         |
+| ---------------------- | --------------------------------------------------- |
+| `Aggregate`            | `Obs::fold`                                         |
+| `DistinctUntilChanged` | `Obs::dedup`                                        |
+| `First`                |                                                     |
+| `Publish`              | `Obs::hot`                                          |
+| `Return`               | `Obs::from_value`                                   |
+| `Select`               | `Obs::map`, `Obs::map_ref`                          |
+| `SelectMany`           | `Obs::flat_map`, `Obs::map_async`,`Obs::map_stream` |
+| `Scan`                 | `Obs::scan`                                         |
+| `Subscribe`            | `Obs::subscribe`                                    |
+| `Switch`               | `Obs::from_get`                                     |
+| `ToArray`              | `Obs::collect_to_vec`                               |
+| `ToDictionary`         | `Obs::collect`                                      |
+| `ToList`               | `Obs::collect_to_vec`                               |
 
 ### `System.Reactive.Threading.Tasks.TaskObservableExtensions` methods
 
@@ -55,6 +55,16 @@ TODO
 | `ChangeNotifier`  | `BindSinks`         |
 | `Listenable`      | `BindSource`        |
 
+## Cheat sheet for Riverpod users
+
+| Riverpod         | reactive-fn                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| `Provider`       | `Obs::from_get`                                              |
+| `StateProvider`  | `ObsCell`                                                    |
+| `FutureProvider` | `Obs::from_async`, `Obs::from_future`,`Obs::from_get_future` |
+| `StreamProvider` | `Obs::from_stream`,`Obs::from_get_stream`                    |
+| `ref`            | `ObsContext`                                                 |
+
 ## Cheat sheet for Preact Signals users
 
 | Preact Signals | reactive-fn         |
@@ -63,6 +73,23 @@ TODO
 | `computed`     | `Obs::from_get`     |
 | `effect`       | `Subscription::new` |
 | `batch`        | `Action`            |
+
+## Cheat sheet for Recoil users
+
+| Recoil Signals | reactive-fn     |
+| -------------- | --------------- |
+| `atom`         | `ObsCell::new`  |
+| `selector`     | `Obs::from_get` |
+
+## Cheat sheet for Sycamore users
+
+| Sycamore        | reactive-fn         |
+| --------------- | ------------------- |
+| `Signal`        | `ObsCell`           |
+| `ReadSignal`    | `Obs`               |
+| `create_signal` | `ObsCell::new`      |
+| `create_effect` | `Subscription::new` |
+| `create_memo`   | `Obs::from_get`     |
 
 ## License
 
