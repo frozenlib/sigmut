@@ -121,19 +121,19 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         ObsBuilder::from_get(f).obs()
     }
-    pub fn from_get_stream<S>(f: impl Fn(&mut ObsContext) -> S + 'static) -> Obs<Poll<T>>
+    pub fn from_stream_fn<S>(f: impl Fn(&mut ObsContext) -> S + 'static) -> Obs<Poll<T>>
     where
         T: Sized,
         S: Stream<Item = T> + 'static,
     {
-        ObsBuilder::from_get_stream(f).obs()
+        ObsBuilder::from_stream_fn(f).obs()
     }
-    pub fn from_get_future<Fut>(f: impl Fn(&mut ObsContext) -> Fut + 'static) -> Obs<Poll<T>>
+    pub fn from_future_fn<Fut>(f: impl Fn(&mut ObsContext) -> Fut + 'static) -> Obs<Poll<T>>
     where
         T: Sized,
         Fut: Future<Output = T> + 'static,
     {
-        ObsBuilder::from_get_future(f).obs()
+        ObsBuilder::from_future_fn(f).obs()
     }
 
     pub fn from_value(value: T) -> Self
