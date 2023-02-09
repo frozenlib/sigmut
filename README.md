@@ -34,7 +34,7 @@ TODO
 | `SelectMany`           | `Obs::flat_map`, `Obs::map_async`,`Obs::map_stream` |
 | `Scan`                 | `Obs::scan`                                         |
 | `Subscribe`            | `Obs::subscribe`                                    |
-| `Switch`               | `Obs::from_get`                                     |
+| `Switch`               | `Obs::from_fn`                                      |
 | `ToArray`              | `Obs::collect_to_vec`                               |
 | `ToDictionary`         | `Obs::collect`                                      |
 | `ToList`               | `Obs::collect_to_vec`                               |
@@ -59,7 +59,7 @@ TODO
 
 | Riverpod         | reactive-fn                                                 |
 | ---------------- | ----------------------------------------------------------- |
-| `Provider`       | `Obs::from_get`                                             |
+| `Provider`       | `Obs::from_fn`                                              |
 | `StateProvider`  | `ObsCell`                                                   |
 | `FutureProvider` | `Obs::from_async`, `Obs::from_future`,`Obs::from_future_fn` |
 | `StreamProvider` | `Obs::from_stream`,`Obs::from_stream_fn`                    |
@@ -70,16 +70,16 @@ TODO
 | Preact Signals | reactive-fn         |
 | -------------- | ------------------- |
 | `signal`       | `ObsCell::new`      |
-| `computed`     | `Obs::from_get`     |
+| `computed`     | `Obs::from_fn`      |
 | `effect`       | `Subscription::new` |
 | `batch`        | `Action`            |
 
 ## Cheat sheet for Recoil users
 
-| Recoil Signals | reactive-fn     |
-| -------------- | --------------- |
-| `atom`         | `ObsCell::new`  |
-| `selector`     | `Obs::from_get` |
+| Recoil Signals | reactive-fn    |
+| -------------- | -------------- |
+| `atom`         | `ObsCell::new` |
+| `selector`     | `Obs::from_fn` |
 
 ## Cheat sheet for Sycamore users
 
@@ -89,7 +89,7 @@ TODO
 | `ReadSignal`    | `Obs`               |
 | `create_signal` | `ObsCell::new`      |
 | `create_effect` | `Subscription::new` |
-| `create_memo`   | `Obs::from_get`     |
+| `create_memo`   | `Obs::from_fn`      |
 
 ## License
 

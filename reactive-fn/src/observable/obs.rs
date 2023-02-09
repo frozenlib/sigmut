@@ -127,6 +127,12 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         ObsBuilder::from_value(value).obs()
     }
+    pub fn from_fn(f: impl Fn(&mut ObsContext) -> T + 'static) -> Self
+    where
+        T: Sized,
+    {
+        ObsBuilder::from_fn(f).obs()
+    }
     pub fn from_scan(initial_state: T, op: impl Fn(&mut T, &mut ObsContext) + 'static) -> Self
     where
         T: Sized,

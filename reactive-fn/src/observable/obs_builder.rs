@@ -85,6 +85,17 @@ impl ObsBuilder<()> {
     pub const fn from_value<T: 'static>(value: T) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder(FromObservable(FromValue(value)))
     }
+    pub fn from_fn<T: 'static>(
+        f: impl Fn(&mut ObsContext) -> T + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+        Self::from_scan_map(
+            None,
+            move |st, oc| {
+                *st = Some(f(oc));
+            },
+            |st| st.as_ref().unwrap(),
+        )
+    }
     pub fn from_scan<St>(
         initial_state: St,
         op: impl Fn(&mut St, &mut ObsContext) + 'static,
