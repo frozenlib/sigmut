@@ -1,5 +1,5 @@
 use super::{
-    from_async::{FnStreamScanOps, FromAsync, FromGetStream, FromStreamScan},
+    from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScan},
     stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RawScan,
     RcObservable, Subscription,
 };
@@ -85,25 +85,6 @@ impl ObsBuilder<()> {
     pub const fn from_value<T: 'static>(value: T) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder(FromObservable(FromValue(value)))
     }
-
-    pub fn from_get_stream<S>(
-        f: impl Fn(&mut ObsContext) -> S + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = Poll<S::Item>>>
-    where
-        S: Stream + 'static,
-    {
-        ObsBuilder(FromRcRc(FromGetStream::new(f)))
-    }
-
-    pub fn from_get_future<Fut>(
-        f: impl Fn(&mut ObsContext) -> Fut + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = Poll<Fut::Output>>>
-    where
-        Fut: Future + 'static,
-    {
-        ObsBuilder::from_get_stream(move |oc| futures::stream::once(f(oc)))
-    }
-
     pub fn from_scan<St>(
         initial_state: St,
         op: impl Fn(&mut St, &mut ObsContext) + 'static,
@@ -166,6 +147,14 @@ impl ObsBuilder<()> {
     {
         ObsBuilder::from_stream(::futures::stream::once(fut))
     }
+    pub fn from_future_fn<Fut>(
+        f: impl Fn(&mut ObsContext) -> Fut + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = Poll<Fut::Output>>>
+    where
+        Fut: Future + 'static,
+    {
+        ObsBuilder::from_stream_fn(move |oc| futures::stream::once(f(oc)))
+    }
 
     pub fn from_stream<S>(s: S) -> ObsBuilder<impl ObservableBuilder<Item = Poll<S::Item>>>
     where
@@ -179,6 +168,14 @@ impl ObsBuilder<()> {
                 false
             }
         })
+    }
+    pub fn from_stream_fn<S>(
+        f: impl Fn(&mut ObsContext) -> S + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = Poll<S::Item>>>
+    where
+        S: Stream + 'static,
+    {
+        ObsBuilder(FromRcRc(FromStreamFn::new(f)))
     }
 
     pub fn from_stream_scan<St, S, Op>(
@@ -276,7 +273,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         B: 'static,
     {
         let o = self.observable();
-        ObsBuilder::from_get_future(move |oc| o.with(|value, _oc| f(value), oc))
+        ObsBuilder::from_future_fn(move |oc| o.with(|value, _oc| f(value), oc))
     }
     pub fn map_stream<S>(
         self,
@@ -287,7 +284,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         B: 'static,
     {
         let o = self.observable();
-        ObsBuilder::from_get_stream(move |oc| o.with(|value, _oc| f(value), oc))
+        ObsBuilder::from_stream_fn(move |oc| o.with(|value, _oc| f(value), oc))
     }
 
     pub fn flat_map<U: Observable + 'static>(

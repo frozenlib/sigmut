@@ -108,7 +108,7 @@ where
     }
 }
 
-pub(crate) struct FromGetStream<F, S>
+pub(crate) struct FromStreamFn<F, S>
 where
     F: Fn(&mut ObsContext) -> S + 'static,
     S: Stream + 'static,
@@ -120,7 +120,7 @@ where
     waker: DependencyWaker,
 }
 
-impl<F, S> FromGetStream<F, S>
+impl<F, S> FromStreamFn<F, S>
 where
     F: Fn(&mut ObsContext) -> S + 'static,
     S: Stream + 'static,
@@ -142,7 +142,7 @@ where
         )
     }
 }
-impl<F, S> Compute for FromGetStream<F, S>
+impl<F, S> Compute for FromStreamFn<F, S>
 where
     F: Fn(&mut ObsContext) -> S + 'static,
     S: Stream + 'static,
@@ -175,7 +175,7 @@ where
         is_modified
     }
 }
-impl<F, S> RcObservable for DependencyNode<FromGetStream<F, S>>
+impl<F, S> RcObservable for DependencyNode<FromStreamFn<F, S>>
 where
     F: Fn(&mut ObsContext) -> S + 'static,
     S: Stream + 'static,

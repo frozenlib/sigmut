@@ -57,13 +57,13 @@ TODO
 
 ## Cheat sheet for Riverpod users
 
-| Riverpod         | reactive-fn                                                  |
-| ---------------- | ------------------------------------------------------------ |
-| `Provider`       | `Obs::from_get`                                              |
-| `StateProvider`  | `ObsCell`                                                    |
-| `FutureProvider` | `Obs::from_async`, `Obs::from_future`,`Obs::from_get_future` |
-| `StreamProvider` | `Obs::from_stream`,`Obs::from_get_stream`                    |
-| `ref`            | `ObsContext`                                                 |
+| Riverpod         | reactive-fn                                                 |
+| ---------------- | ----------------------------------------------------------- |
+| `Provider`       | `Obs::from_get`                                             |
+| `StateProvider`  | `ObsCell`                                                   |
+| `FutureProvider` | `Obs::from_async`, `Obs::from_future`,`Obs::from_future_fn` |
+| `StreamProvider` | `Obs::from_stream`,`Obs::from_stream_fn`                    |
+| `ref`            | `ObsContext`                                                |
 
 ## Cheat sheet for Preact Signals users
 
