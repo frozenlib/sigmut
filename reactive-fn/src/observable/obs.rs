@@ -139,13 +139,6 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         ObsBuilder::from_scan(initial_state, op).obs()
     }
-    pub fn from_scan_map<St: 'static>(
-        initial_state: St,
-        op: impl Fn(&mut St, &mut ObsContext) + 'static,
-        map: impl Fn(&St) -> &T + 'static,
-    ) -> Self {
-        ObsBuilder::from_scan_map(initial_state, op, map).obs()
-    }
     pub fn from_scan_filter(
         initial_state: T,
         op: impl Fn(&mut T, &mut ObsContext) -> bool + 'static,
@@ -154,13 +147,6 @@ impl<T: ?Sized + 'static> Obs<T> {
         T: Sized,
     {
         ObsBuilder::from_scan_filter(initial_state, op).obs()
-    }
-    pub fn from_scan_filter_map<St: 'static>(
-        initial_state: St,
-        op: impl Fn(&mut St, &mut ObsContext) -> bool + 'static,
-        map: impl Fn(&St) -> &T + 'static,
-    ) -> Self {
-        ObsBuilder::from_scan_filter_map(initial_state, op, map).obs()
     }
 
     pub fn from_async<Fut>(f: impl Fn(AsyncObsContext) -> Fut + 'static) -> Obs<Poll<T>>
@@ -314,34 +300,12 @@ impl<T: ?Sized + 'static> Obs<T> {
     ) -> Obs<St> {
         self.builder().scan(initial_state, op).obs()
     }
-    pub fn scan_map<St: 'static>(
-        &self,
-        initial_state: St,
-        op: impl Fn(&mut St, &T) + 'static,
-        map: impl Fn(&St) -> &T + 'static,
-    ) -> Obs<T>
-    where
-        T: Sized,
-    {
-        self.builder().scan_map(initial_state, op, map).obs()
-    }
     pub fn scan_filter<St>(
         &self,
         initial_state: St,
         op: impl Fn(&mut St, &T) -> bool + 'static,
     ) -> Obs<St> {
         self.builder().scan_filter(initial_state, op).obs()
-    }
-    pub fn scan_filter_map<St: 'static>(
-        &self,
-        initial_state: St,
-        op: impl Fn(&mut St, &T) -> bool + 'static,
-        map: impl Fn(&St) -> &T + 'static,
-    ) -> Obs<T>
-    where
-        T: Sized,
-    {
-        self.builder().scan_filter_map(initial_state, op, map).obs()
     }
 
     pub fn cached(&self) -> Self

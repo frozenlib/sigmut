@@ -1,7 +1,7 @@
 use super::{
     from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScan},
-    stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RcObservable,
-    ScanBuilder, Subscription,
+    stream, Consumed, FnOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RcObservable,
+    ScanBuilder, ScanOps, Subscription,
 };
 use crate::{
     core::{AsyncObsContext, ObsContext},
@@ -95,13 +95,7 @@ impl ObsBuilder<()> {
     pub fn from_value_fn<T: 'static>(
         f: impl Fn(&mut ObsContext) -> T + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        Self::from_scan_map(
-            None,
-            move |st, oc| {
-                *st = Some(f(oc));
-            },
-            |st| st.as_ref().unwrap(),
-        )
+        Self::from_scan(None, move |st, oc| *st = Some(f(oc))).map_ref(|st| st.as_ref().unwrap())
     }
     pub fn from_scan<St>(
         initial_state: St,
@@ -110,21 +104,10 @@ impl ObsBuilder<()> {
     where
         St: 'static,
     {
-        ObsBuilder::from_scan_map(initial_state, op, |st| st)
-    }
-
-    pub fn from_scan_map<St, T>(
-        initial_state: St,
-        op: impl Fn(&mut St, &mut ObsContext) + 'static,
-        map: impl Fn(&St) -> &T + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>>
-    where
-        St: 'static,
-        T: ?Sized + 'static,
-    {
-        let ops = FnScanOps::new(op, |_st| true, map);
+        let ops = FnOps::new(op, |_st| true);
         ObsBuilder(ScanBuilder::new(initial_state, ops, false))
     }
+
     pub fn from_scan_filter<St>(
         initial_state: St,
         op: impl Fn(&mut St, &mut ObsContext) -> bool + 'static,
@@ -132,18 +115,7 @@ impl ObsBuilder<()> {
     where
         St: 'static,
     {
-        ObsBuilder::from_scan_filter_map(initial_state, op, |st| st)
-    }
-    pub fn from_scan_filter_map<St, T>(
-        initial_state: St,
-        op: impl Fn(&mut St, &mut ObsContext) -> bool + 'static,
-        map: impl Fn(&St) -> &T + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>>
-    where
-        St: 'static,
-        T: ?Sized + 'static,
-    {
-        let ops = FnScanOps::new(op, |_st| false, map);
+        let ops = FnOps::new(op, |_st| false);
         ObsBuilder(ScanBuilder::new(initial_state, ops, false))
     }
 
@@ -333,40 +305,20 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     where
         St: 'static,
     {
-        self.scan_map(initial_state, op, |st| st)
-    }
-    pub fn scan_map<St: 'static, T: 'static>(
-        self,
-        initial_state: St,
-        op: impl Fn(&mut St, &B::Item) + 'static,
-        map: impl Fn(&St) -> &T + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         let o = self.observable();
-        ObsBuilder::from_scan_map(
-            initial_state,
-            move |st, oc| o.with(|value, _oc| op(st, value), oc),
-            map,
-        )
+        ObsBuilder::from_scan(initial_state, move |st, oc| {
+            o.with(|value, _oc| op(st, value), oc)
+        })
     }
     pub fn scan_filter<St: 'static>(
         self,
         initial_state: St,
         op: impl Fn(&mut St, &B::Item) -> bool + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = St>> {
-        self.scan_filter_map(initial_state, op, |st| st)
-    }
-    pub fn scan_filter_map<St: 'static, T: 'static>(
-        self,
-        initial_state: St,
-        op: impl Fn(&mut St, &B::Item) -> bool + 'static,
-        map: impl Fn(&St) -> &T + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         let o = self.observable();
-        ObsBuilder::from_scan_filter_map(
-            initial_state,
-            move |st, oc| o.with(|value, _oc| op(st, value), oc),
-            map,
-        )
+        ObsBuilder::from_scan_filter(initial_state, move |st, oc| {
+            o.with(|value, _oc| op(st, value), oc)
+        })
     }
 
     pub fn cached(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>>
@@ -374,7 +326,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         B::Item: ToOwned,
     {
         let o = self.observable();
-        let ops = FnScanOps::new(
+        let ops = FnOps::new(
             move |st, oc| {
                 if let Some(st) = st {
                     o.with(|value, _oc| value.clone_into(st), oc);
@@ -386,8 +338,8 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
                 *st = None;
                 true
             },
-            |st| st.as_ref().unwrap().borrow(),
-        );
+        )
+        .map(|st| st.as_ref().unwrap().borrow());
         ObsBuilder(ScanBuilder::new(None, ops, false))
     }
     pub fn dedup(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>>
@@ -404,7 +356,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         B::Item: ToOwned,
     {
         let o = self.observable();
-        let ops = FnScanOps::new(
+        let ops = FnOps::new(
             move |st, oc| {
                 if let Some(st) = st {
                     o.with(
@@ -427,8 +379,8 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
                 *st = None;
                 true
             },
-            |st| st.as_ref().unwrap().borrow(),
-        );
+        )
+        .map(|st| st.as_ref().unwrap().borrow());
         ObsBuilder(ScanBuilder::new(
             None::<<B::Item as ToOwned>::Owned>,
             ops,

@@ -22,14 +22,11 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
     where
         Self: 'static,
     {
-        ObsBuilder::from_scan_map(
-            String::new(),
-            move |s, oc| {
-                s.clear();
-                write_to(s, &self, oc).unwrap();
-            },
-            |s| s.as_str(),
-        )
+        ObsBuilder::from_scan(String::new(), move |s, oc| {
+            s.clear();
+            write_to(s, &self, oc).unwrap();
+        })
+        .map_ref(|s| s.as_str())
     }
     pub fn into_obs(self) -> Obs<str>
     where

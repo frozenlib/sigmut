@@ -6,7 +6,7 @@ use crate::{
     },
     Obs,
 };
-use std::rc::Rc;
+use std::{marker::PhantomData, rc::Rc};
 
 trait DynFold {
     type State;
@@ -37,54 +37,53 @@ pub(crate) trait ScanOps {
     fn compute(&self, state: &mut Self::St, oc: &mut ObsContext) -> Self::ComputeRet;
     fn discard(&self, state: &mut Self::St) -> bool;
     fn to_value<'a>(&self, state: &'a Self::St) -> &'a Self::Value;
+
+    fn map<U, F>(self, f: F) -> MapOps<Self, F>
+    where
+        Self: Sized,
+        U: ?Sized,
+        F: Fn(&Self::Value) -> &U,
+    {
+        MapOps { ops: self, f }
+    }
 }
 
-pub(crate) struct FnScanOps<St, Value, Compute, ComputeRet, ToValue, Discard>
+pub(crate) struct FnOps<St, Compute, ComputeRet, Discard>
 where
     St: 'static,
-    Value: ?Sized + 'static,
     Compute: Fn(&mut St, &mut ObsContext) -> ComputeRet + 'static,
     ComputeRet: IsModified,
-    ToValue: Fn(&St) -> &Value + 'static,
     Discard: Fn(&mut St) -> bool + 'static,
 {
     compute: Compute,
     discard: Discard,
-    to_value: ToValue,
-    _phantom: std::marker::PhantomData<fn(&mut St) -> &Value>,
+    _phantom: std::marker::PhantomData<fn(&mut St)>,
 }
 
-impl<St, Value, Compute, ComputeRet, ToValue, Discard>
-    FnScanOps<St, Value, Compute, ComputeRet, ToValue, Discard>
+impl<St, Compute, ComputeRet, Discard> FnOps<St, Compute, ComputeRet, Discard>
 where
     St: 'static,
-    Value: ?Sized + 'static,
     Compute: Fn(&mut St, &mut ObsContext) -> ComputeRet + 'static,
     ComputeRet: IsModified,
-    ToValue: Fn(&St) -> &Value + 'static,
     Discard: Fn(&mut St) -> bool + 'static,
 {
-    pub fn new(compute: Compute, discard: Discard, to_value: ToValue) -> Self {
+    pub fn new(compute: Compute, discard: Discard) -> Self {
         Self {
             compute,
             discard,
-            to_value,
-            _phantom: std::marker::PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
-impl<St, Value, Compute, ComputeRet, Map, Discard> ScanOps
-    for FnScanOps<St, Value, Compute, ComputeRet, Map, Discard>
+impl<St, Compute, ComputeRet, Discard> ScanOps for FnOps<St, Compute, ComputeRet, Discard>
 where
     St: 'static,
-    Value: ?Sized + 'static,
     Compute: Fn(&mut St, &mut ObsContext) -> ComputeRet + 'static,
     ComputeRet: IsModified,
-    Map: Fn(&St) -> &Value + 'static,
     Discard: Fn(&mut St) -> bool + 'static,
 {
     type St = St;
-    type Value = Value;
+    type Value = St;
     type ComputeRet = ComputeRet;
     fn compute(&self, state: &mut St, oc: &mut ObsContext) -> Self::ComputeRet {
         (self.compute)(state, oc)
@@ -92,11 +91,11 @@ where
     fn discard(&self, state: &mut St) -> bool {
         (self.discard)(state)
     }
-    fn to_value<'a>(&self, state: &'a St) -> &'a Value {
-        (self.to_value)(state)
+    fn to_value<'a>(&self, state: &'a St) -> &'a St {
+        state
     }
 }
-struct MapOps<Ops, F> {
+pub(crate) struct MapOps<Ops, F> {
     ops: Ops,
     f: F,
 }
@@ -150,7 +149,7 @@ where
         Self: Sized,
         U: ?Sized + 'static,
     {
-        let ops = MapOps { ops: self.ops, f };
+        let ops = self.ops.map(f);
         Obs::from_rc_rc(RawScan::new(self.state, ops, self.is_hot))
     }
 }
@@ -225,7 +224,7 @@ pub struct Fold<St>(Rc<dyn DynFold<State = St>>);
 
 impl<St: 'static> Fold<St> {
     pub fn new(initial_state: St, op: impl Fn(&mut St, &mut ObsContext) + 'static) -> Self {
-        let ops = FnScanOps::new(op, |_| false, |st| st);
+        let ops = FnOps::new(op, |_| false);
         Self(RawScan::new(initial_state, ops, true))
     }
 
