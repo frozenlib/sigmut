@@ -16,6 +16,16 @@ pub trait ObservableBuilder: 'static {
     type Observable: Observable<Item = Self::Item> + 'static;
     fn build_observable(self) -> Self::Observable;
     fn build_obs(self) -> Obs<Self::Item>;
+    fn build_obs_map_ref<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
+    where
+        Self: Sized,
+        U: ?Sized + 'static,
+    {
+        Obs::from_observable(MapRef {
+            o: self.build_observable(),
+            f,
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -268,12 +278,11 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         let o = self.observable();
         ObsBuilder::from_get(move |oc| o.with(|value, _| f(value), oc))
     }
-    pub fn map_ref<U: 'static>(
+    pub fn map_ref<U: ?Sized + 'static>(
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U>> {
-        let o = self.observable();
-        ObsBuilder::from_get_to(move |s| o.with(|value, oc| s.cb.ret(f(value), oc), s.oc))
+        ObsBuilder(MapRefBuilder { b: self.0, f })
     }
     pub fn map_future<Fut>(
         self,
@@ -649,5 +658,51 @@ impl<T> Observable for FromValue<T> {
 
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
         f(&self.0, oc)
+    }
+}
+
+struct MapRef<O, F> {
+    o: O,
+    f: F,
+}
+
+impl<O, F, T: ?Sized> Observable for MapRef<O, F>
+where
+    O: Observable,
+    F: Fn(&O::Item) -> &T,
+{
+    type Item = T;
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
+        self.o.with(|v, oc| f((self.f)(v), oc), oc)
+    }
+}
+
+struct MapRefBuilder<B, F> {
+    b: B,
+    f: F,
+}
+impl<B, F, T: ?Sized> ObservableBuilder for MapRefBuilder<B, F>
+where
+    B: ObservableBuilder,
+    F: Fn(&B::Item) -> &T + 'static,
+    T: 'static,
+{
+    type Item = T;
+    type Observable = MapRef<B::Observable, F>;
+    fn build_observable(self) -> Self::Observable {
+        MapRef {
+            o: self.b.build_observable(),
+            f: self.f,
+        }
+    }
+    fn build_obs(self) -> Obs<Self::Item> {
+        self.b.build_obs_map_ref(self.f)
+    }
+    fn build_obs_map_ref<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
+    where
+        Self: Sized,
+        U: ?Sized + 'static,
+    {
+        self.b.build_obs_map_ref(move |v| f((self.f)(v)))
     }
 }
