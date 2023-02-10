@@ -240,18 +240,18 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         self.0.build_observable()
     }
 
+    pub fn map<U: ?Sized + 'static>(
+        self,
+        f: impl Fn(&B::Item) -> &U + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = U>> {
+        ObsBuilder(MapRefBuilder { b: self.0, f })
+    }
     pub fn map_value<U: 'static>(
         self,
         f: impl Fn(&B::Item) -> U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U>> {
         let o = self.observable();
         ObsBuilder::from_get(move |oc| o.with(|value, _| f(value), oc))
-    }
-    pub fn map<U: ?Sized + 'static>(
-        self,
-        f: impl Fn(&B::Item) -> &U + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = U>> {
-        ObsBuilder(MapRefBuilder { b: self.0, f })
     }
     pub fn map_future<Fut>(
         self,
