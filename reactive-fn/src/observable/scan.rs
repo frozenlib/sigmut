@@ -144,7 +144,7 @@ where
         Obs::from_rc_rc(self.build_observable())
     }
 
-    fn build_obs_map_ref<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> crate::Obs<U>
+    fn build_obs_map<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> crate::Obs<U>
     where
         Self: Sized,
         U: ?Sized + 'static,

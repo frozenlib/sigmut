@@ -16,7 +16,7 @@ pub trait ObservableBuilder: 'static {
     type Observable: Observable<Item = Self::Item> + 'static;
     fn build_observable(self) -> Self::Observable;
     fn build_obs(self) -> Obs<Self::Item>;
-    fn build_obs_map_ref<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
+    fn build_obs_map<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
     where
         Self: Sized,
         U: ?Sized + 'static,
@@ -612,13 +612,13 @@ where
         }
     }
     fn build_obs(self) -> Obs<Self::Item> {
-        self.b.build_obs_map_ref(self.f)
+        self.b.build_obs_map(self.f)
     }
-    fn build_obs_map_ref<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
+    fn build_obs_map<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
     where
         Self: Sized,
         U: ?Sized + 'static,
     {
-        self.b.build_obs_map_ref(move |v| f((self.f)(v)))
+        self.b.build_obs_map(move |v| f((self.f)(v)))
     }
 }
