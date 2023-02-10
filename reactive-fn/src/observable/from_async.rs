@@ -1,8 +1,11 @@
-use super::RcObservable;
-use crate::core::{
-    dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
-    dependency_token::DependencyToken,
-    AsyncObsContext, AsyncObsContextSource, ComputeContext, DependencyWaker, ObsContext,
+use super::{ObservableBuilder, RcObservable};
+use crate::{
+    core::{
+        dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
+        dependency_token::DependencyToken,
+        AsyncObsContext, AsyncObsContextSource, ComputeContext, DependencyWaker, ObsContext,
+    },
+    Obs,
 };
 use futures::{Future, Stream};
 use std::{
@@ -198,45 +201,111 @@ pub(crate) trait StreamScanOps {
     type Output: ?Sized;
     fn compute(&self, state: &mut Self::St, item: Option<Self::Input>) -> bool;
     fn get<'a>(&self, state: &'a Self::St) -> &'a Self::Output;
+
+    fn map<F, T>(self, f: F) -> MapStreamScanOps<Self, F>
+    where
+        Self: Sized,
+        F: Fn(&Self::Output) -> &T + 'static,
+        T: ?Sized,
+    {
+        MapStreamScanOps { ops: self, f }
+    }
 }
-pub(crate) struct FnStreamScanOps<St, Input, Output: ?Sized, Compute, Get> {
+pub(crate) struct FnStreamScanOps<St, Input, Compute> {
     compute: Compute,
-    get: Get,
-    _phantom_compute: PhantomData<fn(&mut St, Input)>,
-    _phantom_get: PhantomData<fn(&St) -> &Output>,
+    _phantom: PhantomData<fn(&mut St, Input)>,
 }
 
-impl<St, Input, Output, Compute, Get> FnStreamScanOps<St, Input, Output, Compute, Get>
+impl<St, Input, Compute> FnStreamScanOps<St, Input, Compute>
 where
-    Output: ?Sized,
     Compute: Fn(&mut St, Option<Input>) -> bool,
-    Get: Fn(&St) -> &Output,
 {
-    pub fn new(compute: Compute, get: Get) -> Self {
+    pub fn new(compute: Compute) -> Self {
         Self {
             compute,
-            get,
-            _phantom_compute: PhantomData,
-            _phantom_get: PhantomData,
+            _phantom: PhantomData,
         }
     }
 }
 
-impl<St, Input, Output, Compute, Get> StreamScanOps
-    for FnStreamScanOps<St, Input, Output, Compute, Get>
+impl<St, Input, Compute> StreamScanOps for FnStreamScanOps<St, Input, Compute>
 where
-    Output: ?Sized,
     Compute: Fn(&mut St, Option<Input>) -> bool,
-    Get: Fn(&St) -> &Output,
 {
     type St = St;
     type Input = Input;
-    type Output = Output;
+    type Output = St;
     fn compute(&self, state: &mut Self::St, item: Option<Self::Input>) -> bool {
         (self.compute)(state, item)
     }
     fn get<'a>(&self, state: &'a Self::St) -> &'a Self::Output {
-        (self.get)(state)
+        state
+    }
+}
+
+pub(crate) struct MapStreamScanOps<Ops, F> {
+    ops: Ops,
+    f: F,
+}
+impl<Ops, F, T> StreamScanOps for MapStreamScanOps<Ops, F>
+where
+    Ops: StreamScanOps + 'static,
+    F: Fn(&Ops::Output) -> &T,
+    T: ?Sized,
+{
+    type St = Ops::St;
+    type Input = Ops::Input;
+    type Output = T;
+    fn compute(&self, state: &mut Self::St, item: Option<Self::Input>) -> bool {
+        self.ops.compute(state, item)
+    }
+    fn get<'a>(&self, state: &'a Self::St) -> &'a Self::Output {
+        (self.f)(self.ops.get(state))
+    }
+}
+
+pub(crate) struct FromStreamScanBuilder<S, Ops: StreamScanOps> {
+    initial_state: Ops::St,
+    s: S,
+    ops: Ops,
+}
+
+impl<S, Ops> FromStreamScanBuilder<S, Ops>
+where
+    S: Stream<Item = Ops::Input> + 'static,
+    Ops: StreamScanOps + 'static,
+{
+    pub(crate) fn new(initial_state: Ops::St, s: S, ops: Ops) -> Self {
+        Self {
+            initial_state,
+            s,
+            ops,
+        }
+    }
+}
+impl<S, Ops> ObservableBuilder for FromStreamScanBuilder<S, Ops>
+where
+    S: Stream<Item = Ops::Input> + 'static,
+    Ops: StreamScanOps + 'static,
+{
+    type Item = Ops::Output;
+    type Observable = Rc<DependencyNode<FromStreamScan<S, Ops>>>;
+
+    fn build_observable(self) -> Self::Observable {
+        FromStreamScan::new(self.initial_state, self.s, self.ops)
+    }
+
+    fn build_obs(self) -> crate::Obs<Self::Item> {
+        Obs::from_rc_rc(self.build_observable())
+    }
+
+    fn build_obs_map_ref<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
+    where
+        Self: Sized,
+        U: ?Sized + 'static,
+    {
+        let ops = self.ops.map(f);
+        Obs::from_rc_rc(FromStreamScan::new(self.initial_state, self.s, ops))
     }
 }
 
@@ -252,7 +321,7 @@ where
     S: Stream<Item = Ops::Input> + 'static,
     Ops: StreamScanOps + 'static,
 {
-    pub(crate) fn new(initial_state: Ops::St, s: S, ops: Ops) -> Rc<DependencyNode<Self>> {
+    fn new(initial_state: Ops::St, s: S, ops: Ops) -> Rc<DependencyNode<Self>> {
         DependencyNode::new_cyclic(
             |this| Self {
                 stream: Some(Box::pin(s)),

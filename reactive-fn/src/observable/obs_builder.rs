@@ -1,5 +1,8 @@
 use super::{
-    from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScan},
+    from_async::{
+        FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScan, FromStreamScanBuilder,
+        StreamScanOps,
+    },
     stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RcObservable,
     ScanBuilder, ScanOps, Subscription,
 };
@@ -178,31 +181,13 @@ impl ObsBuilder<()> {
         S: Stream + 'static,
         Op: Fn(&mut St, Option<S::Item>) + 'static,
     {
-        ObsBuilder::from_stream_scan_map(initial_state, s, op, |st| st)
+        let ops = FnStreamScanOps::new(move |st, value| {
+            op(st, value);
+            true
+        });
+        ObsBuilder(FromStreamScanBuilder::new(initial_state, s, ops))
     }
 
-    pub fn from_stream_scan_map<T, St, S, Op, Map>(
-        initial_state: St,
-        s: S,
-        op: Op,
-        map: Map,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>>
-    where
-        T: ?Sized + 'static,
-        St: 'static,
-        S: Stream + 'static,
-        Op: Fn(&mut St, Option<S::Item>) + 'static,
-        Map: Fn(&St) -> &T + 'static,
-    {
-        let ops = FnStreamScanOps::new(
-            move |st, value| {
-                op(st, value);
-                true
-            },
-            map,
-        );
-        ObsBuilder(FromRcRc(FromStreamScan::new(initial_state, s, ops)))
-    }
     pub fn from_stream_scan_filter<St, S, Op>(
         initial_state: St,
         s: S,
@@ -213,23 +198,8 @@ impl ObsBuilder<()> {
         S: Stream + 'static,
         Op: Fn(&mut St, Option<S::Item>) -> bool + 'static,
     {
-        ObsBuilder::from_stream_scan_filter_map(initial_state, s, op, |st| st)
-    }
-    pub fn from_stream_scan_filter_map<T, St, S, Op, Map>(
-        initial_state: St,
-        s: S,
-        op: Op,
-        map: Map,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>>
-    where
-        T: ?Sized + 'static,
-        St: 'static,
-        S: Stream + 'static,
-        Op: Fn(&mut St, Option<S::Item>) -> bool + 'static,
-        Map: Fn(&St) -> &T + 'static,
-    {
-        let ops = FnStreamScanOps::new(op, map);
-        ObsBuilder(FromRcRc(FromStreamScan::new(initial_state, s, ops)))
+        let ops = FnStreamScanOps::new(op);
+        ObsBuilder(FromStreamScanBuilder::new(initial_state, s, ops))
     }
 }
 impl<B: ObservableBuilder> ObsBuilder<B> {

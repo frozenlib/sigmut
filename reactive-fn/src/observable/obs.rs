@@ -193,15 +193,6 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         ObsBuilder::from_stream_scan(initial_state, s, op).obs()
     }
-    pub fn from_stream_scan_map<St, S, Op, Map>(initial_state: St, s: S, op: Op, map: Map) -> Self
-    where
-        St: 'static,
-        S: Stream + 'static,
-        Op: Fn(&mut St, Option<S::Item>) + 'static,
-        Map: Fn(&St) -> &T + 'static,
-    {
-        ObsBuilder::from_stream_scan_map(initial_state, s, op, map).obs()
-    }
     pub fn from_stream_scan_filter<S, Op>(initial_state: T, s: S, op: Op) -> Self
     where
         T: Sized,
@@ -210,21 +201,6 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         ObsBuilder::from_stream_scan_filter(initial_state, s, op).obs()
     }
-    pub fn from_stream_scan_filter_map<St, S, Op, Map>(
-        initial_state: St,
-        s: S,
-        op: Op,
-        map: Map,
-    ) -> Self
-    where
-        St: 'static,
-        S: Stream + 'static,
-        Op: Fn(&mut St, Option<S::Item>) -> bool + 'static,
-        Map: Fn(&St) -> &T + 'static,
-    {
-        ObsBuilder::from_stream_scan_filter_map(initial_state, s, op, map).obs()
-    }
-
     pub fn with<U>(&self, f: impl FnOnce(&T, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
         if let RawObs::StaticRef(x) = &self.0 {
             f(x, oc)
