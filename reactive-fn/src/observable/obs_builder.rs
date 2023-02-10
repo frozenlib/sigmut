@@ -1,6 +1,6 @@
 use super::{
     from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScan},
-    stream, Consumed, FnOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RcObservable,
+    stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RcObservable,
     ScanBuilder, ScanOps, Subscription,
 };
 use crate::{
@@ -104,7 +104,7 @@ impl ObsBuilder<()> {
     where
         St: 'static,
     {
-        let ops = FnOps::new(op, |_st| true);
+        let ops = FnScanOps::new(op, |_st| true);
         ObsBuilder(ScanBuilder::new(initial_state, ops, false))
     }
 
@@ -115,7 +115,7 @@ impl ObsBuilder<()> {
     where
         St: 'static,
     {
-        let ops = FnOps::new(op, |_st| false);
+        let ops = FnScanOps::new(op, |_st| false);
         ObsBuilder(ScanBuilder::new(initial_state, ops, false))
     }
 
@@ -326,7 +326,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         B::Item: ToOwned,
     {
         let o = self.observable();
-        let ops = FnOps::new(
+        let ops = FnScanOps::new(
             move |st, oc| {
                 if let Some(st) = st {
                     o.with(|value, _oc| value.clone_into(st), oc);
@@ -356,7 +356,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         B::Item: ToOwned,
     {
         let o = self.observable();
-        let ops = FnOps::new(
+        let ops = FnScanOps::new(
             move |st, oc| {
                 if let Some(st) = st {
                     o.with(
