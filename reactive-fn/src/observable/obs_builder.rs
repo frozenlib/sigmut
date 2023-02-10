@@ -21,10 +21,7 @@ pub trait ObservableBuilder: 'static {
         Self: Sized,
         U: ?Sized + 'static,
     {
-        Obs::from_observable(MapRef {
-            o: self.build_observable(),
-            f,
-        })
+        Obs::from_observable(MapRefBuilder { b: self, f }.build_observable())
     }
 }
 
