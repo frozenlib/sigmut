@@ -12,7 +12,7 @@ Warning: This library is still in the very early stages of development. APIs wil
 
 TODO
 
-## Cheat sheet for Rx users
+## Cheat sheet for [Rx] users
 
 | Rx                | reactive-fn         |
 | ----------------- | ------------------- |
@@ -20,6 +20,8 @@ TODO
 | `IObsrevable`     | `Obsrevable`, `Obs` |
 | `IObserver`       | `FnMut`             |
 | `BehaviorSubject` | `ObsCell`           |
+
+[rx]: https://reactivex.io/
 
 ### `System.Reactive.Linq.Obsrevable` methods
 
@@ -46,7 +48,7 @@ TODO
 | `ToTask`       | `stream`                                  |
 | `ToObservable` | `from_async`,`from_future`, `from_stream` |
 
-## Cheat sheet for Flutter users
+## Cheat sheet for [Flutter] users
 
 | Flutter           | reactive-fn         |
 | ----------------- | ------------------- |
@@ -55,7 +57,9 @@ TODO
 | `ChangeNotifier`  | `BindSinks`         |
 | `Listenable`      | `BindSource`        |
 
-## Cheat sheet for Riverpod users
+[flutter]: https://flutter.dev/
+
+## Cheat sheet for [Riverpod] users
 
 | Riverpod         | reactive-fn                                                 |
 | ---------------- | ----------------------------------------------------------- |
@@ -65,7 +69,9 @@ TODO
 | `StreamProvider` | `Obs::from_stream`,`Obs::from_stream_fn`                    |
 | `ref`            | `ObsContext`                                                |
 
-## Cheat sheet for Preact Signals users
+[riverpod]: https://riverpod.dev/
+
+## Cheat sheet for [Preact Signals] users
 
 | Preact Signals | reactive-fn          |
 | -------------- | -------------------- |
@@ -74,14 +80,18 @@ TODO
 | `effect`       | `Subscription::new`  |
 | `batch`        | `Action`             |
 
-## Cheat sheet for Recoil users
+[preact signals]: https://preactjs.com/guide/v10/signals/
+
+## Cheat sheet for [Recoil] users
 
 | Recoil Signals | reactive-fn          |
 | -------------- | -------------------- |
 | `atom`         | `ObsCell::new`       |
 | `selector`     | `Obs::from_value_fn` |
 
-## Cheat sheet for Sycamore users
+[recoil]: https://recoiljs.org/
+
+## Cheat sheet for [Sycamore] users
 
 | Sycamore        | reactive-fn          |
 | --------------- | -------------------- |
@@ -90,6 +100,8 @@ TODO
 | `create_signal` | `ObsCell::new`       |
 | `create_effect` | `Subscription::new`  |
 | `create_memo`   | `Obs::from_value_fn` |
+
+[sycamore]: https://sycamore-rs.netlify.app/
 
 ## License
 
