@@ -95,7 +95,7 @@ impl ObsBuilder<()> {
     pub fn from_value_fn<T: 'static>(
         f: impl Fn(&mut ObsContext) -> T + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        Self::from_scan(None, move |st, oc| *st = Some(f(oc))).map_ref(|st| st.as_ref().unwrap())
+        Self::from_scan(None, move |st, oc| *st = Some(f(oc))).map(|st| st.as_ref().unwrap())
     }
     pub fn from_scan<St>(
         initial_state: St,
@@ -247,7 +247,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         let o = self.observable();
         ObsBuilder::from_get(move |oc| o.with(|value, _| f(value), oc))
     }
-    pub fn map_ref<U: ?Sized + 'static>(
+    pub fn map<U: ?Sized + 'static>(
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U>> {
@@ -286,7 +286,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U::Item>> {
-        self.map_ref(f).flatten()
+        self.map(f).flatten()
     }
 
     pub fn flatten(self) -> ObsBuilder<impl ObservableBuilder<Item = <B::Item as Observable>::Item>>

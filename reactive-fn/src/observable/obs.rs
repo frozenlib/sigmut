@@ -256,8 +256,8 @@ impl<T: ?Sized + 'static> Obs<T> {
     pub fn map_value<U>(&self, f: impl Fn(&T) -> U + 'static) -> Obs<U> {
         self.builder().map_value(f).obs()
     }
-    pub fn map_ref<U>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U> {
-        self.builder().map_ref(f).obs()
+    pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U> {
+        self.builder().map(f).obs()
     }
     pub fn map_future<Fut>(self, f: impl Fn(&T) -> Fut + 'static) -> Obs<Poll<Fut::Output>>
     where

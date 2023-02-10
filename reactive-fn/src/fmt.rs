@@ -26,7 +26,7 @@ impl<S: ObservableDisplay> ObsDisplay<S> {
             s.clear();
             write_to(s, &self, oc).unwrap();
         })
-        .map_ref(|s| s.as_str())
+        .map(|s| s.as_str())
     }
     pub fn into_obs(self) -> Obs<str>
     where
