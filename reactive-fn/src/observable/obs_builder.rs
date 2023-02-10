@@ -240,7 +240,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         self.0.build_observable()
     }
 
-    pub fn map<U: 'static>(
+    pub fn map_value<U: 'static>(
         self,
         f: impl Fn(&B::Item) -> U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U>> {
@@ -280,7 +280,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         self,
         f: impl Fn(&B::Item) -> U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U::Item>> {
-        self.map(f).flatten()
+        self.map_value(f).flatten()
     }
     pub fn flat_map_ref<U: Observable + 'static>(
         self,

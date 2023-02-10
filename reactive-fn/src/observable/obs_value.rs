@@ -20,7 +20,7 @@ where
     pub fn map<U>(self, f: impl Fn(T) -> U + 'static) -> ObsValue<U> {
         match self {
             ObsValue::Constant(value) => ObsValue::Constant(f(value)),
-            ObsValue::Obs(o) => ObsValue::Obs(o.map(move |value| f(value.clone()))),
+            ObsValue::Obs(o) => ObsValue::Obs(o.map_value(move |value| f(value.clone()))),
         }
     }
     pub fn obs_builder(self) -> ObsBuilder<Self> {
