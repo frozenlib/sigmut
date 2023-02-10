@@ -1,7 +1,10 @@
-use super::{RcObservable, Subscription};
-use crate::core::{
-    dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
-    ComputeContext, ObsContext,
+use super::{ObservableBuilder, RcObservable, Subscription};
+use crate::{
+    core::{
+        dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
+        ComputeContext, ObsContext,
+    },
+    Obs,
 };
 use std::rc::Rc;
 
@@ -93,6 +96,64 @@ where
         (self.to_value)(state)
     }
 }
+struct MapOps<Ops, F> {
+    ops: Ops,
+    f: F,
+}
+impl<Ops, F, T> ScanOps for MapOps<Ops, F>
+where
+    Ops: ScanOps + 'static,
+    F: Fn(&Ops::Value) -> &T + 'static,
+    T: ?Sized + 'static,
+{
+    type St = Ops::St;
+    type Value = T;
+    type ComputeRet = Ops::ComputeRet;
+    fn compute(&self, state: &mut Self::St, oc: &mut ObsContext) -> Self::ComputeRet {
+        self.ops.compute(state, oc)
+    }
+    fn discard(&self, state: &mut Self::St) -> bool {
+        self.ops.discard(state)
+    }
+    fn to_value<'a>(&self, state: &'a Self::St) -> &'a Self::Value {
+        (self.f)(self.ops.to_value(state))
+    }
+}
+
+pub(crate) struct ScanBuilder<Ops: ScanOps + 'static> {
+    state: Ops::St,
+    ops: Ops,
+    is_hot: bool,
+}
+impl<Ops: ScanOps + 'static> ScanBuilder<Ops> {
+    pub(crate) fn new(state: Ops::St, ops: Ops, is_hot: bool) -> Self {
+        Self { state, ops, is_hot }
+    }
+}
+impl<Ops> ObservableBuilder for ScanBuilder<Ops>
+where
+    Ops: ScanOps + 'static,
+{
+    type Item = Ops::Value;
+    type Observable = Rc<DependencyNode<RawScan<Ops>>>;
+
+    fn build_observable(self) -> Self::Observable {
+        RawScan::new(self.state, self.ops, self.is_hot)
+    }
+
+    fn build_obs(self) -> crate::Obs<Self::Item> {
+        Obs::from_rc_rc(self.build_observable())
+    }
+
+    fn build_obs_map_ref<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> crate::Obs<U>
+    where
+        Self: Sized,
+        U: ?Sized + 'static,
+    {
+        let ops = MapOps { ops: self.ops, f };
+        Obs::from_rc_rc(RawScan::new(self.state, ops, self.is_hot))
+    }
+}
 
 pub(crate) struct RawScan<Ops: ScanOps + 'static> {
     state: Option<Ops::St>,
@@ -100,7 +161,7 @@ pub(crate) struct RawScan<Ops: ScanOps + 'static> {
 }
 
 impl<Ops: ScanOps + 'static> RawScan<Ops> {
-    pub(crate) fn new(state: Ops::St, ops: Ops, is_hot: bool) -> Rc<DependencyNode<Self>> {
+    fn new(state: Ops::St, ops: Ops, is_hot: bool) -> Rc<DependencyNode<Self>> {
         DependencyNode::new(
             Self {
                 state: Some(state),

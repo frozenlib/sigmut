@@ -1,7 +1,7 @@
 use super::{
     from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScan},
-    stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RawScan,
-    RcObservable, Subscription,
+    stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RcObservable,
+    ScanBuilder, Subscription,
 };
 use crate::{
     core::{AsyncObsContext, ObsContext},
@@ -123,7 +123,7 @@ impl ObsBuilder<()> {
         T: ?Sized + 'static,
     {
         let ops = FnScanOps::new(op, |_st| true, map);
-        ObsBuilder(FromRcRc(RawScan::new(initial_state, ops, false)))
+        ObsBuilder(ScanBuilder::new(initial_state, ops, false))
     }
     pub fn from_scan_filter<St>(
         initial_state: St,
@@ -144,7 +144,7 @@ impl ObsBuilder<()> {
         T: ?Sized + 'static,
     {
         let ops = FnScanOps::new(op, |_st| false, map);
-        ObsBuilder(FromRcRc(RawScan::new(initial_state, ops, false)))
+        ObsBuilder(ScanBuilder::new(initial_state, ops, false))
     }
 
     pub fn from_async<Fut>(
@@ -388,7 +388,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
             },
             |st| st.as_ref().unwrap().borrow(),
         );
-        ObsBuilder(FromRcRc(RawScan::new(None, ops, false)))
+        ObsBuilder(ScanBuilder::new(None, ops, false))
     }
     pub fn dedup(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>>
     where
@@ -429,11 +429,11 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
             },
             |st| st.as_ref().unwrap().borrow(),
         );
-        ObsBuilder(FromRcRc(RawScan::new(
+        ObsBuilder(ScanBuilder::new(
             None::<<B::Item as ToOwned>::Owned>,
             ops,
             false,
-        )))
+        ))
     }
     pub fn dedup_by_key<K>(
         self,
