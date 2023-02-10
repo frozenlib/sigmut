@@ -34,7 +34,7 @@ TODO
 | `SelectMany`           | `Obs::flat_map`, `Obs::map_async`,`Obs::map_stream` |
 | `Scan`                 | `Obs::scan`                                         |
 | `Subscribe`            | `Obs::subscribe`                                    |
-| `Switch`               | `Obs::from_fn`                                      |
+| `Switch`               | `Obs::from_value_fn`                                |
 | `ToArray`              | `Obs::collect_to_vec`                               |
 | `ToDictionary`         | `Obs::collect`                                      |
 | `ToList`               | `Obs::collect_to_vec`                               |
@@ -59,7 +59,7 @@ TODO
 
 | Riverpod         | reactive-fn                                                 |
 | ---------------- | ----------------------------------------------------------- |
-| `Provider`       | `Obs::from_fn`                                              |
+| `Provider`       | `Obs::from_value_fn`                                        |
 | `StateProvider`  | `ObsCell`                                                   |
 | `FutureProvider` | `Obs::from_async`, `Obs::from_future`,`Obs::from_future_fn` |
 | `StreamProvider` | `Obs::from_stream`,`Obs::from_stream_fn`                    |
@@ -67,29 +67,29 @@ TODO
 
 ## Cheat sheet for Preact Signals users
 
-| Preact Signals | reactive-fn         |
-| -------------- | ------------------- |
-| `signal`       | `ObsCell::new`      |
-| `computed`     | `Obs::from_fn`      |
-| `effect`       | `Subscription::new` |
-| `batch`        | `Action`            |
+| Preact Signals | reactive-fn          |
+| -------------- | -------------------- |
+| `signal`       | `ObsCell::new`       |
+| `computed`     | `Obs::from_value_fn` |
+| `effect`       | `Subscription::new`  |
+| `batch`        | `Action`             |
 
 ## Cheat sheet for Recoil users
 
-| Recoil Signals | reactive-fn    |
-| -------------- | -------------- |
-| `atom`         | `ObsCell::new` |
-| `selector`     | `Obs::from_fn` |
+| Recoil Signals | reactive-fn          |
+| -------------- | -------------------- |
+| `atom`         | `ObsCell::new`       |
+| `selector`     | `Obs::from_value_fn` |
 
 ## Cheat sheet for Sycamore users
 
-| Sycamore        | reactive-fn         |
-| --------------- | ------------------- |
-| `Signal`        | `ObsCell`           |
-| `ReadSignal`    | `Obs`               |
-| `create_signal` | `ObsCell::new`      |
-| `create_effect` | `Subscription::new` |
-| `create_memo`   | `Obs::from_fn`      |
+| Sycamore        | reactive-fn          |
+| --------------- | -------------------- |
+| `Signal`        | `ObsCell`            |
+| `ReadSignal`    | `Obs`                |
+| `create_signal` | `ObsCell::new`       |
+| `create_effect` | `Subscription::new`  |
+| `create_memo`   | `Obs::from_value_fn` |
 
 ## License
 

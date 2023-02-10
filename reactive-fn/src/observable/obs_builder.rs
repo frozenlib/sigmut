@@ -85,7 +85,7 @@ impl ObsBuilder<()> {
     pub const fn from_value<T: 'static>(value: T) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder(FromObservable(FromValue(value)))
     }
-    pub fn from_fn<T: 'static>(
+    pub fn from_value_fn<T: 'static>(
         f: impl Fn(&mut ObsContext) -> T + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         Self::from_scan_map(
