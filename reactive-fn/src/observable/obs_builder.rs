@@ -1,8 +1,5 @@
 use super::{
-    from_async::{
-        FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScan, FromStreamScanBuilder,
-        StreamScanOps,
-    },
+    from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScanBuilder},
     stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RcObservable,
     ScanBuilder, ScanOps, Subscription,
 };
