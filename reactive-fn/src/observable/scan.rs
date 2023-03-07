@@ -144,13 +144,19 @@ where
         Obs::from_rc_rc(self.build_observable())
     }
 
-    fn build_obs_map<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> crate::Obs<U>
+    type Map<F: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> =
+        ScanBuilder<MapScanOps<Ops, F>>;
+
+    fn map<F, U>(self, f: F) -> Self::Map<F, U>
     where
-        Self: Sized,
+        F: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static,
     {
-        let ops = self.ops.map(f);
-        Obs::from_rc_rc(RawScan::new(self.state, ops, self.is_hot))
+        ScanBuilder {
+            state: self.state,
+            ops: self.ops.map(f),
+            is_hot: self.is_hot,
+        }
     }
 }
 

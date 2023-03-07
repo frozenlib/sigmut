@@ -68,8 +68,8 @@ impl<T: ?Sized + 'static> Clone for RawObs<T> {
 pub struct Obs<T: ?Sized + 'static>(RawObs<T>);
 
 impl<T: ?Sized + 'static> Obs<T> {
-    pub fn builder(&self) -> ObsBuilder<Self> {
-        ObsBuilder(self.clone())
+    pub fn builder(&self) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+        ObsBuilder::from_obs(self.clone())
     }
 
     pub fn from_observable(o: impl Observable<Item = T> + 'static) -> Self {
@@ -380,17 +380,5 @@ impl<T: ?Sized + 'static> Observable for &Obs<T> {
     }
     fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> {
         Obs::get_to(*self, s)
-    }
-}
-
-impl<T: ?Sized + 'static> ObservableBuilder for Obs<T> {
-    type Item = T;
-    type Observable = Self;
-
-    fn build_observable(self) -> Self::Observable {
-        self
-    }
-    fn build_obs(self) -> Obs<Self::Item> {
-        self
     }
 }

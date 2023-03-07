@@ -1,4 +1,4 @@
-use super::{Obs, ObsBuilder, Observable, ObservableBuilder};
+use super::{FromObservable, Obs, ObsBuilder, Observable, ObservableBuilder};
 use crate::core::ObsContext;
 use reactive_fn_macros::ObservableFmt;
 use std::borrow::Borrow;
@@ -23,8 +23,17 @@ where
             ObsValue::Obs(o) => ObsValue::Obs(o.map_value(move |value| f(value.clone()))),
         }
     }
-    pub fn obs_builder(self) -> ObsBuilder<Self> {
-        ObsBuilder(self)
+    pub fn obs_builder(self) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+        ObsBuilder(FromObservable {
+            o: self,
+            into_obs: Self::into_obs,
+        })
+    }
+    pub fn into_obs(self) -> Obs<T> {
+        match self {
+            ObsValue::Constant(value) => Obs::from_value(value),
+            ObsValue::Obs(o) => o,
+        }
     }
 }
 impl<T> Observable for ObsValue<T>
@@ -37,25 +46,6 @@ where
         match self {
             Self::Constant(value) => f(value.borrow(), oc),
             Self::Obs(obs) => obs.with(|value, oc| f(value, oc), oc),
-        }
-    }
-}
-
-impl<T> ObservableBuilder for ObsValue<T>
-where
-    T: 'static,
-{
-    type Item = T;
-    type Observable = Self;
-
-    fn build_observable(self) -> Self::Observable {
-        self
-    }
-
-    fn build_obs(self) -> Obs<Self::Item> {
-        match self {
-            ObsValue::Constant(value) => Obs::from_value(value),
-            ObsValue::Obs(o) => o,
         }
     }
 }

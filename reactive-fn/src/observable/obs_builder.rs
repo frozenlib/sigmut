@@ -16,13 +16,12 @@ pub trait ObservableBuilder: 'static {
     type Observable: Observable<Item = Self::Item> + 'static;
     fn build_observable(self) -> Self::Observable;
     fn build_obs(self) -> Obs<Self::Item>;
-    fn build_obs_map<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
+
+    type Map<F: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static>: ObservableBuilder<Item = U>;
+    fn map<F, U>(self, f: F) -> Self::Map<F, U>
     where
-        Self: Sized,
-        U: ?Sized + 'static,
-    {
-        Obs::from_observable(MapRefBuilder { b: self, f }.build_observable())
-    }
+        F: Fn(&Self::Item) -> &U + 'static,
+        U: ?Sized + 'static;
 }
 
 #[derive(Clone)]
@@ -32,25 +31,34 @@ impl ObsBuilder<()> {
     pub const fn from_obs<T: ?Sized + 'static>(
         o: Obs<T>,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(o)
+        ObsBuilder(FromObservable { o, into_obs: |o| o })
     }
 
     pub const fn from_observable<T: ?Sized + 'static>(
         o: impl Observable<Item = T> + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservable(o))
+        ObsBuilder(FromObservable {
+            o,
+            into_obs: Obs::from_observable,
+        })
     }
 
     pub const fn from_observable_zst<T: ?Sized + 'static>(
         o: impl Observable<Item = T> + Clone + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservableZst(o))
+        ObsBuilder(FromObservable {
+            o,
+            into_obs: Obs::from_observable_zst,
+        })
     }
 
     pub const fn from_rc_rc<T: ?Sized + 'static>(
         o: Rc<impl RcObservable<Item = T> + 'static>,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromRcRc(o))
+        ObsBuilder(FromObservable {
+            o,
+            into_obs: Obs::from_rc_rc,
+        })
     }
 
     pub const fn from_static_ref<T: ?Sized + 'static>(
@@ -62,35 +70,50 @@ impl ObsBuilder<()> {
     pub const fn from_static_get_to<T: ?Sized + 'static>(
         f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Clone + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservableZst(FromStaticGetTo {
-            f,
-            _phantom: PhantomData,
-        }))
+        ObsBuilder(FromObservable {
+            o: FromStaticGetTo {
+                f,
+                _phantom: PhantomData,
+            },
+            into_obs: Obs::from_observable_zst,
+        })
     }
 
     pub const fn from_static_get<T: 'static>(
         f: impl Fn(&mut ObsContext) -> T + Clone + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservableZst(FromStaticGet(f)))
+        ObsBuilder(FromObservable {
+            o: FromStaticGet(f),
+            into_obs: Obs::from_observable_zst,
+        })
     }
 
     pub const fn from_get_to<T: ?Sized + 'static>(
         f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservable(FromGetTo {
-            f,
-            _phantom: PhantomData,
-        }))
+        ObsBuilder(FromObservable {
+            o: FromGetTo {
+                f,
+                _phantom: PhantomData,
+            },
+            into_obs: Obs::from_observable,
+        })
     }
 
     pub const fn from_get<T: 'static>(
         f: impl Fn(&mut ObsContext) -> T + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservable(FromGet(f)))
+        ObsBuilder(FromObservable {
+            o: FromGet(f),
+            into_obs: Obs::from_observable,
+        })
     }
 
     pub const fn from_value<T: 'static>(value: T) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservable(FromValue(value)))
+        ObsBuilder(FromObservable {
+            o: FromValue(value),
+            into_obs: Obs::from_observable,
+        })
     }
     pub fn from_value_fn<T: 'static>(
         f: impl Fn(&mut ObsContext) -> T + 'static,
@@ -126,7 +149,10 @@ impl ObsBuilder<()> {
         Fut: Future + 'static,
         Fut::Output: 'static,
     {
-        ObsBuilder(FromRcRc(FromAsync::new(f, false)))
+        ObsBuilder(FromObservable {
+            o: FromAsync::new(f, false),
+            into_obs: Obs::from_rc_rc,
+        })
     }
 
     pub fn from_future<Fut>(
@@ -165,7 +191,10 @@ impl ObsBuilder<()> {
     where
         S: Stream + 'static,
     {
-        ObsBuilder(FromRcRc(FromStreamFn::new(f)))
+        ObsBuilder(FromObservable {
+            o: FromStreamFn::new(f),
+            into_obs: Obs::from_rc_rc,
+        })
     }
 
     pub fn from_stream_scan<St, S, Op>(
@@ -211,7 +240,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U>> {
-        ObsBuilder(MapRefBuilder { b: self.0, f })
+        ObsBuilder(self.0.map(f))
     }
     pub fn map_value<U: 'static>(
         self,
@@ -396,7 +425,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     }
     pub fn hot(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
         let o = self.observable();
-        ObsBuilder(Obs::from_rc(RawHot::new(o)))
+        ObsBuilder::from_obs(Obs::from_rc(RawHot::new(o)))
     }
     pub fn subscribe(self, mut f: impl FnMut(&B::Item) + 'static) -> Subscription {
         let o = self.observable();
@@ -427,39 +456,32 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     }
 }
 
-struct FromObservable<O>(O);
-impl<O: Observable + 'static> ObservableBuilder for FromObservable<O> {
+pub(crate) struct FromObservable<O, IntoObs> {
+    pub o: O,
+    pub into_obs: IntoObs,
+}
+
+impl<O, IntoObs> ObservableBuilder for FromObservable<O, IntoObs>
+where
+    O: Observable + 'static,
+    IntoObs: FnOnce(O) -> Obs<O::Item> + 'static,
+{
     type Item = O::Item;
     type Observable = O;
     fn build_observable(self) -> Self::Observable {
-        self.0
+        self.o
     }
     fn build_obs(self) -> Obs<Self::Item> {
-        Obs::from_observable(self.0)
+        (self.into_obs)(self.o)
     }
-}
 
-struct FromObservableZst<O>(O);
-impl<O: Observable + Clone + 'static> ObservableBuilder for FromObservableZst<O> {
-    type Item = O::Item;
-    type Observable = O;
-    fn build_observable(self) -> Self::Observable {
-        self.0
-    }
-    fn build_obs(self) -> Obs<Self::Item> {
-        Obs::from_observable_zst(self.0)
-    }
-}
-
-struct FromRcRc<O>(Rc<O>);
-impl<O: RcObservable + 'static> ObservableBuilder for FromRcRc<O> {
-    type Item = O::Item;
-    type Observable = Rc<O>;
-    fn build_observable(self) -> Self::Observable {
-        self.0
-    }
-    fn build_obs(self) -> Obs<Self::Item> {
-        Obs::from_rc_rc(self.0)
+    type Map<F: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> = MapBuilder<Self, F>;
+    fn map<F, U>(self, f: F) -> Self::Map<F, U>
+    where
+        F: Fn(&Self::Item) -> &U + 'static,
+        U: ?Sized + 'static,
+    {
+        MapBuilder { b: self, f }
     }
 }
 
@@ -473,6 +495,16 @@ impl<T: ?Sized + 'static> ObservableBuilder for FromStaticRef<T> {
     }
     fn build_obs(self) -> Obs<Self::Item> {
         Obs::from_static_ref(self.0)
+    }
+
+    type Map<F: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> = FromStaticRef<U>;
+
+    fn map<F, U>(self, f: F) -> Self::Map<F, U>
+    where
+        F: Fn(&Self::Item) -> &U + 'static,
+        U: ?Sized + 'static,
+    {
+        FromStaticRef(f(self.0))
     }
 }
 impl<T: ?Sized + 'static> Observable for FromStaticRef<T> {
@@ -577,12 +609,12 @@ impl<T> Observable for FromValue<T> {
     }
 }
 
-struct MapRef<O, F> {
+pub(crate) struct Map<O, F> {
     o: O,
     f: F,
 }
 
-impl<O, F, T: ?Sized> Observable for MapRef<O, F>
+impl<O, F, T: ?Sized> Observable for Map<O, F>
 where
     O: Observable,
     F: Fn(&O::Item) -> &T,
@@ -593,32 +625,34 @@ where
     }
 }
 
-struct MapRefBuilder<B, F> {
-    b: B,
-    f: F,
+pub(crate) struct MapBuilder<B, F> {
+    pub b: B,
+    pub f: F,
 }
-impl<B, F, T: ?Sized> ObservableBuilder for MapRefBuilder<B, F>
+impl<B, F, T: ?Sized> ObservableBuilder for MapBuilder<B, F>
 where
     B: ObservableBuilder,
     F: Fn(&B::Item) -> &T + 'static,
     T: 'static,
 {
     type Item = T;
-    type Observable = MapRef<B::Observable, F>;
+    type Observable = Map<B::Observable, F>;
     fn build_observable(self) -> Self::Observable {
-        MapRef {
+        Map {
             o: self.b.build_observable(),
             f: self.f,
         }
     }
     fn build_obs(self) -> Obs<Self::Item> {
-        self.b.build_obs_map(self.f)
+        Obs::from_observable(self.build_observable())
     }
-    fn build_obs_map<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
+
+    type Map<F1: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> = MapBuilder<Self, F1>;
+    fn map<F1, U>(self, f: F1) -> Self::Map<F1, U>
     where
-        Self: Sized,
+        F1: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static,
     {
-        self.b.build_obs_map(move |v| f((self.f)(v)))
+        MapBuilder { b: self, f }
     }
 }

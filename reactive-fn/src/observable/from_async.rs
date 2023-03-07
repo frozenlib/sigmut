@@ -299,13 +299,19 @@ where
         Obs::from_rc_rc(self.build_observable())
     }
 
-    fn build_obs_map<U>(self, f: impl Fn(&Self::Item) -> &U + 'static) -> Obs<U>
+    type Map<F1: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> =
+        FromStreamScanBuilder<S, MapStreamScanOps<Ops, F1>>;
+
+    fn map<F, U>(self, f: F) -> Self::Map<F, U>
     where
-        Self: Sized,
+        F: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static,
     {
-        let ops = self.ops.map(f);
-        Obs::from_rc_rc(FromStreamScan::new(self.initial_state, self.s, ops))
+        FromStreamScanBuilder {
+            initial_state: self.initial_state,
+            s: self.s,
+            ops: self.ops.map(f),
+        }
     }
 }
 
