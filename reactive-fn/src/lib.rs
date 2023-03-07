@@ -3,20 +3,12 @@ pub mod collector;
 pub mod core;
 pub mod fmt;
 pub mod observable;
+pub mod prelude;
 
 pub(crate) mod utils;
 
 #[doc(no_inline)]
-pub use crate::core::{Action, ActionContext, AsyncObsContext, ObsContext, RcAction};
-
-#[doc(no_inline)]
-pub use crate::observable::ObsCell;
-
-#[doc(no_inline)]
-pub use crate::observable::{
-    Callback, Consumed, Fold, Obs, ObsBuilder, ObsCallback, ObsSink, ObsValue, Observable,
-    Subscription,
-};
+pub use self::prelude::*;
 
 #[cfg(test)]
 mod test_utils;
