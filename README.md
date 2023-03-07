@@ -25,21 +25,21 @@ TODO
 
 ### `System.Reactive.Linq.Obsrevable` methods
 
-| Rx                     | reactive-fn                                         |
-| ---------------------- | --------------------------------------------------- |
-| `Aggregate`            | `Obs::fold`                                         |
-| `DistinctUntilChanged` | `Obs::dedup`                                        |
-| `First`                |                                                     |
-| `Publish`              | `Obs::hot`                                          |
-| `Return`               | `Obs::from_value`                                   |
-| `Select`               | `Obs::map`, `Obs::map_ref`                          |
-| `SelectMany`           | `Obs::flat_map`, `Obs::map_async`,`Obs::map_stream` |
-| `Scan`                 | `Obs::scan`                                         |
-| `Subscribe`            | `Obs::subscribe`                                    |
-| `Switch`               | `Obs::from_value_fn`                                |
-| `ToArray`              | `Obs::collect_to_vec`                               |
-| `ToDictionary`         | `Obs::collect`                                      |
-| `ToList`               | `Obs::collect_to_vec`                               |
+| Rx                     | reactive-fn                                          |
+| ---------------------- | ---------------------------------------------------- |
+| `Aggregate`            | `Obs::fold`                                          |
+| `DistinctUntilChanged` | `Obs::dedup`                                         |
+| `First`                |                                                      |
+| `Publish`              | `Obs::hot`                                           |
+| `Return`               | `Obs::from_value`                                    |
+| `Select`               | `Obs::map`, `Obs::map_ref`                           |
+| `SelectMany`           | `Obs::flat_map`, `Obs::map_async`, `Obs::map_stream` |
+| `Scan`                 | `Obs::scan`                                          |
+| `Subscribe`            | `Obs::subscribe`                                     |
+| `Switch`               | `Obs::flatten`, `Obs::from_value_fn`                 |
+| `ToArray`              | `Obs::collect_to_vec`                                |
+| `ToDictionary`         | `Obs::collect`                                       |
+| `ToList`               | `Obs::collect_to_vec`                                |
 
 ### `System.Reactive.Threading.Tasks.TaskObservableExtensions` methods
 
@@ -81,6 +81,26 @@ TODO
 | `batch`        | `Action`             |
 
 [preact signals]: https://preactjs.com/guide/v10/signals/
+
+## Cheet sheet for [SolidJS] users
+
+| Preact Signals | reactive-fn          |
+| -------------- | -------------------- |
+| `creaetSignal` | `ObsCell::new`       |
+| `createEffect` | `Subscription::new`  |
+| `createMemo`   | `Obs::from_value_fn` |
+
+[solidjs]: https://www.solidjs.com/docs/latest/api#basic-reactivity
+
+## Cheet sheet for [qwik] users
+
+| Preact Signals   | reactive-fn          |
+| ---------------- | -------------------- |
+| `useSignal`      | `ObsCell::new`       |
+| `useTask$()`     | `Subscription::new`  |
+| `useResource$()` | `Obs::from_value_fn` |
+
+[qwik]: https://qwik.builder.io/docs/components/state/
 
 ## Cheat sheet for [Recoil] users
 
