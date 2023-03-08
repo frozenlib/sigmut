@@ -7,18 +7,18 @@ use std::rc::Rc;
 
 pub(crate) struct OverrideNodeSettings<O> {
     o: O,
-    is_using: bool,
+    is_keep: bool,
 }
 
 impl<O: Observable + 'static> OverrideNodeSettings<O> {
     pub(crate) fn new(
         o: O,
         is_flush: bool,
-        is_using: bool,
+        is_keep: bool,
         is_hot: bool,
     ) -> Rc<DependencyNode<Self>> {
         DependencyNode::new(
-            OverrideNodeSettings { o, is_using },
+            OverrideNodeSettings { o, is_keep },
             DependencyNodeSettings {
                 is_flush,
                 is_hot,
@@ -36,7 +36,7 @@ impl<O: Observable + 'static> Compute for OverrideNodeSettings<O> {
     }
 
     fn discard(&mut self) -> bool {
-        !self.is_using
+        !self.is_keep
     }
 }
 

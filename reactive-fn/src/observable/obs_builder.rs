@@ -431,7 +431,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     pub fn fast(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
         self.override_node_settings(true, false, true)
     }
-    pub fn using(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
+    pub fn keep(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
         self.override_node_settings(false, true, true)
     }
     pub fn hot(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
@@ -440,12 +440,12 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     fn override_node_settings(
         self,
         is_flush: bool,
-        is_using: bool,
+        is_keep: bool,
         is_hot: bool,
     ) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
         let o = self.observable();
         ObsBuilder::from_obs(Obs::from_rc(OverrideNodeSettings::new(
-            o, is_flush, is_using, is_hot,
+            o, is_flush, is_keep, is_hot,
         )))
     }
 
