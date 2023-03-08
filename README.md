@@ -98,7 +98,7 @@ TODO
 | ---------------- | ------------------- |
 | `useSignal`      | `ObsCell::new`      |
 | `useTask$()`     | `Subscription::new` |
-| `useResource$()` | `Obs::new_dedup`    |
+| `useResource$()` | `Obs::new`          |
 
 [qwik]: https://qwik.builder.io/docs/components/state/
 
