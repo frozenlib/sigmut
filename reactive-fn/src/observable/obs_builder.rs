@@ -1,7 +1,7 @@
 use super::{
     from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScanBuilder},
-    stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, OverrideNodeSettings,
-    RcObservable, ScanBuilder, ScanOps, Subscription,
+    stream, Consumed, FnScanOps, Fold, Mode, Obs, ObsCallback, ObsSink, Observable, RcObservable,
+    ScanBuilder, ScanOps, SetMode, Subscription,
 };
 use crate::{
     core::{AsyncObsContext, ObsContext},
@@ -429,24 +429,26 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         self.collect()
     }
     pub fn fast(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
-        self.override_node_settings(true, false, true)
+        self.mode(Mode {
+            is_flush: true,
+            ..Mode::default()
+        })
     }
     pub fn keep(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
-        self.override_node_settings(false, true, true)
+        self.mode(Mode {
+            is_keep: true,
+            ..Mode::default()
+        })
     }
     pub fn hot(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
-        self.override_node_settings(false, false, true)
+        self.mode(Mode {
+            is_hot: true,
+            ..Mode::default()
+        })
     }
-    fn override_node_settings(
-        self,
-        is_flush: bool,
-        is_keep: bool,
-        is_hot: bool,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
+    fn mode(self, mode: Mode) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
         let o = self.observable();
-        ObsBuilder::from_obs(Obs::from_rc(OverrideNodeSettings::new(
-            o, is_flush, is_keep, is_hot,
-        )))
+        ObsBuilder::from_obs(Obs::from_rc(SetMode::new(o, mode)))
     }
 
     pub fn subscribe(self, mut f: impl FnMut(&B::Item) + 'static) -> Subscription {

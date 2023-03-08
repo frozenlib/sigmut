@@ -5,20 +5,27 @@ use crate::core::{
 };
 use std::rc::Rc;
 
-pub(crate) struct OverrideNodeSettings<O> {
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub(crate) struct Mode {
+    pub is_flush: bool,
+    pub is_keep: bool,
+    pub is_hot: bool,
+}
+
+pub(crate) struct SetMode<O> {
     o: O,
     is_keep: bool,
 }
 
-impl<O: Observable + 'static> OverrideNodeSettings<O> {
-    pub(crate) fn new(
-        o: O,
-        is_flush: bool,
-        is_keep: bool,
-        is_hot: bool,
-    ) -> Rc<DependencyNode<Self>> {
+impl<O: Observable + 'static> SetMode<O> {
+    pub(crate) fn new(o: O, mode: Mode) -> Rc<DependencyNode<Self>> {
+        let Mode {
+            is_flush,
+            is_keep,
+            is_hot,
+        } = mode;
         DependencyNode::new(
-            OverrideNodeSettings { o, is_keep },
+            SetMode { o, is_keep },
             DependencyNodeSettings {
                 is_flush,
                 is_hot,
@@ -28,8 +35,8 @@ impl<O: Observable + 'static> OverrideNodeSettings<O> {
     }
 }
 
-impl<O: Observable + 'static> OverrideNodeSettings<O> {}
-impl<O: Observable + 'static> Compute for OverrideNodeSettings<O> {
+impl<O: Observable + 'static> SetMode<O> {}
+impl<O: Observable + 'static> Compute for SetMode<O> {
     fn compute(&mut self, cc: &mut ComputeContext) -> bool {
         self.o.with(|_value, _oc| {}, cc.oc());
         true
@@ -40,7 +47,7 @@ impl<O: Observable + 'static> Compute for OverrideNodeSettings<O> {
     }
 }
 
-impl<O: Observable + 'static> Observable for DependencyNode<OverrideNodeSettings<O>> {
+impl<O: Observable + 'static> Observable for DependencyNode<SetMode<O>> {
     type Item = O::Item;
 
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
