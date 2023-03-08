@@ -1,7 +1,7 @@
 use super::{
     from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScanBuilder},
-    stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, RawHot, RcObservable,
-    ScanBuilder, ScanOps, Subscription,
+    stream, Consumed, FnScanOps, Fold, Obs, ObsCallback, ObsSink, Observable, OverrideNodeSettings,
+    RcObservable, ScanBuilder, ScanOps, Subscription,
 };
 use crate::{
     core::{AsyncObsContext, ObsContext},
@@ -24,6 +24,11 @@ pub trait ObservableBuilder: 'static {
         U: ?Sized + 'static;
 }
 
+/// Builder to create [`Obs`] or [`Observable`] with emphasis on runtime performance.
+///
+/// [`Obs`] created by `ObsBuilder` works faster with fewer memory allocations than the method of the same name in [`Obs`].
+///
+/// However, the code size is larger than the method of the same name in [`Obs`].
 #[derive(Clone)]
 pub struct ObsBuilder<B>(pub B);
 
@@ -335,7 +340,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
                 true
             },
         )
-        .map(|st| st.as_ref().unwrap().borrow());
+        .map(|st: &Option<_>| st.as_ref().unwrap().borrow());
         ObsBuilder(ScanBuilder::new(None, ops, false))
     }
     pub fn dedup(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>>
@@ -376,7 +381,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
                 true
             },
         )
-        .map(|st| st.as_ref().unwrap().borrow());
+        .map(|st: &Option<_>| st.as_ref().unwrap().borrow());
         ObsBuilder(ScanBuilder::new(
             None::<<B::Item as ToOwned>::Owned>,
             ops,
@@ -423,10 +428,27 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     {
         self.collect()
     }
-    pub fn hot(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
-        let o = self.observable();
-        ObsBuilder::from_obs(Obs::from_rc(RawHot::new(o)))
+    pub fn fast(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
+        self.override_node_settings(true, false, true)
     }
+    pub fn using(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
+        self.override_node_settings(false, true, true)
+    }
+    pub fn hot(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
+        self.override_node_settings(false, false, true)
+    }
+    fn override_node_settings(
+        self,
+        is_flush: bool,
+        is_using: bool,
+        is_hot: bool,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
+        let o = self.observable();
+        ObsBuilder::from_obs(Obs::from_rc(OverrideNodeSettings::new(
+            o, is_flush, is_using, is_hot,
+        )))
+    }
+
     pub fn subscribe(self, mut f: impl FnMut(&B::Item) + 'static) -> Subscription {
         let o = self.observable();
         Subscription::new(move |oc| o.with(|value, _oc| f(value), oc))

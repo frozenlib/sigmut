@@ -12,7 +12,14 @@ use super::{CallDiscard, CallFlush, CallUpdate, LazyTasks, SourceBindings};
 const PARAM: usize = 0;
 
 pub trait Compute {
+    /// Compute the state.
+    ///
+    /// Returns true if the state is different from the previous state.
     fn compute(&mut self, cc: &mut ComputeContext) -> bool;
+
+    /// Discard the state cache.
+    ///
+    /// Returns true when the dependent state is no longer needed.
     fn discard(&mut self) -> bool {
         true
     }
