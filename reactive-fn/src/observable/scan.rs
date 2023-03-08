@@ -95,6 +95,59 @@ where
         state
     }
 }
+
+pub(crate) struct AssignOps<F>(pub F);
+impl<F, T> ScanOps for AssignOps<F>
+where
+    F: Fn(&mut ObsContext) -> T,
+{
+    type St = Option<T>;
+    type Value = T;
+    type ComputeRet = ();
+
+    fn compute(&self, state: &mut Self::St, oc: &mut ObsContext) -> Self::ComputeRet {
+        *state = Some((self.0)(oc))
+    }
+
+    fn discard(&self, state: &mut Self::St) -> bool {
+        *state = None;
+        true
+    }
+    fn to_value<'a>(&self, state: &'a Self::St) -> &'a Self::Value {
+        state.as_ref().unwrap()
+    }
+}
+
+pub(crate) struct DedupAssignOps<F>(pub F);
+impl<F, T> ScanOps for DedupAssignOps<F>
+where
+    F: Fn(&mut ObsContext) -> T,
+    T: PartialEq,
+{
+    type St = Option<T>;
+    type Value = T;
+    type ComputeRet = bool;
+
+    fn compute(&self, state: &mut Self::St, oc: &mut ObsContext) -> Self::ComputeRet {
+        let new_value = (self.0)(oc);
+        if let Some(old_value) = state {
+            if old_value == &new_value {
+                return false;
+            }
+        }
+        *state = Some(new_value);
+        true
+    }
+
+    fn discard(&self, state: &mut Self::St) -> bool {
+        *state = None;
+        true
+    }
+    fn to_value<'a>(&self, state: &'a Self::St) -> &'a Self::Value {
+        state.as_ref().unwrap()
+    }
+}
+
 pub(crate) struct MapScanOps<Ops, F> {
     ops: Ops,
     f: F,

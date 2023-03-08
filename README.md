@@ -31,12 +31,12 @@ TODO
 | `DistinctUntilChanged` | `Obs::dedup`                                         |
 | `First`                |                                                      |
 | `Publish`              | `Obs::hot`                                           |
-| `Return`               | `Obs::from_value`                                    |
+| `Return`               | `Obs::new_value`                                     |
 | `Select`               | `Obs::map`, `Obs::map_ref`                           |
 | `SelectMany`           | `Obs::flat_map`, `Obs::map_async`, `Obs::map_stream` |
 | `Scan`                 | `Obs::scan`                                          |
 | `Subscribe`            | `Obs::subscribe`                                     |
-| `Switch`               | `Obs::flatten`, `Obs::from_value_fn`                 |
+| `Switch`               | `Obs::flatten`, `Obs::new`                           |
 | `ToArray`              | `Obs::collect_to_vec`                                |
 | `ToDictionary`         | `Obs::collect`                                       |
 | `ToList`               | `Obs::collect_to_vec`                                |
@@ -63,7 +63,7 @@ TODO
 
 | Riverpod         | reactive-fn                                                 |
 | ---------------- | ----------------------------------------------------------- |
-| `Provider`       | `Obs::from_value_fn`                                        |
+| `Provider`       | `Obs::new`                                                  |
 | `StateProvider`  | `ObsCell`                                                   |
 | `FutureProvider` | `Obs::from_async`, `Obs::from_future`,`Obs::from_future_fn` |
 | `StreamProvider` | `Obs::from_stream`,`Obs::from_stream_fn`                    |
@@ -73,53 +73,53 @@ TODO
 
 ## Cheat sheet for [Preact Signals] users
 
-| Preact Signals | reactive-fn          |
-| -------------- | -------------------- |
-| `signal`       | `ObsCell::new`       |
-| `computed`     | `Obs::from_value_fn` |
-| `effect`       | `Subscription::new`  |
-| `batch`        | `Action`             |
+| Preact Signals | reactive-fn         |
+| -------------- | ------------------- |
+| `signal`       | `ObsCell::new`      |
+| `computed`     | `Obs::new`          |
+| `effect`       | `Subscription::new` |
+| `batch`        | `Action`            |
 
 [preact signals]: https://preactjs.com/guide/v10/signals/
 
 ## Cheet sheet for [SolidJS] users
 
-| Preact Signals | reactive-fn          |
-| -------------- | -------------------- |
-| `creaetSignal` | `ObsCell::new`       |
-| `createEffect` | `Subscription::new`  |
-| `createMemo`   | `Obs::from_value_fn` |
+| Preact Signals | reactive-fn         |
+| -------------- | ------------------- |
+| `creaetSignal` | `ObsCell::new`      |
+| `createEffect` | `Subscription::new` |
+| `createMemo`   | `Obs::new`          |
 
 [solidjs]: https://www.solidjs.com/docs/latest/api#basic-reactivity
 
 ## Cheet sheet for [qwik] users
 
-| Preact Signals   | reactive-fn          |
-| ---------------- | -------------------- |
-| `useSignal`      | `ObsCell::new`       |
-| `useTask$()`     | `Subscription::new`  |
-| `useResource$()` | `Obs::from_value_fn` |
+| Preact Signals   | reactive-fn         |
+| ---------------- | ------------------- |
+| `useSignal`      | `ObsCell::new`      |
+| `useTask$()`     | `Subscription::new` |
+| `useResource$()` | `Obs::new_dedup`    |
 
 [qwik]: https://qwik.builder.io/docs/components/state/
 
 ## Cheat sheet for [Recoil] users
 
-| Recoil Signals | reactive-fn          |
-| -------------- | -------------------- |
-| `atom`         | `ObsCell::new`       |
-| `selector`     | `Obs::from_value_fn` |
+| Recoil Signals | reactive-fn    |
+| -------------- | -------------- |
+| `atom`         | `ObsCell::new` |
+| `selector`     | `Obs::new`     |
 
 [recoil]: https://recoiljs.org/
 
 ## Cheat sheet for [Sycamore] users
 
-| Sycamore        | reactive-fn          |
-| --------------- | -------------------- |
-| `Signal`        | `ObsCell`            |
-| `ReadSignal`    | `Obs`                |
-| `create_signal` | `ObsCell::new`       |
-| `create_effect` | `Subscription::new`  |
-| `create_memo`   | `Obs::from_value_fn` |
+| Sycamore        | reactive-fn         |
+| --------------- | ------------------- |
+| `Signal`        | `ObsCell`           |
+| `ReadSignal`    | `Obs`               |
+| `create_signal` | `ObsCell::new`      |
+| `create_effect` | `Subscription::new` |
+| `create_memo`   | `Obs::new`          |
 
 [sycamore]: https://sycamore-rs.netlify.app/
 

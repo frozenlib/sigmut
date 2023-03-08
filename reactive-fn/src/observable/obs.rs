@@ -72,6 +72,25 @@ impl<T: ?Sized + 'static> Obs<T> {
         ObsBuilder::from_obs(self.clone())
     }
 
+    pub fn new(f: impl Fn(&mut ObsContext) -> T + 'static) -> Self
+    where
+        T: Sized,
+    {
+        ObsBuilder::new(f).obs()
+    }
+    pub fn new_dedup(f: impl Fn(&mut ObsContext) -> T + 'static) -> Self
+    where
+        T: PartialEq + Sized,
+    {
+        ObsBuilder::new_dedup(f).obs()
+    }
+    pub fn new_value(value: T) -> Self
+    where
+        T: Sized,
+    {
+        ObsBuilder::new_value(value).obs()
+    }
+
     pub fn from_observable(o: impl Observable<Item = T> + 'static) -> Self {
         Self(RawObs::RcObs(Rc::new(o)))
     }
@@ -120,18 +139,6 @@ impl<T: ?Sized + 'static> Obs<T> {
         T: Sized,
     {
         ObsBuilder::from_get(f).obs()
-    }
-    pub fn from_value(value: T) -> Self
-    where
-        T: Sized,
-    {
-        ObsBuilder::from_value(value).obs()
-    }
-    pub fn from_value_fn(f: impl Fn(&mut ObsContext) -> T + 'static) -> Self
-    where
-        T: Sized,
-    {
-        ObsBuilder::from_value_fn(f).obs()
     }
     pub fn from_scan(initial_state: T, op: impl Fn(&mut T, &mut ObsContext) + 'static) -> Self
     where

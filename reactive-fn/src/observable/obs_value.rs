@@ -31,7 +31,7 @@ where
     }
     pub fn into_obs(self) -> Obs<T> {
         match self {
-            ObsValue::Constant(value) => Obs::from_value(value),
+            ObsValue::Constant(value) => Obs::new_value(value),
             ObsValue::Obs(o) => o,
         }
     }

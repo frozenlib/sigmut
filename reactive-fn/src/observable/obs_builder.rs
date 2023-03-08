@@ -1,7 +1,7 @@
 use super::{
     from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScanBuilder},
-    stream, Consumed, FnScanOps, Fold, Mode, Obs, ObsCallback, ObsSink, Observable, RcObservable,
-    ScanBuilder, ScanOps, SetMode, Subscription,
+    stream, AssignOps, Consumed, DedupAssignOps, FnScanOps, Fold, Mode, Obs, ObsCallback, ObsSink,
+    Observable, RcObservable, ScanBuilder, ScanOps, SetMode, Subscription,
 };
 use crate::{
     core::{AsyncObsContext, ObsContext},
@@ -33,6 +33,28 @@ pub trait ObservableBuilder: 'static {
 pub struct ObsBuilder<B>(pub B);
 
 impl ObsBuilder<()> {
+    pub fn new<T: 'static>(
+        f: impl Fn(&mut ObsContext) -> T + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+        let ops = AssignOps(f);
+        ObsBuilder(ScanBuilder::new(None, ops, false))
+    }
+    pub fn new_dedup<T: 'static>(
+        f: impl Fn(&mut ObsContext) -> T + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = T>>
+    where
+        T: PartialEq,
+    {
+        let ops = DedupAssignOps(f);
+        ObsBuilder(ScanBuilder::new(None, ops, false))
+    }
+    pub const fn new_value<T: 'static>(value: T) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+        ObsBuilder(FromObservable {
+            o: FromValue(value),
+            into_obs: Obs::from_observable,
+        })
+    }
+
     pub const fn from_obs<T: ?Sized + 'static>(
         o: Obs<T>,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
@@ -114,17 +136,6 @@ impl ObsBuilder<()> {
         })
     }
 
-    pub const fn from_value<T: 'static>(value: T) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservable {
-            o: FromValue(value),
-            into_obs: Obs::from_observable,
-        })
-    }
-    pub fn from_value_fn<T: 'static>(
-        f: impl Fn(&mut ObsContext) -> T + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        Self::from_scan(None, move |st, oc| *st = Some(f(oc))).map(|st| st.as_ref().unwrap())
-    }
     pub fn from_scan<St>(
         initial_state: St,
         op: impl Fn(&mut St, &mut ObsContext) + 'static,
