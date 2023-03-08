@@ -68,6 +68,10 @@ impl<T: ?Sized + 'static> Clone for RawObs<T> {
 pub struct Obs<T: ?Sized + 'static>(RawObs<T>);
 
 impl<T: ?Sized + 'static> Obs<T> {
+    /// Creates [`ObsBuilder`] from [Obs].
+    ///
+    /// Using [`ObsBuilder::obs`] and then [`Obs::builder`] does not return to the original [`ObsBuilder`].
+    /// For efficient processing, [`ObsBuilder::obs`] should be called only once.
     pub fn builder(&self) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder::from_obs(self.clone())
     }
