@@ -6,7 +6,7 @@ use crate::core::{AsyncObsContext, ObsContext};
 use derive_ex::derive_ex;
 use futures::{Future, Stream};
 use reactive_fn_macros::ObservableFmt;
-use std::{mem, rc::Rc, task::Poll};
+use std::{hash::Hash, mem, ptr, rc::Rc, task::Poll};
 
 trait BoxObservable: DynObservable {
     fn clone_box(&self) -> Box<dyn BoxObservable<Item = Self::Item>>;
@@ -397,5 +397,37 @@ impl<T: ?Sized + 'static> Observable for &Obs<T> {
     }
     fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> {
         Obs::get_to(*self, s)
+    }
+}
+
+/// Checks if the values are always equal.
+///
+/// If the current values are equal now but may differ in the future, they are treated as not equal.
+///
+/// Even if the values are always equal, they are not guaranteed to be treated as equal and may be determined not to be equal.
+impl<T: ?Sized> PartialEq for Obs<T> {
+    #[allow(clippy::vtable_address_comparisons)]
+    fn eq(&self, other: &Self) -> bool {
+        if ptr::eq(self, other) {
+            true
+        } else {
+            match (&self.0, &other.0) {
+                (RawObs::StaticRef(this), RawObs::StaticRef(other)) => ptr::eq(this, other),
+                (RawObs::RcObs(this), RawObs::RcObs(other)) => Rc::ptr_eq(this, other),
+                (RawObs::RcRcObs(this), RawObs::RcRcObs(other)) => Rc::ptr_eq(this, other),
+                _ => false,
+            }
+        }
+    }
+}
+
+impl<T: ?Sized> Hash for Obs<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match &self.0 {
+            RawObs::StaticRef(x) => ptr::hash(x, state),
+            RawObs::BoxObs(x) => ptr::hash(&**x, state),
+            RawObs::RcObs(x) => ptr::hash(&**x, state),
+            RawObs::RcRcObs(x) => ptr::hash(&**x, state),
+        }
     }
 }
