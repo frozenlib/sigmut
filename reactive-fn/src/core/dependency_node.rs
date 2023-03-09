@@ -1,5 +1,5 @@
 use crate::{
-    core::{BindSink, BindSource, ComputeContext, Computed, Runtime, SinkBindings},
+    core::{BindSink, BindSource, ComputeContext, Computed, SinkBindings, UpdateContext},
     ActionContext, ObsContext,
 };
 use std::{
@@ -7,7 +7,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use super::{CallDiscard, CallFlush, CallUpdate, LazyTasks, SourceBindings};
+use super::{CallDiscard, CallFlush, CallUpdate, LazyTasks, Runtime, SourceBindings};
 
 const PARAM: usize = 0;
 
@@ -83,7 +83,7 @@ where
     D: 'static,
 {
     pub fn notify(self: &Rc<Self>, ac: &mut ActionContext) {
-        NodeHelper::new(self, ac.rt()).state().notify(true);
+        NodeHelper::new(self, ac.uc()).state().notify(true);
     }
     pub fn notify_lazy(self: &Rc<Self>) {
         if let Ok(mut s) = self.d.try_borrow_mut() {
@@ -96,13 +96,13 @@ where
         let node = Rc::downgrade(self);
         Runtime::schedule_notify_lazy(node, PARAM)
     }
-    pub fn is_up_to_date(self: &Rc<Self>, oc: &mut ObsContext) -> bool {
-        NodeHelper::new(self, oc.rt).state().is_up_to_date().1
+    pub fn is_up_to_date(self: &Rc<Self>, uc: &mut UpdateContext) -> bool {
+        NodeHelper::new(self, uc).state().is_up_to_date().1
     }
     pub fn watch(self: &Rc<Self>, oc: &mut ObsContext) {
         let mut d = self.d.borrow_mut();
         d.sinks.watch(self.clone(), PARAM, oc);
-        NodeHelper::new(self, oc.rt).state_with(d).update();
+        NodeHelper::new(self, oc.uc).state_with(d).update();
     }
 
     pub fn borrow(&self) -> Ref<T> {
@@ -124,8 +124,8 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, rt: &mut Runtime) {
-        let mut h = NodeHelper::new(&self, rt).state();
+    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+        let mut h = NodeHelper::new(&self, uc).state();
         h.d.state.is_scheduled_notify = false;
         h.notify(is_modified)
     }
@@ -136,11 +136,11 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn flush(self: Rc<Self>, _param: usize, rt: &mut Runtime) -> bool {
-        NodeHelper::new(&self, rt).state().flush().1
+    fn flush(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) -> bool {
+        NodeHelper::new(&self, uc).state().flush().1
     }
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, rt: &mut Runtime) {
-        NodeHelper::new(&self, rt).state().unbind_sink(key);
+    fn unbind(self: Rc<Self>, _param: usize, key: usize, uc: &mut UpdateContext) {
+        NodeHelper::new(&self, uc).state().unbind_sink(key);
     }
 }
 impl<T, D> CallFlush for DependencyNode<T, D>
@@ -148,8 +148,8 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn call_flush(self: Rc<Self>, _param: usize, rt: &mut Runtime) {
-        let mut h = NodeHelper::new(&self, rt).state();
+    fn call_flush(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
+        let mut h = NodeHelper::new(&self, uc).state();
         h.d.state.is_scheduled_flush = false;
         h.flush();
     }
@@ -159,8 +159,8 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn call_update(self: Rc<Self>, _param: usize, rt: &mut Runtime) {
-        let mut h = NodeHelper::new(&self, rt).state();
+    fn call_update(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
+        let mut h = NodeHelper::new(&self, uc).state();
         h.d.state.is_scheduled_update = false;
         h.update();
     }
@@ -170,8 +170,8 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn call_discard(self: Rc<Self>, _param: usize, rt: &mut Runtime) {
-        let mut h = NodeHelper::new(&self, rt).state();
+    fn call_discard(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
+        let mut h = NodeHelper::new(&self, uc).state();
         h.d.state.is_scheduled_discard = false;
         h.discard();
     }
@@ -183,7 +183,7 @@ where
     D: 'static,
 {
     node: &'a Rc<DependencyNode<T, D>>,
-    rt: &'a mut Runtime,
+    uc: &'a mut UpdateContext,
 }
 
 impl<'a, T, D> NodeHelper<'a, T, D>
@@ -191,8 +191,8 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn new(node: &'a Rc<DependencyNode<T, D>>, rt: &'a mut Runtime) -> Self {
-        Self { node, rt }
+    fn new(node: &'a Rc<DependencyNode<T, D>>, uc: &'a mut UpdateContext) -> Self {
+        Self { node, uc }
     }
 
     fn state(self) -> NodeStateHelper<'a, T, D> {
@@ -237,7 +237,7 @@ where
         }
     }
     fn notify_sinks(&mut self, is_modified: bool) {
-        self.d.sinks.notify(is_modified, self.h.rt);
+        self.d.sinks.notify(is_modified, self.h.uc);
     }
     fn is_using(&mut self) -> bool {
         !self.d.sinks.is_empty()
@@ -271,7 +271,7 @@ where
     }
     fn flush_sources(mut self) -> (Self, bool) {
         let h = self.finish();
-        let is_modified = h.node.c.flush(h.rt);
+        let is_modified = h.node.c.flush(h.uc);
         self = h.state();
         if !is_modified {
             self.d.state.computed = Computed::UpToDate;
@@ -285,7 +285,7 @@ where
         }
         let h = this.finish();
         let node = Rc::downgrade(h.node);
-        let is_modified = h.node.c.compute(node, PARAM, |st, cc| st.compute(cc), h.rt);
+        let is_modified = h.node.c.compute(node, PARAM, |st, cc| st.compute(cc), h.uc);
         this = h.state();
         if is_modified && !this.s.is_modify_always {
             this.notify_sinks(true);
@@ -299,7 +299,7 @@ where
     }
     fn discard(mut self) {
         if self.can_discard() {
-            self.h.node.c.discard(|st| st.discard(), self.h.rt);
+            self.h.node.c.discard(|st| st.discard(), self.h.uc);
             self.d.state.computed = Computed::None;
         }
     }
@@ -312,20 +312,20 @@ where
     fn schedule_flush(&mut self) {
         if !self.d.state.is_scheduled_flush {
             self.d.state.is_scheduled_flush = true;
-            self.h.rt.schedule_flush(self.h.node.clone(), PARAM);
+            self.h.uc.schedule_flush(self.h.node.clone(), PARAM);
         }
     }
 
     fn schedule_update(&mut self) {
         if !self.d.state.is_scheduled_update {
             self.d.state.is_scheduled_update = true;
-            self.h.rt.schedule_update(self.h.node.clone(), PARAM);
+            self.h.uc.schedule_update(self.h.node.clone(), PARAM);
         }
     }
     fn try_schedule_discard(&mut self) {
         if !self.d.state.is_scheduled_discard && self.can_discard() {
             self.d.state.is_scheduled_discard = true;
-            self.h.rt.schedule_discard(self.h.node.clone(), PARAM);
+            self.h.uc.schedule_discard(self.h.node.clone(), PARAM);
         }
     }
     fn finish(self) -> NodeHelper<'a, T, D> {
@@ -373,20 +373,20 @@ impl<T> ComputeBindings<T> {
     pub fn new(value: T) -> Self {
         Self(RefCell::new(ComputeBindingsData::new(value)))
     }
-    pub fn flush(&self, rt: &mut Runtime) -> bool {
-        self.0.borrow().bindings.flush(rt)
+    pub fn flush(&self, uc: &mut UpdateContext) -> bool {
+        self.0.borrow().bindings.flush(uc)
     }
     pub fn compute<U>(
         &self,
         node: Weak<dyn BindSink>,
         param: usize,
         compute: impl FnOnce(&mut T, &mut ComputeContext) -> U,
-        rt: &mut Runtime,
+        uc: &mut UpdateContext,
     ) -> U {
-        self.0.borrow_mut().compute(node, param, compute, rt)
+        self.0.borrow_mut().compute(node, param, compute, uc)
     }
-    fn discard(&self, discard: impl FnOnce(&mut T) -> bool, rt: &mut Runtime) {
-        self.0.borrow_mut().discard(discard, rt)
+    fn discard(&self, discard: impl FnOnce(&mut T) -> bool, uc: &mut UpdateContext) {
+        self.0.borrow_mut().discard(discard, uc)
     }
 }
 
@@ -407,15 +407,15 @@ impl<T> ComputeBindingsData<T> {
         node: Weak<dyn BindSink>,
         param: usize,
         compute: impl FnOnce(&mut T, &mut ComputeContext) -> U,
-        rt: &mut Runtime,
+        uc: &mut UpdateContext,
     ) -> U {
         self.bindings
-            .compute(node, param, |cc| compute(&mut self.value, cc), rt)
+            .compute(node, param, |cc| compute(&mut self.value, cc), uc)
     }
-    fn discard(&mut self, discard: impl FnOnce(&mut T) -> bool, rt: &mut Runtime) {
+    fn discard(&mut self, discard: impl FnOnce(&mut T) -> bool, uc: &mut UpdateContext) {
         if discard(&mut self.value) {
             for s in self.bindings.0.drain(..) {
-                s.unbind(rt);
+                s.unbind(uc);
             }
         }
     }

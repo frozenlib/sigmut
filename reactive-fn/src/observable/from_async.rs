@@ -60,7 +60,7 @@ where
     Fut: Future + 'static,
 {
     fn compute(&mut self, cc: &mut ComputeContext) -> bool {
-        if self.deps.is_up_to_date(cc.oc()) {
+        if self.deps.is_up_to_date(cc.uc()) {
             cc.watch_previous_dependencies();
         } else {
             self.deps.update(
@@ -151,7 +151,7 @@ where
     S: Stream + 'static,
 {
     fn compute(&mut self, cc: &mut ComputeContext) -> bool {
-        if self.deps.is_up_to_date(cc.oc()) {
+        if self.deps.is_up_to_date(cc.uc()) {
             cc.watch_previous_dependencies();
         } else {
             self.deps.update(

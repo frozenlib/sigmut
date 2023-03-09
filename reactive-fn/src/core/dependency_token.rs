@@ -1,7 +1,7 @@
 use derive_ex::derive_ex;
 
 use super::{
-    BindSink, BindSource, ComputeContext, Computed, Runtime, SinkBindings, SourceBindings,
+    BindSink, BindSource, ComputeContext, Computed, SinkBindings, SourceBindings, UpdateContext,
 };
 use crate::ObsContext;
 use std::{
@@ -27,8 +27,8 @@ impl DependencyToken {
             sources: RefCell::new(SourceBindings::new()),
         }))
     }
-    pub fn is_up_to_date(&self, oc: &mut ObsContext) -> bool {
-        Helper::new(&self.0, oc.rt).is_up_to_date().1
+    pub fn is_up_to_date(&self, uc: &mut UpdateContext) -> bool {
+        Helper::new(&self.0, uc).is_up_to_date().1
     }
     pub fn update<T>(
         &self,
@@ -43,7 +43,7 @@ impl DependencyToken {
 
         let mut s = self.0.sources.borrow_mut();
         let node = Rc::downgrade(&self.0);
-        s.compute(node, PARAM, compute, oc.rt)
+        s.compute(node, PARAM, compute, oc.uc)
     }
 }
 
@@ -61,22 +61,22 @@ impl Data {
 }
 
 struct Helper<'a> {
-    rt: &'a mut Runtime,
+    uc: &'a mut UpdateContext,
     t: &'a RawDependencyToken,
     d: RefMut<'a, Data>,
 }
 
 impl<'a> Helper<'a> {
-    fn new(t: &'a RawDependencyToken, rt: &'a mut Runtime) -> Self {
+    fn new(t: &'a RawDependencyToken, uc: &'a mut UpdateContext) -> Self {
         Self {
-            rt,
+            uc,
             t,
             d: t.data.borrow_mut(),
         }
     }
     fn notify(&mut self, is_modified: bool) {
         if self.d.computed.modify(is_modified) {
-            self.d.sinks.notify(is_modified, self.rt);
+            self.d.sinks.notify(is_modified, self.uc);
         }
     }
 
@@ -101,7 +101,7 @@ impl<'a> Helper<'a> {
 
     fn flush_sources(mut self) -> (Self, bool) {
         drop(self.d);
-        let is_modified = self.t.sources.borrow().flush(self.rt);
+        let is_modified = self.t.sources.borrow().flush(self.uc);
         self.d = self.t.data.borrow_mut();
         if !is_modified {
             self.d.computed = Computed::UpToDate;
@@ -113,17 +113,17 @@ impl<'a> Helper<'a> {
     }
 }
 impl BindSource for RawDependencyToken {
-    fn flush(self: Rc<Self>, _param: usize, rt: &mut Runtime) -> bool {
-        Helper::new(&self, rt).flush().1
+    fn flush(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) -> bool {
+        Helper::new(&self, uc).flush().1
     }
 
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, rt: &mut Runtime) {
-        Helper::new(&self, rt).unbind_sink(key)
+    fn unbind(self: Rc<Self>, _param: usize, key: usize, uc: &mut UpdateContext) {
+        Helper::new(&self, uc).unbind_sink(key)
     }
 }
 
 impl BindSink for RawDependencyToken {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, rt: &mut Runtime) {
-        Helper::new(&self, rt).notify(is_modified)
+    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+        Helper::new(&self, uc).notify(is_modified)
     }
 }

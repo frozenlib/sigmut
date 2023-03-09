@@ -14,10 +14,10 @@ fn notify() {
         let x = ObsCell::new(());
         let t = DependencyToken::new();
         t.update(|cc| x.get(cc.oc()), dc.ac().oc());
-        assert!(t.is_up_to_date(dc.ac().oc()));
+        assert!(t.is_up_to_date(dc.uc()));
 
         x.set((), &mut dc.ac());
-        assert!(!t.is_up_to_date(dc.ac().oc()));
+        assert!(!t.is_up_to_date(dc.uc()));
     });
 }
 

@@ -44,11 +44,28 @@ impl LazyTasks {
 }
 
 pub(crate) struct Runtime {
+    uc: UpdateContext,
+}
+
+impl Runtime {
+    fn new() -> Self {
+        Self {
+            uc: UpdateContext(RawRuntime::new()),
+        }
+    }
+    pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, param: usize) {
+        LazyTasks::try_with(|t| t.tasks_notify.push(WeakTaskOf { node, param }));
+    }
+    pub fn schedule_update_lazy(node: Weak<dyn CallUpdate>, param: usize) {
+        LazyTasks::try_with(|t| t.tasks_update.push(WeakTaskOf { node, param }));
+    }
+}
+struct RawRuntime {
     tasks_flush: Vec<TaskOf<dyn CallFlush>>,
     tasks_update: Vec<TaskOf<dyn CallUpdate>>,
     tasks_discard: Vec<TaskOf<dyn CallDiscard>>,
 }
-impl Runtime {
+impl RawRuntime {
     fn new() -> Self {
         Self {
             tasks_flush: Vec::new(),
@@ -56,11 +73,11 @@ impl Runtime {
             tasks_discard: Vec::new(),
         }
     }
-    fn run_actions(&mut self) {
-        while let Some(a) = LazyTasks::with(|t| t.actions.pop_front()) {
-            a.call(&mut ActionContext(ObsContext::new(self, None)))
-        }
-    }
+}
+
+pub struct UpdateContext(RawRuntime);
+
+impl UpdateContext {
     fn apply_notify(&mut self) {
         LazyTasks::with(|t| {
             for t in t.tasks_unbind.drain(..) {
@@ -71,47 +88,46 @@ impl Runtime {
                 t.call_notify(self);
             }
         });
-        while let Some(task) = self.tasks_flush.pop() {
+        while let Some(task) = self.0.tasks_flush.pop() {
             task.call_flush(self);
+        }
+    }
+    fn run_actions(&mut self) {
+        while let Some(a) = LazyTasks::with(|t| t.actions.pop_front()) {
+            a.call(&mut ActionContext(ObsContext::new(self, None)))
         }
     }
     fn update_all(&mut self, discard: bool) {
         self.run_actions();
         self.apply_notify();
         loop {
-            while let Some(task) = self.tasks_update.pop() {
+            while let Some(task) = self.0.tasks_update.pop() {
                 task.call_update(self);
             }
             LazyTasks::with(|t| {
-                self.tasks_update
+                self.0
+                    .tasks_update
                     .extend(t.tasks_update.drain(..).filter_map(|t| t.upgrade()))
             });
-            if self.tasks_update.is_empty() {
+            if self.0.tasks_update.is_empty() {
                 break;
             }
         }
         if discard {
-            while let Some(task) = self.tasks_discard.pop() {
+            while let Some(task) = self.0.tasks_discard.pop() {
                 task.call_discard(self);
             }
         }
     }
 
-    pub fn schedule_flush(&mut self, node: Rc<dyn CallFlush>, param: usize) {
-        self.tasks_flush.push(TaskOf { node, param });
+    pub(crate) fn schedule_flush(&mut self, node: Rc<dyn CallFlush>, param: usize) {
+        self.0.tasks_flush.push(TaskOf { node, param });
     }
-    pub fn schedule_update(&mut self, node: Rc<dyn CallUpdate>, param: usize) {
-        self.tasks_update.push(TaskOf { node, param });
+    pub(crate) fn schedule_update(&mut self, node: Rc<dyn CallUpdate>, param: usize) {
+        self.0.tasks_update.push(TaskOf { node, param });
     }
-    pub fn schedule_discard(&mut self, node: Rc<dyn CallDiscard>, param: usize) {
-        self.tasks_discard.push(TaskOf { node, param });
-    }
-
-    pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, param: usize) {
-        LazyTasks::try_with(|t| t.tasks_notify.push(WeakTaskOf { node, param }));
-    }
-    pub fn schedule_update_lazy(node: Weak<dyn CallUpdate>, param: usize) {
-        LazyTasks::try_with(|t| t.tasks_update.push(WeakTaskOf { node, param }));
+    pub(crate) fn schedule_discard(&mut self, node: Rc<dyn CallDiscard>, param: usize) {
+        self.0.tasks_discard.push(TaskOf { node, param });
     }
 }
 
@@ -153,8 +169,8 @@ struct SourceBinding {
 }
 
 impl SourceBinding {
-    fn flush(&self, rt: &mut Runtime) -> bool {
-        self.node.clone().flush(self.param, rt)
+    fn flush(&self, uc: &mut UpdateContext) -> bool {
+        self.node.clone().flush(self.param, uc)
     }
 
     #[allow(clippy::vtable_address_comparisons)]
@@ -162,8 +178,8 @@ impl SourceBinding {
         Rc::ptr_eq(&self.node, node) && self.param == param
     }
 
-    fn unbind(self, rt: &mut Runtime) {
-        self.node.unbind(self.param, self.key, rt)
+    fn unbind(self, uc: &mut UpdateContext) {
+        self.node.unbind(self.param, self.key, uc)
     }
     fn to_unbind_task(&self) -> UnbindTask {
         UnbindTask {
@@ -179,10 +195,10 @@ impl SourceBindings {
     pub fn new() -> Self {
         Self(Vec::new())
     }
-    pub fn flush(&self, rt: &mut Runtime) -> bool {
+    pub fn flush(&self, uc: &mut UpdateContext) -> bool {
         let mut is_modified = false;
         for source in &self.0 {
-            if source.flush(rt) {
+            if source.flush(uc) {
                 is_modified = true;
                 break;
             }
@@ -194,10 +210,10 @@ impl SourceBindings {
         node: Weak<dyn BindSink>,
         param: usize,
         compute: impl FnOnce(&mut ComputeContext) -> T,
-        rt: &mut Runtime,
+        uc: &mut UpdateContext,
     ) -> T {
         let mut cc = ComputeContext(ObsContext {
-            rt,
+            uc,
             sink: Some(ObsContextSink {
                 node,
                 param,
@@ -225,14 +241,14 @@ struct UnbindTask {
 }
 
 impl UnbindTask {
-    fn unbind(self, rt: &mut Runtime) {
+    fn unbind(self, uc: &mut UpdateContext) {
         if let Some(node) = self.node.upgrade() {
             SourceBinding {
                 node,
                 param: self.param,
                 key: self.key,
             }
-            .unbind(rt)
+            .unbind(uc)
         }
     }
 }
@@ -264,7 +280,7 @@ impl SinkBindings {
             key,
         };
         if sources_index < sink.bindings.0.len() {
-            replace(&mut sink.bindings.0[sources_index], source_binding).unbind(oc.rt);
+            replace(&mut sink.bindings.0[sources_index], source_binding).unbind(oc.uc);
         } else {
             sink.bindings.0.push(source_binding);
         }
@@ -275,10 +291,10 @@ impl SinkBindings {
     pub fn unbind(&mut self, key: usize) {
         self.0.remove(key);
     }
-    pub fn notify(&mut self, is_modified: bool, rt: &mut Runtime) {
+    pub fn notify(&mut self, is_modified: bool, uc: &mut UpdateContext) {
         self.0.optimize();
         for sink in self.0.values() {
-            sink.notify(is_modified, rt);
+            sink.notify(is_modified, uc);
         }
     }
 }
@@ -289,21 +305,24 @@ struct SinkBinding {
 }
 
 impl SinkBinding {
-    fn notify(&self, is_modified: bool, rt: &mut Runtime) {
+    fn notify(&self, is_modified: bool, uc: &mut UpdateContext) {
         if let Some(node) = self.node.upgrade() {
-            node.notify(self.param, is_modified, rt)
+            node.notify(self.param, is_modified, uc)
         }
     }
 }
 
-pub struct DependencyContext<'a>(&'a mut Runtime);
+pub struct DependencyContext<'a>(&'a mut UpdateContext);
 
 impl<'a> DependencyContext<'a> {
-    fn new(rt: &'a mut Runtime) -> Self {
-        Self(rt)
+    fn new(uc: &'a mut UpdateContext) -> Self {
+        Self(uc)
     }
     pub fn ac(&mut self) -> ActionContext {
         ActionContext::new(self.0)
+    }
+    pub fn uc(&mut self) -> &mut UpdateContext {
+        self.0
     }
     pub fn schedule_action(&mut self, action: impl Into<Action>) {
         let action: Action = action.into();
@@ -326,9 +345,9 @@ impl<'a> DependencyContext<'a> {
     ///
     /// Panic if `DependencyContext` already used in the current thread.
     pub fn with<T>(f: impl FnOnce(&mut DependencyContext) -> T) -> T {
-        RT.with(|rt| {
-            if let Ok(mut rt) = rt.try_borrow_mut() {
-                f(&mut DependencyContext::new(&mut rt))
+        RT.with(|uc| {
+            if let Ok(mut rt) = uc.try_borrow_mut() {
+                f(&mut DependencyContext::new(&mut rt.uc))
             } else {
                 panic!("`DependencyGraph` already used.")
             }
@@ -337,7 +356,7 @@ impl<'a> DependencyContext<'a> {
 }
 
 pub struct ObsContext<'oc> {
-    rt: &'oc mut Runtime,
+    uc: &'oc mut UpdateContext,
     sink: Option<ObsContextSink<'oc>>,
 }
 
@@ -349,15 +368,18 @@ struct ObsContextSink<'oc> {
 }
 
 impl<'oc> ObsContext<'oc> {
-    fn new(rt: &'oc mut Runtime, sink: Option<ObsContextSink<'oc>>) -> Self {
-        ObsContext { rt, sink }
+    fn new(uc: &'oc mut UpdateContext, sink: Option<ObsContextSink<'oc>>) -> Self {
+        ObsContext { uc, sink }
     }
     pub fn schedule_action(&mut self, action: impl Into<Action>) {
         let action: Action = action.into();
         action.schedule();
     }
+    pub fn uc(&mut self) -> &mut UpdateContext {
+        self.uc
+    }
     pub fn nul(&mut self) -> ObsContext {
-        ObsContext::new(self.rt, None)
+        ObsContext::new(self.uc, None)
     }
 }
 
@@ -366,6 +388,9 @@ pub struct ComputeContext<'oc>(ObsContext<'oc>);
 impl<'oc> ComputeContext<'oc> {
     pub fn oc(&mut self) -> &mut ObsContext<'oc> {
         &mut self.0
+    }
+    pub fn uc(&mut self) -> &mut UpdateContext {
+        self.oc().uc()
     }
     pub fn watch_previous_dependencies(&mut self) {
         let sink = self.0.sink.as_mut().unwrap();
@@ -378,7 +403,7 @@ impl<'oc> ComputeContext<'oc> {
     fn finish(&mut self) {
         let sink = self.0.sink.as_mut().unwrap();
         for b in sink.bindings.0.drain(sink.bindings_len..) {
-            b.unbind(self.0.rt);
+            b.unbind(self.0.uc);
         }
     }
 }
@@ -386,16 +411,16 @@ impl<'oc> ComputeContext<'oc> {
 pub struct ActionContext<'a>(ObsContext<'a>);
 
 impl<'a> ActionContext<'a> {
-    fn new(rt: &'a mut Runtime) -> Self {
-        Self(ObsContext::new(rt, None))
+    fn new(uc: &'a mut UpdateContext) -> Self {
+        Self(ObsContext::new(uc, None))
     }
-    pub(crate) fn rt(&mut self) -> &mut Runtime {
-        self.0.rt
+    pub(crate) fn uc(&mut self) -> &mut UpdateContext {
+        self.0.uc
     }
 
     /// Return [`ObsContext`] to get the new state.
     pub fn oc(&mut self) -> &mut ObsContext<'a> {
-        self.rt().apply_notify();
+        self.uc().apply_notify();
         &mut self.0
     }
 }
@@ -448,22 +473,22 @@ impl From<&RcAction> for Action {
 }
 
 pub(crate) trait BindSink: 'static {
-    fn notify(self: Rc<Self>, param: usize, is_modified: bool, rt: &mut Runtime);
+    fn notify(self: Rc<Self>, param: usize, is_modified: bool, uc: &mut UpdateContext);
 }
 
 pub(crate) trait BindSource: 'static {
-    fn flush(self: Rc<Self>, param: usize, rt: &mut Runtime) -> bool;
-    fn unbind(self: Rc<Self>, param: usize, key: usize, rt: &mut Runtime);
+    fn flush(self: Rc<Self>, param: usize, uc: &mut UpdateContext) -> bool;
+    fn unbind(self: Rc<Self>, param: usize, key: usize, uc: &mut UpdateContext);
 }
 
 pub(crate) trait CallFlush: 'static {
-    fn call_flush(self: Rc<Self>, param: usize, rt: &mut Runtime);
+    fn call_flush(self: Rc<Self>, param: usize, uc: &mut UpdateContext);
 }
 pub(crate) trait CallUpdate: 'static {
-    fn call_update(self: Rc<Self>, param: usize, rt: &mut Runtime);
+    fn call_update(self: Rc<Self>, param: usize, uc: &mut UpdateContext);
 }
 pub(crate) trait CallDiscard: 'static {
-    fn call_discard(self: Rc<Self>, param: usize, rt: &mut Runtime);
+    fn call_discard(self: Rc<Self>, param: usize, uc: &mut UpdateContext);
 }
 
 struct TaskOf<T: ?Sized> {
@@ -471,18 +496,18 @@ struct TaskOf<T: ?Sized> {
     param: usize,
 }
 impl TaskOf<dyn CallFlush> {
-    fn call_flush(self, rt: &mut Runtime) {
-        self.node.call_flush(self.param, rt)
+    fn call_flush(self, uc: &mut UpdateContext) {
+        self.node.call_flush(self.param, uc)
     }
 }
 impl TaskOf<dyn CallUpdate> {
-    fn call_update(self, rt: &mut Runtime) {
-        self.node.call_update(self.param, rt)
+    fn call_update(self, uc: &mut UpdateContext) {
+        self.node.call_update(self.param, uc)
     }
 }
 impl TaskOf<dyn CallDiscard> {
-    fn call_discard(self, rt: &mut Runtime) {
-        self.node.call_discard(self.param, rt)
+    fn call_discard(self, uc: &mut UpdateContext) {
+        self.node.call_discard(self.param, uc)
     }
 }
 
@@ -499,9 +524,9 @@ impl<T: ?Sized> WeakTaskOf<T> {
     }
 }
 impl WeakTaskOf<dyn BindSink> {
-    fn call_notify(&self, rt: &mut Runtime) {
+    fn call_notify(&self, uc: &mut UpdateContext) {
         if let Some(node) = self.node.upgrade() {
-            node.notify(self.param, true, rt)
+            node.notify(self.param, true, uc)
         }
     }
 }
@@ -520,14 +545,14 @@ impl WakeTable {
             requests: self.requests.clone(),
         })
     }
-    fn apply(&mut self, rt: &mut Runtime) {
+    fn apply(&mut self, uc: &mut UpdateContext) {
         let mut requests = self.requests.0.lock().unwrap();
         for key in requests.drops.drain(..) {
             self.tasks.remove(key);
         }
         for key in requests.wakes.drain(..) {
             if let Some(task) = self.tasks.get(key) {
-                task.call_notify(rt);
+                task.call_notify(uc);
             }
         }
         requests.waker = None;

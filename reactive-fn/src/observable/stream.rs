@@ -1,5 +1,5 @@
 use crate::{
-    core::{BindSink, CallUpdate, Computed, Runtime, SourceBindings},
+    core::{BindSink, CallUpdate, Computed, Runtime, SourceBindings, UpdateContext},
     ObsContext,
 };
 use futures::Stream;
@@ -80,7 +80,7 @@ where
     F: FnMut(&mut ObsContext) -> T + 'static,
     T: 'static,
 {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, rt: &mut Runtime) {
+    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
         let mut is_schedule = false;
         if let Ok(mut d) = self.0.try_borrow_mut() {
             if d.computed.modify(is_modified) && !d.is_scheduled_update {
@@ -89,7 +89,7 @@ where
             }
         }
         if is_schedule {
-            rt.schedule_update(self, PARAM);
+            uc.schedule_update(self, PARAM);
         }
     }
 }
@@ -99,12 +99,12 @@ where
     F: FnMut(&mut ObsContext) -> T + 'static,
     T: 'static,
 {
-    fn call_update(self: Rc<Self>, _param: usize, rt: &mut Runtime) {
+    fn call_update(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
         let mut d = self.0.borrow_mut();
         let d = &mut *d;
         d.is_scheduled_update = false;
         if d.computed == Computed::MayBeOutdated {
-            if d.bindings.flush(rt) {
+            if d.bindings.flush(uc) {
                 d.computed = Computed::Outdated;
             } else {
                 d.computed = Computed::UpToDate;
@@ -113,7 +113,7 @@ where
         if d.computed != Computed::UpToDate {
             d.computed = Computed::UpToDate;
             let node = Rc::downgrade(&self);
-            let value = d.bindings.compute(node, PARAM, |cc| (d.f)(cc.oc()), rt);
+            let value = d.bindings.compute(node, PARAM, |cc| (d.f)(cc.oc()), uc);
             let waker = if let ValueState::Pending(waker) = take(&mut d.value) {
                 Some(waker)
             } else {

@@ -5,7 +5,7 @@ use super::{
 use crate::{
     core::{
         dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
-        BindSink, BindSource, ComputeContext, Runtime, SinkBindings,
+        BindSink, BindSource, ComputeContext, Runtime, SinkBindings, UpdateContext,
     },
     ActionContext,
 };
@@ -361,16 +361,16 @@ impl<T: 'static> ObservableVec for RawObsVecCell<T> {
     }
 }
 impl<T: 'static> BindSource for RawObsVecCell<T> {
-    fn flush(self: Rc<Self>, _param: usize, _rt: &mut Runtime) -> bool {
+    fn flush(self: Rc<Self>, _param: usize, _uc: &mut UpdateContext) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, _rt: &mut Runtime) {
+    fn unbind(self: Rc<Self>, _param: usize, key: usize, _uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(key)
     }
 }
 impl<T: 'static> BindSink for RawObsVecCell<T> {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, rt: &mut Runtime) {
-        self.sinks.borrow_mut().notify(is_modified, rt)
+    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+        self.sinks.borrow_mut().notify(is_modified, uc)
     }
 }
 

@@ -1,6 +1,6 @@
 use super::{Obs, ObservableBuilder, RcObservable};
 use crate::{
-    core::{ActionContext, BindSink, BindSource, ObsContext, Runtime, SinkBindings},
+    core::{ActionContext, BindSink, BindSource, ObsContext, Runtime, SinkBindings, UpdateContext},
     ObsBuilder, Observable,
 };
 use derive_ex::derive_ex;
@@ -60,7 +60,7 @@ impl<T: 'static> ObsCell<T> {
 
     #[inline]
     pub fn set(&self, value: T, ac: &mut ActionContext) {
-        self.0.sinks.borrow_mut().notify(true, ac.rt());
+        self.0.sinks.borrow_mut().notify(true, ac.uc());
         *self.0.value.borrow_mut() = value;
     }
 
@@ -119,16 +119,16 @@ impl<T: 'static> Observable for ObsCell<T> {
 }
 
 impl<T: 'static> BindSource for RawObsCell<T> {
-    fn flush(self: Rc<Self>, _param: usize, _rt: &mut Runtime) -> bool {
+    fn flush(self: Rc<Self>, _param: usize, _uc: &mut UpdateContext) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, _rt: &mut Runtime) {
+    fn unbind(self: Rc<Self>, _param: usize, key: usize, _uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(key);
     }
 }
 impl<T: 'static> BindSink for RawObsCell<T> {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, rt: &mut Runtime) {
-        self.sinks.borrow_mut().notify(is_modified, rt);
+    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+        self.sinks.borrow_mut().notify(is_modified, uc);
     }
 }
 

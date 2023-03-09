@@ -117,7 +117,7 @@ fn new_node_is_up_to_date_in_compute() {
             0,
             |cc| {
                 let node2 = Node::new(1, |_| true, false, false, true);
-                node2.is_up_to_date(cc.oc());
+                node2.is_up_to_date(cc.uc());
                 true
             },
             false,
@@ -621,16 +621,16 @@ fn dependency_hold_strong_ref(#[values(false, true)] is_hot: bool) {
 fn is_up_to_date() {
     dc_test(|dc| {
         let node = Node::new(0, |_| true, false, false, true);
-        assert!(!node.is_up_to_date(dc.ac().oc()));
+        assert!(!node.is_up_to_date(dc.uc()));
 
         node.watch(dc.ac().oc());
-        assert!(node.is_up_to_date(dc.ac().oc()));
+        assert!(node.is_up_to_date(dc.uc()));
 
         node.notify(&mut dc.ac());
-        assert!(!node.is_up_to_date(dc.ac().oc()));
+        assert!(!node.is_up_to_date(dc.uc()));
 
         node.watch(dc.ac().oc());
-        assert!(node.is_up_to_date(dc.ac().oc()));
+        assert!(node.is_up_to_date(dc.uc()));
     })
 }
 
@@ -639,16 +639,16 @@ fn is_up_to_date_dependant() {
     dc_test(|dc| {
         let node0 = Node::new(0, |_| true, false, false, true);
         let node1 = Node::new(1, compute_depend_on(&node0), false, true, true);
-        assert!(!node0.is_up_to_date(dc.ac().oc()));
-        assert!(!node1.is_up_to_date(dc.ac().oc()));
+        assert!(!node0.is_up_to_date(dc.uc()));
+        assert!(!node1.is_up_to_date(dc.uc()));
         node1.watch(dc.ac().oc());
 
-        assert!(node0.is_up_to_date(dc.ac().oc()));
-        assert!(node1.is_up_to_date(dc.ac().oc()));
+        assert!(node0.is_up_to_date(dc.uc()));
+        assert!(node1.is_up_to_date(dc.uc()));
 
         node0.notify(&mut dc.ac());
-        assert!(!node0.is_up_to_date(dc.ac().oc()));
-        assert!(!node1.is_up_to_date(dc.ac().oc()));
+        assert!(!node0.is_up_to_date(dc.uc()));
+        assert!(!node1.is_up_to_date(dc.uc()));
     });
 }
 
@@ -658,12 +658,12 @@ fn is_hot_and_dependency() {
         let node0 = Node::new(0, |_| true, false, false, false);
         let node1 = Node::new(0, compute_depend_on(&node0), false, true, false);
         dc.update();
-        assert!(node0.is_up_to_date(dc.ac().oc()));
-        assert!(node1.is_up_to_date(dc.ac().oc()));
+        assert!(node0.is_up_to_date(dc.uc()));
+        assert!(node1.is_up_to_date(dc.uc()));
 
         node0.notify(&mut dc.ac());
-        assert!(!node0.is_up_to_date(dc.ac().oc()));
-        assert!(!node1.is_up_to_date(dc.ac().oc()));
+        assert!(!node0.is_up_to_date(dc.uc()));
+        assert!(!node1.is_up_to_date(dc.uc()));
     });
 }
 

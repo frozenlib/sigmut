@@ -1,5 +1,7 @@
 use super::from_async::FromAsync;
-use crate::core::{BindSink, CallUpdate, Computed, ObsContext, Runtime, SourceBindings};
+use crate::core::{
+    BindSink, CallUpdate, Computed, ObsContext, Runtime, SourceBindings, UpdateContext,
+};
 use derive_ex::derive_ex;
 use futures::Future;
 use std::{any::Any, cell::RefCell, rc::Rc};
@@ -47,7 +49,7 @@ struct Data<F> {
 struct RawSubscription<F>(RefCell<Data<F>>);
 
 impl<F: FnMut(&mut ObsContext) + 'static> BindSink for RawSubscription<F> {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, rt: &mut Runtime) {
+    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
         let mut is_schedule = false;
         if let Ok(mut d) = self.0.try_borrow_mut() {
             if d.computed.modify(is_modified) && !d.is_scheduled_update {
@@ -56,18 +58,18 @@ impl<F: FnMut(&mut ObsContext) + 'static> BindSink for RawSubscription<F> {
             }
         }
         if is_schedule {
-            rt.schedule_update(self, PARAM);
+            uc.schedule_update(self, PARAM);
         }
     }
 }
 
 impl<F: FnMut(&mut ObsContext) + 'static> CallUpdate for RawSubscription<F> {
-    fn call_update(self: Rc<Self>, _param: usize, rt: &mut Runtime) {
+    fn call_update(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
         let mut d = self.0.borrow_mut();
         let d = &mut *d;
         d.is_scheduled_update = false;
         if d.computed == Computed::MayBeOutdated {
-            if d.bindings.flush(rt) {
+            if d.bindings.flush(uc) {
                 d.computed = Computed::Outdated;
             } else {
                 d.computed = Computed::UpToDate;
@@ -76,7 +78,7 @@ impl<F: FnMut(&mut ObsContext) + 'static> CallUpdate for RawSubscription<F> {
         if d.computed != Computed::UpToDate {
             d.computed = Computed::UpToDate;
             let node = Rc::downgrade(&self);
-            d.bindings.compute(node, PARAM, |cc| (d.f)(cc.oc()), rt);
+            d.bindings.compute(node, PARAM, |cc| (d.f)(cc.oc()), uc);
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    core::{Action, ActionContext, BindSource, ObsContext, Runtime, SinkBindings},
+    core::{Action, ActionContext, BindSource, ObsContext, SinkBindings, UpdateContext},
     observable::{Obs, ObsBuilder, Observable, ObservableBuilder, RcObservable},
 };
 use derive_ex::derive_ex;
@@ -31,7 +31,7 @@ impl<C: Collector> RawObsCollector<C> {
     }
 
     fn notify(&self, ac: &mut ActionContext) {
-        self.sinks.borrow_mut().notify(true, ac.rt());
+        self.sinks.borrow_mut().notify(true, ac.uc());
     }
 
     fn watch(self: &Rc<Self>, oc: &mut ObsContext) {
@@ -57,10 +57,10 @@ impl<C: Collector> RcObservable for RawObsCollector<C> {
 }
 
 impl<C: Collector> BindSource for RawObsCollector<C> {
-    fn flush(self: Rc<Self>, _param: usize, _rt: &mut Runtime) -> bool {
+    fn flush(self: Rc<Self>, _param: usize, _uc: &mut UpdateContext) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, _rt: &mut Runtime) {
+    fn unbind(self: Rc<Self>, _param: usize, key: usize, _uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(key);
     }
 }
