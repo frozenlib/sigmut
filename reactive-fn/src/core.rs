@@ -77,6 +77,10 @@ impl UpdateContext {
     pub fn oc(&mut self) -> ObsContext {
         ObsContext::new(self, None)
     }
+    pub fn schedule_action(&mut self, action: impl Into<Action>) {
+        let action: Action = action.into();
+        action.schedule();
+    }
 
     fn apply_notify(&mut self) {
         LazyTasks::with(|t| {
@@ -369,8 +373,7 @@ impl<'oc> ObsContext<'oc> {
         ObsContext { uc, sink }
     }
     pub fn schedule_action(&mut self, action: impl Into<Action>) {
-        let action: Action = action.into();
-        action.schedule();
+        self.uc.schedule_action(action)
     }
     pub fn uc(&mut self) -> &mut UpdateContext {
         self.uc
