@@ -1,5 +1,6 @@
 {
     "rust-analyzer.server.extraEnv": {
         "CARGO_TARGET_DIR": "./target/debug-ra",
-    }
+    },
+    "cmake.configureOnOpen": false
 }
