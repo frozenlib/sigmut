@@ -262,7 +262,7 @@ impl<Ops: ScanOps + 'static> RcObservable for DependencyNode<RawScan<Ops>> {
 }
 
 impl<Ops: ScanOps + 'static> Compute for RawScan<Ops> {
-    fn compute(&mut self, cc: &mut ComputeContext) -> bool {
+    fn compute(&mut self, cc: ComputeContext) -> bool {
         if let Some(state) = &mut self.state {
             self.ops.compute(state, cc.oc()).is_modified()
         } else {

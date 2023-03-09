@@ -30,11 +30,7 @@ impl DependencyToken {
     pub fn is_up_to_date(&self, uc: &mut UpdateContext) -> bool {
         Helper::new(&self.0, uc).is_up_to_date().1
     }
-    pub fn update<T>(
-        &self,
-        compute: impl FnOnce(&mut ComputeContext) -> T,
-        oc: &mut ObsContext,
-    ) -> T {
+    pub fn update<T>(&self, compute: impl FnOnce(ComputeContext) -> T, oc: &mut ObsContext) -> T {
         let mut d = self.0.data.borrow_mut();
         d.computed = Computed::UpToDate;
         let this = self.0.clone();

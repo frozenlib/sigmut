@@ -37,7 +37,7 @@ impl<O: Observable + 'static> SetMode<O> {
 
 impl<O: Observable + 'static> SetMode<O> {}
 impl<O: Observable + 'static> Compute for SetMode<O> {
-    fn compute(&mut self, cc: &mut ComputeContext) -> bool {
+    fn compute(&mut self, cc: ComputeContext) -> bool {
         self.o.with(|_value, _oc| {}, cc.oc());
         true
     }

@@ -213,10 +213,10 @@ impl SourceBindings {
         &mut self,
         node: Weak<dyn BindSink>,
         param: usize,
-        compute: impl FnOnce(&mut ComputeContext) -> T,
+        compute: impl FnOnce(ComputeContext) -> T,
         uc: &mut UpdateContext,
     ) -> T {
-        let mut cc = ComputeContext(ObsContext {
+        let mut oc = ObsContext {
             uc,
             sink: Some(ObsContextSink {
                 node,
@@ -224,9 +224,12 @@ impl SourceBindings {
                 bindings: self,
                 bindings_len: 0,
             }),
-        });
-        let retval = compute(&mut cc);
-        cc.finish();
+        };
+        let retval = compute(ComputeContext(&mut oc));
+        let sink = oc.sink.as_mut().unwrap();
+        for b in sink.bindings.0.drain(sink.bindings_len..) {
+            b.unbind(oc.uc);
+        }
         retval
     }
 }
@@ -380,28 +383,22 @@ impl<'oc> ObsContext<'oc> {
     }
 }
 
-pub struct ComputeContext<'oc>(ObsContext<'oc>);
+pub struct ComputeContext<'a, 'oc>(&'a mut ObsContext<'oc>);
 
-impl<'oc> ComputeContext<'oc> {
-    pub fn oc(&mut self) -> &mut ObsContext<'oc> {
-        &mut self.0
+impl<'a, 'oc> ComputeContext<'a, 'oc> {
+    pub fn oc(self) -> &'a mut ObsContext<'oc> {
+        self.0
+    }
+    pub fn oc_with(self, watch_previous_dependencies: bool) -> &'a mut ObsContext<'oc> {
+        if watch_previous_dependencies {
+            let sink = self.0.sink.as_mut().unwrap();
+            debug_assert!(sink.bindings_len == 0);
+            sink.bindings_len = sink.bindings.0.len();
+        }
+        self.0
     }
     pub fn uc(&mut self) -> &mut UpdateContext {
-        self.oc().uc()
-    }
-    pub fn watch_previous_dependencies(&mut self) {
-        let sink = self.0.sink.as_mut().unwrap();
-        assert!(
-            sink.bindings_len == 0,
-            "`watch_previous_dependencies` must be called before watch any sources."
-        );
-        sink.bindings_len = sink.bindings.0.len();
-    }
-    fn finish(&mut self) {
-        let sink = self.0.sink.as_mut().unwrap();
-        for b in sink.bindings.0.drain(sink.bindings_len..) {
-            b.unbind(self.0.uc);
-        }
+        self.0.uc()
     }
 }
 

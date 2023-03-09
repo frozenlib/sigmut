@@ -15,7 +15,7 @@ pub trait Compute {
     /// Compute the state.
     ///
     /// Returns true if the state is different from the previous state.
-    fn compute(&mut self, cc: &mut ComputeContext) -> bool;
+    fn compute(&mut self, cc: ComputeContext) -> bool;
 
     /// Discard the state cache.
     ///
@@ -380,7 +380,7 @@ impl<T> ComputeBindings<T> {
         &self,
         node: Weak<dyn BindSink>,
         param: usize,
-        compute: impl FnOnce(&mut T, &mut ComputeContext) -> U,
+        compute: impl FnOnce(&mut T, ComputeContext) -> U,
         uc: &mut UpdateContext,
     ) -> U {
         self.0.borrow_mut().compute(node, param, compute, uc)
@@ -406,7 +406,7 @@ impl<T> ComputeBindingsData<T> {
         &mut self,
         node: Weak<dyn BindSink>,
         param: usize,
-        compute: impl FnOnce(&mut T, &mut ComputeContext) -> U,
+        compute: impl FnOnce(&mut T, ComputeContext) -> U,
         uc: &mut UpdateContext,
     ) -> U {
         self.bindings

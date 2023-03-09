@@ -115,7 +115,7 @@ fn new_node_is_up_to_date_in_compute() {
     dc_test(|dc| {
         let _node = Node::new(
             0,
-            |cc| {
+            |mut cc| {
                 let node2 = Node::new(1, |_| true, false, false, true);
                 node2.is_up_to_date(cc.uc());
                 true
@@ -189,8 +189,9 @@ fn dependencies(
             {
                 let deps = deps.clone();
                 move |cc| {
+                    let oc = cc.oc();
                     for dep in &deps {
-                        dep.watch(cc.oc());
+                        dep.watch(oc);
                     }
                     true
                 }
@@ -557,8 +558,9 @@ fn stop_recompute_when_one_of_dependencies_is_modified() {
                 let dep0 = dep0.clone();
                 let dep1 = dep1.clone();
                 move |cc| {
-                    dep0.watch(cc.oc());
-                    dep1.watch(cc.oc());
+                    let oc = cc.oc();
+                    dep0.watch(oc);
+                    dep1.watch(oc);
                     true
                 }
             },
@@ -681,13 +683,13 @@ fn watch_in_borrow() {
 #[allow(clippy::type_complexity)]
 struct Node {
     id: usize,
-    compute: Box<dyn FnMut(&mut ComputeContext) -> bool + 'static>,
+    compute: Box<dyn FnMut(ComputeContext) -> bool + 'static>,
 }
 
 impl Node {
     fn new(
         id: usize,
-        compute: impl FnMut(&mut ComputeContext) -> bool + 'static,
+        compute: impl FnMut(ComputeContext) -> bool + 'static,
         is_flush: bool,
         is_hot: bool,
         is_modify_always: bool,
@@ -707,7 +709,7 @@ impl Node {
 }
 
 impl Compute for Node {
-    fn compute(&mut self, cc: &mut ComputeContext) -> bool {
+    fn compute(&mut self, cc: ComputeContext) -> bool {
         code(format!("compute {}", self.id));
         (self.compute)(cc)
     }
@@ -718,9 +720,9 @@ impl Compute for Node {
     }
 }
 
-fn compute_depend_on(node: &Rc<DependencyNode<Node>>) -> impl Fn(&mut ComputeContext) -> bool {
+fn compute_depend_on(node: &Rc<DependencyNode<Node>>) -> impl Fn(ComputeContext) -> bool {
     let node = node.clone();
-    move |cc: &mut ComputeContext| {
+    move |cc: ComputeContext| {
         node.watch(cc.oc());
         true
     }

@@ -530,7 +530,7 @@ where
     T: 'static,
     F: 'static + FnMut(&mut ObsVecItemsMut<T>, &mut crate::ObsContext),
 {
-    fn compute(&mut self, cc: &mut ComputeContext) -> bool {
+    fn compute(&mut self, cc: ComputeContext) -> bool {
         (self.f)(&mut self.items, cc.oc());
         take(&mut self.items.is_modified)
     }
