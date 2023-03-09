@@ -43,15 +43,11 @@ impl LazyTasks {
     }
 }
 
-pub(crate) struct Runtime {
-    uc: UpdateContext,
-}
+pub(crate) struct Runtime(DependencyContext);
 
 impl Runtime {
     fn new() -> Self {
-        Self {
-            uc: UpdateContext(RawRuntime::new()),
-        }
+        Self(DependencyContext(UpdateContext(RawRuntime::new())))
     }
     pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, param: usize) {
         LazyTasks::try_with(|t| t.tasks_notify.push(WeakTaskOf { node, param }));
@@ -312,17 +308,14 @@ impl SinkBinding {
     }
 }
 
-pub struct DependencyContext<'a>(&'a mut UpdateContext);
+pub struct DependencyContext(UpdateContext);
 
-impl<'a> DependencyContext<'a> {
-    fn new(uc: &'a mut UpdateContext) -> Self {
-        Self(uc)
-    }
+impl DependencyContext {
     pub fn ac(&mut self) -> ActionContext {
-        ActionContext::new(self.0)
+        ActionContext::new(&mut self.0)
     }
     pub fn uc(&mut self) -> &mut UpdateContext {
-        self.0
+        &mut self.0
     }
     pub fn schedule_action(&mut self, action: impl Into<Action>) {
         let action: Action = action.into();
@@ -345,9 +338,9 @@ impl<'a> DependencyContext<'a> {
     ///
     /// Panic if `DependencyContext` already used in the current thread.
     pub fn with<T>(f: impl FnOnce(&mut DependencyContext) -> T) -> T {
-        RT.with(|uc| {
-            if let Ok(mut rt) = uc.try_borrow_mut() {
-                f(&mut DependencyContext::new(&mut rt.uc))
+        RT.with(|rt| {
+            if let Ok(mut rt) = rt.try_borrow_mut() {
+                f(&mut rt.0)
             } else {
                 panic!("`DependencyGraph` already used.")
             }
