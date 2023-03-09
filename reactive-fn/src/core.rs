@@ -74,6 +74,10 @@ impl RawRuntime {
 pub struct UpdateContext(RawRuntime);
 
 impl UpdateContext {
+    pub fn oc(&mut self) -> ObsContext {
+        ObsContext::new(self, None)
+    }
+
     fn apply_notify(&mut self) {
         LazyTasks::with(|t| {
             for t in t.tasks_unbind.drain(..) {
@@ -370,9 +374,6 @@ impl<'oc> ObsContext<'oc> {
     }
     pub fn uc(&mut self) -> &mut UpdateContext {
         self.uc
-    }
-    pub fn nul(&mut self) -> ObsContext {
-        ObsContext::new(self.uc, None)
     }
 }
 

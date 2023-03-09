@@ -238,7 +238,7 @@ impl<Ops: ScanOps + 'static> DynFold for DependencyNode<RawScan<Ops>> {
     type State = Ops::St;
     fn stop(self: Rc<Self>, oc: Option<&mut ObsContext>) -> Self::State {
         if let Some(oc) = oc {
-            self.watch(&mut oc.nul());
+            self.watch(&mut oc.uc().oc());
         }
         self.borrow_mut().state.take().unwrap()
     }
