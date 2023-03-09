@@ -346,7 +346,7 @@ impl DependencyContext {
     ///
     /// # Panics
     ///
-    /// Panic if `DependencyContext` already used in the current thread.
+    /// Panic if `DependencyContext::with` is called again while `DependencyContext::with` is called.    
     pub fn with<T>(f: impl FnOnce(&mut DependencyContext) -> T) -> T {
         RT.with(|rt| {
             if let Ok(mut rt) = rt.try_borrow_mut() {
