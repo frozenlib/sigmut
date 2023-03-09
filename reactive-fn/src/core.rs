@@ -329,8 +329,7 @@ impl DependencyContext {
         &mut self.0
     }
     pub fn schedule_action(&mut self, action: impl Into<Action>) {
-        let action: Action = action.into();
-        action.schedule();
+        self.0.schedule_action(action)
     }
     pub fn run_actions(&mut self) {
         self.0.run_actions();
