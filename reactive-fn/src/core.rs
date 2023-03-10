@@ -193,7 +193,9 @@ impl SourceBinding {
         }
     }
 }
-pub(crate) struct SourceBindings(Vec<SourceBinding>);
+
+#[derive_ex(Default)]
+pub struct SourceBindings(Vec<SourceBinding>);
 
 impl SourceBindings {
     pub fn new() -> Self {
@@ -465,7 +467,7 @@ impl From<&RcAction> for Action {
     }
 }
 
-pub(crate) trait BindSink: 'static {
+pub trait BindSink: 'static {
     fn notify(self: Rc<Self>, param: usize, is_modified: bool, uc: &mut UpdateContext);
 }
 
