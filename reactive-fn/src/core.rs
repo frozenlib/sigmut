@@ -263,7 +263,7 @@ impl UnbindTask {
 }
 
 #[derive(Default)]
-pub(crate) struct SinkBindings(SlabMap<SinkBinding>);
+pub struct SinkBindings(SlabMap<SinkBinding>);
 
 impl SinkBindings {
     pub fn new() -> Self {
@@ -471,7 +471,7 @@ pub trait BindSink: 'static {
     fn notify(self: Rc<Self>, param: usize, is_modified: bool, uc: &mut UpdateContext);
 }
 
-pub(crate) trait BindSource: 'static {
+pub trait BindSource: 'static {
     fn flush(self: Rc<Self>, param: usize, uc: &mut UpdateContext) -> bool;
     fn unbind(self: Rc<Self>, param: usize, key: usize, uc: &mut UpdateContext);
 }
