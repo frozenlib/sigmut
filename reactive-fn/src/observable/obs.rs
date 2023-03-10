@@ -389,16 +389,6 @@ impl<T: ?Sized + 'static> Observable for Obs<T> {
         Obs::get_to(self, s)
     }
 }
-impl<T: ?Sized + 'static> Observable for &Obs<T> {
-    type Item = T;
-
-    fn with<U>(&self, f: impl FnOnce(&T, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        Obs::with(*self, f, oc)
-    }
-    fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> {
-        Obs::get_to(*self, s)
-    }
-}
 
 /// Checks if the values are always equal.
 ///

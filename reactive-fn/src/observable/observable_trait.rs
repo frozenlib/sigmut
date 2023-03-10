@@ -94,6 +94,24 @@ where
         self.get(oc)
     }
 }
+
+impl<T: ?Sized + Observable> Observable for &T {
+    type Item = T::Item;
+
+    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
+        <T as Observable>::with(*self, f, oc)
+    }
+    fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, Self::Item>) -> Consumed<'cb> {
+        <T as Observable>::get_to(*self, s)
+    }
+    fn get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
+    where
+        Self::Item: ToOwned,
+    {
+        <T as Observable>::get(*self, oc)
+    }
+}
+
 impl<T: ?Sized + 'static> Observable for dyn DynObservable<Item = T> {
     type Item = T;
 
