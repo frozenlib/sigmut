@@ -36,10 +36,7 @@ where
         }
     }
 }
-impl<T> Observable for ObsValue<T>
-where
-    T: 'static,
-{
+impl<T: 'static> Observable for ObsValue<T> {
     type Item = T;
 
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
