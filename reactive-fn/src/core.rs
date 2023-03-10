@@ -352,7 +352,7 @@ impl DependencyContext {
             if let Ok(mut rt) = rt.try_borrow_mut() {
                 f(&mut rt.0)
             } else {
-                panic!("`DependencyGraph` already used.")
+                panic!("`DependencyContext` already used.")
             }
         })
     }
