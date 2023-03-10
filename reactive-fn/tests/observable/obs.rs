@@ -1,30 +1,86 @@
+use crate::test_utils::code_path::{code, CodePathChecker};
 use crate::test_utils::dc_test;
 use reactive_fn::{Obs, ObsCell};
 use std::{cell::RefCell, rc::Rc};
 
 #[test]
+fn new() {
+    let mut cp = CodePathChecker::new();
+    dc_test(|dc| {
+        let cell0 = ObsCell::new(1);
+        let cell1 = ObsCell::new(10);
+        let s = Obs::new({
+            let cell0 = cell0.obs();
+            let cell1 = cell1.obs();
+            move |oc| {
+                code("call");
+                cell0.get(oc) + cell1.get(oc)
+            }
+        });
+        let ac = &mut dc.ac();
+
+        assert_eq!(s.get(ac.oc()), 11);
+        cp.expect("call");
+        cp.verify();
+        assert_eq!(s.get(ac.oc()), 11);
+        cp.verify();
+
+        cell0.set(2, ac);
+        assert_eq!(s.get(ac.oc()), 12);
+        cp.expect("call");
+        cp.verify();
+        assert_eq!(s.get(ac.oc()), 12);
+        cp.verify();
+
+        cell0.set(3, ac);
+        cell1.set(30, ac);
+        assert_eq!(s.get(ac.oc()), 33);
+        cp.expect("call");
+        cp.verify();
+        assert_eq!(s.get(ac.oc()), 33);
+        cp.verify();
+    });
+}
+
+#[test]
 fn from_get() {
+    let mut cp = CodePathChecker::new();
     dc_test(|dc| {
         let cell0 = ObsCell::new(1);
         let cell1 = ObsCell::new(10);
         let s = Obs::from_get({
             let cell0 = cell0.obs();
             let cell1 = cell1.obs();
-            move |oc| cell0.get(oc) + cell1.get(oc)
+            move |oc| {
+                code("call");
+                cell0.get(oc) + cell1.get(oc)
+            }
         });
-        let ss = s.collect_vec();
-        dc.update();
+        let ac = &mut dc.ac();
 
-        cell0.set(2, &mut dc.ac());
-        dc.update();
+        assert_eq!(s.get(ac.oc()), 11);
+        cp.expect("call");
+        cp.verify();
+        assert_eq!(s.get(ac.oc()), 11);
+        cp.expect("call");
+        cp.verify();
 
-        cell1.set(20, &mut dc.ac());
-        dc.update();
+        cell0.set(2, ac);
+        assert_eq!(s.get(ac.oc()), 12);
+        cp.expect("call");
+        cp.verify();
+        assert_eq!(s.get(ac.oc()), 12);
+        cp.expect("call");
+        cp.verify();
 
-        cell0.set(3, &mut dc.ac());
-        cell1.set(30, &mut dc.ac());
-
-        assert_eq!(ss.stop(dc.ac().oc()), vec![11, 12, 22, 33]);
+        cell0.set(3, ac);
+        cell1.set(30, ac);
+        assert_eq!(s.get(ac.oc()), 33);
+        cp.expect("call");
+        cp.verify();
+        assert_eq!(s.get(ac.oc()), 33);
+        cp.expect("call");
+        cp.verify();
     });
 }
 
