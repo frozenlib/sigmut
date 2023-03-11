@@ -1,6 +1,6 @@
 use super::from_async::FromAsync;
 use crate::core::{
-    BindSink, CallUpdate, Computed, ObsContext, Runtime, SourceBindings, UpdateContext,
+    schedule_update_lazy, BindSink, CallUpdate, Computed, ObsContext, SourceBindings, UpdateContext,
 };
 use derive_ex::derive_ex;
 use futures::Future;
@@ -21,7 +21,7 @@ impl Subscription {
             bindings: SourceBindings::new(),
         })));
         let node = Rc::downgrade(&rc);
-        Runtime::schedule_update_lazy(node, PARAM);
+        schedule_update_lazy(node, PARAM);
         Self(Some(rc))
     }
     pub fn new_async<Fut>(f: impl FnMut(&mut ObsContext) -> Fut + 'static) -> Subscription

@@ -1,6 +1,5 @@
 use reactive_fn::{
-    core::DependencyContext, obs_format, observable::ObsCell, watch_format, watch_write,
-    watch_writeln,
+    core::Runtime, obs_format, observable::ObsCell, watch_format, watch_write, watch_writeln,
 };
 use std::fmt::Write;
 
@@ -13,7 +12,7 @@ impl std::fmt::Debug for DebugOnly {
 
 #[test]
 fn watch_write() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let _ = watch_write!(&mut s, dc.ac().oc(), "{}", 1 + 2);
         assert_eq!(s, "3");
@@ -22,7 +21,7 @@ fn watch_write() {
 
 #[test]
 fn watch_writeln() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let _ = watch_writeln!(&mut s, dc.ac().oc(), "{}", 1 + 2);
         assert_eq!(s, "3\n");
@@ -31,7 +30,7 @@ fn watch_writeln() {
 
 #[test]
 fn watch_format() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let s = watch_format!(dc.ac().oc(), "{}", 1 + 2);
         assert_eq!(s, "3");
     });
@@ -39,7 +38,7 @@ fn watch_format() {
 
 #[test]
 fn watch_write_display() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let _ = watch_write!(&mut s, dc.ac().oc(), "{}", 1 + 2);
         assert_eq!(s, "3");
@@ -48,7 +47,7 @@ fn watch_write_display() {
 
 #[test]
 fn obs_format_display() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let s = obs_format!("{}", 1 + 2);
         assert_eq!(s.get(dc.ac().oc()), "3");
     });
@@ -56,7 +55,7 @@ fn obs_format_display() {
 
 #[test]
 fn watch_write_observable_display() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let a = ObsCell::new(1);
         let _ = watch_write!(&mut s, dc.ac().oc(), "{a}");
@@ -65,7 +64,7 @@ fn watch_write_observable_display() {
 }
 #[test]
 fn obs_format_observable_display() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let a = ObsCell::new(3);
         let s = obs_format!("{a}");
         assert_eq!(s.get(dc.ac().oc()), "3");
@@ -74,7 +73,7 @@ fn obs_format_observable_display() {
 
 #[test]
 fn obs_format_observable_display_notify() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let a = ObsCell::new(3);
         let s = obs_format!("{}", a.obs());
         let sc = s.cached();
@@ -87,7 +86,7 @@ fn obs_format_observable_display_notify() {
 
 #[test]
 fn watch_write_debug() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let _ = watch_write!(&mut s, dc.ac().oc(), "{:?}", DebugOnly(3));
         assert_eq!(s, "debug-3");
@@ -95,7 +94,7 @@ fn watch_write_debug() {
 }
 #[test]
 fn obs_format_debug() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let s = obs_format!("{:?}", DebugOnly(3));
         assert_eq!(s.get(dc.ac().oc()), "debug-3");
     });
@@ -103,7 +102,7 @@ fn obs_format_debug() {
 
 #[test]
 fn watch_write_index() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let _ = watch_write!(&mut s, dc.ac().oc(), "{1} {0}", 1 + 2, 3 + 4);
         assert_eq!(s, "7 3");
@@ -111,7 +110,7 @@ fn watch_write_index() {
 }
 #[test]
 fn obs_format_index() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let s = obs_format!("{1} {0}", 1 + 2, 3 + 4);
         assert_eq!(s.get(dc.ac().oc()), "7 3");
     });
@@ -119,7 +118,7 @@ fn obs_format_index() {
 
 #[test]
 fn watch_write_key_value() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let _ = watch_write!(&mut s, dc.ac().oc(), "{a}", a = 1 + 2);
         assert_eq!(s, "3");
@@ -127,7 +126,7 @@ fn watch_write_key_value() {
 }
 #[test]
 fn obs_format_key_value() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let s = obs_format!("{a}", a = 1 + 2);
         assert_eq!(s.get(dc.ac().oc()), "3");
     });
@@ -135,7 +134,7 @@ fn obs_format_key_value() {
 
 #[test]
 fn watch_write_key_value_2() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let _ = watch_write!(&mut s, dc.ac().oc(), "{b} {a}", a = 1 + 2, b = 5);
         assert_eq!(s, "5 3");
@@ -143,7 +142,7 @@ fn watch_write_key_value_2() {
 }
 #[test]
 fn obs_format_key_value_2() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let s = obs_format!("{b} {a}", a = 1 + 2, b = 5);
         assert_eq!(s.get(dc.ac().oc()), "5 3");
     });
@@ -151,7 +150,7 @@ fn obs_format_key_value_2() {
 
 #[test]
 fn watch_write_key() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let a = 3;
         let b = 5;
@@ -162,7 +161,7 @@ fn watch_write_key() {
 
 #[test]
 fn obs_format_key() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let a = ObsCell::new(3);
         let b = ObsCell::new(5);
         let s = obs_format!("{b} {a}");
@@ -172,7 +171,7 @@ fn obs_format_key() {
 
 #[test]
 fn watch_write_mix() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let a = 1;
         let _ = watch_write!(&mut s, dc.ac().oc(), "{a} {x} {}", 5, x = 9);
@@ -182,7 +181,7 @@ fn watch_write_mix() {
 
 #[test]
 fn obs_format_mix() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let a = ObsCell::new(1);
         let x = ObsCell::new(9);
         let s = obs_format!("{a} {x} {}", 5);
@@ -192,7 +191,7 @@ fn obs_format_mix() {
 
 #[test]
 fn watch_not_consume() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         let a = String::from("abc");
         let _ = watch_write!(&mut s, dc.ac().oc(), "{a}");
@@ -203,7 +202,7 @@ fn watch_not_consume() {
 
 #[test]
 fn watch_write_escape() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let mut s = String::new();
         #[allow(unused)]
         let a = 3;

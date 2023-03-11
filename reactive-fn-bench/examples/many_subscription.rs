@@ -1,6 +1,6 @@
 #[cfg(not(unix))]
 fn main() {
-    use reactive_fn::{core::DependencyContext, ObsCell};
+    use reactive_fn::{core::Runtime, ObsCell};
     use std::time::Instant;
 
     const PHASE: usize = 100;
@@ -10,7 +10,7 @@ fn main() {
     let start = Instant::now();
     for _ in 0..PHASE {
         let cell = ObsCell::new(0);
-        DependencyContext::with(|dc| {
+        Runtime::with(|dc| {
             let mut ss = Vec::new();
             for _ in 0..SUBSCRIPTIONS {
                 ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|_| {}));
@@ -27,7 +27,7 @@ fn main() {
 
 #[cfg(unix)]
 fn main() {
-    use reactive_fn::{core::DependencyContext, ObsCell};
+    use reactive_fn::{core::Runtime, ObsCell};
     use std::fs::File;
 
     const COUNT: usize = 100;
@@ -41,7 +41,7 @@ fn main() {
 
     let cell = ObsCell::new(0);
     for _ in 0..1000 {
-        DependencyContext::with(|dc| {
+        Runtime::with(|dc| {
             let mut ss = Vec::new();
             for _ in 0..SUBSCRIPTIONS {
                 ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|_| {}));

@@ -138,7 +138,7 @@ format_trait!(
 /// # Example
 ///
 /// ```
-/// reactive_fn::core::DependencyContext::with(|dc| {
+/// reactive_fn::core::Runtime::with(|dc| {
 ///     use reactive_fn::*;
 ///     let ac = &mut dc.ac();
 ///

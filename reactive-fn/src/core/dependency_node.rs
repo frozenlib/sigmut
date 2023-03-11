@@ -7,7 +7,9 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use super::{CallDiscard, CallFlush, CallUpdate, LazyTasks, Runtime, SourceBindings};
+use super::{
+    schedule_notify_lazy, CallDiscard, CallFlush, CallUpdate, RuntimeGlobal, SourceBindings,
+};
 
 const PARAM: usize = 0;
 
@@ -72,7 +74,7 @@ where
         });
         if this.s.is_hot {
             let node = Rc::downgrade(&this);
-            LazyTasks::schedule_update(node, PARAM);
+            RuntimeGlobal::schedule_update(node, PARAM);
         }
         this
     }
@@ -94,7 +96,7 @@ where
             }
         }
         let node = Rc::downgrade(self);
-        Runtime::schedule_notify_lazy(node, PARAM)
+        schedule_notify_lazy(node, PARAM)
     }
     pub fn is_up_to_date(self: &Rc<Self>, uc: &mut UpdateContext) -> bool {
         NodeHelper::new(self, uc).state().is_up_to_date().1

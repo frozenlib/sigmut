@@ -16,54 +16,48 @@ pub mod dependency_node;
 pub mod dependency_token;
 
 thread_local! {
-    static TASKS : RefCell<LazyTasks> = Default::default();
-    static RT : RefCell<Runtime> = RefCell::new(Runtime::new());
+    static RG : RefCell<RuntimeGlobal> = Default::default();
 }
 
-#[derive(Default)]
-struct LazyTasks {
+#[derive_ex(Default)]
+struct RuntimeGlobal {
     tasks_update: Vec<WeakTaskOf<dyn CallUpdate>>,
     tasks_notify: Vec<WeakTaskOf<dyn BindSink>>,
     tasks_unbind: Vec<UnbindTask>,
+    #[default(Some(RuntimeTasks::new()))]
+    tasks_saved: Option<RuntimeTasks>,
     actions: VecDeque<Action>,
     wakes: WakeTable,
 }
 
-impl LazyTasks {
-    fn with<T>(f: impl FnOnce(&mut LazyTasks) -> T) -> T {
-        TASKS.with(|t| f(&mut t.borrow_mut()))
+impl RuntimeGlobal {
+    fn with<T>(f: impl FnOnce(&mut RuntimeGlobal) -> T) -> T {
+        RG.with(|rg| f(&mut rg.borrow_mut()))
     }
-    fn try_with(f: impl FnOnce(&mut LazyTasks)) {
-        let _ = TASKS.try_with(|t| f(&mut t.borrow_mut()));
+    fn try_with(f: impl FnOnce(&mut RuntimeGlobal)) {
+        let _ = RG.try_with(|rg| f(&mut rg.borrow_mut()));
     }
 
     fn schedule_update(node: Weak<dyn CallUpdate>, param: usize) {
-        Self::with(|t| t.tasks_update.push(WeakTaskOf { node, param }));
+        Self::with(|rg| rg.tasks_update.push(WeakTaskOf { node, param }));
     }
     fn schedule_action(action: Action) {
-        Self::with(|t| t.actions.push_back(action));
+        Self::with(|rg| rg.actions.push_back(action));
     }
 }
-
-pub(crate) struct Runtime(DependencyContext);
-
-impl Runtime {
-    fn new() -> Self {
-        Self(DependencyContext(UpdateContext(RawRuntime::new())))
-    }
-    pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, param: usize) {
-        LazyTasks::try_with(|t| t.tasks_notify.push(WeakTaskOf { node, param }));
-    }
-    pub fn schedule_update_lazy(node: Weak<dyn CallUpdate>, param: usize) {
-        LazyTasks::try_with(|t| t.tasks_update.push(WeakTaskOf { node, param }));
-    }
+pub(crate) fn schedule_notify_lazy(node: Weak<dyn BindSink>, param: usize) {
+    RuntimeGlobal::try_with(|rg| rg.tasks_notify.push(WeakTaskOf { node, param }));
 }
-struct RawRuntime {
+pub(crate) fn schedule_update_lazy(node: Weak<dyn CallUpdate>, param: usize) {
+    RuntimeGlobal::try_with(|rg| rg.tasks_update.push(WeakTaskOf { node, param }));
+}
+
+struct RuntimeTasks {
     tasks_flush: Vec<TaskOf<dyn CallFlush>>,
     tasks_update: Vec<TaskOf<dyn CallUpdate>>,
     tasks_discard: Vec<TaskOf<dyn CallDiscard>>,
 }
-impl RawRuntime {
+impl RuntimeTasks {
     fn new() -> Self {
         Self {
             tasks_flush: Vec::new(),
@@ -73,7 +67,7 @@ impl RawRuntime {
     }
 }
 
-pub struct UpdateContext(RawRuntime);
+pub struct UpdateContext(RuntimeTasks);
 
 impl UpdateContext {
     pub fn oc(&mut self) -> ObsContext {
@@ -85,7 +79,7 @@ impl UpdateContext {
     }
 
     fn apply_notify(&mut self) {
-        LazyTasks::with(|t| {
+        RuntimeGlobal::with(|t| {
             for t in t.tasks_unbind.drain(..) {
                 t.unbind(self);
             }
@@ -99,7 +93,7 @@ impl UpdateContext {
         }
     }
     fn run_actions(&mut self) {
-        while let Some(a) = LazyTasks::with(|t| t.actions.pop_front()) {
+        while let Some(a) = RuntimeGlobal::with(|t| t.actions.pop_front()) {
             a.call(&mut ActionContext(ObsContext::new(self, None)))
         }
     }
@@ -110,7 +104,7 @@ impl UpdateContext {
             while let Some(task) = self.0.tasks_update.pop() {
                 task.call_update(self);
             }
-            LazyTasks::with(|t| {
+            RuntimeGlobal::with(|t| {
                 self.0
                     .tasks_update
                     .extend(t.tasks_update.drain(..).filter_map(|t| t.upgrade()))
@@ -239,7 +233,7 @@ impl SourceBindings {
 }
 impl Drop for SourceBindings {
     fn drop(&mut self) {
-        LazyTasks::try_with(|t| {
+        RuntimeGlobal::try_with(|t| {
             t.tasks_unbind
                 .extend(self.0.iter().map(|b| b.to_unbind_task()))
         });
@@ -323,9 +317,19 @@ impl SinkBinding {
     }
 }
 
-pub struct DependencyContext(UpdateContext);
+#[derive_ex(Default)]
+#[default(Self::new())]
+pub struct Runtime(UpdateContext);
 
-impl DependencyContext {
+impl Runtime {
+    pub fn new() -> Self {
+        let Some(tasks) = RG.with(|rg| rg.borrow_mut().tasks_saved.take()) else {
+            // Runtimeのインスタンスが既に存在する場合
+            panic!("Only one `Runtime` can exist in the same thread at the same time.");
+        };
+        Self(UpdateContext(tasks))
+    }
+
     pub fn ac(&mut self) -> ActionContext {
         ActionContext::new(&mut self.0)
     }
@@ -346,35 +350,37 @@ impl DependencyContext {
         self.0.update_all(discard);
     }
 
-    /// Get the `DependencyContext` associated with the current thread.
+    /// Get the `Runtime` associated with the current thread.
     ///
     /// # Panics
     ///
-    /// Panic if `DependencyContext::with` is called again while `DependencyContext::with` is called.    
-    pub fn with<T>(f: impl FnOnce(&mut DependencyContext) -> T) -> T {
-        RT.with(|rt| {
-            if let Ok(mut rt) = rt.try_borrow_mut() {
-                f(&mut rt.0)
-            } else {
-                panic!("`DependencyContext` already used.")
-            }
-        })
+    /// Panic if `Runtime::with` is called again while `Runtime::with` is called.    
+    pub fn with<T>(f: impl FnOnce(&mut Runtime) -> T) -> T {
+        f(&mut Self::new())
     }
 
-    pub async fn run<Fut: Future>(f: impl FnOnce(AsyncDependencyContext) -> Fut) -> Fut::Output {
-        let fut = pin!(f(AsyncDependencyContext::new()));
-        let wake = TASKS.with(|t| RawWake::new(&t.borrow().wakes.requests, None));
+    pub async fn run<Fut: Future>(&mut self, f: impl FnOnce(RuntimeRef) -> Fut) -> Fut::Output {
+        let rt = RuntimeRefSource::new(self);
+        let fut = pin!(f(rt.get()));
+        let wake = RG.with(|t| RawWake::new(&t.borrow().wakes.requests, None));
         wake.requests().is_wake_main = true;
-        DependencyContextFuture { fut, wake }.await
+        RuntimeMain { rt, fut, wake }.await
+    }
+}
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        let tasks_saved = Some(replace(&mut self.0 .0, RuntimeTasks::new()));
+        let _ = RG.try_with(|rg| rg.borrow_mut().tasks_saved = tasks_saved);
     }
 }
 
-struct DependencyContextFuture<'a, Fut> {
+struct RuntimeMain<'a, Fut> {
+    rt: RuntimeRefSource,
     wake: Arc<RawWake>,
     fut: Pin<&'a mut Fut>,
 }
 
-impl<'a, Fut: Future> Future for DependencyContextFuture<'a, Fut> {
+impl<'a, Fut: Future> Future for RuntimeMain<'a, Fut> {
     type Output = Fut::Output;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -388,10 +394,8 @@ impl<'a, Fut: Future> Future for DependencyContextFuture<'a, Fut> {
                 }
                 self.wake.requests().is_wake_main = false;
             }
-            DependencyContext::with(|dc| {
-                dc.run_actions();
-                dc.update();
-            });
+            self.rt.0.run_actions();
+            self.rt.0.update();
             is_wake_old = is_wake;
             is_wake = self.wake.requests().is_wake_main;
         }
@@ -400,12 +404,50 @@ impl<'a, Fut: Future> Future for DependencyContextFuture<'a, Fut> {
     }
 }
 
-#[non_exhaustive]
-pub struct AsyncDependencyContext {}
+struct RuntimeRefSource(RuntimeRef);
 
-impl AsyncDependencyContext {
-    fn new() -> Self {
-        Self {}
+impl RuntimeRefSource {
+    pub fn new(rt: *mut Runtime) -> Self {
+        Self(RuntimeRef(Rc::new(RefCell::new(rt))))
+    }
+    pub fn get(&self) -> RuntimeRef {
+        self.0.clone()
+    }
+}
+impl Drop for RuntimeRefSource {
+    fn drop(&mut self) {
+        self.0.set_null();
+    }
+}
+
+#[derive(Clone)]
+pub struct RuntimeRef(Rc<RefCell<*mut Runtime>>);
+
+impl RuntimeRef {
+    pub fn schedule_action(&mut self, action: impl Into<Action>) {
+        self.call(|rt| rt.schedule_action(action))
+    }
+    pub fn run_actions(&mut self) {
+        self.call(|rt| rt.run_actions())
+    }
+    pub fn update(&mut self) {
+        self.call(|rt| rt.update())
+    }
+    pub fn update_with(&mut self, discard: bool) {
+        self.call(|rt| rt.update_with(discard))
+    }
+    fn set_null(&self) {
+        *self.0.borrow_mut() = null_mut();
+    }
+    fn call<T>(&self, f: impl FnOnce(&mut Runtime) -> T) -> T {
+        unsafe {
+            let p = self.0.borrow_mut();
+            if let Some(rt) = p.as_mut() {
+                f(rt)
+            } else {
+                panic!("`Runtime::run()` was already finished.");
+            }
+        }
     }
 }
 
@@ -488,7 +530,7 @@ impl Action {
 
     /// Perform this action after [`ActionContext`] is available.
     pub fn schedule(self) {
-        LazyTasks::schedule_action(self)
+        RuntimeGlobal::schedule_action(self)
     }
 }
 impl<T: FnOnce(&mut ActionContext) + 'static> From<T> for Action {
@@ -652,7 +694,7 @@ pub(crate) struct DependencyWaker(Arc<RawWake>);
 impl DependencyWaker {
     pub fn new(node: Weak<impl BindSink>, param: usize) -> Self {
         let node = node;
-        Self(LazyTasks::with(|t| {
+        Self(RuntimeGlobal::with(|t| {
             t.wakes.insert(WeakTaskOf { node, param })
         }))
     }

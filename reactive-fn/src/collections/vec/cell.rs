@@ -5,7 +5,7 @@ use super::{
 use crate::{
     core::{
         dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
-        BindSink, BindSource, ComputeContext, Runtime, SinkBindings, UpdateContext,
+        schedule_notify_lazy, BindSink, BindSource, ComputeContext, SinkBindings, UpdateContext,
     },
     ActionContext,
 };
@@ -489,7 +489,7 @@ impl<'a, T: 'static> Drop for ObsVecCellRefMut<'a, T> {
         if self.is_modified {
             self.is_modified = false;
             let node = Rc::downgrade(&self.owner);
-            Runtime::schedule_notify_lazy(node, PARAM);
+            schedule_notify_lazy(node, PARAM);
         }
     }
 }

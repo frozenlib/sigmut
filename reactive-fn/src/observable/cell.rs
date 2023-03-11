@@ -1,6 +1,9 @@
 use super::{Obs, ObservableBuilder, RcObservable};
 use crate::{
-    core::{ActionContext, BindSink, BindSource, ObsContext, Runtime, SinkBindings, UpdateContext},
+    core::{
+        schedule_notify_lazy, ActionContext, BindSink, BindSource, ObsContext, SinkBindings,
+        UpdateContext,
+    },
     ObsBuilder, Observable,
 };
 use derive_ex::derive_ex;
@@ -154,6 +157,6 @@ impl<'a, T> DerefMut for ObsCellRefMut<'a, T> {
 impl<'a, T: 'static> Drop for ObsCellRefMut<'a, T> {
     fn drop(&mut self) {
         let node = Rc::downgrade(self.node);
-        Runtime::schedule_notify_lazy(node, PARAM)
+        schedule_notify_lazy(node, PARAM)
     }
 }

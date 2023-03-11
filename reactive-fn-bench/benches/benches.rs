@@ -3,7 +3,7 @@
 // use test::Bencher;
 
 use criterion::{criterion_group, criterion_main, Bencher, Criterion};
-use reactive_fn::{core::DependencyContext, *};
+use reactive_fn::{core::Runtime, *};
 use std::hint::black_box;
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -26,8 +26,8 @@ const COUNT: usize = 1000;
 const SUBSCRIPTIONS: usize = 10000;
 const SOURCES: usize = 10000;
 
-fn iter_dc(b: &mut Bencher, f: impl Fn(&mut DependencyContext)) {
-    b.iter(|| DependencyContext::with(&f));
+fn iter_dc(b: &mut Bencher, f: impl Fn(&mut Runtime)) {
+    b.iter(|| Runtime::with(&f));
 }
 
 // #[bench]

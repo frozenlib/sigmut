@@ -1,5 +1,5 @@
 use reactive_fn::{
-    core::{dependency_token::DependencyToken, DependencyContext},
+    core::{dependency_token::DependencyToken, Runtime},
     observable::ObsCell,
 };
 
@@ -10,7 +10,7 @@ fn new() {
 
 #[test]
 fn notify() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let x = ObsCell::new(());
         let t = DependencyToken::new();
         t.update(|cc| x.get(cc.oc()), dc.ac().oc());
@@ -23,7 +23,7 @@ fn notify() {
 
 #[test]
 fn set() {
-    DependencyContext::with(|dc| {
+    Runtime::with(|dc| {
         let x = ObsCell::new(1);
         let c = x.obs().collect_vec();
         dc.update();

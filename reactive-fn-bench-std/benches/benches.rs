@@ -2,7 +2,7 @@
 extern crate test;
 use test::Bencher;
 
-use reactive_fn::{core::DependencyContext, *};
+use reactive_fn::{core::Runtime, *};
 use std::hint::black_box;
 
 const COUNT: usize = 1000;
@@ -13,8 +13,8 @@ const SOURCES: usize = 1000;
 // const SUBSCRIPTIONS: usize = 10000;
 // const SOURCES: usize = 10000;
 
-fn iter_dc(b: &mut Bencher, f: impl Fn(&mut DependencyContext)) {
-    b.iter(|| DependencyContext::with(&f));
+fn iter_dc(b: &mut Bencher, f: impl Fn(&mut Runtime)) {
+    b.iter(|| Runtime::with(&f));
 }
 
 #[bench]
