@@ -3,11 +3,13 @@ use slabmap::SlabMap;
 use std::{
     cell::RefCell,
     collections::VecDeque,
+    future::Future,
     mem::{replace, transmute},
+    pin::{pin, Pin},
     ptr::null_mut,
     rc::{Rc, Weak},
-    sync::{Arc, Mutex},
-    task::{Wake, Waker},
+    sync::{Arc, Mutex, MutexGuard},
+    task::{Context, Poll, Wake, Waker},
 };
 
 pub mod dependency_node;
@@ -358,6 +360,53 @@ impl DependencyContext {
             }
         })
     }
+
+    pub async fn run<Fut: Future>(f: impl FnOnce(AsyncDependencyContext) -> Fut) -> Fut::Output {
+        let fut = pin!(f(AsyncDependencyContext::new()));
+        let wake = TASKS.with(|t| RawWake::new(&t.borrow().wakes.requests, None));
+        wake.requests().is_wake_main = true;
+        DependencyContextFuture { fut, wake }.await
+    }
+}
+
+struct DependencyContextFuture<'a, Fut> {
+    wake: Arc<RawWake>,
+    fut: Pin<&'a mut Fut>,
+}
+
+impl<'a, Fut: Future> Future for DependencyContextFuture<'a, Fut> {
+    type Output = Fut::Output;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut is_wake_old = true;
+        let mut is_wake = self.wake.requests().is_wake_main;
+        while is_wake || is_wake_old {
+            if is_wake {
+                let p = self.fut.as_mut().poll(cx);
+                if p.is_ready() {
+                    return p;
+                }
+                self.wake.requests().is_wake_main = false;
+            }
+            DependencyContext::with(|dc| {
+                dc.run_actions();
+                dc.update();
+            });
+            is_wake_old = is_wake;
+            is_wake = self.wake.requests().is_wake_main;
+        }
+        self.wake.requests().waker = Some(cx.waker().clone());
+        Poll::Pending
+    }
+}
+
+#[non_exhaustive]
+pub struct AsyncDependencyContext {}
+
+impl AsyncDependencyContext {
+    fn new() -> Self {
+        Self {}
+    }
 }
 
 pub struct ObsContext<'oc> {
@@ -534,12 +583,9 @@ struct WakeTable {
 
 impl WakeTable {
     fn insert(&mut self, task: WeakTaskOf<dyn BindSink>) -> Arc<RawWake> {
-        let key = self.tasks.insert(task);
-        Arc::new(RawWake {
-            key,
-            requests: self.requests.clone(),
-        })
+        RawWake::new(&self.requests, Some(self.tasks.insert(task)))
     }
+
     fn apply(&mut self, uc: &mut UpdateContext) {
         let mut requests = self.requests.0.lock().unwrap();
         for key in requests.drops.drain(..) {
@@ -561,17 +607,34 @@ struct WakeRequests(Arc<Mutex<RawWakeRequests>>);
 struct RawWakeRequests {
     wakes: Vec<usize>,
     drops: Vec<usize>,
+    is_wake_main: bool,
     waker: Option<Waker>,
 }
 
 struct RawWake {
-    key: usize,
     requests: WakeRequests,
+    key: Option<usize>,
 }
+impl RawWake {
+    fn new(requests: &WakeRequests, key: Option<usize>) -> Arc<Self> {
+        Arc::new(RawWake {
+            requests: requests.clone(),
+            key,
+        })
+    }
+    fn requests(&self) -> MutexGuard<RawWakeRequests> {
+        self.requests.0.lock().unwrap()
+    }
+}
+
 impl Wake for RawWake {
     fn wake(self: Arc<Self>) {
         let mut requests = self.requests.0.lock().unwrap();
-        requests.wakes.push(self.key);
+        if let Some(key) = self.key {
+            requests.wakes.push(key);
+        } else {
+            requests.is_wake_main = true;
+        }
         if let Some(waker) = requests.waker.take() {
             waker.wake();
         }
@@ -579,7 +642,9 @@ impl Wake for RawWake {
 }
 impl Drop for RawWake {
     fn drop(&mut self) {
-        self.requests.0.lock().unwrap().drops.push(self.key);
+        if let Some(key) = self.key {
+            self.requests.0.lock().unwrap().drops.push(key);
+        }
     }
 }
 pub(crate) struct DependencyWaker(Arc<RawWake>);
