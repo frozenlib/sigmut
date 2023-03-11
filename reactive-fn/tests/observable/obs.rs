@@ -1,6 +1,8 @@
 use crate::test_utils::code_path::{code, CodePathChecker};
 use crate::test_utils::dc_test;
+use futures::channel::oneshot::channel;
 use reactive_fn::{Obs, ObsCell};
+use std::task::Poll;
 use std::{cell::RefCell, rc::Rc};
 
 #[test]
@@ -81,6 +83,31 @@ fn from_get() {
         assert_eq!(s.get(ac.oc()), 33);
         cp.expect("call");
         cp.verify();
+    });
+}
+
+#[test]
+fn from_future() {
+    dc_test(|dc| {
+        let (sender, receiver) = channel();
+        let s = Obs::from_future(receiver);
+        assert_eq!(s.get(dc.ac().oc()), Poll::Pending);
+        sender.send(10).unwrap();
+        assert_eq!(s.get(dc.ac().oc()), Poll::Ready(Ok(10)));
+    });
+}
+
+#[test]
+fn from_future_send_in_get() {
+    dc_test(|dc| {
+        let (sender, receiver) = channel();
+        let s = Obs::from_future(receiver);
+        let mut ac = dc.ac();
+        let oc = ac.oc();
+        assert_eq!(s.get(oc), Poll::Pending);
+        sender.send(10).unwrap();
+        assert_eq!(s.get(oc), Poll::Pending);
+        assert_eq!(s.get(dc.ac().oc()), Poll::Ready(Ok(10)));
     });
 }
 
