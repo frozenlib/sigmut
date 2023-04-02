@@ -9,6 +9,3 @@ pub(crate) mod utils;
 
 #[doc(no_inline)]
 pub use self::prelude::*;
-
-#[cfg(test)]
-mod test_utils;
