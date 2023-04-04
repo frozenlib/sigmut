@@ -71,7 +71,7 @@ impl<T: ?Sized + 'static> Obs<T> {
     /// Creates [`ObsBuilder`] from [Obs].
     ///
     /// Using [`ObsBuilder::obs`] and then [`Obs::builder`] does not return to the original [`ObsBuilder`].
-    /// For efficient processing, [`ObsBuilder::obs`] should be called only once.
+    /// For efficient processing, [`ObsBuilder::obs`] should not be called unless final [`Obs`] is required.
     pub fn builder(&self) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder::from_obs(self.clone())
     }
