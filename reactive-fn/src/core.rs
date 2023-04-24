@@ -359,8 +359,8 @@ impl Runtime {
         f(&mut Self::new())
     }
 
-    pub async fn run<Fut: Future>(&mut self, f: impl FnOnce(RuntimeRef) -> Fut) -> Fut::Output {
-        let rt = RuntimeRefSource::new(self);
+    pub async fn run<Fut: Future>(&mut self, f: impl FnOnce(RuntimeContext) -> Fut) -> Fut::Output {
+        let rt = RuntimeContextSource::new(self);
         let fut = pin!(f(rt.get()));
         let wake = RG.with(|t| RawWake::new(&t.borrow().wakes.requests, None));
         wake.requests().is_wake_main = true;
@@ -375,7 +375,7 @@ impl Drop for Runtime {
 }
 
 struct RuntimeMain<'a, Fut> {
-    rt: RuntimeRefSource,
+    rt: RuntimeContextSource,
     wake: Arc<RawWake>,
     fut: Pin<&'a mut Fut>,
 }
@@ -404,26 +404,26 @@ impl<'a, Fut: Future> Future for RuntimeMain<'a, Fut> {
     }
 }
 
-struct RuntimeRefSource(RuntimeRef);
+struct RuntimeContextSource(RuntimeContext);
 
-impl RuntimeRefSource {
+impl RuntimeContextSource {
     pub fn new(rt: *mut Runtime) -> Self {
-        Self(RuntimeRef(Rc::new(RefCell::new(rt))))
+        Self(RuntimeContext(Rc::new(RefCell::new(rt))))
     }
-    pub fn get(&self) -> RuntimeRef {
+    pub fn get(&self) -> RuntimeContext {
         self.0.clone()
     }
 }
-impl Drop for RuntimeRefSource {
+impl Drop for RuntimeContextSource {
     fn drop(&mut self) {
         self.0.set_null();
     }
 }
 
 #[derive(Clone)]
-pub struct RuntimeRef(Rc<RefCell<*mut Runtime>>);
+pub struct RuntimeContext(Rc<RefCell<*mut Runtime>>);
 
-impl RuntimeRef {
+impl RuntimeContext {
     pub fn schedule_action(&mut self, action: impl Into<Action>) {
         self.call(|rt| rt.schedule_action(action))
     }
