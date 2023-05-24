@@ -30,7 +30,7 @@ pub trait ObservableBuilder: 'static {
 ///
 /// However, the code size is larger than the method of the same name in [`Obs`].
 #[derive(Clone)]
-pub struct ObsBuilder<B>(pub B);
+pub struct ObsBuilder<B>(pub(crate) B);
 
 impl ObsBuilder<()> {
     pub fn new<T: 'static>(
