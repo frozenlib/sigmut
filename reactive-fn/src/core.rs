@@ -163,27 +163,27 @@ impl Computed {
 }
 
 struct SourceBinding {
-    node: Rc<dyn BindSource>,
+    source: Rc<dyn BindSource>,
     param: usize,
     key: usize,
 }
 
 impl SourceBinding {
     fn flush(&self, uc: &mut UpdateContext) -> bool {
-        self.node.clone().flush(self.param, uc)
+        self.source.clone().flush(self.param, uc)
     }
 
     #[allow(clippy::vtable_address_comparisons)]
     fn is_same(&self, node: &Rc<dyn BindSource>, param: usize) -> bool {
-        Rc::ptr_eq(&self.node, node) && self.param == param
+        Rc::ptr_eq(&self.source, node) && self.param == param
     }
 
     fn unbind(self, uc: &mut UpdateContext) {
-        self.node.unbind(self.param, self.key, uc)
+        self.source.unbind(self.param, self.key, uc)
     }
     fn to_unbind_task(&self) -> UnbindTask {
         UnbindTask {
-            node: Rc::downgrade(&self.node),
+            node: Rc::downgrade(&self.source),
             param: self.param,
             key: self.key,
         }
@@ -249,7 +249,7 @@ impl UnbindTask {
     fn unbind(self, uc: &mut UpdateContext) {
         if let Some(node) = self.node.upgrade() {
             SourceBinding {
-                node,
+                source: node,
                 param: self.param,
                 key: self.key,
             }
@@ -280,7 +280,7 @@ impl SinkBindings {
         };
         let key = self.0.insert(sink_binding);
         let source_binding = SourceBinding {
-            node: this,
+            source: this,
             param: this_param,
             key,
         };
@@ -298,8 +298,8 @@ impl SinkBindings {
     }
     pub fn notify(&mut self, is_modified: bool, uc: &mut UpdateContext) {
         self.0.optimize();
-        for sink in self.0.values() {
-            sink.notify(is_modified, uc);
+        for binding in self.0.values() {
+            binding.notify(is_modified, uc);
         }
     }
 }
