@@ -82,6 +82,14 @@ impl<T: 'static> ObsCell<T> {
         }
     }
 }
+
+impl<T: Default> Default for ObsCell<T> {
+    #[inline]
+    fn default() -> Self {
+        Self::new(T::default())
+    }
+}
+
 impl<T: Serialize> Serialize for ObsCell<T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
