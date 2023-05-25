@@ -9,7 +9,7 @@ use test_utils::code_path::{code, CodePath, CodePathChecker};
 mod test_utils;
 
 #[test]
-fn dependency_graph() {
+fn runtime() {
     let mut _rt = Runtime::new();
 }
 
