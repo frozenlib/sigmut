@@ -38,18 +38,18 @@ impl RuntimeGlobal {
         let _ = RG.try_with(|rg| f(&mut rg.borrow_mut()));
     }
 
-    fn schedule_update(node: Weak<dyn CallUpdate>, param: usize) {
-        Self::with(|rg| rg.tasks_update.push(WeakTaskOf { node, param }));
+    fn schedule_update(node: Weak<dyn CallUpdate>, slot: usize) {
+        Self::with(|rg| rg.tasks_update.push(WeakTaskOf { node, slot }));
     }
     fn schedule_action(action: Action) {
         Self::with(|rg| rg.actions.push_back(action));
     }
 }
-pub(crate) fn schedule_notify_lazy(node: Weak<dyn BindSink>, param: usize) {
-    RuntimeGlobal::try_with(|rg| rg.tasks_notify.push(WeakTaskOf { node, param }));
+pub(crate) fn schedule_notify_lazy(node: Weak<dyn BindSink>, slot: usize) {
+    RuntimeGlobal::try_with(|rg| rg.tasks_notify.push(WeakTaskOf { node, slot }));
 }
-pub(crate) fn schedule_update_lazy(node: Weak<dyn CallUpdate>, param: usize) {
-    RuntimeGlobal::try_with(|rg| rg.tasks_update.push(WeakTaskOf { node, param }));
+pub(crate) fn schedule_update_lazy(node: Weak<dyn CallUpdate>, slot: usize) {
+    RuntimeGlobal::try_with(|rg| rg.tasks_update.push(WeakTaskOf { node, slot }));
 }
 
 struct RuntimeTasks {
@@ -120,14 +120,14 @@ impl UpdateContext {
         }
     }
 
-    pub(crate) fn schedule_flush(&mut self, node: Rc<dyn CallFlush>, param: usize) {
-        self.0.tasks_flush.push(TaskOf { node, param });
+    pub(crate) fn schedule_flush(&mut self, node: Rc<dyn CallFlush>, slot: usize) {
+        self.0.tasks_flush.push(TaskOf { node, slot });
     }
-    pub(crate) fn schedule_update(&mut self, node: Rc<dyn CallUpdate>, param: usize) {
-        self.0.tasks_update.push(TaskOf { node, param });
+    pub(crate) fn schedule_update(&mut self, node: Rc<dyn CallUpdate>, slot: usize) {
+        self.0.tasks_update.push(TaskOf { node, slot });
     }
-    pub(crate) fn schedule_discard(&mut self, node: Rc<dyn CallDiscard>, param: usize) {
-        self.0.tasks_discard.push(TaskOf { node, param });
+    pub(crate) fn schedule_discard(&mut self, node: Rc<dyn CallDiscard>, slot: usize) {
+        self.0.tasks_discard.push(TaskOf { node, slot });
     }
 }
 
@@ -164,27 +164,27 @@ impl Computed {
 
 struct SourceBinding {
     source: Rc<dyn BindSource>,
-    param: usize,
+    slot: usize,
     key: usize,
 }
 
 impl SourceBinding {
     fn flush(&self, uc: &mut UpdateContext) -> bool {
-        self.source.clone().flush(self.param, uc)
+        self.source.clone().flush(self.slot, uc)
     }
 
     #[allow(clippy::vtable_address_comparisons)]
-    fn is_same(&self, node: &Rc<dyn BindSource>, param: usize) -> bool {
-        Rc::ptr_eq(&self.source, node) && self.param == param
+    fn is_same(&self, node: &Rc<dyn BindSource>, slot: usize) -> bool {
+        Rc::ptr_eq(&self.source, node) && self.slot == slot
     }
 
     fn unbind(self, uc: &mut UpdateContext) {
-        self.source.unbind(self.param, self.key, uc)
+        self.source.unbind(self.slot, self.key, uc)
     }
     fn to_unbind_task(&self) -> UnbindTask {
         UnbindTask {
             node: Rc::downgrade(&self.source),
-            param: self.param,
+            slot: self.slot,
             key: self.key,
         }
     }
@@ -210,7 +210,7 @@ impl SourceBindings {
     pub fn compute<T>(
         &mut self,
         node: Weak<dyn BindSink>,
-        param: usize,
+        slot: usize,
         compute: impl FnOnce(ComputeContext) -> T,
         uc: &mut UpdateContext,
     ) -> T {
@@ -218,7 +218,7 @@ impl SourceBindings {
             uc,
             sink: Some(ObsContextSink {
                 node,
-                param,
+                slot,
                 bindings: self,
                 bindings_len: 0,
             }),
@@ -241,7 +241,7 @@ impl Drop for SourceBindings {
 }
 struct UnbindTask {
     node: Weak<dyn BindSource>,
-    param: usize,
+    slot: usize,
     key: usize,
 }
 
@@ -250,7 +250,7 @@ impl UnbindTask {
         if let Some(node) = self.node.upgrade() {
             SourceBinding {
                 source: node,
-                param: self.param,
+                slot: self.slot,
                 key: self.key,
             }
             .unbind(uc)
@@ -265,23 +265,23 @@ impl SinkBindings {
     pub fn new() -> Self {
         Self(SlabMap::new())
     }
-    pub fn watch(&mut self, this: Rc<dyn BindSource>, this_param: usize, oc: &mut ObsContext) {
+    pub fn watch(&mut self, this: Rc<dyn BindSource>, this_slot: usize, oc: &mut ObsContext) {
         let Some(sink) = &mut oc.sink else { return; };
         let sources_index = sink.bindings_len;
         sink.bindings_len += 1;
         if let Some(source_old) = sink.bindings.0.get(sources_index) {
-            if source_old.is_same(&this, this_param) {
+            if source_old.is_same(&this, this_slot) {
                 return;
             }
         }
         let sink_binding = SinkBinding {
             node: sink.node.clone(),
-            param: sink.param,
+            slot: sink.slot,
         };
         let key = self.0.insert(sink_binding);
         let source_binding = SourceBinding {
             source: this,
-            param: this_param,
+            slot: this_slot,
             key,
         };
         if sources_index < sink.bindings.0.len() {
@@ -306,13 +306,13 @@ impl SinkBindings {
 
 struct SinkBinding {
     node: Weak<dyn BindSink>,
-    param: usize,
+    slot: usize,
 }
 
 impl SinkBinding {
     fn notify(&self, is_modified: bool, uc: &mut UpdateContext) {
         if let Some(node) = self.node.upgrade() {
-            node.notify(self.param, is_modified, uc)
+            node.notify(self.slot, is_modified, uc)
         }
     }
 }
@@ -458,7 +458,7 @@ pub struct ObsContext<'oc> {
 
 struct ObsContextSink<'oc> {
     node: Weak<dyn BindSink>,
-    param: usize,
+    slot: usize,
     bindings: &'oc mut SourceBindings,
     bindings_len: usize,
 }
@@ -559,60 +559,60 @@ impl From<&RcAction> for Action {
 }
 
 pub trait BindSink: 'static {
-    fn notify(self: Rc<Self>, param: usize, is_modified: bool, uc: &mut UpdateContext);
+    fn notify(self: Rc<Self>, slot: usize, is_modified: bool, uc: &mut UpdateContext);
 }
 
 pub trait BindSource: 'static {
-    fn flush(self: Rc<Self>, param: usize, uc: &mut UpdateContext) -> bool;
-    fn unbind(self: Rc<Self>, param: usize, key: usize, uc: &mut UpdateContext);
+    fn flush(self: Rc<Self>, slot: usize, uc: &mut UpdateContext) -> bool;
+    fn unbind(self: Rc<Self>, slot: usize, key: usize, uc: &mut UpdateContext);
 }
 
 pub(crate) trait CallFlush: 'static {
-    fn call_flush(self: Rc<Self>, param: usize, uc: &mut UpdateContext);
+    fn call_flush(self: Rc<Self>, slot: usize, uc: &mut UpdateContext);
 }
 pub(crate) trait CallUpdate: 'static {
-    fn call_update(self: Rc<Self>, param: usize, uc: &mut UpdateContext);
+    fn call_update(self: Rc<Self>, slot: usize, uc: &mut UpdateContext);
 }
 pub(crate) trait CallDiscard: 'static {
-    fn call_discard(self: Rc<Self>, param: usize, uc: &mut UpdateContext);
+    fn call_discard(self: Rc<Self>, slot: usize, uc: &mut UpdateContext);
 }
 
 struct TaskOf<T: ?Sized> {
     node: Rc<T>,
-    param: usize,
+    slot: usize,
 }
 impl TaskOf<dyn CallFlush> {
     fn call_flush(self, uc: &mut UpdateContext) {
-        self.node.call_flush(self.param, uc)
+        self.node.call_flush(self.slot, uc)
     }
 }
 impl TaskOf<dyn CallUpdate> {
     fn call_update(self, uc: &mut UpdateContext) {
-        self.node.call_update(self.param, uc)
+        self.node.call_update(self.slot, uc)
     }
 }
 impl TaskOf<dyn CallDiscard> {
     fn call_discard(self, uc: &mut UpdateContext) {
-        self.node.call_discard(self.param, uc)
+        self.node.call_discard(self.slot, uc)
     }
 }
 
 struct WeakTaskOf<T: ?Sized> {
     node: Weak<T>,
-    param: usize,
+    slot: usize,
 }
 impl<T: ?Sized> WeakTaskOf<T> {
     fn upgrade(self) -> Option<TaskOf<T>> {
         Some(TaskOf {
             node: self.node.upgrade()?,
-            param: self.param,
+            slot: self.slot,
         })
     }
 }
 impl WeakTaskOf<dyn BindSink> {
     fn call_notify(&self, uc: &mut UpdateContext) {
         if let Some(node) = self.node.upgrade() {
-            node.notify(self.param, true, uc)
+            node.notify(self.slot, true, uc)
         }
     }
 }
@@ -692,10 +692,10 @@ impl Drop for RawWake {
 pub(crate) struct DependencyWaker(Arc<RawWake>);
 
 impl DependencyWaker {
-    pub fn new(node: Weak<impl BindSink>, param: usize) -> Self {
+    pub fn new(node: Weak<impl BindSink>, slot: usize) -> Self {
         let node = node;
         Self(RuntimeGlobal::with(|t| {
-            t.wakes.insert(WeakTaskOf { node, param })
+            t.wakes.insert(WeakTaskOf { node, slot })
         }))
     }
     pub fn as_waker(&self) -> Waker {

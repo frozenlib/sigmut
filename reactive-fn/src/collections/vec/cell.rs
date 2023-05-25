@@ -24,7 +24,7 @@ use std::{
 #[cfg(test)]
 mod cell_tests;
 
-const PARAM: usize = 0;
+const SLOT: usize = 0;
 
 #[derive(Debug)]
 struct ChangeEntry {
@@ -356,20 +356,20 @@ impl<T: 'static> ObservableVec for RawObsVecCell<T> {
         oc: &mut crate::ObsContext,
     ) {
         let this = self.clone();
-        self.sinks.borrow_mut().watch(this, PARAM, oc);
+        self.sinks.borrow_mut().watch(this, SLOT, oc);
         f(&*self.items.borrow(), oc);
     }
 }
 impl<T: 'static> BindSource for RawObsVecCell<T> {
-    fn flush(self: Rc<Self>, _param: usize, _uc: &mut UpdateContext) -> bool {
+    fn flush(self: Rc<Self>, _slot: usize, _uc: &mut UpdateContext) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, _uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: usize, key: usize, _uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(key)
     }
 }
 impl<T: 'static> BindSink for RawObsVecCell<T> {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+    fn notify(self: Rc<Self>, _slot: usize, is_modified: bool, uc: &mut UpdateContext) {
         self.sinks.borrow_mut().notify(is_modified, uc)
     }
 }
@@ -489,7 +489,7 @@ impl<'a, T: 'static> Drop for ObsVecCellRefMut<'a, T> {
         if self.is_modified {
             self.is_modified = false;
             let node = Rc::downgrade(&self.owner);
-            schedule_notify_lazy(node, PARAM);
+            schedule_notify_lazy(node, SLOT);
         }
     }
 }

@@ -17,7 +17,7 @@ pub fn stream<T: 'static>(
     ObsStream::new(f)
 }
 
-const PARAM: usize = 0;
+const SLOT: usize = 0;
 
 struct Data<F, T> {
     f: F,
@@ -66,7 +66,7 @@ where
                 if d.computed != Computed::UpToDate && !d.is_scheduled_update {
                     d.is_scheduled_update = true;
                     let node = Rc::downgrade(&self.as_ref().0);
-                    schedule_update_lazy(node, PARAM);
+                    schedule_update_lazy(node, SLOT);
                 }
                 Poll::Pending
             }
@@ -80,7 +80,7 @@ where
     F: FnMut(&mut ObsContext) -> T + 'static,
     T: 'static,
 {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+    fn notify(self: Rc<Self>, _slot: usize, is_modified: bool, uc: &mut UpdateContext) {
         let mut is_schedule = false;
         if let Ok(mut d) = self.0.try_borrow_mut() {
             if d.computed.modify(is_modified) && !d.is_scheduled_update {
@@ -89,7 +89,7 @@ where
             }
         }
         if is_schedule {
-            uc.schedule_update(self, PARAM);
+            uc.schedule_update(self, SLOT);
         }
     }
 }
@@ -99,7 +99,7 @@ where
     F: FnMut(&mut ObsContext) -> T + 'static,
     T: 'static,
 {
-    fn call_update(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
+    fn call_update(self: Rc<Self>, _slot: usize, uc: &mut UpdateContext) {
         let mut d = self.0.borrow_mut();
         let d = &mut *d;
         d.is_scheduled_update = false;
@@ -113,7 +113,7 @@ where
         if d.computed != Computed::UpToDate {
             d.computed = Computed::UpToDate;
             let node = Rc::downgrade(&self);
-            let value = d.bindings.compute(node, PARAM, |cc| (d.f)(cc.oc()), uc);
+            let value = d.bindings.compute(node, SLOT, |cc| (d.f)(cc.oc()), uc);
             let waker = if let ValueState::Pending(waker) = take(&mut d.value) {
                 Some(waker)
             } else {

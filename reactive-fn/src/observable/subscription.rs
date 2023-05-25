@@ -6,7 +6,7 @@ use derive_ex::derive_ex;
 use futures::Future;
 use std::{any::Any, cell::RefCell, rc::Rc};
 
-const PARAM: usize = 0;
+const SLOT: usize = 0;
 
 #[derive_ex(Default)]
 #[default(Self::empty())]
@@ -21,7 +21,7 @@ impl Subscription {
             bindings: SourceBindings::new(),
         })));
         let node = Rc::downgrade(&rc);
-        schedule_update_lazy(node, PARAM);
+        schedule_update_lazy(node, SLOT);
         Self(Some(rc))
     }
     pub fn new_async<Fut>(f: impl FnMut(&mut ObsContext) -> Fut + 'static) -> Subscription
@@ -49,7 +49,7 @@ struct Data<F> {
 struct RawSubscription<F>(RefCell<Data<F>>);
 
 impl<F: FnMut(&mut ObsContext) + 'static> BindSink for RawSubscription<F> {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+    fn notify(self: Rc<Self>, _slot: usize, is_modified: bool, uc: &mut UpdateContext) {
         let mut is_schedule = false;
         if let Ok(mut d) = self.0.try_borrow_mut() {
             if d.computed.modify(is_modified) && !d.is_scheduled_update {
@@ -58,13 +58,13 @@ impl<F: FnMut(&mut ObsContext) + 'static> BindSink for RawSubscription<F> {
             }
         }
         if is_schedule {
-            uc.schedule_update(self, PARAM);
+            uc.schedule_update(self, SLOT);
         }
     }
 }
 
 impl<F: FnMut(&mut ObsContext) + 'static> CallUpdate for RawSubscription<F> {
-    fn call_update(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
+    fn call_update(self: Rc<Self>, _slot: usize, uc: &mut UpdateContext) {
         let mut d = self.0.borrow_mut();
         let d = &mut *d;
         d.is_scheduled_update = false;
@@ -78,7 +78,7 @@ impl<F: FnMut(&mut ObsContext) + 'static> CallUpdate for RawSubscription<F> {
         if d.computed != Computed::UpToDate {
             d.computed = Computed::UpToDate;
             let node = Rc::downgrade(&self);
-            d.bindings.compute(node, PARAM, |cc| (d.f)(cc.oc()), uc);
+            d.bindings.compute(node, SLOT, |cc| (d.f)(cc.oc()), uc);
         }
     }
 }

@@ -9,7 +9,7 @@ use std::{
     rc::Rc,
 };
 
-const PARAM: usize = 0;
+const SLOT: usize = 0;
 
 struct RawDependencyToken {
     data: RefCell<Data>,
@@ -34,12 +34,12 @@ impl DependencyToken {
         let mut d = self.0.data.borrow_mut();
         d.computed = Computed::UpToDate;
         let this = self.0.clone();
-        d.sinks.watch(this, PARAM, oc);
+        d.sinks.watch(this, SLOT, oc);
         drop(d);
 
         let mut s = self.0.sources.borrow_mut();
         let node = Rc::downgrade(&self.0);
-        s.compute(node, PARAM, compute, oc.uc)
+        s.compute(node, SLOT, compute, oc.uc)
     }
 }
 
@@ -109,17 +109,17 @@ impl<'a> Helper<'a> {
     }
 }
 impl BindSource for RawDependencyToken {
-    fn flush(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) -> bool {
+    fn flush(self: Rc<Self>, _slot: usize, uc: &mut UpdateContext) -> bool {
         Helper::new(&self, uc).flush().1
     }
 
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: usize, key: usize, uc: &mut UpdateContext) {
         Helper::new(&self, uc).unbind_sink(key)
     }
 }
 
 impl BindSink for RawDependencyToken {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+    fn notify(self: Rc<Self>, _slot: usize, is_modified: bool, uc: &mut UpdateContext) {
         Helper::new(&self, uc).notify(is_modified)
     }
 }

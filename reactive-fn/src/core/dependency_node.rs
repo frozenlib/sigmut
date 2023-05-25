@@ -11,7 +11,7 @@ use super::{
     schedule_notify_lazy, CallDiscard, CallFlush, CallUpdate, RuntimeGlobal, SourceBindings,
 };
 
-const PARAM: usize = 0;
+const SLOT: usize = 0;
 
 pub trait Compute {
     /// Compute the state.
@@ -74,7 +74,7 @@ where
         });
         if this.s.is_hot {
             let node = Rc::downgrade(&this);
-            RuntimeGlobal::schedule_update(node, PARAM);
+            RuntimeGlobal::schedule_update(node, SLOT);
         }
         this
     }
@@ -96,14 +96,14 @@ where
             }
         }
         let node = Rc::downgrade(self);
-        schedule_notify_lazy(node, PARAM)
+        schedule_notify_lazy(node, SLOT)
     }
     pub fn is_up_to_date(self: &Rc<Self>, uc: &mut UpdateContext) -> bool {
         NodeHelper::new(self, uc).state().is_up_to_date().1
     }
     pub fn watch(self: &Rc<Self>, oc: &mut ObsContext) {
         let mut d = self.d.borrow_mut();
-        d.sinks.watch(self.clone(), PARAM, oc);
+        d.sinks.watch(self.clone(), SLOT, oc);
         NodeHelper::new(self, oc.uc).state_with(d).update();
     }
 
@@ -126,7 +126,7 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+    fn notify(self: Rc<Self>, _slot: usize, is_modified: bool, uc: &mut UpdateContext) {
         let mut h = NodeHelper::new(&self, uc).state();
         h.d.state.is_scheduled_notify = false;
         h.notify(is_modified)
@@ -138,10 +138,10 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn flush(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) -> bool {
+    fn flush(self: Rc<Self>, _slot: usize, uc: &mut UpdateContext) -> bool {
         NodeHelper::new(&self, uc).state().flush().1
     }
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: usize, key: usize, uc: &mut UpdateContext) {
         NodeHelper::new(&self, uc).state().unbind_sink(key);
     }
 }
@@ -150,7 +150,7 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn call_flush(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
+    fn call_flush(self: Rc<Self>, _slot: usize, uc: &mut UpdateContext) {
         let mut h = NodeHelper::new(&self, uc).state();
         h.d.state.is_scheduled_flush = false;
         h.flush();
@@ -161,7 +161,7 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn call_update(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
+    fn call_update(self: Rc<Self>, _slot: usize, uc: &mut UpdateContext) {
         let mut h = NodeHelper::new(&self, uc).state();
         h.d.state.is_scheduled_update = false;
         h.update();
@@ -172,7 +172,7 @@ where
     T: Compute + 'static,
     D: 'static,
 {
-    fn call_discard(self: Rc<Self>, _param: usize, uc: &mut UpdateContext) {
+    fn call_discard(self: Rc<Self>, _slot: usize, uc: &mut UpdateContext) {
         let mut h = NodeHelper::new(&self, uc).state();
         h.d.state.is_scheduled_discard = false;
         h.discard();
@@ -287,7 +287,7 @@ where
         }
         let h = this.finish();
         let node = Rc::downgrade(h.node);
-        let is_modified = h.node.c.compute(node, PARAM, |st, cc| st.compute(cc), h.uc);
+        let is_modified = h.node.c.compute(node, SLOT, |st, cc| st.compute(cc), h.uc);
         this = h.state();
         if is_modified && !this.s.is_modify_always {
             this.notify_sinks(true);
@@ -314,20 +314,20 @@ where
     fn schedule_flush(&mut self) {
         if !self.d.state.is_scheduled_flush {
             self.d.state.is_scheduled_flush = true;
-            self.h.uc.schedule_flush(self.h.node.clone(), PARAM);
+            self.h.uc.schedule_flush(self.h.node.clone(), SLOT);
         }
     }
 
     fn schedule_update(&mut self) {
         if !self.d.state.is_scheduled_update {
             self.d.state.is_scheduled_update = true;
-            self.h.uc.schedule_update(self.h.node.clone(), PARAM);
+            self.h.uc.schedule_update(self.h.node.clone(), SLOT);
         }
     }
     fn try_schedule_discard(&mut self) {
         if !self.d.state.is_scheduled_discard && self.can_discard() {
             self.d.state.is_scheduled_discard = true;
-            self.h.uc.schedule_discard(self.h.node.clone(), PARAM);
+            self.h.uc.schedule_discard(self.h.node.clone(), SLOT);
         }
     }
     fn finish(self) -> NodeHelper<'a, T, D> {
@@ -381,11 +381,11 @@ impl<T> ComputeBindings<T> {
     pub fn compute<U>(
         &self,
         node: Weak<dyn BindSink>,
-        param: usize,
+        slot: usize,
         compute: impl FnOnce(&mut T, ComputeContext) -> U,
         uc: &mut UpdateContext,
     ) -> U {
-        self.0.borrow_mut().compute(node, param, compute, uc)
+        self.0.borrow_mut().compute(node, slot, compute, uc)
     }
     fn discard(&self, discard: impl FnOnce(&mut T) -> bool, uc: &mut UpdateContext) {
         self.0.borrow_mut().discard(discard, uc)
@@ -407,12 +407,12 @@ impl<T> ComputeBindingsData<T> {
     fn compute<U>(
         &mut self,
         node: Weak<dyn BindSink>,
-        param: usize,
+        slot: usize,
         compute: impl FnOnce(&mut T, ComputeContext) -> U,
         uc: &mut UpdateContext,
     ) -> U {
         self.bindings
-            .compute(node, param, |cc| compute(&mut self.value, cc), uc)
+            .compute(node, slot, |cc| compute(&mut self.value, cc), uc)
     }
     fn discard(&mut self, discard: impl FnOnce(&mut T) -> bool, uc: &mut UpdateContext) {
         if discard(&mut self.value) {

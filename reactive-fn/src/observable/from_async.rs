@@ -15,7 +15,7 @@ use std::{
     task::{Context, Poll},
 };
 
-const PARAM: usize = 0;
+const SLOT: usize = 0;
 
 pub(crate) struct FromAsync<F, Fut>
 where
@@ -43,7 +43,7 @@ where
                 async_oc_source: AsyncObsContextSource::new(),
                 fut: Box::pin(None),
                 state: Poll::Pending,
-                waker: DependencyWaker::new(this.clone(), PARAM),
+                waker: DependencyWaker::new(this.clone(), SLOT),
             },
             DependencyNodeSettings {
                 is_flush: false,
@@ -135,7 +135,7 @@ where
                 f,
                 stream: Box::pin(None),
                 state: Poll::Pending,
-                waker: DependencyWaker::new(this.clone(), PARAM),
+                waker: DependencyWaker::new(this.clone(), SLOT),
             },
             DependencyNodeSettings {
                 is_flush: false,
@@ -333,7 +333,7 @@ where
                 stream: Some(Box::pin(s)),
                 state: initial_state,
                 ops,
-                waker: DependencyWaker::new(this.clone(), PARAM),
+                waker: DependencyWaker::new(this.clone(), SLOT),
             },
             DependencyNodeSettings {
                 is_flush: false,

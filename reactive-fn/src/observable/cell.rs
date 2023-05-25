@@ -15,7 +15,7 @@ use std::{
     rc::Rc,
 };
 
-const PARAM: usize = 0;
+const SLOT: usize = 0;
 
 struct RawObsCell<T> {
     value: RefCell<T>,
@@ -24,7 +24,7 @@ struct RawObsCell<T> {
 
 impl<T: 'static> RawObsCell<T> {
     fn watch(self: &Rc<Self>, oc: &mut ObsContext) {
-        self.sinks.borrow_mut().watch(self.clone(), PARAM, oc);
+        self.sinks.borrow_mut().watch(self.clone(), SLOT, oc);
     }
 }
 
@@ -130,15 +130,15 @@ impl<T: 'static> Observable for ObsCell<T> {
 }
 
 impl<T: 'static> BindSource for RawObsCell<T> {
-    fn flush(self: Rc<Self>, _param: usize, _uc: &mut UpdateContext) -> bool {
+    fn flush(self: Rc<Self>, _slot: usize, _uc: &mut UpdateContext) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, _uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: usize, key: usize, _uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(key);
     }
 }
 impl<T: 'static> BindSink for RawObsCell<T> {
-    fn notify(self: Rc<Self>, _param: usize, is_modified: bool, uc: &mut UpdateContext) {
+    fn notify(self: Rc<Self>, _slot: usize, is_modified: bool, uc: &mut UpdateContext) {
         self.sinks.borrow_mut().notify(is_modified, uc);
     }
 }
@@ -165,6 +165,6 @@ impl<'a, T> DerefMut for ObsCellRefMut<'a, T> {
 impl<'a, T: 'static> Drop for ObsCellRefMut<'a, T> {
     fn drop(&mut self) {
         let node = Rc::downgrade(self.node);
-        schedule_notify_lazy(node, PARAM)
+        schedule_notify_lazy(node, SLOT)
     }
 }

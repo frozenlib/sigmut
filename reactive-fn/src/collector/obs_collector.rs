@@ -5,7 +5,7 @@ use crate::{
 use derive_ex::derive_ex;
 use std::{cell::RefCell, rc::Rc};
 
-const PARAM: usize = 0;
+const SLOT: usize = 0;
 
 pub trait Collector: 'static {
     type Input;
@@ -35,7 +35,7 @@ impl<C: Collector> RawObsCollector<C> {
     }
 
     fn watch(self: &Rc<Self>, oc: &mut ObsContext) {
-        self.sinks.borrow_mut().watch(self.clone(), PARAM, oc);
+        self.sinks.borrow_mut().watch(self.clone(), SLOT, oc);
     }
 
     fn output(self: &Rc<Self>, oc: &mut ObsContext) -> C::Output {
@@ -57,10 +57,10 @@ impl<C: Collector> RcObservable for RawObsCollector<C> {
 }
 
 impl<C: Collector> BindSource for RawObsCollector<C> {
-    fn flush(self: Rc<Self>, _param: usize, _uc: &mut UpdateContext) -> bool {
+    fn flush(self: Rc<Self>, _slot: usize, _uc: &mut UpdateContext) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _param: usize, key: usize, _uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: usize, key: usize, _uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(key);
     }
 }
