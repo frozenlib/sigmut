@@ -69,8 +69,8 @@ impl<O: RcObservable> Observable for Rc<O> {
 
 pub trait DynObservable {
     type Item: ?Sized;
-    fn d_get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, Self::Item>) -> Consumed<'cb>;
-    fn d_get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
+    fn dyn_get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, Self::Item>) -> Consumed<'cb>;
+    fn dyn_get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned;
 }
@@ -82,12 +82,12 @@ where
     type Item = O::Item;
 
     #[inline]
-    fn d_get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, Self::Item>) -> Consumed<'cb> {
+    fn dyn_get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, Self::Item>) -> Consumed<'cb> {
         self.get_to(s)
     }
 
     #[inline]
-    fn d_get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
+    fn dyn_get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
@@ -117,6 +117,6 @@ impl<T: ?Sized + 'static> Observable for dyn DynObservable<Item = T> {
 
     #[inline]
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        ObsCallback::with(|cb| self.d_get_to(cb.context(oc)), f)
+        ObsCallback::with(|cb| self.dyn_get_to(cb.context(oc)), f)
     }
 }

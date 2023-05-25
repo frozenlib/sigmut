@@ -222,8 +222,8 @@ impl<T: ?Sized + 'static> Obs<T> {
     pub fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> {
         match &self.0 {
             RawObs::StaticRef(value) => s.ret(value),
-            RawObs::BoxObs(x) => x.d_get_to(s),
-            RawObs::RcObs(x) => x.d_get_to(s),
+            RawObs::BoxObs(x) => x.dyn_get_to(s),
+            RawObs::RcObs(x) => x.dyn_get_to(s),
             RawObs::RcRcObs(x) => x.clone().rc_get_to(s),
         }
     }
@@ -234,8 +234,8 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         match &self.0 {
             RawObs::StaticRef(value) => <T as ToOwned>::to_owned(value),
-            RawObs::BoxObs(x) => x.d_get(oc),
-            RawObs::RcObs(x) => x.d_get(oc),
+            RawObs::BoxObs(x) => x.dyn_get(oc),
+            RawObs::RcObs(x) => x.dyn_get(oc),
             RawObs::RcRcObs(x) => x.clone().rc_get(oc),
         }
     }
