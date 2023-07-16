@@ -1,3 +1,5 @@
+#![allow(clippy::items_after_test_module)]
+
 use reactive_fn::core::{
     dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
     ComputeContext, Runtime,
