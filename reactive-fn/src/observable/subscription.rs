@@ -29,7 +29,7 @@ impl Subscription {
         Fut: Future<Output = ()> + 'static,
     {
         let mut f = f;
-        Subscription(Some(FromAsync::new(move |mut oc| oc.oc_with(&mut f), true)))
+        Subscription(Some(FromAsync::new(move |mut oc| oc.get(&mut f), true)))
     }
 
     pub fn empty() -> Self {

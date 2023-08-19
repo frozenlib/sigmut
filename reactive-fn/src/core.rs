@@ -728,7 +728,7 @@ impl AsyncObsContextSource {
 pub struct AsyncObsContext(Rc<RefCell<*mut ObsContext<'static>>>);
 
 impl AsyncObsContext {
-    pub fn oc_with<T>(&mut self, f: impl FnOnce(&mut ObsContext) -> T) -> T {
+    pub fn get<T>(&mut self, f: impl FnOnce(&mut ObsContext) -> T) -> T {
         let b = self.0.borrow_mut();
         let p: *mut ObsContext<'static> = *b;
         unsafe {
