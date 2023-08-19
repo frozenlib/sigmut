@@ -1,6 +1,10 @@
 use super::from_async::FromAsync;
-use crate::core::{
-    schedule_update_lazy, BindSink, CallUpdate, Computed, ObsContext, SourceBindings, UpdateContext,
+use crate::{
+    core::{
+        schedule_update_lazy, BindSink, CallUpdate, Computed, ObsContext, SourceBindings,
+        UpdateContext,
+    },
+    AsyncObsContext,
 };
 use derive_ex::derive_ex;
 use futures::Future;
@@ -24,12 +28,18 @@ impl Subscription {
         schedule_update_lazy(node, SLOT);
         Self(Some(rc))
     }
-    pub fn new_async<Fut>(f: impl FnMut(&mut ObsContext) -> Fut + 'static) -> Subscription
+    pub fn new_future<Fut>(f: impl FnMut(&mut ObsContext) -> Fut + 'static) -> Subscription
     where
         Fut: Future<Output = ()> + 'static,
     {
         let mut f = f;
-        Subscription(Some(FromAsync::new(move |mut oc| oc.get(&mut f), true)))
+        Self::new_async(move |mut oc| oc.get(&mut f))
+    }
+    pub fn new_async<Fut>(f: impl FnMut(AsyncObsContext) -> Fut + 'static) -> Subscription
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        Subscription(Some(FromAsync::new(f, true)))
     }
 
     pub fn empty() -> Self {

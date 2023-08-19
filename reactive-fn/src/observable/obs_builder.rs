@@ -472,7 +472,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     {
         let o = self.observable();
         let mut f = f;
-        Subscription::new_async(move |oc| o.with(|value, _oc| f(value), oc))
+        Subscription::new_future(move |oc| o.with(|value, _oc| f(value), oc))
     }
 
     pub fn stream(self) -> impl Stream<Item = <B::Item as ToOwned>::Owned> + Unpin + 'static
