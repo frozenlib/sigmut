@@ -324,7 +324,6 @@ pub struct Runtime(UpdateContext);
 impl Runtime {
     pub fn new() -> Self {
         let Some(tasks) = RG.with(|rg| rg.borrow_mut().tasks_saved.take()) else {
-            // Runtimeのインスタンスが既に存在する場合
             panic!("Only one `Runtime` can exist in the same thread at the same time.");
         };
         Self(UpdateContext(tasks))
