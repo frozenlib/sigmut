@@ -35,7 +35,7 @@ pub fn derive_observable_fmt(input: TokenStream) -> Result<TokenStream> {
 fn parse_attrs<T: Parse + Default>(name: &str, attrs: &[Attribute]) -> Result<T> {
     let mut result = None::<T>;
     for attr in attrs {
-        if attr.path.is_ident(name) {
+        if attr.path().is_ident(name) {
             if result.is_some() {
                 bail!(attr.span(), "`#[{name}]` can be specified only once")
             }
