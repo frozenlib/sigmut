@@ -71,7 +71,7 @@ impl ObsBuilder<()> {
     }
 
     pub const fn from_observable_zst<T: ?Sized + 'static>(
-        o: impl Observable<Item = T> + Clone + 'static,
+        o: impl Observable<Item = T> + Copy + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder(FromObservable {
             o,
@@ -95,7 +95,7 @@ impl ObsBuilder<()> {
     }
 
     pub const fn from_static_get_to<T: ?Sized + 'static>(
-        f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Clone + 'static,
+        f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Copy + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder(FromObservable {
             o: FromStaticGetTo {
@@ -107,7 +107,7 @@ impl ObsBuilder<()> {
     }
 
     pub const fn from_static_get<T: 'static>(
-        f: impl Fn(&mut ObsContext) -> T + Clone + 'static,
+        f: impl Fn(&mut ObsContext) -> T + Copy + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder(FromObservable {
             o: FromStaticGet(f),
@@ -549,10 +549,10 @@ impl<T: ?Sized + 'static> Observable for FromStaticRef<T> {
     }
 }
 
-#[derive_ex(Clone(bound()))]
+#[derive_ex(Copy, Clone, bound())]
 struct FromStaticGetTo<F, T>
 where
-    F: for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Clone + 'static,
+    F: for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Copy + 'static,
     T: ?Sized + 'static,
 {
     f: F,
@@ -560,7 +560,7 @@ where
 }
 impl<F, T> Observable for FromStaticGetTo<F, T>
 where
-    F: for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Clone + 'static,
+    F: for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Copy + 'static,
     T: ?Sized,
 {
     type Item = T;
@@ -573,12 +573,12 @@ where
     }
 }
 
-#[derive(Clone)]
+#[derive_ex(Copy, Clone)]
 struct FromStaticGet<F>(F);
 impl<F, T> Observable for FromStaticGet<F>
 where
     T: 'static,
-    F: Fn(&mut ObsContext) -> T + Clone + 'static,
+    F: Fn(&mut ObsContext) -> T + Copy + 'static,
 {
     type Item = T;
 

@@ -98,12 +98,12 @@ impl<T: ?Sized + 'static> Obs<T> {
     pub fn from_observable(o: impl Observable<Item = T> + 'static) -> Self {
         Self(RawObs::RcObs(Rc::new(o)))
     }
-    pub fn from_observable_zst(o: impl Observable<Item = T> + Clone + 'static) -> Self {
+    pub fn from_observable_zst(o: impl Observable<Item = T> + Copy + 'static) -> Self {
         Self::from_observable_zst_impl(o)
     }
     fn from_observable_zst_impl<O>(o: O) -> Self
     where
-        O: Observable<Item = T> + Clone + 'static,
+        O: Observable<Item = T> + Copy + 'static,
     {
         if mem::size_of::<O>() == 0 {
             Self(RawObs::BoxObs(Box::new(o)))
@@ -123,11 +123,11 @@ impl<T: ?Sized + 'static> Obs<T> {
         Self(RawObs::StaticRef(value))
     }
     pub fn from_static_get_to(
-        f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Clone + 'static,
+        f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Copy + 'static,
     ) -> Self {
         ObsBuilder::from_static_get_to(f).obs()
     }
-    pub fn from_static_get(f: impl Fn(&mut ObsContext) -> T + Clone + 'static) -> Self
+    pub fn from_static_get(f: impl Fn(&mut ObsContext) -> T + Copy + 'static) -> Self
     where
         T: Sized,
     {
