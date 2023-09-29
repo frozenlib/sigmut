@@ -70,9 +70,9 @@ pub struct Obs<T: ?Sized + 'static>(RawObs<T>);
 impl<T: ?Sized + 'static> Obs<T> {
     /// Creates [`ObsBuilder`] from [Obs].
     ///
-    /// Using [`ObsBuilder::obs`] and then [`Obs::builder`] does not return to the original [`ObsBuilder`].
+    /// Using [`ObsBuilder::obs`] and then [`Obs::obs_builder`] does not return to the original [`ObsBuilder`].
     /// For efficient processing, [`ObsBuilder::obs`] should not be called unless final [`Obs`] is required.
-    pub fn builder(&self) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+    pub fn obs_builder(&self) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder::from_obs(self.clone())
     }
 
@@ -241,43 +241,43 @@ impl<T: ?Sized + 'static> Obs<T> {
     }
 
     pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U> {
-        self.builder().map(f).obs()
+        self.obs_builder().map(f).obs()
     }
     pub fn map_value<U>(&self, f: impl Fn(&T) -> U + 'static) -> Obs<U> {
-        self.builder().map_value(f).obs()
+        self.obs_builder().map_value(f).obs()
     }
     pub fn map_future<Fut>(self, f: impl Fn(&T) -> Fut + 'static) -> Obs<Poll<Fut::Output>>
     where
         T: Sized,
         Fut: Future<Output = T> + 'static,
     {
-        self.builder().map_future(f).obs()
+        self.obs_builder().map_future(f).obs()
     }
     pub fn map_stream<S>(self, f: impl Fn(&T) -> S + 'static) -> Obs<Poll<S::Item>>
     where
         T: Sized,
         S: Stream + 'static,
     {
-        self.builder().map_stream(f).obs()
+        self.obs_builder().map_stream(f).obs()
     }
 
     pub fn flat_map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U::Item>
     where
         U: Observable + 'static,
     {
-        self.builder().flat_map(f).obs()
+        self.obs_builder().flat_map(f).obs()
     }
     pub fn flat_map_value<U>(&self, f: impl Fn(&T) -> U + 'static) -> Obs<U::Item>
     where
         U: Observable + 'static,
     {
-        self.builder().flat_map_value(f).obs()
+        self.obs_builder().flat_map_value(f).obs()
     }
     pub fn flatten(&self) -> Obs<<T as Observable>::Item>
     where
         T: Observable,
     {
-        self.builder().flatten().obs()
+        self.obs_builder().flatten().obs()
     }
 
     pub fn scan<St: 'static>(
@@ -285,85 +285,85 @@ impl<T: ?Sized + 'static> Obs<T> {
         initial_state: St,
         op: impl Fn(&mut St, &T) + 'static,
     ) -> Obs<St> {
-        self.builder().scan(initial_state, op).obs()
+        self.obs_builder().scan(initial_state, op).obs()
     }
     pub fn scan_filter<St>(
         &self,
         initial_state: St,
         op: impl Fn(&mut St, &T) -> bool + 'static,
     ) -> Obs<St> {
-        self.builder().scan_filter(initial_state, op).obs()
+        self.obs_builder().scan_filter(initial_state, op).obs()
     }
 
     pub fn cached(&self) -> Self
     where
         T: ToOwned,
     {
-        self.builder().cached().obs()
+        self.obs_builder().cached().obs()
     }
     pub fn dedup(&self) -> Self
     where
         T: ToOwned + PartialEq,
     {
-        self.builder().dedup().obs()
+        self.obs_builder().dedup().obs()
     }
     pub fn dedup_by(&self, eq: impl Fn(&T, &T) -> bool + 'static) -> Self
     where
         T: ToOwned,
     {
-        self.builder().dedup_by(eq).obs()
+        self.obs_builder().dedup_by(eq).obs()
     }
     pub fn dedup_by_key<K>(&self, key: impl Fn(&T) -> K + 'static) -> Self
     where
         T: ToOwned,
         K: PartialEq + 'static,
     {
-        self.builder().dedup_by_key(key).obs()
+        self.obs_builder().dedup_by_key(key).obs()
     }
     pub fn fold<St: 'static>(
         &self,
         initial_state: St,
         op: impl Fn(&mut St, &T) + 'static,
     ) -> Fold<St> {
-        self.builder().fold(initial_state, op)
+        self.obs_builder().fold(initial_state, op)
     }
     pub fn collect_to<C>(&self, collection: C) -> Fold<C>
     where
         T: ToOwned,
         C: Extend<T::Owned> + 'static,
     {
-        self.builder().collect_to(collection)
+        self.obs_builder().collect_to(collection)
     }
     pub fn collect<C>(&self) -> Fold<C>
     where
         T: ToOwned,
         C: Extend<T::Owned> + Default + 'static,
     {
-        self.builder().collect()
+        self.obs_builder().collect()
     }
     pub fn collect_vec(&self) -> Fold<Vec<T::Owned>>
     where
         T: ToOwned,
     {
-        self.builder().collect_vec()
+        self.obs_builder().collect_vec()
     }
     pub fn fast(&self) -> Self {
-        self.builder().fast().obs()
+        self.obs_builder().fast().obs()
     }
     pub fn keep(&self) -> Self {
-        self.builder().keep().obs()
+        self.obs_builder().keep().obs()
     }
     pub fn hot(&self) -> Self {
-        self.builder().hot().obs()
+        self.obs_builder().hot().obs()
     }
     pub fn subscribe(&self, f: impl FnMut(&T) + 'static) -> Subscription {
-        self.builder().subscribe(f)
+        self.obs_builder().subscribe(f)
     }
     pub fn subscribe_async<Fut>(&self, f: impl FnMut(&T) -> Fut + 'static) -> Subscription
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.builder().subscribe_async(f)
+        self.obs_builder().subscribe_async(f)
     }
 
     pub fn stream(&self) -> impl Stream<Item = <T as ToOwned>::Owned> + Unpin + 'static
@@ -376,7 +376,7 @@ impl<T: ?Sized + 'static> Obs<T> {
         &self,
         f: impl Fn(&T) -> U + 'static,
     ) -> impl Stream<Item = U> + Unpin + 'static {
-        self.builder().stream_map(f)
+        self.obs_builder().stream_map(f)
     }
 }
 impl<T: ?Sized + 'static> Observable for Obs<T> {
