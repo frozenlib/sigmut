@@ -498,6 +498,7 @@ pub struct Action(RawAction);
 enum RawAction {
     Box(Box<dyn FnOnce(&mut ActionContext)>),
     Rc(Rc<dyn Fn(&mut ActionContext)>),
+    Weak(Weak<dyn Fn(&mut ActionContext)>),
 }
 impl Action {
     pub fn new(f: impl FnOnce(&mut ActionContext) + 'static) -> Self {
@@ -507,6 +508,11 @@ impl Action {
         match self.0 {
             RawAction::Box(f) => f(ac),
             RawAction::Rc(f) => f(ac),
+            RawAction::Weak(f) => {
+                if let Some(f) = f.upgrade() {
+                    f(ac)
+                }
+            }
         }
     }
 
@@ -532,6 +538,13 @@ impl RcAction {
     /// Perform this action after [`ActionContext`] is available.
     pub fn schedule(&self) {
         Action::schedule(self.into())
+    }
+
+    /// Perform this action after [`ActionContext`] is available.
+    ///
+    /// If the reference count of this `RcAction` becomes 0 before it is executed, the action will not be executed.
+    pub fn schedule_weak(&self) {
+        Action(RawAction::Weak(Rc::downgrade(&self.0))).schedule()
     }
 }
 impl From<&RcAction> for Action {
