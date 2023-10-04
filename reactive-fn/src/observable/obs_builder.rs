@@ -439,7 +439,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     {
         self.collect()
     }
-    pub fn fast(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
+    pub fn hasty(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
         self.mode(Mode {
             is_flush: true,
             ..Mode::default()

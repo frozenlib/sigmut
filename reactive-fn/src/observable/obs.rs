@@ -347,8 +347,8 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         self.obs_builder().collect_vec()
     }
-    pub fn fast(&self) -> Self {
-        self.obs_builder().fast().obs()
+    pub fn hasty(&self) -> Self {
+        self.obs_builder().hasty().obs()
     }
     pub fn keep(&self) -> Self {
         self.obs_builder().keep().obs()
