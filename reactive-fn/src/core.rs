@@ -266,7 +266,9 @@ impl SinkBindings {
         Self(SlabMap::new())
     }
     pub fn watch(&mut self, this: Rc<dyn BindSource>, this_slot: usize, oc: &mut ObsContext) {
-        let Some(sink) = &mut oc.sink else { return; };
+        let Some(sink) = &mut oc.sink else {
+            return;
+        };
         let sources_index = sink.bindings_len;
         sink.bindings_len += 1;
         if let Some(source_old) = sink.bindings.0.get(sources_index) {
@@ -468,6 +470,10 @@ impl<'oc> ObsContext<'oc> {
     }
     pub fn schedule_action(&mut self, action: impl Into<Action>) {
         self.uc.schedule_action(action)
+    }
+    /// Create a context that does not track dependencies.
+    pub fn no_track(&mut self) -> ObsContext {
+        self.uc.oc()
     }
     pub fn uc(&mut self) -> &mut UpdateContext {
         self.uc
