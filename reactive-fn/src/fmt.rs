@@ -138,16 +138,17 @@ format_trait!(
 /// # Example
 ///
 /// ```
-/// reactive_fn::core::Runtime::with(|dc| {
-///     use reactive_fn::*;
-///     let ac = &mut dc.ac();
+/// use reactive_fn::*;
+/// use reactive_fn::core::Runtime;
 ///
-///     let x = ObsCell::new(0);
-///     let s = obs_format!("x = {}", x.obs());
-///     assert_eq!(s.get(ac.oc()), "x = 0");
-///     x.set(10, ac);
-///     assert_eq!(s.get(ac.oc()), "x = 10");
-/// });
+/// let mut rt = Runtime::new();
+/// let ac = &mut rt.ac();
+///
+/// let x = ObsCell::new(0);
+/// let s = obs_format!("x = {}", x.obs());
+/// assert_eq!(s.get(ac.oc()), "x = 0");
+/// x.set(10, ac);
+/// assert_eq!(s.get(ac.oc()), "x = 10");
 /// ```
 #[macro_export]
 macro_rules! obs_format {

@@ -343,15 +343,6 @@ impl Runtime {
         self.0.update_all(discard);
     }
 
-    /// Get the `Runtime` associated with the current thread.
-    ///
-    /// # Panics
-    ///
-    /// Panic if `Runtime::with` is called again while `Runtime::with` is called.    
-    pub fn with<T>(f: impl FnOnce(&mut Runtime) -> T) -> T {
-        f(&mut Self::new())
-    }
-
     pub async fn run<Fut: Future>(&mut self, f: impl FnOnce(RuntimeContext) -> Fut) -> Fut::Output {
         let rt = RuntimeContextSource::new(self);
         let fut = pin!(f(rt.get()));

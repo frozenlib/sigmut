@@ -10,16 +10,15 @@ fn main() {
     let start = Instant::now();
     for _ in 0..PHASE {
         let cell = ObsCell::new(0);
-        Runtime::with(|dc| {
-            let mut ss = Vec::new();
-            for _ in 0..SUBSCRIPTIONS {
-                ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|_| {}));
-            }
-            for i in 0..COUNT {
-                cell.set(i, &mut dc.ac());
-                dc.update();
-            }
-        });
+        let mut dc = Runtime::new();
+        let mut ss = Vec::new();
+        for _ in 0..SUBSCRIPTIONS {
+            ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|_| {}));
+        }
+        for i in 0..COUNT {
+            cell.set(i, &mut dc.ac());
+            dc.update();
+        }
     }
     let end = Instant::now();
     println!("{}", (end - start).as_secs_f64());
@@ -41,16 +40,15 @@ fn main() {
 
     let cell = ObsCell::new(0);
     for _ in 0..1000 {
-        Runtime::with(|dc| {
-            let mut ss = Vec::new();
-            for _ in 0..SUBSCRIPTIONS {
-                ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|_| {}));
-            }
-            for i in 0..COUNT {
-                cell.set(i, &mut dc.ac());
-                dc.update();
-            }
-        });
+        let mut dc = Runtime::new();
+        let mut ss = Vec::new();
+        for _ in 0..SUBSCRIPTIONS {
+            ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|_| {}));
+        }
+        for i in 0..COUNT {
+            cell.set(i, &mut dc.ac());
+            dc.update();
+        }
     }
 
     if let Ok(report) = guard.report().build() {
