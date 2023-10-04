@@ -545,6 +545,9 @@ pub trait BindSink: 'static {
 }
 
 pub trait BindSource: 'static {
+    /// Determine whether the status is up-to-date or not.
+    ///
+    /// Return true if the status changes from "Undetermined" to "out-of-date".
     fn flush(self: Rc<Self>, slot: usize, uc: &mut UpdateContext) -> bool;
     fn unbind(self: Rc<Self>, slot: usize, key: usize, uc: &mut UpdateContext);
 }

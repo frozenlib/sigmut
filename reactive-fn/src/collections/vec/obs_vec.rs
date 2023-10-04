@@ -105,6 +105,7 @@ impl<T, const N: usize> From<[T; N]> for ObsVec<T> {
     }
 }
 
+/// An object that records how far you've read the change history of `ObsVec`.
 pub struct ObsVecSession<T: 'static> {
     owner: ObsVec<T>,
     age: Option<usize>,
