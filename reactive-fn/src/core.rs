@@ -45,7 +45,7 @@ impl RuntimeGlobal {
         Self::with(|rg| rg.actions.push_back(action));
     }
 }
-pub(crate) fn schedule_notify_lazy(node: Weak<dyn BindSink>, slot: usize) {
+pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, slot: usize) {
     RuntimeGlobal::try_with(|rg| rg.tasks_notify.push(WeakTaskOf { node, slot }));
 }
 pub(crate) fn schedule_update_lazy(node: Weak<dyn CallUpdate>, slot: usize) {
