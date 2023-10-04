@@ -347,12 +347,34 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         self.obs_builder().collect_vec()
     }
+
+    /// Return `Obs` that is calculated before other values and does not send a notification saying "caches might be outdated".
+    ///
+    /// This behavior reduces overhead.
+    ///
+    /// However, since there is no difference in priority among `Obs` to which `hasty` has been applied,
+    /// applying `hasty` to `Obs` that depends on `Obs` to which `hasty` has been applied
+    /// may result in calculations being conducted based on an outdated state.
+    /// In this case, recalculations using the new state will be performed, which might potentially slow things down.
     pub fn hasty(&self) -> Self {
         self.obs_builder().hasty().obs()
     }
+
+    /// Retrun `Obs` that does not discard caches even when there is no observer.
+    ///
+    /// If called `Runtime::update` or `Runtime::update_with(true)`,
+    /// caches without observers will be immediately discarded.
+    ///
+    /// `Obs` returned by `keep()` becomes an observer itself,
+    /// preventing the cache from being discarded even when there are no other observers.
+    ///
+    /// Unlike `hot()`, it does not act as a factor to update the value to the latest.
     pub fn keep(&self) -> Self {
         self.obs_builder().keep().obs()
     }
+    /// Return `Obs` that is always updated to the latest value.
+    ///
+    /// Returned `Obs` is updated when `Runtime::update` or `Runtime::update_with` is called.
     pub fn hot(&self) -> Self {
         self.obs_builder().hot().obs()
     }
