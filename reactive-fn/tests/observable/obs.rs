@@ -168,7 +168,7 @@ fn collect_vec() {
     cell.set(3, &mut dc.ac());
     dc.update();
 
-    assert_eq!(ss.stop(dc.ac().oc()), vec![0, 1, 2, 3]);
+    assert_eq!(ss.stop(dc.uc()), vec![0, 1, 2, 3]);
 }
 
 #[test]
@@ -188,7 +188,7 @@ fn cached_collect() {
     cell.set(3, &mut dc.ac());
     dc.update();
 
-    assert_eq!(ss.stop(dc.ac().oc()), vec![1, 2, 3, 4]);
+    assert_eq!(ss.stop(dc.uc()), vec![1, 2, 3, 4]);
 }
 
 #[test]

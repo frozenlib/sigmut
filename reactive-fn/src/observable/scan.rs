@@ -2,7 +2,7 @@ use super::{ObservableBuilder, RcObservable, Subscription};
 use crate::{
     core::{
         dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
-        ComputeContext, ObsContext,
+        ComputeContext, ObsContext, UpdateContext,
     },
     Obs,
 };
@@ -10,7 +10,7 @@ use std::{marker::PhantomData, rc::Rc};
 
 trait DynFold {
     type State;
-    fn stop(self: Rc<Self>, oc: Option<&mut ObsContext>) -> Self::State;
+    fn stop(self: Rc<Self>, uc: Option<&mut UpdateContext>) -> Self::State;
     fn into_subscription(self: Rc<Self>) -> Subscription;
 }
 
@@ -236,9 +236,9 @@ impl<Ops: ScanOps + 'static> RawScan<Ops> {
 
 impl<Ops: ScanOps + 'static> DynFold for DependencyNode<RawScan<Ops>> {
     type State = Ops::St;
-    fn stop(self: Rc<Self>, oc: Option<&mut ObsContext>) -> Self::State {
-        if let Some(oc) = oc {
-            self.watch(&mut oc.uc().oc());
+    fn stop(self: Rc<Self>, uc: Option<&mut UpdateContext>) -> Self::State {
+        if let Some(uc) = uc {
+            self.watch(&mut uc.oc());
         }
         self.borrow_mut().state.take().unwrap()
     }
@@ -287,8 +287,8 @@ impl<St: 'static> Fold<St> {
         Self(RawScan::new(initial_state, ops, true))
     }
 
-    pub fn stop(self, oc: &mut ObsContext) -> St {
-        self.0.stop(Some(oc))
+    pub fn stop(self, uc: &mut UpdateContext) -> St {
+        self.0.stop(Some(uc))
     }
     pub fn stop_glitch(self) -> St {
         self.0.stop(None)

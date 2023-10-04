@@ -34,6 +34,6 @@ fn set() {
         x.set(3, &mut dc.ac());
         dc.update();
 
-        assert_eq!(c.stop(dc.ac().oc()), vec![1, 2, 3]);
+        assert_eq!(c.stop(dc.uc()), vec![1, 2, 3]);
     });
 }
