@@ -21,4 +21,4 @@ criterion = "0.5.1"
 
 
 [target.'cfg(unix)'.dev-dependencies]
-pprof = { version = "0.12.1", features = ["flamegraph"] }
+pprof = { version = "0.13.0", features = ["flamegraph"] }
