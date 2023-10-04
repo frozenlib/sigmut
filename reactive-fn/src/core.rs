@@ -73,11 +73,6 @@ impl UpdateContext {
     pub fn oc(&mut self) -> ObsContext {
         ObsContext::new(self, None)
     }
-    pub fn schedule_action(&mut self, action: impl Into<Action>) {
-        let action: Action = action.into();
-        action.schedule();
-    }
-
     fn apply_notify(&mut self) {
         RuntimeGlobal::with(|t| {
             for t in t.tasks_unbind.drain(..) {
@@ -337,9 +332,6 @@ impl Runtime {
     pub fn uc(&mut self) -> &mut UpdateContext {
         &mut self.0
     }
-    pub fn schedule_action(&mut self, action: impl Into<Action>) {
-        self.0.schedule_action(action)
-    }
     pub fn run_actions(&mut self) {
         self.0.run_actions();
     }
@@ -425,9 +417,6 @@ impl Drop for RuntimeContextSource {
 pub struct RuntimeContext(Rc<RefCell<*mut Runtime>>);
 
 impl RuntimeContext {
-    pub fn schedule_action(&mut self, action: impl Into<Action>) {
-        self.call(|rt| rt.schedule_action(action))
-    }
     pub fn run_actions(&mut self) {
         self.call(|rt| rt.run_actions())
     }
@@ -467,9 +456,6 @@ struct ObsContextSink<'oc> {
 impl<'oc> ObsContext<'oc> {
     fn new(uc: &'oc mut UpdateContext, sink: Option<ObsContextSink<'oc>>) -> Self {
         ObsContext { uc, sink }
-    }
-    pub fn schedule_action(&mut self, action: impl Into<Action>) {
-        self.uc.schedule_action(action)
     }
     /// Create a context that does not track dependencies.
     pub fn no_track(&mut self) -> ObsContext {
