@@ -517,7 +517,7 @@ where
                 f,
             },
             DependencyNodeSettings {
-                is_flush: false,
+                is_hasty: false,
                 is_hot: false,
                 is_modify_always: false,
             },

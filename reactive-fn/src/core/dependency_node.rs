@@ -34,12 +34,12 @@ pub struct DependencyNodeSettings {
     ///
     /// Therefore, performance is better when the state of the dependent node is updated frequently, and the state of this node is updated only rarely.
     ///
-    /// However, if the `is_flush` node depends on the `is_flush` node,
+    /// However, if the `is_hasty` node depends on the `is_hasty` node,
     /// it may perform computation  based on the old state due to incomplete notification of state changes.
     ///
     /// If the computation is based on the old state,
-    /// the computation for this node is performed again before the computation for the node with `is_flush` false is performed.
-    pub is_flush: bool,
+    /// the computation for this node is performed again before the computation for the node with `is_hasty` false is performed.
+    pub is_hasty: bool,
 
     pub is_hot: bool,
 
@@ -226,7 +226,7 @@ where
         if !self.d.state.computed.modify(is_modified) {
             return;
         }
-        if self.s.is_flush && self.is_using() && (!is_modified || !self.s.is_modify_always) {
+        if self.s.is_hasty && self.is_using() && (!is_modified || !self.s.is_modify_always) {
             self.schedule_flush();
         } else if self.s.is_hot {
             self.schedule_update();
@@ -234,7 +234,7 @@ where
             self.try_schedule_discard();
         }
         let is_modified = is_modified && self.s.is_modify_always;
-        if is_modified || !self.s.is_flush {
+        if is_modified || !self.s.is_hasty {
             self.notify_sinks(is_modified);
         }
     }

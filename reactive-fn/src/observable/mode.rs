@@ -7,7 +7,7 @@ use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Mode {
-    pub is_flush: bool,
+    pub is_hasty: bool,
     pub is_keep: bool,
     pub is_hot: bool,
 }
@@ -20,14 +20,14 @@ pub(crate) struct SetMode<O> {
 impl<O: Observable + 'static> SetMode<O> {
     pub(crate) fn new(o: O, mode: Mode) -> Rc<DependencyNode<Self>> {
         let Mode {
-            is_flush,
+            is_hasty,
             is_keep,
             is_hot,
         } = mode;
         DependencyNode::new(
             SetMode { o, is_keep },
             DependencyNodeSettings {
-                is_flush,
+                is_hasty,
                 is_hot,
                 is_modify_always: true,
             },

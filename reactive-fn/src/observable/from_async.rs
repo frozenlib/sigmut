@@ -46,7 +46,7 @@ where
                 waker: DependencyWaker::new(this.clone(), SLOT),
             },
             DependencyNodeSettings {
-                is_flush: false,
+                is_hasty: false,
                 is_hot,
                 is_modify_always: false,
             },
@@ -138,7 +138,7 @@ where
                 waker: DependencyWaker::new(this.clone(), SLOT),
             },
             DependencyNodeSettings {
-                is_flush: false,
+                is_hasty: false,
                 is_hot: false,
                 is_modify_always: false,
             },
@@ -336,7 +336,7 @@ where
                 waker: DependencyWaker::new(this.clone(), SLOT),
             },
             DependencyNodeSettings {
-                is_flush: false,
+                is_hasty: false,
                 is_hot: false,
                 is_modify_always: false,
             },

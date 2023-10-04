@@ -441,7 +441,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     }
     pub fn hasty(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>> {
         self.mode(Mode {
-            is_flush: true,
+            is_hasty: true,
             ..Mode::default()
         })
     }

@@ -226,7 +226,7 @@ impl<Ops: ScanOps + 'static> RawScan<Ops> {
                 ops,
             },
             DependencyNodeSettings {
-                is_flush: false,
+                is_hasty: false,
                 is_hot,
                 is_modify_always: Ops::ComputeRet::IS_MODIFIY_ALWAYS,
             },

@@ -437,7 +437,7 @@ fn is_modify_always_false_true_false() {
 }
 
 #[test]
-fn is_flush_true() {
+fn is_hasty_true() {
     let mut cp = CodePathChecker::new();
     let mut dc = Runtime::new();
     let node0 = Node::new(0, |_| true, true, false, false);
@@ -452,7 +452,7 @@ fn is_flush_true() {
     cp.expect([compute(1), compute(0)]);
     cp.verify();
 
-    // Nodes where `is_flush` is true are recomputed first.
+    // Nodes where `is_hasty` is true are recomputed first.
     node0.notify(&mut dc.ac());
     dc.update();
     cp.expect([compute(0), compute(1)]);
@@ -467,7 +467,7 @@ fn is_flush_true() {
 }
 
 #[test]
-fn is_flush_true_is_modify_always_true() {
+fn is_hasty_true_is_modify_always_true() {
     let mut cp = CodePathChecker::new();
     let mut dc = Runtime::new();
     let node0 = Node::new(0, |_| true, false, false, false);
@@ -477,7 +477,7 @@ fn is_flush_true_is_modify_always_true() {
     dc.update();
     cp.expect([compute(2), compute(1), compute(0)]);
 
-    // Nodes with is_flush true are determined if they have been updated before other nodes.
+    // Nodes with is_hasty true are determined if they have been updated before other nodes.
     // If is_modify_always is true, it is not necessary to compute for this purpose, so its own computation is not performed first.
     node0.notify(&mut dc.ac());
     dc.update();
@@ -485,7 +485,7 @@ fn is_flush_true_is_modify_always_true() {
 }
 
 #[test]
-fn is_flush_true_is_modify_always_false() {
+fn is_hasty_true_is_modify_always_false() {
     let mut cp = CodePathChecker::new();
     let mut dc = Runtime::new();
     let node0 = Node::new(0, |_| true, false, false, false);
@@ -501,7 +501,7 @@ fn is_flush_true_is_modify_always_false() {
 }
 
 #[test]
-fn is_flush_true_is_hot_true() {
+fn is_hasty_true_is_hot_true() {
     let mut cp = CodePathChecker::new();
     let mut dc = Runtime::new();
     let node0 = Node::new(0, |_| true, true, true, false);
@@ -512,7 +512,7 @@ fn is_flush_true_is_hot_true() {
     cp.expect_set([compute(0), compute(1), compute(2)]);
     cp.verify();
 
-    // If is_flush is true and there is no dependent node, it is computed with normal priority.
+    // If is_hasty is true and there is no dependent node, it is computed with normal priority.
     node0.notify(&mut dc.ac());
     node1.notify(&mut dc.ac());
     dc.update();
@@ -661,7 +661,7 @@ impl Node {
     fn new(
         id: usize,
         compute: impl FnMut(ComputeContext) -> bool + 'static,
-        is_flush: bool,
+        is_hasty: bool,
         is_hot: bool,
         is_modify_always: bool,
     ) -> Rc<DependencyNode<Node>> {
@@ -671,7 +671,7 @@ impl Node {
                 compute: Box::new(compute),
             },
             DependencyNodeSettings {
-                is_flush,
+                is_hasty,
                 is_hot,
                 is_modify_always,
             },
