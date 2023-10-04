@@ -482,7 +482,7 @@ impl<'a> ActionContext<'a> {
     fn new(uc: &'a mut UpdateContext) -> Self {
         Self(ObsContext::new(uc, None))
     }
-    pub(crate) fn uc(&mut self) -> &mut UpdateContext {
+    pub fn uc(&mut self) -> &mut UpdateContext {
         self.0.uc
     }
 
