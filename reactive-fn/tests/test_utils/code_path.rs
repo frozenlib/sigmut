@@ -6,6 +6,7 @@ use std::{
     fmt::Display,
     hash::Hash,
     mem::take,
+    thread::panicking,
 };
 
 thread_local! {
@@ -44,6 +45,13 @@ impl CodePathChecker {
     pub fn verify_msg(&mut self, msg: &str) {
         let expect = take(&mut self.expect);
         CodePath::List(expect).verify(msg);
+    }
+}
+impl Drop for CodePathChecker {
+    fn drop(&mut self) {
+        // if !self.expect.is_empty() && !panicking() {
+        //     panic!("CodePathChecker::verify() is not called");
+        // }
     }
 }
 

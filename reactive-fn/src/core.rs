@@ -225,6 +225,12 @@ impl SourceBindings {
         }
         retval
     }
+    pub fn clear(&mut self, uc: &mut UpdateContext) {
+        for b in self.0.drain(..) {
+            b.unbind(uc)
+        }
+        self.0.clear()
+    }
 }
 impl Drop for SourceBindings {
     fn drop(&mut self) {

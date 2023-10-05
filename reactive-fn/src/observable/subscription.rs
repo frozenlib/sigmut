@@ -17,7 +17,13 @@ const SLOT: usize = 0;
 pub struct Subscription(Option<Rc<dyn Any>>);
 
 impl Subscription {
-    pub fn new(f: impl FnMut(&mut ObsContext) + 'static) -> Self {
+    pub fn new(mut f: impl FnMut(&mut ObsContext) + 'static) -> Self {
+        Self::new_while(move |oc| {
+            f(oc);
+            true
+        })
+    }
+    pub fn new_while(f: impl FnMut(&mut ObsContext) -> bool + 'static) -> Self {
         let rc = Rc::new(RawSubscription(RefCell::new(Data {
             f,
             is_scheduled_update: false,
@@ -58,7 +64,7 @@ struct Data<F> {
 }
 struct RawSubscription<F>(RefCell<Data<F>>);
 
-impl<F: FnMut(&mut ObsContext) + 'static> BindSink for RawSubscription<F> {
+impl<F: FnMut(&mut ObsContext) -> bool + 'static> BindSink for RawSubscription<F> {
     fn notify(self: Rc<Self>, _slot: usize, is_modified: bool, uc: &mut UpdateContext) {
         let mut is_schedule = false;
         if let Ok(mut d) = self.0.try_borrow_mut() {
@@ -73,7 +79,7 @@ impl<F: FnMut(&mut ObsContext) + 'static> BindSink for RawSubscription<F> {
     }
 }
 
-impl<F: FnMut(&mut ObsContext) + 'static> CallUpdate for RawSubscription<F> {
+impl<F: FnMut(&mut ObsContext) -> bool + 'static> CallUpdate for RawSubscription<F> {
     fn call_update(self: Rc<Self>, _slot: usize, uc: &mut UpdateContext) {
         let mut d = self.0.borrow_mut();
         let d = &mut *d;
@@ -88,7 +94,9 @@ impl<F: FnMut(&mut ObsContext) + 'static> CallUpdate for RawSubscription<F> {
         if d.computed != Computed::UpToDate {
             d.computed = Computed::UpToDate;
             let node = Rc::downgrade(&self);
-            d.bindings.compute(node, SLOT, |cc| (d.f)(cc.oc()), uc);
+            if !d.bindings.compute(node, SLOT, |cc| (d.f)(cc.oc()), uc) {
+                d.bindings.clear(uc);
+            }
         }
     }
 }

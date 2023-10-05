@@ -199,6 +199,7 @@ fn dependencies(
         deps[i].notify(&mut dc.ac());
         dc.update_with(false);
         cp.expect([compute(id_this), compute(i)]);
+        // cp.verify();
     });
 }
 
