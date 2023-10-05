@@ -198,8 +198,12 @@ fn dependencies(
     (0..count).for_each(|i| {
         deps[i].notify(&mut dc.ac());
         dc.update_with(false);
-        cp.expect([compute(id_this), compute(i)]);
-        // cp.verify();
+        if is_modify_always_deps {
+            cp.expect([compute(id_this), compute(i)]);
+        } else {
+            cp.expect([compute(i), compute(id_this)]);
+        }
+        cp.verify();
     });
 }
 
@@ -483,6 +487,7 @@ fn is_hasty_true_is_modify_always_true() {
     node0.notify(&mut dc.ac());
     dc.update();
     cp.expect([compute(0), compute(2), compute(1)]);
+    cp.verify();
 }
 
 #[test]
@@ -495,10 +500,12 @@ fn is_hasty_true_is_modify_always_false() {
 
     dc.update();
     cp.expect([compute(2), compute(1), compute(0)]);
+    cp.verify();
 
     node0.notify(&mut dc.ac());
     dc.update();
-    cp.expect([compute(1), compute(0), compute(2)]);
+    cp.expect([compute(0), compute(1), compute(2)]);
+    cp.verify();
 }
 
 #[test]

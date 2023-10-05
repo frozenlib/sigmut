@@ -49,9 +49,9 @@ impl CodePathChecker {
 }
 impl Drop for CodePathChecker {
     fn drop(&mut self) {
-        // if !self.expect.is_empty() && !panicking() {
-        //     panic!("CodePathChecker::verify() is not called");
-        // }
+        if !self.expect.is_empty() && !panicking() {
+            panic!("CodePathChecker::verify() is not called");
+        }
     }
 }
 
