@@ -111,3 +111,19 @@ impl<'a, T> IntoIterator for &'a ObsSlabMapCellItems<'a, T> {
         self.0.iter()
     }
 }
+
+pub enum ObsSlabMapChange<'a, T> {
+    Insert {
+        key: usize,
+        new_value: &'a T,
+    },
+    Remove {
+        key: usize,
+        old_value: &'a T,
+    },
+    Set {
+        key: usize,
+        old_value: &'a T,
+        new_value: &'a T,
+    },
+}
