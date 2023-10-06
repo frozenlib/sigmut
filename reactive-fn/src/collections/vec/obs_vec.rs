@@ -243,22 +243,22 @@ impl<T: ?Sized> FusedIterator for ObsVecIter<'_, T> {}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct IndexMapping {
-    pub old_to_new: Vec<usize>,
     pub new_to_old: Vec<usize>,
 }
 impl IndexMapping {
     pub fn new(new_to_old: Vec<usize>) -> Self {
-        let mut old_to_new = vec![usize::MAX; new_to_old.len()];
-        for (new_index, &old_index) in new_to_old.iter().enumerate() {
+        Self { new_to_old }
+    }
+    pub fn make_old_to_new(&self) -> Vec<usize> {
+        let mut old_to_new = vec![usize::MAX; self.new_to_old.len()];
+        for (new_index, &old_index) in self.new_to_old.iter().enumerate() {
             old_to_new[old_index] = new_index;
         }
-        Self {
-            old_to_new,
-            new_to_old,
-        }
+        old_to_new
     }
+
     pub fn apply_to<T>(&self, items: &mut [T]) {
-        let mut old_to_new = self.old_to_new.clone();
+        let mut old_to_new = self.make_old_to_new();
         for old in 0..items.len() {
             loop {
                 let new = old_to_new[old];
