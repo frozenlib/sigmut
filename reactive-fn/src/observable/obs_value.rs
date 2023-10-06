@@ -1,7 +1,6 @@
 use super::{FromObservable, Obs, ObsBuilder, Observable, ObservableBuilder};
 use crate::core::ObsContext;
 use reactive_fn_macros::ObservableFmt;
-use std::borrow::Borrow;
 
 #[derive(Clone, ObservableFmt)]
 #[observable_fmt(self_crate, bound(T))]
@@ -41,7 +40,7 @@ impl<T: 'static> Observable for ObsValue<T> {
 
     fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
         match self {
-            Self::Constant(value) => f(value.borrow(), oc),
+            Self::Constant(value) => f(value, oc),
             Self::Obs(obs) => obs.with(|value, oc| f(value, oc), oc),
         }
     }

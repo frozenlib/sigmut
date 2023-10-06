@@ -14,6 +14,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use slabmap::SlabMap;
 use std::{
     cell::{BorrowMutError, RefCell, RefMut},
+    cmp::Ordering,
     collections::VecDeque,
     fmt::Debug,
     mem::take,
@@ -222,9 +223,9 @@ impl<T> ObsVecItemsMut<T> {
     }
     pub fn move_item(&mut self, old_index: usize, new_index: usize) {
         match old_index.cmp(&new_index) {
-            std::cmp::Ordering::Less => self.items[old_index..=new_index].rotate_left(1),
-            std::cmp::Ordering::Greater => self.items[new_index..=old_index].rotate_right(1),
-            std::cmp::Ordering::Equal => return,
+            Ordering::Less => self.items[old_index..=new_index].rotate_left(1),
+            Ordering::Greater => self.items[new_index..=old_index].rotate_right(1),
+            Ordering::Equal => return,
         }
         self.push_change(ChangeData::Move {
             old_index,
@@ -237,7 +238,7 @@ impl<T> ObsVecItemsMut<T> {
     {
         self.sort_by(|a, b| a.cmp(b))
     }
-    pub fn sort_by(&mut self, compare: impl FnMut(&T, &T) -> std::cmp::Ordering) {
+    pub fn sort_by(&mut self, compare: impl FnMut(&T, &T) -> Ordering) {
         self.sort_as(compare, true)
     }
     pub fn sort_by_key<K: Ord>(&mut self, mut key: impl FnMut(&T) -> K) {
@@ -250,14 +251,14 @@ impl<T> ObsVecItemsMut<T> {
     {
         self.sort_unstable_by(|a, b| a.cmp(b))
     }
-    pub fn sort_unstable_by(&mut self, compare: impl FnMut(&T, &T) -> std::cmp::Ordering) {
+    pub fn sort_unstable_by(&mut self, compare: impl FnMut(&T, &T) -> Ordering) {
         self.sort_as(compare, false)
     }
     pub fn sort_unstable_by_key<K: Ord>(&mut self, mut key: impl FnMut(&T) -> K) {
         self.sort_unstable_by(|a, b| key(a).cmp(&key(b)))
     }
 
-    fn sort_as(&mut self, mut compare: impl FnMut(&T, &T) -> std::cmp::Ordering, stable: bool) {
+    fn sort_as(&mut self, mut compare: impl FnMut(&T, &T) -> Ordering, stable: bool) {
         let mut new_to_old: Vec<_> = (0..self.items.len()).collect();
         let compare = |&i0: &usize, &i1: &usize| {
             compare(&self.values[self.items[i0]], &self.values[self.items[i1]])
