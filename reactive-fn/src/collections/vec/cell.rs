@@ -400,12 +400,9 @@ impl<T: 'static> ObsVecCell<T> {
 
     pub fn borrow_mut(&self, _ac: &mut ActionContext) -> ObsVecCellRefMut<T> {
         let owner = Rc::clone(&self.0);
-        let items = self.0.items.borrow_mut();
-        ObsVecCellRefMut {
-            owner,
-            items,
-            is_modified: false,
-        }
+        let mut items = self.0.items.borrow_mut();
+        items.is_modified = false;
+        ObsVecCellRefMut { owner, items }
     }
     pub fn debug(&self) -> ObsVecCellDebug<T> {
         ObsVecCellDebug(self)
@@ -469,7 +466,6 @@ impl<T: PartialEq> PartialEq for ObsVecCellDebug<'_, T> {
 pub struct ObsVecCellRefMut<'a, T: 'static> {
     owner: Rc<RawObsVecCell<T>>,
     items: std::cell::RefMut<'a, ObsVecItemsMut<T>>,
-    is_modified: bool,
 }
 impl<T> Deref for ObsVecCellRefMut<'_, T> {
     type Target = ObsVecItemsMut<T>;
