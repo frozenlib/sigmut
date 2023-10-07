@@ -127,7 +127,10 @@ impl UpdateContext {
 }
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
-pub(crate) enum Computed {
+pub enum Computed {
+    /// Not calculated.
+    ///
+    /// Distinguished from `Outdated` to manage the call to `discard`.
     #[default]
     None,
     Outdated,
