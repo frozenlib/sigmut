@@ -213,11 +213,11 @@ impl<T: 'static> ObsSlabMapCell<T> {
         data.remove(key);
         data.edit_end(&self.0.bindings, age, ac.uc());
     }
-    pub fn item(&self, key: usize, oc: &mut ObsContext) -> Ref<T> {
+    pub fn item<'a, 'oc: 'a>(&'a self, key: usize, oc: &mut ObsContext<'oc>) -> Ref<'a, T> {
         self.0.watch(Some(key), oc);
         self.0.item(key)
     }
-    pub fn items(&self, oc: &mut ObsContext) -> ObsSlabMapItems<T> {
+    pub fn items<'a, 'oc: 'a>(&'a self, oc: &mut ObsContext<'oc>) -> ObsSlabMapItems<'a, T> {
         self.0.watch(None, oc);
         self.0.items(None)
     }
@@ -289,7 +289,7 @@ impl<T: 'static> ObsSlabMapSession<T> {
     fn new(owner: Rc<dyn ObservableSlabMap<T>>) -> Self {
         Self { owner, age: None }
     }
-    pub fn read(&mut self, oc: &mut ObsContext) -> ObsSlabMapItems<T> {
+    pub fn read<'a, 'oc: 'a>(&'a mut self, oc: &mut ObsContext<'oc>) -> ObsSlabMapItems<'a, T> {
         let age = self.age;
 
         let mut ref_counts = self.owner.ref_counts();
@@ -388,10 +388,10 @@ impl<T: 'static> ObsSlabMap<T> {
         Self(Scan::new(f))
     }
 
-    pub fn item(&self, key: usize, oc: &mut ObsContext) -> Ref<T> {
+    pub fn item<'a, 'oc: 'a>(&'a self, key: usize, oc: &mut ObsContext<'oc>) -> Ref<'a, T> {
         self.0.item(self.0.clone().to_any(), key, oc)
     }
-    pub fn items(&self, oc: &mut ObsContext) -> ObsSlabMapItems<T> {
+    pub fn items<'a, 'oc: 'a>(&'a self, oc: &mut ObsContext<'oc>) -> ObsSlabMapItems<'a, T> {
         self.0.items(self.0.clone().to_any(), None, oc)
     }
     pub fn session(&self) -> ObsSlabMapSession<T> {
