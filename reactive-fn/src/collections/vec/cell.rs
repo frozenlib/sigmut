@@ -375,7 +375,7 @@ impl<T: 'static> BindSink for RawObsVecCell<T> {
     }
 }
 
-#[derive_ex(Clone, Default)]
+#[derive_ex(Default, Clone(bound()))]
 #[default(Self::new())]
 pub struct ObsVecCell<T>(Rc<RawObsVecCell<T>>);
 
