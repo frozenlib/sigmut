@@ -5,12 +5,12 @@ struct Entry<T> {
     ref_count: usize,
 }
 
-pub struct ChangeLogs<T> {
+pub struct Changes<T> {
     age_base: usize,
     changes: VecDeque<Entry<T>>,
     end_ref_count: usize,
 }
-impl<T> ChangeLogs<T> {
+impl<T> Changes<T> {
     pub fn new() -> Self {
         Self {
             age_base: 0,
@@ -64,12 +64,12 @@ impl<T> ChangeLogs<T> {
     }
 }
 
-pub struct RefCountLogs {
+pub struct RefCountOps {
     increments: usize,
     decrement_ages: Vec<usize>,
 }
 
-impl RefCountLogs {
+impl RefCountOps {
     pub fn new() -> Self {
         Self {
             increments: 0,
@@ -84,7 +84,7 @@ impl RefCountLogs {
             self.decrement_ages.push(age);
         }
     }
-    pub fn apply<T>(&mut self, items: &mut ChangeLogs<T>) {
+    pub fn apply<T>(&mut self, items: &mut Changes<T>) {
         items.increment_ref_count(self.increments);
         self.increments = 0;
         while let Some(age) = self.decrement_ages.pop() {

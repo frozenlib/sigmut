@@ -9,7 +9,7 @@ use derive_ex::derive_ex;
 use slabmap::SlabMap;
 
 use crate::{
-    collections::utils::{ChangeLogs, RefCountLogs},
+    collections::utils::{Changes, RefCountOps},
     core::{BindSink, BindSource, Computed, SinkBindings, SourceBindings, UpdateContext},
     ActionContext, ObsContext,
 };
@@ -98,23 +98,23 @@ trait ObservableSlabMap<T> {
         age: Option<usize>,
         oc: &mut ObsContext,
     ) -> ObsSlabMapItems<T>;
-    fn ref_counts(&self) -> RefMut<RefCountLogs>;
+    fn ref_counts(&self) -> RefMut<RefCountOps>;
 }
 
 pub struct ObsSlabMapItemsMut<T> {
     items: SlabMap<Item<T>>,
     len: usize,
-    changes: ChangeLogs<ChangeData>,
+    changes: Changes<ChangeData>,
 }
 impl<T> ObsSlabMapItemsMut<T> {
     fn new() -> Self {
         Self {
             items: SlabMap::new(),
             len: 0,
-            changes: ChangeLogs::new(),
+            changes: Changes::new(),
         }
     }
-    fn edit_start(&mut self, ref_counts: &RefCell<RefCountLogs>) -> usize {
+    fn edit_start(&mut self, ref_counts: &RefCell<RefCountOps>) -> usize {
         ref_counts.borrow_mut().apply(&mut self.changes);
         self.clean_changes();
         self.changes.end_age()
@@ -191,7 +191,7 @@ impl<T> ObsSlabMapCell<T> {
         Self(Rc::new(RawObsSlabMapCell {
             items: RefCell::new(ObsSlabMapItemsMut::new()),
             bindings: RefCell::new(SinkBindingsSet::new()),
-            ref_counts: RefCell::new(RefCountLogs::new()),
+            ref_counts: RefCell::new(RefCountOps::new()),
         }))
     }
 }
@@ -229,7 +229,7 @@ impl<T: 'static> ObsSlabMapCell<T> {
 struct RawObsSlabMapCell<T> {
     items: RefCell<ObsSlabMapItemsMut<T>>,
     bindings: RefCell<SinkBindingsSet>,
-    ref_counts: RefCell<RefCountLogs>,
+    ref_counts: RefCell<RefCountOps>,
 }
 impl<T: 'static> RawObsSlabMapCell<T> {
     fn rc_this(this: Rc<dyn Any>) -> Rc<Self> {
@@ -267,7 +267,7 @@ impl<T: 'static> ObservableSlabMap<T> for RawObsSlabMapCell<T> {
         self.items(age)
     }
 
-    fn ref_counts(&self) -> RefMut<RefCountLogs> {
+    fn ref_counts(&self) -> RefMut<RefCountOps> {
         self.ref_counts.borrow_mut()
     }
 }
@@ -408,7 +408,7 @@ struct ScanData<T, F> {
 
 struct Scan<T, F> {
     data: RefCell<ScanData<T, F>>,
-    ref_counts: RefCell<RefCountLogs>,
+    ref_counts: RefCell<RefCountOps>,
     sinks: RefCell<SinkBindingsSet>,
 }
 impl<T, F> Scan<T, F>
@@ -424,7 +424,7 @@ where
                 computed: Computed::None,
                 f,
             }),
-            ref_counts: RefCell::new(RefCountLogs::new()),
+            ref_counts: RefCell::new(RefCountOps::new()),
             sinks: RefCell::new(SinkBindingsSet::new()),
         })
     }
@@ -474,7 +474,7 @@ where
         let data = Ref::map(self.data.borrow(), |data| &data.items);
         ObsSlabMapItems { items: data, age }
     }
-    fn ref_counts(&self) -> RefMut<RefCountLogs> {
+    fn ref_counts(&self) -> RefMut<RefCountOps> {
         self.ref_counts.borrow_mut()
     }
 }

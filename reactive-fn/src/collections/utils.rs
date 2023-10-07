@@ -1,3 +1,3 @@
-mod change_logs;
+mod changes;
 
-pub use change_logs::*;
+pub use changes::*;
