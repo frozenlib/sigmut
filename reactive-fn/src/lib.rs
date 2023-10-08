@@ -5,7 +5,7 @@ pub mod fmt;
 pub mod observable;
 pub mod prelude;
 
-pub(crate) mod utils;
+pub mod utils;
 
 #[doc(no_inline)]
 pub use self::prelude::*;

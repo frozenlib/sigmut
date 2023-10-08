@@ -9,8 +9,8 @@ use derive_ex::derive_ex;
 use slabmap::SlabMap;
 
 use crate::{
-    collections::utils::{Changes, RefCountOps},
     core::{BindSink, BindSource, Computed, SinkBindings, SourceBindings, UpdateContext},
+    utils::{Changes, RefCountOps},
     ActionContext, ObsContext,
 };
 
@@ -127,7 +127,7 @@ impl<T> ObsSlabMapItemsMut<T> {
     ) -> bool {
         let mut s = sinks.borrow_mut();
         let mut is_changed = false;
-        for c in self.changes.changes(age) {
+        for c in self.changes.items(age) {
             is_changed = true;
             s.notify(Some(c.key), uc);
         }
@@ -190,7 +190,7 @@ impl<T> ObsSlabMapCell<T> {
     pub fn new() -> Self {
         Self(Rc::new(RawObsSlabMapCell {
             items: RefCell::new(ObsSlabMapItemsMut::new()),
-            bindings: RefCell::new(SinkBindingsSet::new()),
+            sinks: RefCell::new(SinkBindingsSet::new()),
             ref_counts: RefCell::new(RefCountOps::new()),
         }))
     }
@@ -204,14 +204,14 @@ impl<T: 'static> ObsSlabMapCell<T> {
         let mut data = self.0.items.borrow_mut();
         let age = data.edit_start(&self.0.ref_counts);
         let key = data.insert(value);
-        data.edit_end(&self.0.bindings, age, ac.uc());
+        data.edit_end(&self.0.sinks, age, ac.uc());
         key
     }
     pub fn remove(&self, key: usize, ac: &mut ActionContext) {
         let mut data = self.0.items.borrow_mut();
         let age = data.edit_start(&self.0.ref_counts);
         data.remove(key);
-        data.edit_end(&self.0.bindings, age, ac.uc());
+        data.edit_end(&self.0.sinks, age, ac.uc());
     }
     pub fn item<'a, 'oc: 'a>(&'a self, key: usize, oc: &mut ObsContext<'oc>) -> Ref<'a, T> {
         self.0.watch(Some(key), oc);
@@ -228,7 +228,7 @@ impl<T: 'static> ObsSlabMapCell<T> {
 
 struct RawObsSlabMapCell<T> {
     items: RefCell<ObsSlabMapItemsMut<T>>,
-    bindings: RefCell<SinkBindingsSet>,
+    sinks: RefCell<SinkBindingsSet>,
     ref_counts: RefCell<RefCountOps>,
 }
 impl<T: 'static> RawObsSlabMapCell<T> {
@@ -236,7 +236,7 @@ impl<T: 'static> RawObsSlabMapCell<T> {
         Rc::downcast(this).unwrap()
     }
     fn watch(self: &Rc<Self>, key: Option<usize>, oc: &mut ObsContext) {
-        self.bindings.borrow_mut().watch(self.clone(), key, oc);
+        self.sinks.borrow_mut().watch(self.clone(), key, oc);
     }
     fn item(&self, key: usize) -> Ref<T> {
         Ref::map(self.items.borrow(), |r| r.get(key).expect("key not found"))
@@ -277,7 +277,7 @@ impl<T: 'static> BindSource for RawObsSlabMapCell<T> {
         false
     }
     fn unbind(self: Rc<Self>, slot: usize, key: usize, _uc: &mut UpdateContext) {
-        self.bindings.borrow_mut().get_mut(slot).unbind(key)
+        self.sinks.borrow_mut().get_mut(slot).unbind(key)
     }
 }
 
@@ -327,7 +327,7 @@ impl<'a, T> ObsSlabMapItems<'a, T> {
     }
     pub fn changes(&self, f: impl Fn(ObsSlabMapChange<T>)) {
         if let Some(age) = self.age {
-            for change in self.items.changes.changes(age) {
+            for change in self.items.changes.items(age) {
                 let key = change.key;
                 let value = &self.items.items[key].value;
                 f(match change.action {

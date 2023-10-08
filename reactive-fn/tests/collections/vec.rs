@@ -12,7 +12,7 @@ fn vec_cell_notify() {
     let _s = {
         let vec = vec.clone();
         Subscription::new(move |oc| {
-            let sum: u64 = vec.session().read(|r, _| r.iter().sum(), oc);
+            let sum: u64 = vec.session().read(oc).iter().sum();
             code(sum);
         })
     };
