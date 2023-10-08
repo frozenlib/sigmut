@@ -2,7 +2,7 @@ use std::any::Any;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::mem::transmute;
-use std::ops::{Bound, Index, Range, RangeBounds};
+use std::ops::{Bound, Range, RangeBounds};
 
 #[derive(Default)]
 pub(crate) struct PhantomNotSend(PhantomData<*mut u8>);
