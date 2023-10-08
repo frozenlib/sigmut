@@ -14,78 +14,21 @@ use crate::{
     ActionContext, ObsContext,
 };
 
-#[derive(Clone, Copy, Debug)]
-pub enum ObsSlabMapChange<'a, T> {
-    Insert { key: usize, new_value: &'a T },
-    Remove { key: usize, old_value: &'a T },
-}
+pub struct ObsSlabMap<T>(Rc<dyn ObservableSlabMap<T>>);
 
-enum ChangeAction {
-    Insert,
-    Remove,
-}
-
-struct ChangeData {
-    action: ChangeAction,
-    key: usize,
-}
-
-struct Item<T> {
-    value: T,
-    is_exists: bool,
-}
-impl<T> Item<T> {
-    fn new(value: T) -> Self {
-        Self {
-            value,
-            is_exists: true,
-        }
-    }
-}
-
-struct SinkBindingsSet {
-    items: Vec<SinkBindings>,
-    any: SinkBindings,
-}
-impl SinkBindingsSet {
-    fn new() -> Self {
-        Self {
-            items: Vec::new(),
-            any: SinkBindings::new(),
-        }
-    }
-    fn notify(&mut self, key: Option<usize>, uc: &mut UpdateContext) {
-        if let Some(key) = key {
-            if let Some(b) = self.items.get_mut(key) {
-                b.notify(true, uc);
-            }
-        } else {
-            self.any.notify(true, uc);
-        }
-    }
-    fn notify_may_be_modified(&mut self, uc: &mut UpdateContext) {
-        for b in &mut self.items {
-            b.notify(false, uc);
-        }
-        self.any.notify(false, uc);
+impl<T: 'static> ObsSlabMap<T> {
+    pub fn from_scan(f: impl FnMut(&mut ObsSlabMapItemsMut<T>, &mut ObsContext) + 'static) -> Self {
+        Self(Scan::new(f))
     }
 
-    fn watch(&mut self, this: Rc<dyn BindSource>, key: Option<usize>, oc: &mut ObsContext) {
-        if let Some(key) = key {
-            if self.items.len() < key {
-                self.items.resize_with(key + 1, SinkBindings::new);
-            }
-            self.items[key].watch(this, key, oc);
-        } else {
-            self.any.watch(this, usize::MAX, oc);
-        }
+    pub fn item<'a, 'oc: 'a>(&'a self, key: usize, oc: &mut ObsContext<'oc>) -> Ref<'a, T> {
+        self.0.item(self.0.clone().to_any(), key, oc)
     }
-    fn get_mut(&mut self, slot: usize) -> &mut SinkBindings {
-        if slot == usize::MAX {
-            &mut self.any
-        } else {
-            &mut self.items[slot]
-        }
+    pub fn items<'a, 'oc: 'a>(&'a self, oc: &mut ObsContext<'oc>) -> ObsSlabMapItems<'a, T> {
+        self.0.items(self.0.clone().to_any(), None, oc)
+    }
+    pub fn session(&self) -> ObsSlabMapSession<T> {
+        ObsSlabMapSession::new(self.0.clone())
     }
 }
 
@@ -99,6 +42,92 @@ trait ObservableSlabMap<T> {
         oc: &mut ObsContext,
     ) -> ObsSlabMapItems<T>;
     fn ref_counts(&self) -> RefMut<RefCountOps>;
+}
+
+pub struct ObsSlabMapSession<T> {
+    owner: Rc<dyn ObservableSlabMap<T>>,
+    age: Option<usize>,
+}
+impl<T: 'static> ObsSlabMapSession<T> {
+    fn new(owner: Rc<dyn ObservableSlabMap<T>>) -> Self {
+        Self { owner, age: None }
+    }
+    pub fn read<'a, 'oc: 'a>(&'a mut self, oc: &mut ObsContext<'oc>) -> ObsSlabMapItems<'a, T> {
+        let age = self.age;
+
+        let mut ref_counts = self.owner.ref_counts();
+        ref_counts.increment();
+        ref_counts.decrement(age);
+
+        let items = self.owner.items(self.owner.clone().to_any(), age, oc);
+        self.age = Some(items.items.changes.end_age());
+        items
+    }
+}
+impl<T> Drop for ObsSlabMapSession<T> {
+    fn drop(&mut self) {
+        self.owner.ref_counts().decrement(self.age);
+    }
+}
+
+pub struct ObsSlabMapItems<'a, T> {
+    items: Ref<'a, ObsSlabMapItemsMut<T>>,
+    age: Option<usize>,
+}
+
+impl<'a, T> ObsSlabMapItems<'a, T> {
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+    pub fn len(&self) -> usize {
+        self.items.len
+    }
+    pub fn get(&self, key: usize) -> Option<&T> {
+        self.items.get(key)
+    }
+    pub fn iter(&self) -> ObsSlabMapIter<T> {
+        ObsSlabMapIter(self.items.items.iter())
+    }
+    pub fn changes(&self, f: impl Fn(ObsSlabMapChange<T>)) {
+        if let Some(age) = self.age {
+            for change in self.items.changes.items(age) {
+                let key = change.key;
+                let value = &self.items.items[key].value;
+                f(match change.action {
+                    ChangeAction::Insert => ObsSlabMapChange::Insert {
+                        key,
+                        new_value: value,
+                    },
+                    ChangeAction::Remove => ObsSlabMapChange::Remove {
+                        key,
+                        old_value: value,
+                    },
+                });
+            }
+        } else {
+            for (key, value) in self {
+                f(ObsSlabMapChange::Insert {
+                    key,
+                    new_value: value,
+                })
+            }
+        }
+    }
+}
+impl<'a, T> Index<usize> for ObsSlabMapItems<'a, T> {
+    type Output = T;
+    fn index(&self, index: usize) -> &Self::Output {
+        self.get(index).expect("index out of bounds")
+    }
+}
+
+impl<'a, T> IntoIterator for &'a ObsSlabMapItems<'a, T> {
+    type Item = (usize, &'a T);
+    type IntoIter = ObsSlabMapIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
 }
 
 pub struct ObsSlabMapItemsMut<T> {
@@ -180,6 +209,50 @@ impl<T> Index<usize> for ObsSlabMapItemsMut<T> {
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("index out of bounds")
     }
+}
+
+pub struct ObsSlabMapIter<'a, T>(slabmap::Iter<'a, Item<T>>);
+
+impl<'a, T> Iterator for ObsSlabMapIter<'a, T> {
+    type Item = (usize, &'a T);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for (key, value) in self.0.by_ref() {
+            if value.is_exists {
+                return Some((key, &value.value));
+            }
+        }
+        None
+    }
+}
+
+struct Item<T> {
+    value: T,
+    is_exists: bool,
+}
+impl<T> Item<T> {
+    fn new(value: T) -> Self {
+        Self {
+            value,
+            is_exists: true,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum ObsSlabMapChange<'a, T> {
+    Insert { key: usize, new_value: &'a T },
+    Remove { key: usize, old_value: &'a T },
+}
+
+enum ChangeAction {
+    Insert,
+    Remove,
+}
+
+struct ChangeData {
+    action: ChangeAction,
+    key: usize,
 }
 
 #[derive_ex(Default, Clone(bound()))]
@@ -281,129 +354,50 @@ impl<T: 'static> BindSource for RawObsSlabMapCell<T> {
     }
 }
 
-pub struct ObsSlabMapSession<T> {
-    owner: Rc<dyn ObservableSlabMap<T>>,
-    age: Option<usize>,
+struct SinkBindingsSet {
+    items: Vec<SinkBindings>,
+    any: SinkBindings,
 }
-impl<T: 'static> ObsSlabMapSession<T> {
-    fn new(owner: Rc<dyn ObservableSlabMap<T>>) -> Self {
-        Self { owner, age: None }
+impl SinkBindingsSet {
+    fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            any: SinkBindings::new(),
+        }
     }
-    pub fn read<'a, 'oc: 'a>(&'a mut self, oc: &mut ObsContext<'oc>) -> ObsSlabMapItems<'a, T> {
-        let age = self.age;
-
-        let mut ref_counts = self.owner.ref_counts();
-        ref_counts.increment();
-        ref_counts.decrement(age);
-
-        let items = self.owner.items(self.owner.clone().to_any(), age, oc);
-        self.age = Some(items.items.changes.end_age());
-        items
-    }
-}
-impl<T> Drop for ObsSlabMapSession<T> {
-    fn drop(&mut self) {
-        self.owner.ref_counts().decrement(self.age);
-    }
-}
-
-pub struct ObsSlabMapItems<'a, T> {
-    items: Ref<'a, ObsSlabMapItemsMut<T>>,
-    age: Option<usize>,
-}
-
-impl<'a, T> ObsSlabMapItems<'a, T> {
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-    pub fn len(&self) -> usize {
-        self.items.len
-    }
-    pub fn get(&self, key: usize) -> Option<&T> {
-        self.items.get(key)
-    }
-    pub fn iter(&self) -> ObsSlabMapIter<T> {
-        ObsSlabMapIter(self.items.items.iter())
-    }
-    pub fn changes(&self, f: impl Fn(ObsSlabMapChange<T>)) {
-        if let Some(age) = self.age {
-            for change in self.items.changes.items(age) {
-                let key = change.key;
-                let value = &self.items.items[key].value;
-                f(match change.action {
-                    ChangeAction::Insert => ObsSlabMapChange::Insert {
-                        key,
-                        new_value: value,
-                    },
-                    ChangeAction::Remove => ObsSlabMapChange::Remove {
-                        key,
-                        old_value: value,
-                    },
-                });
+    fn notify(&mut self, key: Option<usize>, uc: &mut UpdateContext) {
+        if let Some(key) = key {
+            if let Some(b) = self.items.get_mut(key) {
+                b.notify(true, uc);
             }
         } else {
-            for (key, value) in self {
-                f(ObsSlabMapChange::Insert {
-                    key,
-                    new_value: value,
-                })
-            }
+            self.any.notify(true, uc);
         }
     }
-}
-impl<'a, T> Index<usize> for ObsSlabMapItems<'a, T> {
-    type Output = T;
-    fn index(&self, index: usize) -> &Self::Output {
-        self.get(index).expect("index out of bounds")
-    }
-}
-
-impl<'a, T> IntoIterator for &'a ObsSlabMapItems<'a, T> {
-    type Item = (usize, &'a T);
-    type IntoIter = ObsSlabMapIter<'a, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-pub struct ObsSlabMapIter<'a, T>(slabmap::Iter<'a, Item<T>>);
-
-impl<'a, T> Iterator for ObsSlabMapIter<'a, T> {
-    type Item = (usize, &'a T);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        for (key, value) in self.0.by_ref() {
-            if value.is_exists {
-                return Some((key, &value.value));
-            }
+    fn notify_may_be_modified(&mut self, uc: &mut UpdateContext) {
+        for b in &mut self.items {
+            b.notify(false, uc);
         }
-        None
-    }
-}
-
-pub struct ObsSlabMap<T>(Rc<dyn ObservableSlabMap<T>>);
-
-impl<T: 'static> ObsSlabMap<T> {
-    pub fn from_scan(f: impl FnMut(&mut ObsSlabMapItemsMut<T>, &mut ObsContext) + 'static) -> Self {
-        Self(Scan::new(f))
+        self.any.notify(false, uc);
     }
 
-    pub fn item<'a, 'oc: 'a>(&'a self, key: usize, oc: &mut ObsContext<'oc>) -> Ref<'a, T> {
-        self.0.item(self.0.clone().to_any(), key, oc)
+    fn watch(&mut self, this: Rc<dyn BindSource>, key: Option<usize>, oc: &mut ObsContext) {
+        if let Some(key) = key {
+            if self.items.len() < key {
+                self.items.resize_with(key + 1, SinkBindings::new);
+            }
+            self.items[key].watch(this, key, oc);
+        } else {
+            self.any.watch(this, usize::MAX, oc);
+        }
     }
-    pub fn items<'a, 'oc: 'a>(&'a self, oc: &mut ObsContext<'oc>) -> ObsSlabMapItems<'a, T> {
-        self.0.items(self.0.clone().to_any(), None, oc)
+    fn get_mut(&mut self, slot: usize) -> &mut SinkBindings {
+        if slot == usize::MAX {
+            &mut self.any
+        } else {
+            &mut self.items[slot]
+        }
     }
-    pub fn session(&self) -> ObsSlabMapSession<T> {
-        ObsSlabMapSession::new(self.0.clone())
-    }
-}
-
-struct ScanData<T, F> {
-    bindings: SourceBindings,
-    items: ObsSlabMapItemsMut<T>,
-    computed: Computed,
-    f: F,
 }
 
 struct Scan<T, F> {
@@ -505,4 +499,11 @@ where
             self.sinks.borrow_mut().notify_may_be_modified(uc);
         }
     }
+}
+
+struct ScanData<T, F> {
+    bindings: SourceBindings,
+    items: ObsSlabMapItemsMut<T>,
+    computed: Computed,
+    f: F,
 }
