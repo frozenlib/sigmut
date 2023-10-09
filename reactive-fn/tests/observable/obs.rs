@@ -172,11 +172,11 @@ fn collect_vec() {
 }
 
 #[test]
-fn cached_collect() {
+fn memo_collect() {
     let mut dc = Runtime::new();
     let cell = ObsCell::new(0);
 
-    let ss = cell.obs().map_value(|x| x + 1).cached().collect_vec();
+    let ss = cell.obs().map_value(|x| x + 1).memo().collect_vec();
     dc.update();
 
     cell.set(1, &mut dc.ac());
@@ -199,7 +199,7 @@ fn deep() {
     let cell = ObsCell::new(0);
     let mut s = cell.obs();
     for _ in 0..DEPTH {
-        s = s.map_value(|x| x + 1).cached();
+        s = s.map_value(|x| x + 1).memo();
     }
     let rs = Rc::new(RefCell::new(Vec::new()));
     let _s = s.subscribe({
@@ -224,7 +224,7 @@ fn deep() {
 //             let cell = ObsCell::new(0);
 //             let mut s = cell.obs();
 //             for _ in 0..DEPTH {
-//                 s = s.map(|x| x + 1).cached();
+//                 s = s.map(|x| x + 1).memo();
 //             }
 //             let count = Rc::new(Cell::new(0));
 

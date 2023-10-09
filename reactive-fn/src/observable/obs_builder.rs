@@ -333,7 +333,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         })
     }
 
-    pub fn cached(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>>
+    pub fn memo(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>>
     where
         B::Item: ToOwned,
     {

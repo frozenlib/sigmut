@@ -295,11 +295,11 @@ impl<T: ?Sized + 'static> Obs<T> {
         self.obs_builder().scan_filter(initial_state, op).obs()
     }
 
-    pub fn cached(&self) -> Self
+    pub fn memo(&self) -> Self
     where
         T: ToOwned,
     {
-        self.obs_builder().cached().obs()
+        self.obs_builder().memo().obs()
     }
     pub fn dedup(&self) -> Self
     where

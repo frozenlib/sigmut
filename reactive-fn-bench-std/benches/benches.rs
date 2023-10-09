@@ -137,7 +137,7 @@ fn many_depth(b: &mut Bencher) {
     iter_dc(b, |dc| {
         let mut s = cell.obs();
         for _ in 0..DEPTH {
-            s = s.map(|x| x + 1).cached();
+            s = s.map(|x| x + 1).memo();
         }
         let _s = s.subscribe(|x| {
             black_box(x);

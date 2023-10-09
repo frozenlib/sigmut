@@ -69,7 +69,7 @@ fn obs_format_observable_display_notify() {
     let mut dc = Runtime::new();
     let a = ObsCell::new(3);
     let s = obs_format!("{}", a.obs());
-    let sc = s.cached();
+    let sc = s.memo();
     assert_eq!(sc.get(dc.ac().oc()), "3");
 
     a.set(5, &mut dc.ac());
