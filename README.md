@@ -32,7 +32,7 @@ TODO
 | `First`                |                                                      |
 | `Publish`              | `Obs::hot`                                           |
 | `Return`               | `Obs::new_value`                                     |
-| `Select`               | `Obs::map`, `Obs::map_ref`                           |
+| `Select`               | `Obs::map`, `Obs::map_value`                         |
 | `SelectMany`           | `Obs::flat_map`, `Obs::map_async`, `Obs::map_stream` |
 | `Scan`                 | `Obs::scan`                                          |
 | `Subscribe`            | `Obs::subscribe`                                     |
