@@ -136,10 +136,11 @@ impl ObsBuilder<()> {
         })
     }
 
-    pub fn from_owned<T, U>(owned: T) -> ObsBuilder<impl ObservableBuilder<Item = U>>
+    pub fn from_owned<T>(
+        owned: impl std::borrow::Borrow<T> + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = T>>
     where
-        T: std::borrow::Borrow<U> + 'static,
-        U: ?Sized + 'static,
+        T: ?Sized + 'static,
     {
         ObsBuilder::new_value(owned).map(|x| x.borrow())
     }

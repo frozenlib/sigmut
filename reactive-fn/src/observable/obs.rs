@@ -145,7 +145,7 @@ impl<T: ?Sized + 'static> Obs<T> {
         ObsBuilder::from_get(f).obs()
     }
 
-    pub fn from_owned<O: std::borrow::Borrow<T> + 'static>(owned: O) -> Self {
+    pub fn from_owned(owned: impl std::borrow::Borrow<T> + 'static) -> Self {
         ObsBuilder::from_owned(owned).obs()
     }
 
