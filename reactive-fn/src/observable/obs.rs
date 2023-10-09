@@ -261,7 +261,7 @@ impl<T: ?Sized + 'static> Obs<T> {
         self.obs_builder().map_stream(f).obs()
     }
 
-    pub fn flat_map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U::Item>
+    pub fn flat_map<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U::Item>
     where
         U: Observable + 'static,
     {

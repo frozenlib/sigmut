@@ -288,7 +288,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         ObsBuilder::from_stream_fn(move |oc| o.with(|value, _oc| f(value), oc))
     }
 
-    pub fn flat_map<U: Observable + 'static>(
+    pub fn flat_map<U: ?Sized + Observable + 'static>(
         self,
         f: impl Fn(&B::Item) -> &U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U::Item>> {
