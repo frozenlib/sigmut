@@ -504,11 +504,7 @@ impl<'a> ActionContext<'a> {
 
 /// Operation for changing state.
 pub struct Action(RawAction);
-enum RawAction {
-    Box(Box<dyn FnOnce(&mut ActionContext)>),
-    Rc(Rc<dyn Fn(&mut ActionContext)>),
-    Weak(Weak<dyn Fn(&mut ActionContext)>),
-}
+
 impl Action {
     pub fn new(f: impl FnOnce(&mut ActionContext) + 'static) -> Self {
         Self(RawAction::Box(Box::new(f)))
@@ -516,10 +512,10 @@ impl Action {
     pub fn call(self, ac: &mut ActionContext) {
         match self.0 {
             RawAction::Box(f) => f(ac),
-            RawAction::Rc(f) => f(ac),
-            RawAction::Weak(f) => {
-                if let Some(f) = f.upgrade() {
-                    f(ac)
+            RawAction::Rc(a) => a.call_action(ac),
+            RawAction::Weak(a) => {
+                if let Some(a) = a.upgrade() {
+                    a.call_action(ac)
                 }
             }
         }
@@ -536,30 +532,55 @@ impl<T: FnOnce(&mut ActionContext) + 'static> From<T> for Action {
     }
 }
 
+enum RawAction {
+    Box(Box<dyn FnOnce(&mut ActionContext)>),
+    Rc(Rc<dyn CallAction>),
+    Weak(Weak<dyn CallAction>),
+}
+
 /// Shareable [`Action`].
-pub struct RcAction(Rc<dyn Fn(&mut ActionContext)>);
+#[derive(Clone)]
+pub struct RcAction(Rc<dyn CallAction>);
 
 impl RcAction {
     pub fn new(f: impl Fn(&mut ActionContext) + 'static) -> Self {
-        RcAction(Rc::new(f))
+        struct FnCallAction<F>(F);
+        impl<F> CallAction for FnCallAction<F>
+        where
+            F: Fn(&mut ActionContext) + 'static,
+        {
+            fn call_action(self: Rc<Self>, ac: &mut ActionContext) {
+                (self.0)(ac)
+            }
+        }
+        RcAction(Rc::new(FnCallAction(f)))
+    }
+    pub fn from_rc(f: Rc<dyn CallAction>) -> Self {
+        RcAction(f)
     }
 
     /// Perform this action after [`ActionContext`] is available.
     pub fn schedule(&self) {
-        Action::schedule(self.into())
+        self.to_action().schedule();
     }
 
     /// Perform this action after [`ActionContext`] is available.
     ///
     /// If the reference count of this `RcAction` becomes 0 before it is executed, the action will not be executed.
     pub fn schedule_weak(&self) {
-        Action(RawAction::Weak(Rc::downgrade(&self.0))).schedule()
+        self.to_action_weak().schedule();
+    }
+
+    pub fn to_action(&self) -> Action {
+        Action(RawAction::Rc(self.0.clone()))
+    }
+    pub fn to_action_weak(&self) -> Action {
+        Action(RawAction::Weak(Rc::downgrade(&self.0)))
     }
 }
-impl From<&RcAction> for Action {
-    fn from(rc: &RcAction) -> Self {
-        Self(RawAction::Rc(rc.0.clone()))
-    }
+
+pub trait CallAction {
+    fn call_action(self: Rc<Self>, ac: &mut ActionContext);
 }
 
 pub trait BindSink: 'static {
