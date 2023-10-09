@@ -136,6 +136,14 @@ impl ObsBuilder<()> {
         })
     }
 
+    pub fn from_owned<T, U>(owned: T) -> ObsBuilder<impl ObservableBuilder<Item = U>>
+    where
+        T: std::borrow::Borrow<U> + 'static,
+        U: ?Sized + 'static,
+    {
+        ObsBuilder::new_value(owned).map(|x| x.borrow())
+    }
+
     pub fn from_scan<St>(
         initial_state: St,
         op: impl Fn(&mut St, &mut ObsContext) + 'static,

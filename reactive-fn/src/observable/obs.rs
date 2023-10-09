@@ -144,6 +144,11 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         ObsBuilder::from_get(f).obs()
     }
+
+    pub fn from_owned<O: std::borrow::Borrow<T> + 'static>(owned: O) -> Self {
+        ObsBuilder::from_owned(owned).obs()
+    }
+
     pub fn from_scan(initial_state: T, op: impl Fn(&mut T, &mut ObsContext) + 'static) -> Self
     where
         T: Sized,
@@ -441,5 +446,11 @@ impl<T: ?Sized> Hash for Obs<T> {
             RawObs::RcObs(x) => ptr::hash(&**x, state),
             RawObs::RcRcObs(x) => ptr::hash(&**x, state),
         }
+    }
+}
+
+impl From<String> for Obs<str> {
+    fn from(s: String) -> Self {
+        Obs::from_owned(s)
     }
 }
