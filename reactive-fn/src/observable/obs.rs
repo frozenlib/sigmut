@@ -240,7 +240,7 @@ impl<T: ?Sized + 'static> Obs<T> {
         }
     }
 
-    pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U> {
+    pub fn map<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> Obs<U> {
         self.obs_builder().map(f).obs()
     }
     pub fn map_value<U>(&self, f: impl Fn(&T) -> U + 'static) -> Obs<U> {
