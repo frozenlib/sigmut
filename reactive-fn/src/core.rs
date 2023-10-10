@@ -78,7 +78,7 @@ impl UpdateContext {
             for t in t.tasks_unbind.drain(..) {
                 t.unbind(self);
             }
-            t.wakes.apply(self);
+            t.wakes.apply(&mut t.actions, self);
             for t in t.tasks_notify.drain(..) {
                 t.call_notify(self);
             }
@@ -509,6 +509,24 @@ impl Action {
     pub fn new(f: impl FnOnce(&mut ActionContext) + 'static) -> Self {
         Self(RawAction::Box(Box::new(f)))
     }
+    pub fn new_async(
+        f: impl for<'a> FnOnce(&'a AsyncActionContext) -> Box<dyn Future<Output = ()> + 'a> + 'static,
+    ) -> Self {
+        async fn to_loose(
+            oc: AsyncActionContext,
+            f: impl for<'a> FnOnce(&'a AsyncActionContext) -> Box<dyn Future<Output = ()> + 'a>
+                + 'static,
+        ) {
+            Box::into_pin(f(&oc)).await
+        }
+        Self::new_async_loose(move |oc| to_loose(oc, f))
+    }
+    pub fn new_async_loose<Fut>(f: impl FnOnce(AsyncActionContext) -> Fut + 'static) -> Self
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        Self::new(|ac| AsyncAction::start(ac, f))
+    }
     pub fn call(self, ac: &mut ActionContext) {
         match self.0 {
             RawAction::Box(f) => f(ac),
@@ -555,6 +573,7 @@ impl RcAction {
         }
         RcAction(Rc::new(FnCallAction(f)))
     }
+
     pub fn from_rc(f: Rc<dyn CallAction>) -> Self {
         RcAction(f)
     }
@@ -581,6 +600,51 @@ impl RcAction {
 
 pub trait CallAction {
     fn call_action(self: Rc<Self>, ac: &mut ActionContext);
+}
+
+struct AsyncAction {
+    aac_source: AsyncActionContextSource,
+    waker: RefCell<Option<RuntimeWaker>>,
+    future: RefCell<Option<Pin<Box<dyn Future<Output = ()>>>>>,
+}
+impl AsyncAction {
+    fn start<Fut>(ac: &mut ActionContext, f: impl FnOnce(AsyncActionContext) -> Fut + 'static)
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        let aac_source = AsyncActionContextSource::new();
+        let aac = aac_source.context();
+        let future = aac_source.apply(ac, || f(aac));
+        let action = Rc::new(Self {
+            aac_source,
+            waker: RefCell::new(None),
+            future: RefCell::new(Some(Box::pin(future))),
+        });
+        *action.waker.borrow_mut() =
+            Some(RuntimeWaker::from_action(RcAction::from_rc(action.clone())));
+        action.call_action(ac);
+    }
+}
+
+impl CallAction for AsyncAction {
+    fn call_action(self: Rc<Self>, ac: &mut ActionContext) {
+        self.aac_source.apply(ac, || {
+            let mut this_waker = self.waker.borrow_mut();
+            let Some(waker) = &mut *this_waker else {
+                return;
+            };
+            let mut this_future = self.future.borrow_mut();
+            let Some(future) = this_future.as_mut() else {
+                return;
+            };
+            let waker = waker.as_waker();
+            let mut cx = Context::from_waker(&waker);
+            if future.as_mut().poll(&mut cx).is_ready() {
+                this_waker.take();
+                this_future.take();
+            }
+        });
+    }
 }
 
 pub trait BindSink: 'static {
@@ -647,27 +711,41 @@ impl WeakTaskOf<dyn BindSink> {
 
 #[derive(Default)]
 struct WakeTable {
-    tasks: SlabMap<WeakTaskOf<dyn BindSink>>,
+    tasks: SlabMap<WakeTask>,
     requests: WakeRequests,
 }
 
 impl WakeTable {
-    fn insert(&mut self, task: WeakTaskOf<dyn BindSink>) -> Arc<RawWake> {
+    fn insert(&mut self, task: WakeTask) -> Arc<RawWake> {
         RawWake::new(&self.requests, Some(self.tasks.insert(task)))
     }
 
-    fn apply(&mut self, uc: &mut UpdateContext) {
+    fn apply(&mut self, actions: &mut VecDeque<Action>, uc: &mut UpdateContext) {
         let mut requests = self.requests.0.lock().unwrap();
         for key in requests.drops.drain(..) {
             self.tasks.remove(key);
         }
         for key in requests.wakes.drain(..) {
             if let Some(task) = self.tasks.get(key) {
-                task.call_notify(uc);
+                match task {
+                    WakeTask::Notify { sink, slot } => {
+                        if let Some(sink) = sink.upgrade() {
+                            sink.notify(*slot, true, uc)
+                        }
+                    }
+                    WakeTask::Action(action) => actions.push_back(action.to_action()),
+                }
             }
         }
         requests.waker = None;
     }
+}
+enum WakeTask {
+    Notify {
+        sink: Weak<dyn BindSink>,
+        slot: usize,
+    },
+    Action(RcAction),
 }
 
 #[derive(Clone, Default)]
@@ -717,22 +795,24 @@ impl Drop for RawWake {
         }
     }
 }
-pub(crate) struct DependencyWaker(Arc<RawWake>);
+pub(crate) struct RuntimeWaker(Arc<RawWake>);
 
-impl DependencyWaker {
-    pub fn new(node: Weak<impl BindSink>, slot: usize) -> Self {
-        let node = node;
-        Self(RuntimeGlobal::with(|t| {
-            t.wakes.insert(WeakTaskOf { node, slot })
-        }))
+impl RuntimeWaker {
+    pub fn from_sink(sink: Weak<impl BindSink>, slot: usize) -> Self {
+        Self::new(WakeTask::Notify { sink, slot })
     }
+    fn from_action(action: RcAction) -> Self {
+        Self::new(WakeTask::Action(action))
+    }
+    fn new(task: WakeTask) -> Self {
+        Self(RuntimeGlobal::with(|t| t.wakes.insert(task)))
+    }
+
     pub fn as_waker(&self) -> Waker {
         self.0.clone().into()
     }
 }
 
-#[derive_ex(Default)]
-#[default(Self::new())]
 pub(crate) struct AsyncObsContextSource(Rc<RefCell<*mut ObsContext<'static>>>);
 
 impl AsyncObsContextSource {
@@ -758,7 +838,43 @@ pub struct AsyncObsContext(Rc<RefCell<*mut ObsContext<'static>>>);
 impl AsyncObsContext {
     pub fn get<T>(&mut self, f: impl FnOnce(&mut ObsContext) -> T) -> T {
         let mut b = self.0.borrow_mut();
-        assert!(!b.is_null());
+        assert!(
+            !b.is_null(),
+            "`AsyncObsContext` cannot be used after being moved."
+        );
+        unsafe { f(&mut **b) }
+    }
+}
+
+struct AsyncActionContextSource(Rc<RefCell<*mut ActionContext<'static>>>);
+
+impl AsyncActionContextSource {
+    fn new() -> Self {
+        Self(Rc::new(RefCell::new(null_mut())))
+    }
+    fn apply<T>(&self, ac: &mut ActionContext, f: impl FnOnce() -> T) -> T {
+        let p = unsafe { transmute(ac) };
+        assert!(self.0.borrow().is_null());
+        *self.0.borrow_mut() = p;
+        let ret = f();
+        assert!(*self.0.borrow() == p);
+        *self.0.borrow_mut() = null_mut();
+        ret
+    }
+    fn context(&self) -> AsyncActionContext {
+        AsyncActionContext(self.0.clone())
+    }
+}
+
+pub struct AsyncActionContext(Rc<RefCell<*mut ActionContext<'static>>>);
+
+impl AsyncActionContext {
+    pub fn call<T>(&mut self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
+        let mut b = self.0.borrow_mut();
+        assert!(
+            !b.is_null(),
+            "`AsyncActionontext` cannot be used after being moved."
+        );
         unsafe { f(&mut **b) }
     }
 }

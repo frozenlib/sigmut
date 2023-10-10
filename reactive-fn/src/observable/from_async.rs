@@ -3,7 +3,7 @@ use crate::{
     core::{
         dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
         dependency_token::DependencyToken,
-        AsyncObsContext, AsyncObsContextSource, ComputeContext, DependencyWaker, ObsContext,
+        AsyncObsContext, AsyncObsContextSource, ComputeContext, ObsContext, RuntimeWaker,
     },
     Obs,
 };
@@ -27,7 +27,7 @@ where
     deps: DependencyToken,
     fut: Pin<Box<Option<Fut>>>,
     state: Poll<Fut::Output>,
-    waker: DependencyWaker,
+    waker: RuntimeWaker,
 }
 
 impl<F, Fut> FromAsync<F, Fut>
@@ -43,7 +43,7 @@ where
                 async_oc_source: AsyncObsContextSource::new(),
                 fut: Box::pin(None),
                 state: Poll::Pending,
-                waker: DependencyWaker::new(this.clone(), SLOT),
+                waker: RuntimeWaker::from_sink(this.clone(), SLOT),
             },
             DependencyNodeSettings {
                 is_hasty: false,
@@ -120,7 +120,7 @@ where
     deps: DependencyToken,
     stream: Pin<Box<Option<S>>>,
     state: Poll<S::Item>,
-    waker: DependencyWaker,
+    waker: RuntimeWaker,
 }
 
 impl<F, S> FromStreamFn<F, S>
@@ -135,7 +135,7 @@ where
                 f,
                 stream: Box::pin(None),
                 state: Poll::Pending,
-                waker: DependencyWaker::new(this.clone(), SLOT),
+                waker: RuntimeWaker::from_sink(this.clone(), SLOT),
             },
             DependencyNodeSettings {
                 is_hasty: false,
@@ -319,7 +319,7 @@ pub(crate) struct FromStreamScan<S, Ops: StreamScanOps> {
     stream: Option<Pin<Box<S>>>,
     state: Ops::St,
     ops: Ops,
-    waker: DependencyWaker,
+    waker: RuntimeWaker,
 }
 
 impl<S, Ops> FromStreamScan<S, Ops>
@@ -333,7 +333,7 @@ where
                 stream: Some(Box::pin(s)),
                 state: initial_state,
                 ops,
-                waker: DependencyWaker::new(this.clone(), SLOT),
+                waker: RuntimeWaker::from_sink(this.clone(), SLOT),
             },
             DependencyNodeSettings {
                 is_hasty: false,
