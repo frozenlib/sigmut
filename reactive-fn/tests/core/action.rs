@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use futures::channel::oneshot::channel;
 use reactive_fn::{core::Runtime, Action};
 use tokio::time::sleep;
 
@@ -23,18 +24,18 @@ fn action_new() {
 async fn action_new_async() {
     let mut cp = CodePathChecker::new();
     let mut rt = Runtime::new();
-    let action = Action::new_async_loose(|ac| async move {
-        ac.call(|_ac| {
-            code("1");
-        });
-        sleep(Duration::from_millis(100)).await;
-        ac.call(|_ac| {
-            code("2");
-        });
+    let (sender, receiver) = channel();
+    let action = Action::new_async(|ac| {
+        Box::new(async move {
+            ac.call(|_ac| code("1"));
+            sleep(Duration::from_millis(100)).await;
+            ac.call(|_ac| code("2"));
+            sender.send(()).unwrap();
+        })
     });
     action.schedule();
     rt.run(|_| async {
-        sleep(Duration::from_millis(500)).await;
+        receiver.await.unwrap();
     })
     .await;
 
@@ -46,18 +47,16 @@ async fn action_new_async() {
 async fn action_new_async_loose() {
     let mut cp = CodePathChecker::new();
     let mut rt = Runtime::new();
+    let (sender, receiver) = channel();
     let action = Action::new_async_loose(|ac| async move {
-        ac.call(|_ac| {
-            code("1");
-        });
+        ac.call(|_ac| code("1"));
         sleep(Duration::from_millis(200)).await;
-        ac.call(|_ac| {
-            code("2");
-        });
+        ac.call(|_ac| code("2"));
+        sender.send(()).unwrap();
     });
     action.schedule();
     rt.run(|_| async {
-        sleep(Duration::from_millis(500)).await;
+        receiver.await.unwrap();
     })
     .await;
 
