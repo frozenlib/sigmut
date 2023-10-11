@@ -1,5 +1,7 @@
 #[doc(no_inline)]
-pub use crate::core::{Action, ActionContext, AsyncObsContext, ObsContext, RcAction};
+pub use crate::core::{
+    Action, ActionContext, AsyncActionContext, AsyncObsContext, ObsContext, RcAction,
+};
 
 #[doc(no_inline)]
 pub use crate::observable::ObsCell;
