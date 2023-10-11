@@ -67,7 +67,7 @@ where
                 |cc| {
                     self.fut.set(None);
                     let async_oc = self.async_oc_source.context();
-                    let value = self.async_oc_source.set(cc.oc(), || (self.f)(async_oc));
+                    let value = self.async_oc_source.call(cc.oc(), || (self.f)(async_oc));
                     self.fut.set(Some(value));
                 },
                 oc,
@@ -78,7 +78,7 @@ where
             let waker = self.waker.as_waker();
             let value = self
                 .async_oc_source
-                .set(oc, || f.poll(&mut Context::from_waker(&waker)));
+                .call(oc, || f.poll(&mut Context::from_waker(&waker)));
             if value.is_ready() {
                 self.fut.set(None);
             }

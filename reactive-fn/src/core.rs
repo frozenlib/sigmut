@@ -661,7 +661,7 @@ impl AsyncAction {
     {
         let aac_source = AsyncActionContextSource::new();
         let aac = aac_source.context();
-        let future = aac_source.apply(ac, || f(aac));
+        let future = aac_source.call(ac, || f(aac));
         let action = Rc::new(Self {
             aac_source,
             waker: RefCell::new(None),
@@ -675,7 +675,7 @@ impl AsyncAction {
 
 impl CallAction for AsyncAction {
     fn call_action(self: Rc<Self>, ac: &mut ActionContext) {
-        self.aac_source.apply(ac, || {
+        self.aac_source.call(ac, || {
             let mut this_waker = self.waker.borrow_mut();
             let Some(waker) = &mut *this_waker else {
                 return;
@@ -855,7 +855,7 @@ impl AsyncObsContextSource {
     pub fn new() -> Self {
         Self(Rc::new(RefCell::new(null_mut())))
     }
-    pub fn set<T>(&self, oc: &mut ObsContext, f: impl FnOnce() -> T) -> T {
+    pub fn call<T>(&self, oc: &mut ObsContext, f: impl FnOnce() -> T) -> T {
         let p = unsafe { transmute(oc) };
         assert!(self.0.borrow().is_null());
         *self.0.borrow_mut() = p;
@@ -888,7 +888,7 @@ impl AsyncActionContextSource {
     fn new() -> Self {
         Self(Rc::new(RefCell::new(null_mut())))
     }
-    fn apply<T>(&self, ac: &mut ActionContext, f: impl FnOnce() -> T) -> T {
+    fn call<T>(&self, ac: &mut ActionContext, f: impl FnOnce() -> T) -> T {
         let p = unsafe { transmute(ac) };
         assert!(self.0.borrow().is_null());
         *self.0.borrow_mut() = p;
