@@ -4,7 +4,7 @@ use std::{
     cell::RefCell,
     collections::VecDeque,
     future::Future,
-    mem::{replace, transmute},
+    mem::{replace, take, transmute},
     pin::{pin, Pin},
     ptr::null_mut,
     rc::{Rc, Weak},
@@ -44,6 +44,28 @@ impl RuntimeGlobal {
     fn schedule_action(action: Action) {
         Self::with(|rg| rg.actions.push_back(action));
     }
+
+    fn apply_wake(&mut self) -> bool {
+        let mut requests = self.wakes.requests.0.lock().unwrap();
+        for key in requests.drops.drain(..) {
+            self.wakes.tasks.remove(key);
+        }
+        for key in requests.wakes.drain(..) {
+            if let Some(task) = self.wakes.tasks.get(key) {
+                match task {
+                    WakeTask::Notify { sink, slot } => {
+                        self.tasks_notify.push(WeakTaskOf {
+                            node: sink.clone(),
+                            slot: *slot,
+                        });
+                    }
+                    WakeTask::Action(action) => self.actions.push_back(action.to_action()),
+                }
+            }
+        }
+        requests.waker = None;
+        take(&mut requests.is_wake_main)
+    }
 }
 pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, slot: usize) {
     RuntimeGlobal::try_with(|rg| rg.tasks_notify.push(WeakTaskOf { node, slot }));
@@ -73,31 +95,40 @@ impl UpdateContext {
     pub fn oc(&mut self) -> ObsContext {
         ObsContext::new(self, None)
     }
-    fn apply_notify(&mut self) {
+    fn apply_notify(&mut self) -> bool {
+        let mut is_used = false;
         RuntimeGlobal::with(|t| {
             for t in t.tasks_unbind.drain(..) {
                 t.unbind(self);
+                is_used = true;
             }
-            t.wakes.apply(&mut t.actions, self);
             for t in t.tasks_notify.drain(..) {
                 t.call_notify(self);
+                is_used = true;
             }
         });
         while let Some(task) = self.0.tasks_flush.pop() {
             task.call_flush(self);
+            is_used = true;
         }
+        is_used
     }
-    fn run_actions(&mut self) {
+    fn run_actions(&mut self) -> bool {
+        let mut is_used = false;
         while let Some(a) = RuntimeGlobal::with(|t| t.actions.pop_front()) {
-            a.call(&mut ActionContext(ObsContext::new(self, None)))
+            a.call(&mut ActionContext(ObsContext::new(self, None)));
+            is_used = true;
         }
+        is_used
     }
-    fn update_all(&mut self, discard: bool) {
-        self.run_actions();
-        self.apply_notify();
+    fn update_all(&mut self, discard: bool) -> bool {
+        let mut is_used = false;
+        is_used |= self.run_actions();
+        is_used |= self.apply_notify();
         loop {
             while let Some(task) = self.0.tasks_update.pop() {
                 task.call_update(self);
+                is_used = true;
             }
             RuntimeGlobal::with(|t| {
                 self.0
@@ -111,8 +142,10 @@ impl UpdateContext {
         if discard {
             while let Some(task) = self.0.tasks_discard.pop() {
                 task.call_discard(self);
+                is_used = true;
             }
         }
+        is_used
     }
 
     pub(crate) fn schedule_flush(&mut self, node: Rc<dyn CallFlush>, slot: usize) {
@@ -341,15 +374,15 @@ impl Runtime {
     pub fn uc(&mut self) -> &mut UpdateContext {
         &mut self.0
     }
-    pub fn run_actions(&mut self) {
-        self.0.run_actions();
+    pub fn run_actions(&mut self) -> bool {
+        self.0.run_actions()
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> bool {
         self.update_with(true)
     }
-    pub fn update_with(&mut self, discard: bool) {
-        self.0.update_all(discard);
+    pub fn update_with(&mut self, discard: bool) -> bool {
+        self.0.update_all(discard)
     }
 
     pub async fn run<Fut: Future>(&mut self, f: impl FnOnce(RuntimeContext) -> Fut) -> Fut::Output {
@@ -377,23 +410,27 @@ impl<'a, Fut: Future> Future for RuntimeMain<'a, Fut> {
     type Output = Fut::Output;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut is_wake_old = true;
-        let mut is_wake = self.wake.requests().is_wake_main;
-        while is_wake || is_wake_old {
-            if is_wake {
-                let p = self.fut.as_mut().poll(cx);
+        loop {
+            if RuntimeGlobal::with(|rt| rt.apply_wake()) {
+                let waker = Waker::from(self.wake.clone());
+                let mut cx = Context::from_waker(&waker);
+                let p = self.fut.as_mut().poll(&mut cx);
                 if p.is_ready() {
                     return p;
                 }
-                self.wake.requests().is_wake_main = false;
+                continue;
             }
-            self.rt.0.run_actions();
-            self.rt.0.update();
-            is_wake_old = is_wake;
-            is_wake = self.wake.requests().is_wake_main;
+            if self.rt.0.run_actions() {
+                continue;
+            }
+            if self.rt.0.update() {
+                continue;
+            }
+            if !self.wake.requests().try_finish_poll(cx) {
+                continue;
+            }
+            return Poll::Pending;
         }
-        self.wake.requests().waker = Some(cx.waker().clone());
-        Poll::Pending
     }
 }
 
@@ -417,13 +454,13 @@ impl Drop for RuntimeContextSource {
 pub struct RuntimeContext(Rc<RefCell<*mut Runtime>>);
 
 impl RuntimeContext {
-    pub fn run_actions(&mut self) {
+    pub fn run_actions(&mut self) -> bool {
         self.call(|rt| rt.run_actions())
     }
-    pub fn update(&mut self) {
+    pub fn update(&mut self) -> bool {
         self.call(|rt| rt.update())
     }
-    pub fn update_with(&mut self, discard: bool) {
+    pub fn update_with(&mut self, discard: bool) -> bool {
         self.call(|rt| rt.update_with(discard))
     }
     fn set_null(&self) {
@@ -719,26 +756,6 @@ impl WakeTable {
     fn insert(&mut self, task: WakeTask) -> Arc<RawWake> {
         RawWake::new(&self.requests, Some(self.tasks.insert(task)))
     }
-
-    fn apply(&mut self, actions: &mut VecDeque<Action>, uc: &mut UpdateContext) {
-        let mut requests = self.requests.0.lock().unwrap();
-        for key in requests.drops.drain(..) {
-            self.tasks.remove(key);
-        }
-        for key in requests.wakes.drain(..) {
-            if let Some(task) = self.tasks.get(key) {
-                match task {
-                    WakeTask::Notify { sink, slot } => {
-                        if let Some(sink) = sink.upgrade() {
-                            sink.notify(*slot, true, uc)
-                        }
-                    }
-                    WakeTask::Action(action) => actions.push_back(action.to_action()),
-                }
-            }
-        }
-        requests.waker = None;
-    }
 }
 enum WakeTask {
     Notify {
@@ -757,6 +774,15 @@ struct RawWakeRequests {
     drops: Vec<usize>,
     is_wake_main: bool,
     waker: Option<Waker>,
+}
+impl RawWakeRequests {
+    fn try_finish_poll(&mut self, cx: &mut Context) -> bool {
+        let is_finish = self.drops.is_empty() && self.wakes.is_empty() && !self.is_wake_main;
+        if is_finish {
+            self.waker = Some(cx.waker().clone());
+        }
+        is_finish
+    }
 }
 
 struct RawWake {
@@ -869,7 +895,7 @@ impl AsyncActionContextSource {
 pub struct AsyncActionContext(Rc<RefCell<*mut ActionContext<'static>>>);
 
 impl AsyncActionContext {
-    pub fn call<T>(&mut self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
+    pub fn call<T>(&self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
         let mut b = self.0.borrow_mut();
         assert!(
             !b.is_null(),

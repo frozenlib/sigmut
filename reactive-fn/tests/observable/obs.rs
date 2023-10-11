@@ -1,9 +1,11 @@
-use crate::test_utils::code_path::{code, CodePathChecker};
 use futures::channel::oneshot::channel;
 use reactive_fn::core::Runtime;
 use reactive_fn::{Obs, ObsCell};
+use rt_local::runtime::core::test;
 use std::task::Poll;
 use std::{cell::RefCell, rc::Rc};
+
+use crate::test_utils::code_path::{code, CodePathChecker};
 
 #[test]
 fn new() {
@@ -85,26 +87,14 @@ fn from_get() {
 }
 
 #[test]
-fn from_future() {
-    let mut dc = Runtime::new();
+async fn from_future() {
+    let mut rt = Runtime::new();
     let (sender, receiver) = channel();
     let s = Obs::from_future(receiver);
-    assert_eq!(s.get(dc.ac().oc()), Poll::Pending);
+    assert_eq!(s.get(rt.ac().oc()), Poll::Pending);
     sender.send(10).unwrap();
-    assert_eq!(s.get(dc.ac().oc()), Poll::Ready(Ok(10)));
-}
-
-#[test]
-fn from_future_send_in_get() {
-    let mut dc = Runtime::new();
-    let (sender, receiver) = channel();
-    let s = Obs::from_future(receiver);
-    let mut ac = dc.ac();
-    let oc = ac.oc();
-    assert_eq!(s.get(oc), Poll::Pending);
-    sender.send(10).unwrap();
-    assert_eq!(s.get(oc), Poll::Pending);
-    assert_eq!(s.get(dc.ac().oc()), Poll::Ready(Ok(10)));
+    rt.run(|_rt| async {}).await;
+    assert_eq!(s.get(rt.ac().oc()), Poll::Ready(Ok(10)));
 }
 
 #[test]
