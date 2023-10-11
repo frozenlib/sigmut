@@ -3,7 +3,7 @@ use std::time::Duration;
 use reactive_fn::{core::Runtime, Action};
 use tokio::time::sleep;
 
-use crate::test_utils::code_path::{code, CodePath, CodePathChecker};
+use crate::test_utils::code_path::{code, CodePathChecker};
 
 #[test]
 fn action_new() {

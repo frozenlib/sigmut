@@ -386,11 +386,18 @@ impl Runtime {
     }
 
     pub async fn run<Fut: Future>(&mut self, f: impl FnOnce(RuntimeContext) -> Fut) -> Fut::Output {
-        let rt = RuntimeContextSource::new(self);
-        let fut = pin!(f(rt.get()));
+        let rts = RuntimeContextSource::new();
+        let rt = rts.context();
+        let fut = pin!(rts.apply(self, move || f(rt)));
         let wake = RG.with(|t| RawWake::new(&t.borrow().wakes.requests, None));
         wake.requests().is_wake_main = true;
-        RuntimeMain { rt, fut, wake }.await
+        RuntimeMain {
+            rt: self,
+            rts,
+            fut,
+            wake,
+        }
+        .await
     }
 }
 impl Drop for Runtime {
@@ -401,7 +408,8 @@ impl Drop for Runtime {
 }
 
 struct RuntimeMain<'a, Fut> {
-    rt: RuntimeContextSource,
+    rt: &'a mut Runtime,
+    rts: RuntimeContextSource,
     wake: Arc<RawWake>,
     fut: Pin<&'a mut Fut>,
 }
@@ -409,24 +417,25 @@ struct RuntimeMain<'a, Fut> {
 impl<'a, Fut: Future> Future for RuntimeMain<'a, Fut> {
     type Output = Fut::Output;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
         loop {
             if RuntimeGlobal::with(|rt| rt.apply_wake()) {
-                let waker = Waker::from(self.wake.clone());
+                let waker = Waker::from(this.wake.clone());
                 let mut cx = Context::from_waker(&waker);
-                let p = self.fut.as_mut().poll(&mut cx);
+                let p = this.rts.apply(this.rt, || this.fut.as_mut().poll(&mut cx));
                 if p.is_ready() {
                     return p;
                 }
                 continue;
             }
-            if self.rt.0.run_actions() {
+            if this.rt.run_actions() {
                 continue;
             }
-            if self.rt.0.update() {
+            if this.rt.update() {
                 continue;
             }
-            if !self.wake.requests().try_finish_poll(cx) {
+            if !this.wake.requests().try_finish_poll(cx) {
                 continue;
             }
             return Poll::Pending;
@@ -434,19 +443,23 @@ impl<'a, Fut: Future> Future for RuntimeMain<'a, Fut> {
     }
 }
 
-struct RuntimeContextSource(RuntimeContext);
+struct RuntimeContextSource(Rc<RefCell<*mut Runtime>>);
 
 impl RuntimeContextSource {
-    pub fn new(rt: *mut Runtime) -> Self {
-        Self(RuntimeContext(Rc::new(RefCell::new(rt))))
+    pub fn new() -> Self {
+        Self(Rc::new(RefCell::new(null_mut())))
     }
-    pub fn get(&self) -> RuntimeContext {
-        self.0.clone()
+    pub fn context(&self) -> RuntimeContext {
+        RuntimeContext(self.0.clone())
     }
-}
-impl Drop for RuntimeContextSource {
-    fn drop(&mut self) {
-        self.0.set_null();
+
+    fn apply<T>(&self, rt: &mut Runtime, f: impl FnOnce() -> T) -> T {
+        let rt: *mut Runtime = rt;
+        assert!(self.0.borrow().is_null());
+        *self.0.borrow_mut() = rt;
+        let ret = f();
+        *self.0.borrow_mut() = null_mut();
+        ret
     }
 }
 
@@ -463,16 +476,13 @@ impl RuntimeContext {
     pub fn update_with(&mut self, discard: bool) -> bool {
         self.call(|rt| rt.update_with(discard))
     }
-    fn set_null(&self) {
-        *self.0.borrow_mut() = null_mut();
-    }
     fn call<T>(&self, f: impl FnOnce(&mut Runtime) -> T) -> T {
         unsafe {
             let p = self.0.borrow_mut();
             if let Some(rt) = p.as_mut() {
                 f(rt)
             } else {
-                panic!("`Runtime::run()` was already finished.");
+                panic!("`RuntimeContext` cannot be used after being moved.");
             }
         }
     }
@@ -899,7 +909,7 @@ impl AsyncActionContext {
         let mut b = self.0.borrow_mut();
         assert!(
             !b.is_null(),
-            "`AsyncActionontext` cannot be used after being moved."
+            "`AsyncActionContext` cannot be used after being moved."
         );
         unsafe { f(&mut **b) }
     }
