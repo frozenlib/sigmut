@@ -556,19 +556,7 @@ impl Action {
     pub fn new(f: impl FnOnce(&mut ActionContext) + 'static) -> Self {
         Self(RawAction::Box(Box::new(f)))
     }
-    pub fn new_async(
-        f: impl for<'a> FnOnce(&'a AsyncActionContext) -> Box<dyn Future<Output = ()> + 'a> + 'static,
-    ) -> Self {
-        async fn to_loose(
-            oc: AsyncActionContext,
-            f: impl for<'a> FnOnce(&'a AsyncActionContext) -> Box<dyn Future<Output = ()> + 'a>
-                + 'static,
-        ) {
-            Box::into_pin(f(&oc)).await
-        }
-        Self::new_async_loose(move |oc| to_loose(oc, f))
-    }
-    pub fn new_async_loose<Fut>(f: impl FnOnce(AsyncActionContext) -> Fut + 'static) -> Self
+    pub fn new_async<Fut>(f: impl FnOnce(AsyncActionContext) -> Fut + 'static) -> Self
     where
         Fut: Future<Output = ()> + 'static,
     {

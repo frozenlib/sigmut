@@ -25,30 +25,7 @@ async fn action_new_async() {
     let mut cp = CodePathChecker::new();
     let mut rt = Runtime::new();
     let (sender, receiver) = channel();
-    let action = Action::new_async(|ac| {
-        Box::new(async move {
-            ac.call(|_ac| code("1"));
-            sleep(Duration::from_millis(100)).await;
-            ac.call(|_ac| code("2"));
-            sender.send(()).unwrap();
-        })
-    });
-    action.schedule();
-    rt.run(|_| async {
-        receiver.await.unwrap();
-    })
-    .await;
-
-    cp.expect(["1", "2"]);
-    cp.verify();
-}
-
-#[tokio::test]
-async fn action_new_async_loose() {
-    let mut cp = CodePathChecker::new();
-    let mut rt = Runtime::new();
-    let (sender, receiver) = channel();
-    let action = Action::new_async_loose(|ac| async move {
+    let action = Action::new_async(|ac| async move {
         ac.call(|_ac| code("1"));
         sleep(Duration::from_millis(200)).await;
         ac.call(|_ac| code("2"));
