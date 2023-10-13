@@ -1,6 +1,7 @@
 #[doc(no_inline)]
 pub use crate::core::{
-    Action, ActionContext, AsyncActionContext, AsyncObsContext, ObsContext, RcAction,
+    wait_for_update, Action, ActionContext, AsyncActionContext, AsyncObsContext, ObsContext,
+    RcAction,
 };
 
 #[doc(no_inline)]

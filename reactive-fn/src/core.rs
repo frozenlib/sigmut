@@ -12,6 +12,8 @@ use std::{
     task::{Context, Poll, Wake, Waker},
 };
 
+use crate::utils::PhantomNotSend;
+
 pub mod dependency_node;
 pub mod dependency_token;
 
@@ -28,6 +30,8 @@ struct RuntimeGlobal {
     tasks_saved: Option<RuntimeTasks>,
     actions: VecDeque<Action>,
     wakes: WakeTable,
+    wait_for_update_wakers: Vec<Waker>,
+    phase: usize,
 }
 
 impl RuntimeGlobal {
@@ -65,6 +69,23 @@ impl RuntimeGlobal {
         }
         requests.waker = None;
         take(&mut requests.is_wake_main)
+    }
+    fn poll_wait_for_update(&mut self, phase: usize, cx: &mut Context) -> Poll<()> {
+        if phase != self.phase {
+            return Poll::Ready(());
+        }
+        self.wait_for_update_wakers.push(cx.waker().clone());
+        self.wakes.requests.0.lock().unwrap().wake();
+        Poll::Pending
+    }
+    fn wake_wait_for_update(&mut self) -> bool {
+        let mut is_used = false;
+        self.phase += 1;
+        while let Some(waker) = self.wait_for_update_wakers.pop() {
+            is_used = true;
+            waker.wake();
+        }
+        is_used
     }
 }
 pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, slot: usize) {
@@ -435,6 +456,9 @@ impl<'a, Fut: Future> Future for RuntimeMain<'a, Fut> {
             if this.rt.update() {
                 continue;
             }
+            if RuntimeGlobal::with(|rt| rt.wake_wait_for_update()) {
+                continue;
+            }
             if !this.wake.requests().try_finish_poll(cx) {
                 continue;
             }
@@ -781,6 +805,11 @@ impl RawWakeRequests {
         }
         is_finish
     }
+    fn wake(&mut self) {
+        if let Some(waker) = self.waker.take() {
+            waker.wake();
+        }
+    }
 }
 
 struct RawWake {
@@ -807,9 +836,7 @@ impl Wake for RawWake {
         } else {
             requests.is_wake_main = true;
         }
-        if let Some(waker) = requests.waker.take() {
-            waker.wake();
-        }
+        requests.wake();
     }
 }
 impl Drop for RawWake {
@@ -900,5 +927,29 @@ impl AsyncActionContext {
             "`AsyncActionContext` cannot be used after being moved."
         );
         unsafe { f(&mut **b) }
+    }
+}
+
+/// Wait until there are no more immediately runnable actions and state updates.
+///
+/// If [`Runtime::run`] is not being called in the current thread, it will not complete until `Runtime::run` is called.
+pub async fn wait_for_update() {
+    let phase = RuntimeGlobal::with(|rt| rt.phase);
+    WaitForUpdate {
+        phase,
+        _not_send: PhantomNotSend::default(),
+    }
+    .await
+}
+
+struct WaitForUpdate {
+    phase: usize,
+    _not_send: PhantomNotSend,
+}
+impl Future for WaitForUpdate {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
+        RuntimeGlobal::with(|rt| rt.poll_wait_for_update(self.phase, cx))
     }
 }
