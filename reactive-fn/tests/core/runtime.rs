@@ -5,22 +5,24 @@ use reactive_fn::{
     Action, ObsCell,
 };
 use rt_local::runtime::core::test;
-use tokio::time::sleep;
 
-use crate::test_utils::code_path::{code, CodePathChecker};
+use crate::test_utils::{
+    code_path::{code, CodePathChecker},
+    task::sleep,
+};
 
 #[test]
 fn new() {
     let _rt = Runtime::new();
 }
 
-#[tokio::test]
+#[test]
 async fn run() {
     let mut rt = Runtime::new();
     rt.run(|_| async {}).await;
 }
 
-#[tokio::test]
+#[test]
 async fn run_sleep() {
     let mut rt = Runtime::new();
     rt.run(|_| async {

@@ -7,7 +7,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use super::{schedule_notify, CallDiscard, CallFlush, CallUpdate, RuntimeGlobal, SourceBindings};
+use super::{schedule_notify, schedule_update, CallDiscard, CallFlush, CallUpdate, SourceBindings};
 
 const SLOT: usize = 0;
 
@@ -72,7 +72,7 @@ where
         });
         if this.s.is_hot {
             let node = Rc::downgrade(&this);
-            RuntimeGlobal::schedule_update(node, SLOT);
+            schedule_update(node, SLOT);
         }
         this
     }

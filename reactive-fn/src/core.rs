@@ -42,11 +42,17 @@ impl RuntimeGlobal {
         let _ = RG.try_with(|rg| f(&mut rg.borrow_mut()));
     }
 
-    fn schedule_update(node: Weak<dyn CallUpdate>, slot: usize) {
-        Self::with(|rg| rg.tasks_update.push(WeakTaskOf { node, slot }));
+    fn push_action(&mut self, action: Action) {
+        self.actions.push_back(action);
+        self.wake();
     }
-    fn schedule_action(action: Action) {
-        Self::with(|rg| rg.actions.push_back(action));
+    fn push_notify(&mut self, node: Weak<dyn BindSink>, slot: usize) {
+        self.tasks_notify.push(WeakTaskOf { node, slot });
+        self.wake();
+    }
+    fn push_update(&mut self, node: Weak<dyn CallUpdate>, slot: usize) {
+        self.tasks_update.push(WeakTaskOf { node, slot });
+        self.wake();
     }
 
     fn apply_wake(&mut self) -> bool {
@@ -75,7 +81,7 @@ impl RuntimeGlobal {
             return Poll::Ready(());
         }
         self.wait_for_update_wakers.push(cx.waker().clone());
-        self.wakes.requests.0.lock().unwrap().wake();
+        self.wake();
         Poll::Pending
     }
     fn wake_wait_for_update(&mut self) -> bool {
@@ -90,12 +96,15 @@ impl RuntimeGlobal {
     fn is_runtime_exists(&self) -> bool {
         self.tasks_saved.is_none()
     }
+    fn wake(&mut self) {
+        self.wakes.requests.0.lock().unwrap().wake();
+    }
 }
 pub fn schedule_notify(node: Weak<dyn BindSink>, slot: usize) {
-    RuntimeGlobal::try_with(|rg| rg.tasks_notify.push(WeakTaskOf { node, slot }));
+    RuntimeGlobal::try_with(|rg| rg.push_notify(node, slot));
 }
 pub(crate) fn schedule_update(node: Weak<dyn CallUpdate>, slot: usize) {
-    RuntimeGlobal::try_with(|rg| rg.tasks_update.push(WeakTaskOf { node, slot }));
+    RuntimeGlobal::try_with(|rg| rg.push_update(node, slot));
 }
 
 struct RuntimeTasks {
@@ -603,7 +612,7 @@ impl Action {
 
     /// Perform this action after [`ActionContext`] is available.
     pub fn schedule(self) {
-        RuntimeGlobal::schedule_action(self)
+        RuntimeGlobal::try_with(|rg| rg.push_action(self));
     }
 }
 impl<T: FnOnce(&mut ActionContext) + 'static> From<T> for Action {
