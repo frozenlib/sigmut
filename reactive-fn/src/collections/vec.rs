@@ -14,7 +14,7 @@ use slabmap::SlabMap;
 
 use crate::{
     core::{
-        schedule_notify_lazy, BindSink, BindSource, Computed, SinkBindings, SourceBindings,
+        schedule_notify, BindSink, BindSource, Computed, SinkBindings, SourceBindings,
         UpdateContext,
     },
     utils::{is_sorted, to_range, Changes, IndexNewToOld, RefCountOps},
@@ -710,7 +710,7 @@ impl<T: 'static> ItemsData<T> {
         let is_changed = self.changes.end_age() != age;
         if is_changed {
             let node = Rc::downgrade(&cell.0);
-            schedule_notify_lazy(node, SLOT_NOT_USED)
+            schedule_notify(node, SLOT_NOT_USED)
         }
         is_changed
     }

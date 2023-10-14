@@ -7,9 +7,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use super::{
-    schedule_notify_lazy, CallDiscard, CallFlush, CallUpdate, RuntimeGlobal, SourceBindings,
-};
+use super::{schedule_notify, CallDiscard, CallFlush, CallUpdate, RuntimeGlobal, SourceBindings};
 
 const SLOT: usize = 0;
 
@@ -96,7 +94,7 @@ where
             }
         }
         let node = Rc::downgrade(self);
-        schedule_notify_lazy(node, SLOT)
+        schedule_notify(node, SLOT)
     }
     pub fn is_up_to_date(self: &Rc<Self>, uc: &mut UpdateContext) -> bool {
         NodeHelper::new(self, uc).state().is_up_to_date().1

@@ -1,7 +1,7 @@
 use super::{Obs, ObservableBuilder, RcObservable};
 use crate::{
     core::{
-        schedule_notify_lazy, ActionContext, BindSink, BindSource, ObsContext, SinkBindings,
+        schedule_notify, ActionContext, BindSink, BindSource, ObsContext, SinkBindings,
         UpdateContext,
     },
     ObsBuilder, Observable,
@@ -165,6 +165,6 @@ impl<'a, T> DerefMut for ObsCellRefMut<'a, T> {
 impl<'a, T: 'static> Drop for ObsCellRefMut<'a, T> {
     fn drop(&mut self) {
         let node = Rc::downgrade(self.node);
-        schedule_notify_lazy(node, SLOT)
+        schedule_notify(node, SLOT)
     }
 }

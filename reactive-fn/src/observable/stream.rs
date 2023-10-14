@@ -1,5 +1,5 @@
 use crate::{
-    core::{schedule_update_lazy, BindSink, CallUpdate, Computed, SourceBindings, UpdateContext},
+    core::{schedule_update, BindSink, CallUpdate, Computed, SourceBindings, UpdateContext},
     ObsContext,
 };
 use futures::Stream;
@@ -66,7 +66,7 @@ where
                 if d.computed != Computed::UpToDate && !d.is_scheduled_update {
                     d.is_scheduled_update = true;
                     let node = Rc::downgrade(&self.as_ref().0);
-                    schedule_update_lazy(node, SLOT);
+                    schedule_update(node, SLOT);
                 }
                 Poll::Pending
             }

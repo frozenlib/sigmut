@@ -91,10 +91,10 @@ impl RuntimeGlobal {
         self.tasks_saved.is_none()
     }
 }
-pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, slot: usize) {
+pub fn schedule_notify(node: Weak<dyn BindSink>, slot: usize) {
     RuntimeGlobal::try_with(|rg| rg.tasks_notify.push(WeakTaskOf { node, slot }));
 }
-pub(crate) fn schedule_update_lazy(node: Weak<dyn CallUpdate>, slot: usize) {
+pub(crate) fn schedule_update(node: Weak<dyn CallUpdate>, slot: usize) {
     RuntimeGlobal::try_with(|rg| rg.tasks_update.push(WeakTaskOf { node, slot }));
 }
 
