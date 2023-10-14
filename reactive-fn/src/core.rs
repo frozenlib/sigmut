@@ -71,7 +71,7 @@ impl RuntimeGlobal {
         take(&mut requests.is_wake_main)
     }
     fn poll_wait_for_update(&mut self, phase: usize, cx: &mut Context) -> Poll<()> {
-        if phase != self.phase {
+        if !self.is_runtime_exists() || phase != self.phase {
             return Poll::Ready(());
         }
         self.wait_for_update_wakers.push(cx.waker().clone());
@@ -86,6 +86,9 @@ impl RuntimeGlobal {
             waker.wake();
         }
         is_used
+    }
+    fn is_runtime_exists(&self) -> bool {
+        self.tasks_saved.is_none()
     }
 }
 pub fn schedule_notify_lazy(node: Weak<dyn BindSink>, slot: usize) {
@@ -933,8 +936,17 @@ impl AsyncActionContext {
 /// Wait until there are no more immediately runnable actions and state updates.
 ///
 /// If [`Runtime::run`] is not being called in the current thread, it will not complete until `Runtime::run` is called.
+///
+/// # Panics
+///
+/// Panics if there is no `Runtime` in the current thread.
 pub async fn wait_for_update() {
-    let phase = RuntimeGlobal::with(|rt| rt.phase);
+    let phase = RuntimeGlobal::with(|rt| {
+        if !rt.is_runtime_exists() {
+            panic!("There is no `Runtime` in the current thread.");
+        }
+        rt.phase
+    });
     WaitForUpdate {
         phase,
         _not_send: PhantomNotSend::default(),

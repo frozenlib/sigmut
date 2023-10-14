@@ -30,6 +30,12 @@ async fn run_sleep() {
 }
 
 #[test]
+#[should_panic]
+async fn wait_for_update_no_runtiem() {
+    wait_for_update().await;
+}
+
+#[test]
 async fn wait_for_update_empty() {
     let mut rt = Runtime::new();
     rt.run(|_| async {
