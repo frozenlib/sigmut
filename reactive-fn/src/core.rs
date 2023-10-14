@@ -602,6 +602,7 @@ impl<'a> ActionContext<'a> {
 }
 
 /// Operation for changing state.
+#[must_use]
 pub struct Action(RawAction);
 
 impl Action {
