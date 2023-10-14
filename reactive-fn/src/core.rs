@@ -111,6 +111,7 @@ struct RuntimeTasks {
     tasks_flush: Vec<TaskOf<dyn CallFlush>>,
     tasks_update: Vec<TaskOf<dyn CallUpdate>>,
     tasks_discard: Vec<TaskOf<dyn CallDiscard>>,
+    async_actions: SlabMap<Rc<AsyncAction>>,
 }
 impl RuntimeTasks {
     fn new() -> Self {
@@ -118,6 +119,7 @@ impl RuntimeTasks {
             tasks_flush: Vec::new(),
             tasks_update: Vec::new(),
             tasks_discard: Vec::new(),
+            async_actions: SlabMap::new(),
         }
     }
 }
@@ -432,9 +434,23 @@ impl Runtime {
         }
         .await
     }
+    fn drop_actions(&mut self) {
+        let mut actions = Vec::new();
+        loop {
+            actions.clear();
+            actions.extend(self.0 .0.async_actions.values().cloned());
+            if actions.is_empty() {
+                break;
+            }
+            for action in &actions {
+                action.drop_action(&mut self.ac());
+            }
+        }
+    }
 }
 impl Drop for Runtime {
     fn drop(&mut self) {
+        self.drop_actions();
         let tasks_saved = Some(replace(&mut self.0 .0, RuntimeTasks::new()));
         let _ = RG.try_with(|rg| rg.borrow_mut().tasks_saved = tasks_saved);
     }
@@ -675,8 +691,7 @@ pub trait CallAction {
 
 struct AsyncAction {
     aac_source: AsyncActionContextSource,
-    waker: RefCell<Option<RuntimeWaker>>,
-    future: RefCell<Option<Pin<Box<dyn Future<Output = ()>>>>>,
+    data: RefCell<Option<AsyncActionData>>,
 }
 impl AsyncAction {
     fn start<Fut>(ac: &mut ActionContext, f: impl FnOnce(AsyncActionContext) -> Fut + 'static)
@@ -688,34 +703,50 @@ impl AsyncAction {
         let future = aac_source.call(ac, || f(aac));
         let action = Rc::new(Self {
             aac_source,
-            waker: RefCell::new(None),
-            future: RefCell::new(Some(Box::pin(future))),
+            data: RefCell::new(None),
         });
-        *action.waker.borrow_mut() =
-            Some(RuntimeWaker::from_action(RcAction::from_rc(action.clone())));
+        let id = ac.0.uc.0.async_actions.insert(action.clone());
+        *action.data.borrow_mut() = Some(AsyncActionData {
+            id,
+            waker: RuntimeWaker::from_action(RcAction::from_rc(action.clone())),
+            future: Box::pin(future),
+        });
         action.call_action(ac);
+    }
+    fn call(
+        self: &Rc<Self>,
+        ac: &mut ActionContext,
+        f: impl FnOnce(&mut Option<AsyncActionData>) -> Option<usize>,
+    ) {
+        let id_remove = self.aac_source.call(ac, || f(&mut self.data.borrow_mut()));
+        if let Some(id_remove) = id_remove {
+            ac.0.uc.0.async_actions.remove(id_remove);
+        }
+    }
+
+    fn drop_action(self: &Rc<Self>, ac: &mut ActionContext) {
+        self.call(ac, |data| Some(data.take()?.id))
     }
 }
 
 impl CallAction for AsyncAction {
     fn call_action(self: Rc<Self>, ac: &mut ActionContext) {
-        self.aac_source.call(ac, || {
-            let mut this_waker = self.waker.borrow_mut();
-            let Some(waker) = &mut *this_waker else {
-                return;
-            };
-            let mut this_future = self.future.borrow_mut();
-            let Some(future) = this_future.as_mut() else {
-                return;
-            };
-            let waker = waker.as_waker();
+        self.call(ac, |data| {
+            let d = data.as_mut()?;
+            let waker = d.waker.as_waker();
             let mut cx = Context::from_waker(&waker);
-            if future.as_mut().poll(&mut cx).is_ready() {
-                this_waker.take();
-                this_future.take();
+            if d.future.as_mut().poll(&mut cx).is_ready() {
+                Some(data.take()?.id)
+            } else {
+                None
             }
         });
     }
+}
+struct AsyncActionData {
+    future: Pin<Box<dyn Future<Output = ()>>>,
+    waker: RuntimeWaker,
+    id: usize,
 }
 
 pub trait BindSink: 'static {
