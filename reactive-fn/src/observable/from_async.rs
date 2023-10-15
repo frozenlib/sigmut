@@ -283,15 +283,15 @@ where
         }
     }
 }
+
 impl<S, Ops> ObservableBuilder for FromStreamScanBuilder<S, Ops>
 where
     S: Stream<Item = Ops::Input> + 'static,
     Ops: StreamScanOps + 'static,
 {
     type Item = Ops::Output;
-    type Observable = Rc<DependencyNode<FromStreamScan<S, Ops>>>;
 
-    fn build_observable(self) -> Self::Observable {
+    fn build_observable(self) -> Rc<DependencyNode<FromStreamScan<S, Ops>>> {
         FromStreamScan::new(self.initial_state, self.s, self.ops)
     }
 
@@ -299,10 +299,7 @@ where
         Obs::from_rc_rc(self.build_observable())
     }
 
-    type Map<F1: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> =
-        FromStreamScanBuilder<S, MapStreamScanOps<Ops, F1>>;
-
-    fn map<F, U>(self, f: F) -> Self::Map<F, U>
+    fn map<F, U>(self, f: F) -> impl ObservableBuilder<Item = U>
     where
         F: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static,

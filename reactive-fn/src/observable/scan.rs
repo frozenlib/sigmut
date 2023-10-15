@@ -187,9 +187,8 @@ where
     Ops: ScanOps + 'static,
 {
     type Item = Ops::Value;
-    type Observable = Rc<DependencyNode<RawScan<Ops>>>;
 
-    fn build_observable(self) -> Self::Observable {
+    fn build_observable(self) -> Rc<DependencyNode<RawScan<Ops>>> {
         RawScan::new(self.state, self.ops, self.is_hot)
     }
 
@@ -197,10 +196,7 @@ where
         Obs::from_rc_rc(self.build_observable())
     }
 
-    type Map<F: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> =
-        ScanBuilder<MapScanOps<Ops, F>>;
-
-    fn map<F, U>(self, f: F) -> Self::Map<F, U>
+    fn map<F, U>(self, f: F) -> impl ObservableBuilder<Item = U>
     where
         F: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static,

@@ -13,12 +13,10 @@ use std::{borrow::Borrow, iter::once, marker::PhantomData, rc::Rc, task::Poll};
 
 pub trait ObservableBuilder: 'static {
     type Item: ?Sized + 'static;
-    type Observable: Observable<Item = Self::Item> + 'static;
-    fn build_observable(self) -> Self::Observable;
+    fn build_observable(self) -> impl Observable<Item = Self::Item> + 'static;
     fn build_obs(self) -> Obs<Self::Item>;
 
-    type Map<F: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static>: ObservableBuilder<Item = U>;
-    fn map<F, U>(self, f: F) -> Self::Map<F, U>
+    fn map<F, U>(self, f: F) -> impl ObservableBuilder<Item = U>
     where
         F: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static;
@@ -511,16 +509,14 @@ where
     IntoObs: FnOnce(O) -> Obs<O::Item> + 'static,
 {
     type Item = O::Item;
-    type Observable = O;
-    fn build_observable(self) -> Self::Observable {
+    fn build_observable(self) -> O {
         self.o
     }
     fn build_obs(self) -> Obs<Self::Item> {
         (self.into_obs)(self.o)
     }
 
-    type Map<F: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> = MapBuilder<Self, F>;
-    fn map<F, U>(self, f: F) -> Self::Map<F, U>
+    fn map<F, U>(self, f: F) -> impl ObservableBuilder<Item = U>
     where
         F: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static,
@@ -533,17 +529,14 @@ struct FromStaticRef<T: ?Sized + 'static>(&'static T);
 
 impl<T: ?Sized + 'static> ObservableBuilder for FromStaticRef<T> {
     type Item = T;
-    type Observable = Self;
-    fn build_observable(self) -> Self::Observable {
+    fn build_observable(self) -> Self {
         self
     }
     fn build_obs(self) -> Obs<Self::Item> {
         Obs::from_static_ref(self.0)
     }
 
-    type Map<F: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> = FromStaticRef<U>;
-
-    fn map<F, U>(self, f: F) -> Self::Map<F, U>
+    fn map<F, U>(self, f: F) -> impl ObservableBuilder<Item = U>
     where
         F: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static,
@@ -680,8 +673,7 @@ where
     T: 'static,
 {
     type Item = T;
-    type Observable = Map<B::Observable, F>;
-    fn build_observable(self) -> Self::Observable {
+    fn build_observable(self) -> impl Observable<Item = T> {
         Map {
             o: self.b.build_observable(),
             f: self.f,
@@ -691,8 +683,7 @@ where
         Obs::from_observable(self.build_observable())
     }
 
-    type Map<F1: Fn(&Self::Item) -> &U + 'static, U: ?Sized + 'static> = MapBuilder<Self, F1>;
-    fn map<F1, U>(self, f: F1) -> Self::Map<F1, U>
+    fn map<F1, U>(self, f: F1) -> impl ObservableBuilder<Item = U>
     where
         F1: Fn(&Self::Item) -> &U + 'static,
         U: ?Sized + 'static,

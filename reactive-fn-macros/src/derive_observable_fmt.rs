@@ -54,7 +54,7 @@ struct AttrArgs {
 
 struct FmtTrait(&'static str);
 impl FmtTrait {
-    const ITEMS: &[Self] = &[
+    const ITEMS: &'static [Self] = &[
         Self::new("Binary"),
         Self::new("Display"),
         Self::new("Debug"),
