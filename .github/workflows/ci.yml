@@ -36,4 +36,4 @@ jobs:
       - name: Build tests (minimal versions)
         run: cargo test --verbose --no-run
       - name: Run tests (minimal versions)
-        run: cargo +stable test --verbose
+        run: cargo test --verbose
