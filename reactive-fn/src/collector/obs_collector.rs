@@ -1,6 +1,7 @@
 use crate::{
-    core::{Action, ActionContext, BindSource, ObsContext, SinkBindings, UpdateContext},
+    core::{ActionContext, BindSource, ObsContext, SinkBindings, UpdateContext},
     observable::{Obs, ObsBuilder, Observable, ObservableBuilder, RcObservable},
+    spawn_action,
 };
 use derive_ex::derive_ex;
 use std::{cell::RefCell, rc::Rc};
@@ -146,7 +147,7 @@ impl<C: Collector> RawObsCollectorEntry<C> {
                 key,
                 owner: self.owner.clone(),
             };
-            Action::new(move |ac| e.try_remove(ac)).schedule();
+            spawn_action(move |ac| e.try_remove(ac));
         }
     }
 }

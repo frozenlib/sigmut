@@ -1,7 +1,7 @@
 use std::{future::pending, time::Duration};
 
 use futures::channel::oneshot::channel;
-use reactive_fn::{core::Runtime, Action, AsyncActionContext};
+use reactive_fn::{core::Runtime, spawn_action, spawn_action_async, AsyncActionContext};
 use rt_local::{runtime::core::test, spawn_local};
 
 use crate::test_utils::{
@@ -10,13 +10,13 @@ use crate::test_utils::{
 };
 
 #[test]
-fn action_new() {
+fn test_spawn_action() {
     let mut cp = CodePathChecker::new();
     let mut rt = Runtime::new();
-    let action = Action::new(|_| {
+    spawn_action(|_| {
         code("action");
     });
-    action.schedule();
+
     rt.update();
 
     cp.expect("action");
@@ -24,17 +24,16 @@ fn action_new() {
 }
 
 #[test]
-async fn action_new_async() {
+async fn test_spawn_action_async() {
     let mut cp = CodePathChecker::new();
     let mut rt = Runtime::new();
     let (sender, receiver) = channel();
-    let action = Action::new_async(|ac| async move {
+    spawn_action_async(|ac| async move {
         ac.call(|_ac| code("1"));
         sleep(Duration::from_millis(200)).await;
         ac.call(|_ac| code("2"));
         sender.send(()).unwrap();
     });
-    action.schedule();
     rt.run(|_| async {
         receiver.await.unwrap();
     })
@@ -55,11 +54,10 @@ async fn async_action_drop_at_runtime_drop() {
 
     let mut cp = CodePathChecker::new();
     let mut rt = Runtime::new();
-    let action = Action::new_async(|ac| async move {
+    spawn_action_async(|ac| async move {
         let _s = UseCallOnDrop(ac);
         pending::<()>().await;
     });
-    action.schedule();
     rt.run(|_| async {
         sleep(Duration::from_millis(100)).await;
     })
@@ -104,11 +102,10 @@ async fn action_wake_runtime() {
     rt.run(|_| async {
         let _s = spawn_local(async {
             sleep(Duration::from_millis(1000)).await;
-            Action::new(|_oc| {
+            spawn_action(|_oc| {
                 code("action");
                 sender.send(()).unwrap();
-            })
-            .schedule();
+            });
         });
 
         receiver.await.unwrap();

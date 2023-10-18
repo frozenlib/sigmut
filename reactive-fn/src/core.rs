@@ -69,7 +69,7 @@ impl RuntimeGlobal {
                             slot: *slot,
                         });
                     }
-                    WakeTask::Action(action) => self.actions.push_back(action.to_action()),
+                    WakeTask::Action(action) => self.actions.push_back(Action::Rc(action.clone())),
                 }
             }
         }
@@ -601,88 +601,42 @@ impl<'a> ActionContext<'a> {
     }
 }
 
-/// Operation for changing state.
-#[must_use]
-pub struct Action(RawAction);
+pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
+    Action::Box(Box::new(f)).schedule()
+}
+pub fn spawn_action_async<Fut>(f: impl FnOnce(AsyncActionContext) -> Fut + 'static)
+where
+    Fut: Future<Output = ()> + 'static,
+{
+    spawn_action(|ac| AsyncAction::start(ac, f))
+}
+pub fn spawn_action_rc(rc: Rc<dyn CallAction>) {
+    Action::Rc(rc).schedule()
+}
+pub fn spawn_action_weak(weak: Weak<dyn CallAction>) {
+    Action::Weak(weak).schedule()
+}
+
+enum Action {
+    Box(Box<dyn FnOnce(&mut ActionContext)>),
+    Rc(Rc<dyn CallAction>),
+    Weak(Weak<dyn CallAction>),
+}
 
 impl Action {
-    pub fn new(f: impl FnOnce(&mut ActionContext) + 'static) -> Self {
-        Self(RawAction::Box(Box::new(f)))
-    }
-    pub fn new_async<Fut>(f: impl FnOnce(AsyncActionContext) -> Fut + 'static) -> Self
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        Self::new(|ac| AsyncAction::start(ac, f))
-    }
     pub fn call(self, ac: &mut ActionContext) {
-        match self.0 {
-            RawAction::Box(f) => f(ac),
-            RawAction::Rc(a) => a.call_action(ac),
-            RawAction::Weak(a) => {
+        match self {
+            Action::Box(f) => f(ac),
+            Action::Rc(a) => a.call_action(ac),
+            Action::Weak(a) => {
                 if let Some(a) = a.upgrade() {
                     a.call_action(ac)
                 }
             }
         }
     }
-
-    /// Perform this action after [`ActionContext`] is available.
     pub fn schedule(self) {
         RuntimeGlobal::try_with(|rg| rg.push_action(self));
-    }
-}
-impl<T: FnOnce(&mut ActionContext) + 'static> From<T> for Action {
-    fn from(f: T) -> Self {
-        Action::new(f)
-    }
-}
-
-enum RawAction {
-    Box(Box<dyn FnOnce(&mut ActionContext)>),
-    Rc(Rc<dyn CallAction>),
-    Weak(Weak<dyn CallAction>),
-}
-
-/// Shareable [`Action`].
-#[derive(Clone)]
-pub struct RcAction(Rc<dyn CallAction>);
-
-impl RcAction {
-    pub fn new(f: impl Fn(&mut ActionContext) + 'static) -> Self {
-        struct FnCallAction<F>(F);
-        impl<F> CallAction for FnCallAction<F>
-        where
-            F: Fn(&mut ActionContext) + 'static,
-        {
-            fn call_action(self: Rc<Self>, ac: &mut ActionContext) {
-                (self.0)(ac)
-            }
-        }
-        RcAction(Rc::new(FnCallAction(f)))
-    }
-
-    pub fn from_rc(f: Rc<dyn CallAction>) -> Self {
-        RcAction(f)
-    }
-
-    /// Perform this action after [`ActionContext`] is available.
-    pub fn schedule(&self) {
-        self.to_action().schedule();
-    }
-
-    /// Perform this action after [`ActionContext`] is available.
-    ///
-    /// If the reference count of this `RcAction` becomes 0 before it is executed, the action will not be executed.
-    pub fn schedule_weak(&self) {
-        self.to_action_weak().schedule();
-    }
-
-    pub fn to_action(&self) -> Action {
-        Action(RawAction::Rc(self.0.clone()))
-    }
-    pub fn to_action_weak(&self) -> Action {
-        Action(RawAction::Weak(Rc::downgrade(&self.0)))
     }
 }
 
@@ -709,7 +663,7 @@ impl AsyncAction {
         let id = ac.0.uc.0.async_actions.insert(action.clone());
         *action.data.borrow_mut() = Some(AsyncActionData {
             id,
-            waker: RuntimeWaker::from_action(RcAction::from_rc(action.clone())),
+            waker: RuntimeWaker::from_action(action.clone()),
             future: Box::pin(future),
         });
         action.call_action(ac);
@@ -828,7 +782,7 @@ enum WakeTask {
         sink: Weak<dyn BindSink>,
         slot: usize,
     },
-    Action(RcAction),
+    Action(Rc<dyn CallAction>),
 }
 
 #[derive(Clone, Default)]
@@ -896,7 +850,7 @@ impl RuntimeWaker {
     pub fn from_sink(sink: Weak<impl BindSink>, slot: usize) -> Self {
         Self::new(WakeTask::Notify { sink, slot })
     }
-    fn from_action(action: RcAction) -> Self {
+    fn from_action(action: Rc<dyn CallAction>) -> Self {
         Self::new(WakeTask::Action(action))
     }
     fn new(task: WakeTask) -> Self {

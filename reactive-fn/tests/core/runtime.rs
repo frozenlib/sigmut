@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use reactive_fn::{
     core::{wait_for_update, Runtime},
-    Action, ObsCell,
+    spawn_action, ObsCell,
 };
 use rt_local::runtime::core::test;
 
@@ -70,11 +70,10 @@ async fn wait_for_update_action() {
     rt.run(|_| async {
         let x = ObsCell::new(10);
         let _s = x.obs().subscribe(|x| code(format!("get {x}")));
-        Action::new({
+        spawn_action({
             let x = x.clone();
             move |ac| x.set(20, ac)
-        })
-        .schedule();
+        });
 
         code(1);
         wait_for_update().await;
