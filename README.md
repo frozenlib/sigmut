@@ -78,7 +78,7 @@ TODO
 | `signal`       | `ObsCell::new`      |
 | `computed`     | `Obs::new`          |
 | `effect`       | `Subscription::new` |
-| `batch`        | `Action`            |
+| `batch`        | `spawn_action`      |
 
 [preact signals]: https://preactjs.com/guide/v10/signals/
 
