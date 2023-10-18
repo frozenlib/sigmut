@@ -1,6 +1,7 @@
 use derive_ex::derive_ex;
 use slabmap::SlabMap;
 use std::{
+    any::Any,
     cell::RefCell,
     collections::VecDeque,
     future::Future,
@@ -69,7 +70,7 @@ impl RuntimeGlobal {
                             slot: *slot,
                         });
                     }
-                    WakeTask::Action(action) => self.actions.push_back(Action::Rc(action.clone())),
+                    WakeTask::AsyncAction(action) => self.actions.push_back(action.to_action()),
                 }
             }
         }
@@ -601,47 +602,56 @@ impl<'a> ActionContext<'a> {
     }
 }
 
+/// Spawns a new action.
 pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
     Action::Box(Box::new(f)).schedule()
 }
+
+/// Spawns a new asynchronous action.
 pub fn spawn_action_async<Fut>(f: impl FnOnce(AsyncActionContext) -> Fut + 'static)
 where
     Fut: Future<Output = ()> + 'static,
 {
     spawn_action(|ac| AsyncAction::start(ac, f))
 }
-pub fn spawn_action_rc(rc: Rc<dyn CallAction>) {
-    Action::Rc(rc).schedule()
-}
-pub fn spawn_action_weak(weak: Weak<dyn CallAction>) {
-    Action::Weak(weak).schedule()
+
+/// Spawns a new action without heap allocation.
+///
+/// `f` should be of a zero-sized type.
+/// If `f` is not a zero-sized type, heap allocation will occur.
+pub fn spawn_action_from_rc<T: Any>(
+    this: Rc<T>,
+    f: impl Fn(Rc<T>, &mut ActionContext) + Copy + 'static,
+) {
+    Action::from_rc(this, f).schedule()
 }
 
+#[allow(clippy::type_complexity)]
 enum Action {
     Box(Box<dyn FnOnce(&mut ActionContext)>),
-    Rc(Rc<dyn CallAction>),
-    Weak(Weak<dyn CallAction>),
+    Rc {
+        this: Rc<dyn Any>,
+        f: Box<dyn Fn(Rc<dyn Any>, &mut ActionContext)>,
+    },
 }
 
 impl Action {
+    fn from_rc<T: Any>(this: Rc<T>, f: impl Fn(Rc<T>, &mut ActionContext) + 'static) -> Self {
+        Action::Rc {
+            this,
+            f: Box::new(move |this, oc| f(this.downcast().unwrap(), oc)),
+        }
+    }
+
     pub fn call(self, ac: &mut ActionContext) {
         match self {
             Action::Box(f) => f(ac),
-            Action::Rc(a) => a.call_action(ac),
-            Action::Weak(a) => {
-                if let Some(a) = a.upgrade() {
-                    a.call_action(ac)
-                }
-            }
+            Action::Rc { this, f } => f(this, ac),
         }
     }
     pub fn schedule(self) {
         RuntimeGlobal::try_with(|rg| rg.push_action(self));
     }
-}
-
-pub trait CallAction {
-    fn call_action(self: Rc<Self>, ac: &mut ActionContext);
 }
 
 struct AsyncAction {
@@ -663,10 +673,10 @@ impl AsyncAction {
         let id = ac.0.uc.0.async_actions.insert(action.clone());
         *action.data.borrow_mut() = Some(AsyncActionData {
             id,
-            waker: RuntimeWaker::from_action(action.clone()),
+            waker: RuntimeWaker::from_async_action(action.clone()),
             future: Box::pin(future),
         });
-        action.call_action(ac);
+        action.next(ac);
     }
     fn call(
         self: &Rc<Self>,
@@ -682,10 +692,7 @@ impl AsyncAction {
     fn drop_action(self: &Rc<Self>, ac: &mut ActionContext) {
         self.call(ac, |data| Some(data.take()?.id))
     }
-}
-
-impl CallAction for AsyncAction {
-    fn call_action(self: Rc<Self>, ac: &mut ActionContext) {
+    fn next(self: Rc<Self>, ac: &mut ActionContext) {
         self.call(ac, |data| {
             let d = data.as_mut()?;
             let waker = d.waker.as_waker();
@@ -697,7 +704,11 @@ impl CallAction for AsyncAction {
             }
         });
     }
+    fn to_action(self: &Rc<Self>) -> Action {
+        Action::from_rc(self.clone(), Self::next)
+    }
 }
+
 struct AsyncActionData {
     future: Pin<Box<dyn Future<Output = ()>>>,
     waker: RuntimeWaker,
@@ -782,7 +793,7 @@ enum WakeTask {
         sink: Weak<dyn BindSink>,
         slot: usize,
     },
-    Action(Rc<dyn CallAction>),
+    AsyncAction(Rc<AsyncAction>),
 }
 
 #[derive(Clone, Default)]
@@ -850,8 +861,8 @@ impl RuntimeWaker {
     pub fn from_sink(sink: Weak<impl BindSink>, slot: usize) -> Self {
         Self::new(WakeTask::Notify { sink, slot })
     }
-    fn from_action(action: Rc<dyn CallAction>) -> Self {
-        Self::new(WakeTask::Action(action))
+    fn from_async_action(action: Rc<AsyncAction>) -> Self {
+        Self::new(WakeTask::AsyncAction(action))
     }
     fn new(task: WakeTask) -> Self {
         Self(RuntimeGlobal::with(|t| t.wakes.insert(task)))
