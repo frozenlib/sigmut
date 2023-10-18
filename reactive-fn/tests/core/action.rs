@@ -45,8 +45,8 @@ async fn test_spawn_action_async() {
 
 #[test]
 async fn async_action_drop_at_runtime_drop() {
-    struct UseCallOnDrop(AsyncActionContext);
-    impl Drop for UseCallOnDrop {
+    struct UseDrop(AsyncActionContext);
+    impl Drop for UseDrop {
         fn drop(&mut self) {
             code("action drop");
         }
@@ -55,7 +55,7 @@ async fn async_action_drop_at_runtime_drop() {
     let mut cp = CodePathChecker::new();
     let mut rt = Runtime::new();
     spawn_action_async(|ac| async move {
-        let _s = UseCallOnDrop(ac);
+        let _s = UseDrop(ac);
         pending::<()>().await;
     });
     rt.run(|_| async {
