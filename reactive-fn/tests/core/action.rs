@@ -69,30 +69,31 @@ async fn async_action_drop_at_runtime_drop() {
     cp.verify();
 }
 
-// #[test]
-// async fn available_call_in_drop_async() {
-//     struct UseCallOnDrop(AsyncActionContext);
-//     impl Drop for UseCallOnDrop {
-//         fn drop(&mut self) {
-//             self.0.call(|_ac| code("drop"));
-//         }
-//     }
+#[test]
+async fn available_call_in_drop_async() {
+    struct UseCallOnDrop(AsyncActionContext);
+    impl Drop for UseCallOnDrop {
+        fn drop(&mut self) {
+            self.0.call(|_ac| code("drop"));
+        }
+    }
 
-//     let mut cp = CodePathChecker::new();
-//     let mut rt = Runtime::new();
-//     let action = Action::new_async(|ac| async move {
-//         let _s = UseCallOnDrop(ac);
-//         pending::<()>().await;
-//     });
-//     action.schedule();
-//     rt.run(|_| async {
-//         sleep(Duration::from_millis(100)).await;
-//     })
-//     .await;
+    let mut cp = CodePathChecker::new();
+    let mut rt = Runtime::new();
+    spawn_action_async(|ac| async move {
+        let _s = UseCallOnDrop(ac);
+        pending::<()>().await;
+    });
+    rt.run(|_| async {
+        sleep(Duration::from_millis(100)).await;
+    })
+    .await;
+    code("runtime drop");
+    drop(rt);
 
-//     cp.expect(["drop"]);
-//     cp.verify();
-// }
+    cp.expect(["runtime drop", "drop"]);
+    cp.verify();
+}
 
 #[test]
 async fn action_wake_runtime() {
