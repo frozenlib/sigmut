@@ -15,6 +15,7 @@ use std::{
 
 const SLOT: usize = 0;
 
+#[must_use]
 #[derive_ex(Default)]
 #[default(Self::empty())]
 pub struct Subscription(SubscriptionInner);
