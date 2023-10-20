@@ -37,7 +37,7 @@ enum ValueState<T> {
 
 struct RawObsStream<F, T>(RefCell<Data<F, T>>);
 
-pub(crate) struct ObsStream<F, T>(Rc<RawObsStream<F, T>>);
+struct ObsStream<F, T>(Rc<RawObsStream<F, T>>);
 
 impl<F, T> ObsStream<F, T> {
     pub fn new(f: F) -> Self {

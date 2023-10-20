@@ -646,7 +646,7 @@ impl<T> Observable for FromValue<T> {
     }
 }
 
-pub(crate) struct Map<O, F> {
+struct Map<O, F> {
     o: O,
     f: F,
 }
@@ -662,7 +662,7 @@ where
     }
 }
 
-pub(crate) struct MapBuilder<B, F> {
+struct MapBuilder<B, F> {
     pub b: B,
     pub f: F,
 }
