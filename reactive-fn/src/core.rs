@@ -558,7 +558,7 @@ impl<'oc> ObsContext<'oc> {
         ObsContext { uc, sink }
     }
     /// Create a context that does not track dependencies.
-    pub fn no_track(&mut self) -> ObsContext {
+    pub fn untrack(&mut self) -> ObsContext {
         self.uc.oc()
     }
     pub fn uc(&mut self) -> &mut UpdateContext {
