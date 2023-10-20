@@ -84,11 +84,14 @@ TODO
 
 ## Cheet sheet for [SolidJS] users
 
-| Preact Signals | reactive-fn         |
-| -------------- | ------------------- |
-| `creaetSignal` | `ObsCell::new`      |
-| `createEffect` | `Subscription::new` |
-| `createMemo`   | `Obs::new`          |
+| Preact Signals | reactive-fn            |
+| -------------- | ---------------------- |
+| `creaetSignal` | `ObsCell::new`         |
+| `createEffect` | `Subscription::new`    |
+| `createMemo`   | `Obs::new_dedup`       |
+| `batch`        | `spawn_action`         |
+| `untrack`      | `ObsContext::no_track` |
+| `Owner`        | `ObsContext`           |
 
 [solidjs]: https://www.solidjs.com/docs/latest/api#basic-reactivity
 
