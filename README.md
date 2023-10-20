@@ -1,7 +1,7 @@
 # reactive-fn
 
 [![Crates.io](https://img.shields.io/crates/v/reactive-fn.svg)](https://crates.io/crates/reactive-fn)
-[![Docs.rs](https://docs.rs/ctxmap/badge.svg)](https://docs.rs/reactive-fn/)
+[![Docs.rs](https://docs.rs/reactive-fn/badge.svg)](https://docs.rs/reactive-fn/)
 [![Actions Status](https://github.com/frozenlib/reactive-fn/workflows/CI/badge.svg)](https://github.com/frozenlib/reactive-fn/actions)
 
 State management framework.
@@ -29,7 +29,6 @@ TODO
 | ---------------------- | ---------------------------------------------------- |
 | `Aggregate`            | `Obs::fold`                                          |
 | `DistinctUntilChanged` | `Obs::dedup`                                         |
-| `First`                |                                                      |
 | `Publish`              | `Obs::hot`                                           |
 | `Return`               | `Obs::new_value`                                     |
 | `Select`               | `Obs::map`, `Obs::map_value`                         |
@@ -94,6 +93,20 @@ TODO
 | `Owner`        | `ObsContext`          |
 
 [solidjs]: https://www.solidjs.com/docs/latest/api#basic-reactivity
+
+## Cheat sheet for [Leptos] users
+
+| Sycamore        | reactive-fn           |
+| --------------- | --------------------- |
+| `RwSignal`      | `ObsCell`             |
+| `Signal`        | `Obs`                 |
+| `create_memo`   | `Obs::new`            |
+| `create_effect` | `Subscription::new`   |
+| `batch`         | `spawn_action`        |
+| `untrack`       | `ObsContext::untrack` |
+| `Owner`         | `ObsContext`          |
+
+[leptos]: https://leptos.dev/
 
 ## Cheet sheet for [qwik] users
 
