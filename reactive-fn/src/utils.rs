@@ -156,7 +156,7 @@ impl<T> Changes<T> {
         };
         *ref_count = ref_count
             .checked_sub(1)
-            .expect("too many calles to `decrement_ref_count`");
+            .expect("too many calls to `decrement_ref_count`");
     }
     pub fn end_age(&self) -> usize {
         self.age_base.wrapping_add(self.items.len())

@@ -365,7 +365,7 @@ impl<T: ?Sized + 'static> Obs<T> {
         self.obs_builder().hasty().obs()
     }
 
-    /// Retrun `Obs` that does not discard caches even when there is no observer.
+    /// Return `Obs` that does not discard caches even when there is no observer.
     ///
     /// If called `Runtime::update` or `Runtime::update_with(true)`,
     /// caches without observers will be immediately discarded.

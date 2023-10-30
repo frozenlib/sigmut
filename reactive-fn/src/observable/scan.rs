@@ -15,17 +15,17 @@ trait DynFold {
 }
 
 pub(crate) trait IsModified: Copy + 'static {
-    const IS_MODIFIY_ALWAYS: bool;
+    const IS_MODIFY_ALWAYS: bool;
     fn is_modified(self) -> bool;
 }
 impl IsModified for () {
-    const IS_MODIFIY_ALWAYS: bool = true;
+    const IS_MODIFY_ALWAYS: bool = true;
     fn is_modified(self) -> bool {
         true
     }
 }
 impl IsModified for bool {
-    const IS_MODIFIY_ALWAYS: bool = false;
+    const IS_MODIFY_ALWAYS: bool = false;
     fn is_modified(self) -> bool {
         self
     }
@@ -224,7 +224,7 @@ impl<Ops: ScanOps + 'static> RawScan<Ops> {
             DependencyNodeSettings {
                 is_hasty: false,
                 is_hot,
-                is_modify_always: Ops::ComputeRet::IS_MODIFIY_ALWAYS,
+                is_modify_always: Ops::ComputeRet::IS_MODIFY_ALWAYS,
             },
         )
     }
