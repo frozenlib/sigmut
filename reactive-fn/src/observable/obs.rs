@@ -423,7 +423,7 @@ impl<T: ?Sized + 'static> Observable for Obs<T> {
 ///
 /// Even if the values are always equal, they are not guaranteed to be treated as equal and may be determined not to be equal.
 impl<T: ?Sized> PartialEq for Obs<T> {
-    #[allow(clippy::vtable_address_comparisons)]
+    #[allow(ambiguous_wide_pointer_comparisons)]
     fn eq(&self, other: &Self) -> bool {
         if ptr::eq(self, other) {
             true
