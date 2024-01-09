@@ -240,7 +240,6 @@ impl SourceBinding {
         self.source.clone().flush(self.slot, uc)
     }
 
-    #[allow(ambiguous_wide_pointer_comparisons)]
     fn is_same(&self, node: &Rc<dyn BindSource>, slot: usize) -> bool {
         Rc::ptr_eq(&self.source, node) && self.slot == slot
     }
