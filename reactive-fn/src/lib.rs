@@ -5,6 +5,7 @@ pub mod fmt;
 pub mod observable;
 pub mod prelude;
 
+pub mod helpers;
 pub mod utils;
 
 #[doc(no_inline)]

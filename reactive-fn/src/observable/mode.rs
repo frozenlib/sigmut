@@ -1,9 +1,10 @@
-use super::{Consumed, ObsSink, Observable};
-use crate::core::{
-    dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
-    ComputeContext, ObsContext,
-};
 use std::rc::Rc;
+
+use super::{Consumed, ObsSink, Observable};
+use crate::{
+    core::{ComputeContext, ObsContext},
+    helpers::dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
+};
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct Mode {

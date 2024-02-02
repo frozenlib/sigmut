@@ -1,9 +1,7 @@
 use super::{ObservableBuilder, RcObservable, Subscription};
 use crate::{
-    core::{
-        dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
-        ComputeContext, ObsContext, UpdateContext,
-    },
+    core::{ComputeContext, ObsContext, UpdateContext},
+    helpers::dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
     Obs,
 };
 use std::{marker::PhantomData, rc::Rc};

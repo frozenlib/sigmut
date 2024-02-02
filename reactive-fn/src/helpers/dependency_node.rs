@@ -1,13 +1,15 @@
-use crate::{
-    core::{BindSink, BindSource, ComputeContext, Computed, SinkBindings, UpdateContext},
-    ActionContext, ObsContext,
-};
 use std::{
     cell::{BorrowError, BorrowMutError, Ref, RefCell, RefMut},
     rc::{Rc, Weak},
 };
 
-use super::{schedule_notify, schedule_update, CallDiscard, CallFlush, CallUpdate, SourceBindings};
+use crate::{
+    core::{
+        schedule_notify, schedule_update, BindSink, BindSource, CallDiscard, CallFlush, CallUpdate,
+        ComputeContext, Computed, SinkBindings, SourceBindings, UpdateContext,
+    },
+    ActionContext, ObsContext,
+};
 
 const SLOT: usize = 0;
 
@@ -102,7 +104,7 @@ where
     pub fn watch(self: &Rc<Self>, oc: &mut ObsContext) {
         let mut d = self.d.borrow_mut();
         d.sinks.watch(self.clone(), SLOT, oc);
-        NodeHelper::new(self, oc.uc).state_with(d).update();
+        NodeHelper::new(self, oc.uc()).state_with(d).update();
     }
 
     pub fn borrow(&self) -> Ref<T> {
@@ -414,9 +416,7 @@ impl<T> ComputeBindingsData<T> {
     }
     fn discard(&mut self, discard: impl FnOnce(&mut T) -> bool, uc: &mut UpdateContext) {
         if discard(&mut self.value) {
-            for s in self.bindings.0.drain(..) {
-                s.unbind(uc);
-            }
+            self.bindings.clear(uc);
         }
     }
 }

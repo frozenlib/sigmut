@@ -15,9 +15,6 @@ use std::{
 
 use crate::utils::PhantomNotSend;
 
-pub mod dependency_node;
-pub mod dependency_token;
-
 thread_local! {
     static RG : RefCell<RuntimeGlobal> = Default::default();
 }
@@ -300,7 +297,6 @@ impl SourceBindings {
         for b in self.0.drain(..) {
             b.unbind(uc)
         }
-        self.0.clear()
     }
 }
 impl Drop for SourceBindings {

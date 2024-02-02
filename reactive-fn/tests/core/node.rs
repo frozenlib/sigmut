@@ -2,10 +2,8 @@
 
 use std::{cell::Cell, rc::Rc};
 
-use reactive_fn::core::{
-    dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
-    ComputeContext, Runtime,
-};
+use reactive_fn::core::{ComputeContext, Runtime};
+use reactive_fn::helpers::dependency_node::{Compute, DependencyNode, DependencyNodeSettings};
 use rstest::rstest;
 
 use crate::test_utils::code_path::{code, CodePath, CodePathChecker};

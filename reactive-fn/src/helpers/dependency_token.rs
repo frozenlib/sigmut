@@ -1,9 +1,11 @@
 use derive_ex::derive_ex;
 
-use super::{
-    BindSink, BindSource, ComputeContext, Computed, SinkBindings, SourceBindings, UpdateContext,
+use crate::{
+    core::{
+        BindSink, BindSource, ComputeContext, Computed, SinkBindings, SourceBindings, UpdateContext,
+    },
+    ObsContext,
 };
-use crate::ObsContext;
 use std::{
     cell::{RefCell, RefMut},
     rc::Rc,
@@ -39,7 +41,7 @@ impl DependencyToken {
 
         let mut s = self.0.sources.borrow_mut();
         let node = Rc::downgrade(&self.0);
-        s.compute(node, SLOT, compute, oc.uc)
+        s.compute(node, SLOT, compute, oc.uc())
     }
 }
 

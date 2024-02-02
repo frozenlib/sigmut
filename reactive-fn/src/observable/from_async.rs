@@ -1,9 +1,9 @@
 use super::{ObservableBuilder, RcObservable};
 use crate::{
-    core::{
+    core::{AsyncObsContext, AsyncObsContextSource, ComputeContext, ObsContext, RuntimeWaker},
+    helpers::{
         dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
         dependency_token::DependencyToken,
-        AsyncObsContext, AsyncObsContextSource, ComputeContext, ObsContext, RuntimeWaker,
     },
     Obs,
 };

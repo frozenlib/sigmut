@@ -1,7 +1,4 @@
-use reactive_fn::{
-    core::{dependency_token::DependencyToken, Runtime},
-    observable::ObsCell,
-};
+use reactive_fn::{core::Runtime, helpers::dependency_token::DependencyToken, observable::ObsCell};
 
 #[test]
 fn new() {
