@@ -10,6 +10,7 @@ slabmap = "0.2.0"
 derive-ex = "0.1.7"
 futures = "0.3.28"
 serde = "1.0.188"
+bumpalo = "3.14.0"
 reactive-fn-macros = { version = "0.1.0", path = "../reactive-fn-macros" }
 
 [dev-dependencies]
