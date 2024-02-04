@@ -1,6 +1,6 @@
 use super::{ObservableBuilder, RcObservable};
 use crate::{
-    core::{AsyncObsContext, AsyncObsContextSource, ComputeContext, ObsContext, RuntimeWaker},
+    core::{AsyncObsContext, AsyncObsContextSource, ObsContext, RuntimeWaker},
     helpers::{
         dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
         dependency_token::DependencyToken,
@@ -59,18 +59,17 @@ where
     F: FnMut(AsyncObsContext) -> Fut + 'static,
     Fut: Future + 'static,
 {
-    fn compute(&mut self, mut cc: ComputeContext) -> bool {
-        let is_up_to_date = self.deps.is_up_to_date(cc.uc());
-        let oc = cc.oc_with(is_up_to_date);
+    fn compute(&mut self, oc: &mut ObsContext) -> bool {
+        let is_up_to_date = self.deps.is_up_to_date(oc.uc());
         if !is_up_to_date {
             self.deps.update(
-                |cc| {
+                |oc| {
                     self.fut.set(None);
                     let async_oc = self.async_oc_source.context();
-                    let value = self.async_oc_source.call(cc.oc(), || (self.f)(async_oc));
+                    let value = self.async_oc_source.call(oc.reset(), || (self.f)(async_oc));
                     self.fut.set(Some(value));
                 },
-                oc,
+                oc.reset(),
             )
         }
         let mut is_modified = false;
@@ -150,16 +149,15 @@ where
     F: Fn(&mut ObsContext) -> S + 'static,
     S: Stream + 'static,
 {
-    fn compute(&mut self, mut cc: ComputeContext) -> bool {
-        let is_up_to_date = self.deps.is_up_to_date(cc.uc());
-        let oc = cc.oc_with(is_up_to_date);
+    fn compute(&mut self, oc: &mut ObsContext) -> bool {
+        let is_up_to_date = self.deps.is_up_to_date(oc.uc());
         if !is_up_to_date {
             self.deps.update(
-                |cc| {
+                |oc| {
                     self.stream.set(None);
-                    self.stream.set(Some((self.f)(cc.oc())));
+                    self.stream.set(Some((self.f)(oc.reset())));
                 },
-                oc,
+                oc.reset(),
             )
         }
         let mut is_modified = false;
@@ -346,7 +344,7 @@ where
     S: Stream<Item = Ops::Input> + 'static,
     Ops: StreamScanOps + 'static,
 {
-    fn compute(&mut self, _cc: ComputeContext) -> bool {
+    fn compute(&mut self, _oc: &mut ObsContext) -> bool {
         let mut is_modified = false;
         if let Some(s) = self.stream.as_mut() {
             let waker = self.waker.as_waker();

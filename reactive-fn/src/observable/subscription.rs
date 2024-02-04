@@ -139,7 +139,7 @@ impl<F: FnMut(&mut ObsContext) -> bool + 'static> CallUpdate for RawSubscription
         if d.computed != Computed::UpToDate {
             d.computed = Computed::UpToDate;
             let node = Rc::downgrade(&self);
-            if !d.bindings.compute(node, SLOT, |cc| (d.f)(cc.oc()), uc) {
+            if !d.bindings.compute(node, SLOT, |oc| (d.f)(oc.reset()), uc) {
                 d.bindings.clear(uc);
             }
         }

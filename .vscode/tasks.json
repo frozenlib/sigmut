@@ -63,20 +63,46 @@
     },
     {
       "type": "shell",
-      "label": "cargo watch",
+      "label": "cargo watch test in window",
       "command": "wt",
       "args": [
         "new-tab",
         "cargo-watch",
         "-c",
         "-x",
-        "test"
+        "nextest run --status-level=fail --fail-fast"
       ],
       "problemMatcher": [],
       "presentation": {
         "panel": "dedicated",
         "clear": true
       }
+    },
+    {
+      "type": "shell",
+      "label": "cargo watch test doc",
+      "command": "wt",
+      "args": [
+        "new-tab",
+        "cargo-watch",
+        "-c",
+        "-x",
+        "test --doc",
+      ],
+      "problemMatcher": [],
+    },
+    {
+      "type": "shell",
+      "label": "cargo watch test",
+      "command": "wt",
+      "args": [
+        "new-tab",
+        "cargo-watch",
+        "-c",
+        "-x",
+        "nextest run --status-level=fail --fail-fast",
+      ],
+      "problemMatcher": [],
     },
     {
       "type": "shell",

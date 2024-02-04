@@ -146,9 +146,9 @@ format_trait!(
 ///
 /// let x = ObsCell::new(0);
 /// let s = obs_format!("x = {}", x.obs());
-/// assert_eq!(s.get(ac.oc()), "x = 0");
+/// assert_eq!(s.get(&mut ac.oc()), "x = 0");
 /// x.set(10, ac);
-/// assert_eq!(s.get(ac.oc()), "x = 10");
+/// assert_eq!(s.get(&mut ac.oc()), "x = 10");
 /// ```
 #[macro_export]
 macro_rules! obs_format {

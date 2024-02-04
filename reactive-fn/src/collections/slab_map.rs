@@ -277,14 +277,14 @@ impl<T: 'static> ObsSlabMapCell<T> {
         let mut data = self.0.items.borrow_mut();
         let age = data.edit_start(&self.0.ref_counts);
         let key = data.insert(value);
-        data.edit_end(&self.0.sinks, age, ac.uc());
+        data.edit_end(&self.0.sinks, age, &mut ac.uc());
         key
     }
     pub fn remove(&self, key: usize, ac: &mut ActionContext) {
         let mut data = self.0.items.borrow_mut();
         let age = data.edit_start(&self.0.ref_counts);
         data.remove(key);
-        data.edit_end(&self.0.sinks, age, ac.uc());
+        data.edit_end(&self.0.sinks, age, &mut ac.uc());
     }
     pub fn item<'a, 'oc: 'a>(&'a self, key: usize, oc: &mut ObsContext<'oc>) -> Ref<'a, T> {
         self.0.watch(Some(key), oc);
@@ -431,7 +431,7 @@ where
         let d = &mut *self.data.borrow_mut();
         let age = d.items.edit_start(&self.ref_counts);
         d.bindings
-            .compute(this, 0, |cc| (d.f)(&mut d.items, cc.oc()), uc);
+            .compute(this, 0, |oc| (d.f)(&mut d.items, oc.reset()), uc);
         d.computed = Computed::UpToDate;
         d.items.edit_end(&self.sinks, age, uc)
     }

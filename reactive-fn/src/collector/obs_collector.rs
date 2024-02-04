@@ -32,7 +32,7 @@ impl<C: Collector> RawObsCollector<C> {
     }
 
     fn notify(&self, ac: &mut ActionContext) {
-        self.sinks.borrow_mut().notify(true, ac.uc());
+        self.sinks.borrow_mut().notify(true, &mut ac.uc());
     }
 
     fn watch(self: &Rc<Self>, oc: &mut ObsContext) {

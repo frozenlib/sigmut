@@ -806,7 +806,7 @@ where
                 cell: None,
             };
             d.bindings
-                .compute(this, 0, |cc| (d.f)(&mut items, cc.oc()), uc);
+                .compute(this, 0, |oc| (d.f)(&mut items, oc.reset()), uc);
             d.computed = Computed::UpToDate;
         }
         d.data.edit_end(age, &self.sinks, uc)

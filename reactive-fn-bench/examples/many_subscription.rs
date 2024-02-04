@@ -10,14 +10,14 @@ fn main() {
     let start = Instant::now();
     for _ in 0..PHASE {
         let cell = ObsCell::new(0);
-        let mut dc = Runtime::new();
+        let mut rt = Runtime::new();
         let mut ss = Vec::new();
         for _ in 0..SUBSCRIPTIONS {
             ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|_| {}));
         }
         for i in 0..COUNT {
-            cell.set(i, &mut dc.ac());
-            dc.update();
+            cell.set(i, &mut rt.ac());
+            rt.update();
         }
     }
     let end = Instant::now();
@@ -40,14 +40,14 @@ fn main() {
 
     let cell = ObsCell::new(0);
     for _ in 0..1000 {
-        let mut dc = Runtime::new();
+        let mut rt = Runtime::new();
         let mut ss = Vec::new();
         for _ in 0..SUBSCRIPTIONS {
             ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|_| {}));
         }
         for i in 0..COUNT {
-            cell.set(i, &mut dc.ac());
-            dc.update();
+            cell.set(i, &mut rt.ac());
+            rt.update();
         }
     }
 

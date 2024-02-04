@@ -63,7 +63,7 @@ impl<T: 'static> ObsCell<T> {
 
     #[inline]
     pub fn set(&self, value: T, ac: &mut ActionContext) {
-        self.0.sinks.borrow_mut().notify(true, ac.uc());
+        self.0.sinks.borrow_mut().notify(true, &mut ac.uc());
         *self.0.value.borrow_mut() = value;
     }
 
@@ -74,7 +74,7 @@ impl<T: 'static> ObsCell<T> {
     }
 
     #[inline]
-    pub fn borrow_mut<'a, 'b: 'a>(&'a self, _ac: &mut ActionContext<'b>) -> ObsCellRefMut<'a, T> {
+    pub fn borrow_mut<'a, 'b: 'a>(&'a self, _ac: &mut ActionContext) -> ObsCellRefMut<'a, T> {
         let value = self.0.value.borrow_mut();
         ObsCellRefMut {
             value,

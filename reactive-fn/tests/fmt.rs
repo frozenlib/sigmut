@@ -12,179 +12,179 @@ impl std::fmt::Debug for DebugOnly {
 
 #[test]
 fn watch_write() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{}", 1 + 2);
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{}", 1 + 2);
     assert_eq!(s, "3");
 }
 
 #[test]
 fn watch_writeln() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
-    let _ = watch_writeln!(&mut s, dc.ac().oc(), "{}", 1 + 2);
+    let _ = watch_writeln!(&mut s, &mut rt.oc(), "{}", 1 + 2);
     assert_eq!(s, "3\n");
 }
 
 #[test]
 fn watch_format() {
-    let mut dc = Runtime::new();
-    let s = watch_format!(dc.ac().oc(), "{}", 1 + 2);
+    let mut rt = Runtime::new();
+    let s = watch_format!(&mut rt.oc(), "{}", 1 + 2);
     assert_eq!(s, "3");
 }
 
 #[test]
 fn watch_write_display() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{}", 1 + 2);
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{}", 1 + 2);
     assert_eq!(s, "3");
 }
 
 #[test]
 fn obs_format_display() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let s = obs_format!("{}", 1 + 2);
-    assert_eq!(s.get(dc.ac().oc()), "3");
+    assert_eq!(s.get(&mut rt.oc()), "3");
 }
 
 #[test]
 fn watch_write_observable_display() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
     let a = ObsCell::new(1);
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{a}");
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{a}");
     assert_eq!(s, "1");
 }
 #[test]
 fn obs_format_observable_display() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let a = ObsCell::new(3);
     let s = obs_format!("{a}");
-    assert_eq!(s.get(dc.ac().oc()), "3");
+    assert_eq!(s.get(&mut rt.oc()), "3");
 }
 
 #[test]
 fn obs_format_observable_display_notify() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let a = ObsCell::new(3);
     let s = obs_format!("{}", a.obs());
     let sc = s.memo();
-    assert_eq!(sc.get(dc.ac().oc()), "3");
+    assert_eq!(sc.get(&mut rt.oc()), "3");
 
-    a.set(5, &mut dc.ac());
-    assert_eq!(sc.get(dc.ac().oc()), "5");
+    a.set(5, &mut rt.ac());
+    assert_eq!(sc.get(&mut rt.oc()), "5");
 }
 
 #[test]
 fn watch_write_debug() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{:?}", DebugOnly(3));
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{:?}", DebugOnly(3));
     assert_eq!(s, "debug-3");
 }
 #[test]
 fn obs_format_debug() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let s = obs_format!("{:?}", DebugOnly(3));
-    assert_eq!(s.get(dc.ac().oc()), "debug-3");
+    assert_eq!(s.get(&mut rt.oc()), "debug-3");
 }
 
 #[test]
 fn watch_write_index() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{1} {0}", 1 + 2, 3 + 4);
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{1} {0}", 1 + 2, 3 + 4);
     assert_eq!(s, "7 3");
 }
 #[test]
 fn obs_format_index() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let s = obs_format!("{1} {0}", 1 + 2, 3 + 4);
-    assert_eq!(s.get(dc.ac().oc()), "7 3");
+    assert_eq!(s.get(&mut rt.oc()), "7 3");
 }
 
 #[test]
 fn watch_write_key_value() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{a}", a = 1 + 2);
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{a}", a = 1 + 2);
     assert_eq!(s, "3");
 }
 #[test]
 fn obs_format_key_value() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let s = obs_format!("{a}", a = 1 + 2);
-    assert_eq!(s.get(dc.ac().oc()), "3");
+    assert_eq!(s.get(&mut rt.oc()), "3");
 }
 
 #[test]
 fn watch_write_key_value_2() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{b} {a}", a = 1 + 2, b = 5);
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{b} {a}", a = 1 + 2, b = 5);
     assert_eq!(s, "5 3");
 }
 #[test]
 fn obs_format_key_value_2() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let s = obs_format!("{b} {a}", a = 1 + 2, b = 5);
-    assert_eq!(s.get(dc.ac().oc()), "5 3");
+    assert_eq!(s.get(&mut rt.oc()), "5 3");
 }
 
 #[test]
 fn watch_write_key() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
     let a = 3;
     let b = 5;
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{b} {a}");
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{b} {a}");
     assert_eq!(s, "5 3");
 }
 
 #[test]
 fn obs_format_key() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let a = ObsCell::new(3);
     let b = ObsCell::new(5);
     let s = obs_format!("{b} {a}");
-    assert_eq!(s.get(dc.ac().oc()), "5 3");
+    assert_eq!(s.get(&mut rt.oc()), "5 3");
 }
 
 #[test]
 fn watch_write_mix() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
     let a = 1;
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{a} {x} {}", 5, x = 9);
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{a} {x} {}", 5, x = 9);
     assert_eq!(s, "1 9 5");
 }
 
 #[test]
 fn obs_format_mix() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let a = ObsCell::new(1);
     let x = ObsCell::new(9);
     let s = obs_format!("{a} {x} {}", 5);
-    assert_eq!(s.get(dc.ac().oc()), "1 9 5");
+    assert_eq!(s.get(&mut rt.oc()), "1 9 5");
 }
 
 #[test]
 fn watch_not_consume() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
     let a = String::from("abc");
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{a}");
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{a}");
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{a}");
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{a}");
     assert_eq!(s, "abcabc");
 }
 
 #[test]
 fn watch_write_escape() {
-    let mut dc = Runtime::new();
+    let mut rt = Runtime::new();
     let mut s = String::new();
     #[allow(unused)]
     let a = 3;
-    let _ = watch_write!(&mut s, dc.ac().oc(), "{{a}}");
+    let _ = watch_write!(&mut s, &mut rt.oc(), "{{a}}");
     assert_eq!(s, "{a}");
 }

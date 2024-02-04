@@ -1,9 +1,7 @@
 use derive_ex::derive_ex;
 
 use crate::{
-    core::{
-        BindSink, BindSource, ComputeContext, Computed, SinkBindings, SourceBindings, UpdateContext,
-    },
+    core::{BindSink, BindSource, Computed, SinkBindings, SourceBindings, UpdateContext},
     ObsContext,
 };
 use std::{
@@ -32,7 +30,7 @@ impl DependencyToken {
     pub fn is_up_to_date(&self, uc: &mut UpdateContext) -> bool {
         Helper::new(&self.0, uc).is_up_to_date().1
     }
-    pub fn update<T>(&self, compute: impl FnOnce(ComputeContext) -> T, oc: &mut ObsContext) -> T {
+    pub fn update<T>(&self, f: impl FnOnce(&mut ObsContext) -> T, oc: &mut ObsContext) -> T {
         let mut d = self.0.data.borrow_mut();
         d.computed = Computed::UpToDate;
         let this = self.0.clone();
@@ -41,7 +39,7 @@ impl DependencyToken {
 
         let mut s = self.0.sources.borrow_mut();
         let node = Rc::downgrade(&self.0);
-        s.compute(node, SLOT, compute, oc.uc())
+        s.compute(node, SLOT, f, oc.uc())
     }
 }
 
@@ -58,14 +56,14 @@ impl Data {
     }
 }
 
-struct Helper<'a> {
-    uc: &'a mut UpdateContext,
+struct Helper<'a, 'ac> {
+    uc: &'a mut UpdateContext<'ac>,
     t: &'a RawDependencyToken,
     d: RefMut<'a, Data>,
 }
 
-impl<'a> Helper<'a> {
-    fn new(t: &'a RawDependencyToken, uc: &'a mut UpdateContext) -> Self {
+impl<'a, 'ac> Helper<'a, 'ac> {
+    fn new(t: &'a RawDependencyToken, uc: &'a mut UpdateContext<'ac>) -> Self {
         Self {
             uc,
             t,

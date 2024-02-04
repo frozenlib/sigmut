@@ -6,7 +6,7 @@ use std::{
 use crate::{
     core::{
         schedule_notify, schedule_update, BindSink, BindSource, CallDiscard, CallFlush, CallUpdate,
-        ComputeContext, Computed, SinkBindings, SourceBindings, UpdateContext,
+        Computed, SinkBindings, SourceBindings, UpdateContext,
     },
     ActionContext, ObsContext,
 };
@@ -17,7 +17,7 @@ pub trait Compute {
     /// Compute the state.
     ///
     /// Returns true if the state is different from the previous state.
-    fn compute(&mut self, cc: ComputeContext) -> bool;
+    fn compute(&mut self, oc: &mut ObsContext) -> bool;
 
     /// Discard the state cache.
     ///
@@ -85,7 +85,7 @@ where
     D: 'static,
 {
     pub fn notify(self: &Rc<Self>, ac: &mut ActionContext) {
-        NodeHelper::new(self, ac.uc()).state().notify(true);
+        NodeHelper::new(self, &mut ac.uc()).state().notify(true);
     }
     pub fn notify_lazy(self: &Rc<Self>) {
         if let Ok(mut s) = self.d.try_borrow_mut() {
@@ -179,45 +179,45 @@ where
     }
 }
 
-struct NodeHelper<'a, T, D>
+struct NodeHelper<'a, 'oc, T, D>
 where
     T: Compute + 'static,
     D: 'static,
 {
     node: &'a Rc<DependencyNode<T, D>>,
-    uc: &'a mut UpdateContext,
+    uc: &'a mut UpdateContext<'oc>,
 }
 
-impl<'a, T, D> NodeHelper<'a, T, D>
+impl<'a, 'oc, T, D> NodeHelper<'a, 'oc, T, D>
 where
     T: Compute + 'static,
     D: 'static,
 {
-    fn new(node: &'a Rc<DependencyNode<T, D>>, uc: &'a mut UpdateContext) -> Self {
+    fn new(node: &'a Rc<DependencyNode<T, D>>, uc: &'a mut UpdateContext<'oc>) -> Self {
         Self { node, uc }
     }
 
-    fn state(self) -> NodeStateHelper<'a, T, D> {
+    fn state(self) -> NodeStateHelper<'a, 'oc, T, D> {
         let d = self.node.d.borrow_mut();
         self.state_with(d)
     }
-    fn state_with(self, d: RefMut<'a, SinksAndState>) -> NodeStateHelper<'a, T, D> {
+    fn state_with(self, d: RefMut<'a, SinksAndState>) -> NodeStateHelper<'a, 'oc, T, D> {
         let s = self.node.s;
         NodeStateHelper { h: self, s, d }
     }
 }
 
-struct NodeStateHelper<'a, T, D>
+struct NodeStateHelper<'a, 'oc, T, D>
 where
     T: Compute + 'static,
     D: 'static,
 {
-    h: NodeHelper<'a, T, D>,
+    h: NodeHelper<'a, 'oc, T, D>,
     s: DependencyNodeSettings,
     d: RefMut<'a, SinksAndState>,
 }
 
-impl<'a, T, D> NodeStateHelper<'a, T, D>
+impl<'a, 'oc, T, D> NodeStateHelper<'a, 'oc, T, D>
 where
     T: Compute + 'static,
     D: 'static,
@@ -330,7 +330,7 @@ where
             self.h.uc.schedule_discard(self.h.node.clone(), SLOT);
         }
     }
-    fn finish(self) -> NodeHelper<'a, T, D> {
+    fn finish(self) -> NodeHelper<'a, 'oc, T, D> {
         self.h
     }
 }
@@ -382,10 +382,10 @@ impl<T> ComputeBindings<T> {
         &self,
         node: Weak<dyn BindSink>,
         slot: usize,
-        compute: impl FnOnce(&mut T, ComputeContext) -> U,
+        f: impl FnOnce(&mut T, &mut ObsContext) -> U,
         uc: &mut UpdateContext,
     ) -> U {
-        self.0.borrow_mut().compute(node, slot, compute, uc)
+        self.0.borrow_mut().compute(node, slot, f, uc)
     }
     fn discard(&self, discard: impl FnOnce(&mut T) -> bool, uc: &mut UpdateContext) {
         self.0.borrow_mut().discard(discard, uc)
@@ -408,11 +408,11 @@ impl<T> ComputeBindingsData<T> {
         &mut self,
         node: Weak<dyn BindSink>,
         slot: usize,
-        compute: impl FnOnce(&mut T, ComputeContext) -> U,
+        f: impl FnOnce(&mut T, &mut ObsContext) -> U,
         uc: &mut UpdateContext,
     ) -> U {
         self.bindings
-            .compute(node, slot, |cc| compute(&mut self.value, cc), uc)
+            .compute(node, slot, |cc| f(&mut self.value, cc), uc)
     }
     fn discard(&mut self, discard: impl FnOnce(&mut T) -> bool, uc: &mut UpdateContext) {
         if discard(&mut self.value) {

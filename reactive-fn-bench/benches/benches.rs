@@ -33,13 +33,13 @@ fn iter_dc(b: &mut Bencher, f: impl Fn(&mut Runtime)) {
 // #[bench]
 fn simple_impl(b: &mut Bencher) {
     let cell = ObsCell::new(0);
-    iter_dc(b, |dc| {
+    iter_dc(b, |rt| {
         let _s = cell.obs_builder().map(|x| x + 1).subscribe(|x| {
             black_box(x);
         });
         for i in 0..COUNT {
-            cell.set(i, &mut dc.ac());
-            dc.update();
+            cell.set(i, &mut rt.ac());
+            rt.update();
         }
     });
 }
@@ -47,13 +47,13 @@ fn simple_impl(b: &mut Bencher) {
 // #[bench]
 fn simple_dyn(b: &mut Bencher) {
     let cell = ObsCell::new(0);
-    iter_dc(b, |dc| {
+    iter_dc(b, |rt| {
         let _s = cell.obs().map(|x| x + 1).subscribe(|x| {
             black_box(x);
         });
         for i in 0..COUNT {
-            cell.set(i, &mut dc.ac());
-            dc.update();
+            cell.set(i, &mut rt.ac());
+            rt.update();
         }
     });
 }
@@ -61,7 +61,7 @@ fn simple_dyn(b: &mut Bencher) {
 // #[bench]
 fn many_subscription_impl(b: &mut Bencher) {
     let cell = ObsCell::new(0);
-    iter_dc(b, |dc| {
+    iter_dc(b, |rt| {
         let mut ss = Vec::new();
         for _ in 0..SUBSCRIPTIONS {
             ss.push(cell.obs_builder().map(|x| x + 1).subscribe(|x| {
@@ -69,8 +69,8 @@ fn many_subscription_impl(b: &mut Bencher) {
             }));
         }
         for i in 0..COUNT {
-            cell.set(i, &mut dc.ac());
-            dc.update();
+            cell.set(i, &mut rt.ac());
+            rt.update();
         }
     });
 }
@@ -78,7 +78,7 @@ fn many_subscription_impl(b: &mut Bencher) {
 // #[bench]
 fn many_subscription_dyn(b: &mut Bencher) {
     let cell = ObsCell::new(0);
-    iter_dc(b, |dc| {
+    iter_dc(b, |rt| {
         let mut ss = Vec::new();
         for _ in 0..SUBSCRIPTIONS {
             ss.push(cell.obs().map(|x| x + 1).subscribe(|x| {
@@ -86,8 +86,8 @@ fn many_subscription_dyn(b: &mut Bencher) {
             }));
         }
         for i in 0..COUNT {
-            cell.set(i, &mut dc.ac());
-            dc.update();
+            cell.set(i, &mut rt.ac());
+            rt.update();
         }
     });
 }
@@ -98,7 +98,7 @@ fn many_source_impl(b: &mut Bencher) {
     for i in 0..SOURCES {
         cells.push(ObsCell::new(i));
     }
-    iter_dc(b, |dc| {
+    iter_dc(b, |rt| {
         let cells_1 = cells.clone();
         let sum = ObsBuilder::from_get(move |bc| {
             let mut sum = 0;
@@ -111,8 +111,8 @@ fn many_source_impl(b: &mut Bencher) {
             black_box(x);
         });
         for i in 0..COUNT {
-            cells[i % cells.len()].set(i, &mut dc.ac());
-            dc.update();
+            cells[i % cells.len()].set(i, &mut rt.ac());
+            rt.update();
         }
     });
 }
@@ -123,7 +123,7 @@ fn many_source_dyn(b: &mut Bencher) {
     for i in 0..SOURCES {
         cells.push(ObsCell::new(i));
     }
-    iter_dc(b, |dc| {
+    iter_dc(b, |rt| {
         let cells_1 = cells.clone();
         let sum = Obs::from_get(move |bc| {
             let mut sum = 0;
@@ -136,8 +136,8 @@ fn many_source_dyn(b: &mut Bencher) {
             black_box(x);
         });
         for i in 0..COUNT {
-            cells[i % cells.len()].set(i, &mut dc.ac());
-            dc.update();
+            cells[i % cells.len()].set(i, &mut rt.ac());
+            rt.update();
         }
     });
 }

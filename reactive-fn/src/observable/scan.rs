@@ -1,6 +1,6 @@
 use super::{ObservableBuilder, RcObservable, Subscription};
 use crate::{
-    core::{ComputeContext, ObsContext, UpdateContext},
+    core::{ObsContext, UpdateContext},
     helpers::dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
     Obs,
 };
@@ -232,7 +232,7 @@ impl<Ops: ScanOps + 'static> DynFold for DependencyNode<RawScan<Ops>> {
     type State = Ops::St;
     fn stop(self: Rc<Self>, uc: Option<&mut UpdateContext>) -> Self::State {
         if let Some(uc) = uc {
-            self.watch(&mut uc.oc());
+            uc.oc_with(|oc| self.watch(oc));
         }
         self.borrow_mut().state.take().unwrap()
     }
@@ -256,9 +256,10 @@ impl<Ops: ScanOps + 'static> RcObservable for DependencyNode<RawScan<Ops>> {
 }
 
 impl<Ops: ScanOps + 'static> Compute for RawScan<Ops> {
-    fn compute(&mut self, cc: ComputeContext) -> bool {
+    fn compute(&mut self, oc: &mut ObsContext) -> bool {
+        oc.reset();
         if let Some(state) = &mut self.state {
-            self.ops.compute(state, cc.oc()).is_modified()
+            self.ops.compute(state, oc).is_modified()
         } else {
             false
         }

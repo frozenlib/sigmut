@@ -1,3 +1,4 @@
+use bumpalo::Bump;
 use derive_ex::derive_ex;
 use slabmap::SlabMap;
 use std::{
@@ -122,12 +123,21 @@ impl RuntimeTasks {
     }
 }
 
-pub struct UpdateContext(RuntimeTasks);
+pub struct UpdateContext<'a> {
+    tasks: &'a mut RuntimeTasks,
+    _bump: &'a Bump,
+    sink: Option<ObsContextSink>,
+}
 
-impl UpdateContext {
-    pub fn oc(&mut self) -> ObsContext {
-        ObsContext::new(self, None)
+impl<'a> UpdateContext<'a> {
+    fn new(rt: &'a mut Runtime) -> Self {
+        Self {
+            tasks: &mut rt.tasks,
+            _bump: &mut rt.bump,
+            sink: None,
+        }
     }
+
     fn apply_notify(&mut self) -> bool {
         let mut is_used = false;
         RuntimeGlobal::with(|t| {
@@ -140,55 +150,49 @@ impl UpdateContext {
                 is_used = true;
             }
         });
-        while let Some(task) = self.0.tasks_flush.pop() {
+        while let Some(task) = self.tasks.tasks_flush.pop() {
             task.call_flush(self);
             is_used = true;
         }
         is_used
     }
-    fn run_actions(&mut self) -> bool {
-        let mut is_used = false;
-        while let Some(a) = RuntimeGlobal::with(|t| t.actions.pop_front()) {
-            a.call(&mut ActionContext(ObsContext::new(self, None)));
-            is_used = true;
-        }
-        is_used
-    }
-    fn update_all(&mut self, discard: bool) -> bool {
-        let mut is_used = false;
-        is_used |= self.run_actions();
-        is_used |= self.apply_notify();
-        loop {
-            while let Some(task) = self.0.tasks_update.pop() {
-                task.call_update(self);
-                is_used = true;
-            }
-            RuntimeGlobal::with(|t| {
-                self.0
-                    .tasks_update
-                    .extend(t.tasks_update.drain(..).filter_map(|t| t.upgrade()))
-            });
-            if self.0.tasks_update.is_empty() {
-                break;
-            }
-        }
-        if discard {
-            while let Some(task) = self.0.tasks_discard.pop() {
-                task.call_discard(self);
-                is_used = true;
-            }
-        }
-        is_used
+    pub fn oc_with<T>(&mut self, f: impl FnOnce(&mut ObsContext) -> T) -> T {
+        f(ObsContextGuard::new(self, None).oc())
     }
 
     pub(crate) fn schedule_flush(&mut self, node: Rc<dyn CallFlush>, slot: usize) {
-        self.0.tasks_flush.push(TaskOf { node, slot });
+        self.tasks.tasks_flush.push(TaskOf { node, slot });
     }
     pub(crate) fn schedule_update(&mut self, node: Rc<dyn CallUpdate>, slot: usize) {
-        self.0.tasks_update.push(TaskOf { node, slot });
+        self.tasks.tasks_update.push(TaskOf { node, slot });
     }
     pub(crate) fn schedule_discard(&mut self, node: Rc<dyn CallDiscard>, slot: usize) {
-        self.0.tasks_discard.push(TaskOf { node, slot });
+        self.tasks.tasks_discard.push(TaskOf { node, slot });
+    }
+}
+
+struct ObsContextGuard<'a, 'oc> {
+    uc: &'a mut UpdateContext<'oc>,
+    sink_old: Option<Option<ObsContextSink>>,
+}
+
+impl<'a, 'oc> ObsContextGuard<'a, 'oc> {
+    fn new(uc: &'a mut UpdateContext<'oc>, sink: Option<ObsContextSink>) -> Self {
+        let sink_old = Some(replace(&mut uc.sink, sink));
+        Self { uc, sink_old }
+    }
+    fn oc(&mut self) -> &mut ObsContext<'oc> {
+        ObsContext::new(self.uc)
+    }
+    fn finish(mut self) -> Option<ObsContextSink> {
+        replace(&mut self.uc.sink, self.sink_old.take().unwrap())
+    }
+}
+impl<'oc> Drop for ObsContextGuard<'_, 'oc> {
+    fn drop(&mut self) {
+        if let Some(sink) = self.sink_old.take() {
+            self.uc.sink = sink;
+        }
     }
 }
 
@@ -274,24 +278,23 @@ impl SourceBindings {
         &mut self,
         node: Weak<dyn BindSink>,
         slot: usize,
-        compute: impl FnOnce(ComputeContext) -> T,
+        f: impl FnOnce(&mut ObsContext) -> T,
         uc: &mut UpdateContext,
     ) -> T {
-        let mut oc = ObsContext {
-            uc,
-            sink: Some(ObsContextSink {
-                node,
-                slot,
-                bindings: self,
-                bindings_len: 0,
-            }),
+        let sink = ObsContextSink {
+            node,
+            slot,
+            bindings: take(self),
+            bindings_len: self.0.len(),
         };
-        let retval = compute(ComputeContext(&mut oc));
-        let sink = oc.sink.as_mut().unwrap();
-        for b in sink.bindings.0.drain(sink.bindings_len..) {
-            b.unbind(oc.uc);
+        let mut oc = ObsContextGuard::new(uc, Some(sink));
+        let ret = f(oc.oc());
+        let sink = oc.finish().unwrap();
+        *self = sink.bindings;
+        for b in self.0.drain(sink.bindings_len..) {
+            b.unbind(uc);
         }
-        retval
+        ret
     }
     pub fn clear(&mut self, uc: &mut UpdateContext) {
         for b in self.0.drain(..) {
@@ -334,7 +337,7 @@ impl SinkBindings {
         Self(SlabMap::new())
     }
     pub fn watch(&mut self, this: Rc<dyn BindSource>, this_slot: usize, oc: &mut ObsContext) {
-        let Some(sink) = &mut oc.sink else {
+        let Some(sink) = &mut oc.0.sink else {
             return;
         };
         let sources_index = sink.bindings_len;
@@ -355,7 +358,7 @@ impl SinkBindings {
             key,
         };
         if sources_index < sink.bindings.0.len() {
-            replace(&mut sink.bindings.0[sources_index], source_binding).unbind(oc.uc);
+            replace(&mut sink.bindings.0[sources_index], source_binding).unbind(oc.uc());
         } else {
             sink.bindings.0.push(source_binding);
         }
@@ -389,31 +392,72 @@ impl SinkBinding {
 
 #[derive_ex(Default)]
 #[default(Self::new())]
-pub struct Runtime(UpdateContext);
+pub struct Runtime {
+    tasks: RuntimeTasks,
+    bump: Bump,
+}
 
 impl Runtime {
     pub fn new() -> Self {
         let Some(tasks) = RG.with(|rg| rg.borrow_mut().tasks_saved.take()) else {
             panic!("Only one `Runtime` can exist in the same thread at the same time.");
         };
-        Self(UpdateContext(tasks))
+        let bump = Bump::new();
+        Self { tasks, bump }
     }
 
     pub fn ac(&mut self) -> ActionContext {
-        ActionContext::new(&mut self.0)
+        ActionContext(self)
     }
-    pub fn uc(&mut self) -> &mut UpdateContext {
-        &mut self.0
+    pub fn uc(&mut self) -> UpdateContext {
+        self.bump.reset();
+        UpdateContext {
+            tasks: &mut self.tasks,
+            _bump: &mut self.bump,
+            sink: None,
+        }
     }
+    pub fn oc(&mut self) -> ObsContext {
+        ObsContext(self.uc())
+    }
+
     pub fn run_actions(&mut self) -> bool {
-        self.0.run_actions()
+        let mut is_used = false;
+        while let Some(a) = RuntimeGlobal::with(|t| t.actions.pop_front()) {
+            a.call(&mut self.ac());
+            is_used = true;
+        }
+        is_used
     }
 
     pub fn update(&mut self) -> bool {
         self.update_with(true)
     }
     pub fn update_with(&mut self, discard: bool) -> bool {
-        self.0.update_all(discard)
+        let mut is_used = false;
+        is_used |= self.run_actions();
+        is_used |= self.uc().apply_notify();
+        loop {
+            while let Some(task) = self.tasks.tasks_update.pop() {
+                task.call_update(&mut self.uc());
+                is_used = true;
+            }
+            RuntimeGlobal::with(|t| {
+                self.tasks
+                    .tasks_update
+                    .extend(t.tasks_update.drain(..).filter_map(|t| t.upgrade()))
+            });
+            if self.tasks.tasks_update.is_empty() {
+                break;
+            }
+        }
+        if discard {
+            while let Some(task) = self.tasks.tasks_discard.pop() {
+                task.call_discard(&mut self.uc());
+                is_used = true;
+            }
+        }
+        is_used
     }
 
     pub async fn run<Fut: Future>(&mut self, f: impl FnOnce(RuntimeContext) -> Fut) -> Fut::Output {
@@ -434,7 +478,7 @@ impl Runtime {
         let mut actions = Vec::new();
         loop {
             actions.clear();
-            actions.extend(self.0 .0.async_actions.values().cloned());
+            actions.extend(self.tasks.async_actions.values().cloned());
             if actions.is_empty() {
                 break;
             }
@@ -447,7 +491,7 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.drop_actions();
-        let tasks_saved = Some(replace(&mut self.0 .0, RuntimeTasks::new()));
+        let tasks_saved = Some(replace(&mut self.tasks, RuntimeTasks::new()));
         let _ = RG.try_with(|rg| rg.borrow_mut().tasks_saved = tasks_saved);
     }
 }
@@ -536,64 +580,50 @@ impl RuntimeContext {
     }
 }
 
-pub struct ObsContext<'oc> {
-    uc: &'oc mut UpdateContext,
-    sink: Option<ObsContextSink<'oc>>,
+#[repr(transparent)]
+pub struct ObsContext<'oc>(UpdateContext<'oc>);
+
+impl<'oc> ObsContext<'oc> {
+    fn new<'a>(uc: &'a mut UpdateContext<'oc>) -> &'a mut Self {
+        unsafe { &mut *(uc as *mut UpdateContext<'oc> as *mut Self) }
+    }
+
+    pub fn reset(&mut self) -> &mut Self {
+        if let Some(sink) = &mut self.0.sink {
+            sink.bindings_len = 0;
+        }
+        self
+    }
+
+    /// Create a context that does not track dependencies.
+    pub fn untrack<T>(&mut self, f: impl Fn(&mut ObsContext<'oc>) -> T) -> T {
+        f(ObsContextGuard::new(&mut self.0, None).oc())
+    }
+    pub fn uc(&mut self) -> &mut UpdateContext<'oc> {
+        &mut self.0
+    }
 }
 
-struct ObsContextSink<'oc> {
+struct ObsContextSink {
     node: Weak<dyn BindSink>,
     slot: usize,
-    bindings: &'oc mut SourceBindings,
+    bindings: SourceBindings,
     bindings_len: usize,
 }
 
-impl<'oc> ObsContext<'oc> {
-    fn new(uc: &'oc mut UpdateContext, sink: Option<ObsContextSink<'oc>>) -> Self {
-        ObsContext { uc, sink }
-    }
-    /// Create a context that does not track dependencies.
-    pub fn untrack(&mut self) -> ObsContext {
-        self.uc.oc()
-    }
-    pub fn uc(&mut self) -> &mut UpdateContext {
-        self.uc
-    }
-}
+pub struct ActionContext<'ac>(&'ac mut Runtime);
 
-pub struct ComputeContext<'a, 'oc>(&'a mut ObsContext<'oc>);
-
-impl<'a, 'oc> ComputeContext<'a, 'oc> {
-    pub fn oc(self) -> &'a mut ObsContext<'oc> {
-        self.0
-    }
-    pub fn oc_with(self, watch_previous_dependencies: bool) -> &'a mut ObsContext<'oc> {
-        if watch_previous_dependencies {
-            let sink = self.0.sink.as_mut().unwrap();
-            debug_assert!(sink.bindings_len == 0);
-            sink.bindings_len = sink.bindings.0.len();
-        }
-        self.0
-    }
-    pub fn uc(&mut self) -> &mut UpdateContext {
-        self.0.uc()
-    }
-}
-
-pub struct ActionContext<'a>(ObsContext<'a>);
-
-impl<'a> ActionContext<'a> {
-    fn new(uc: &'a mut UpdateContext) -> Self {
-        Self(ObsContext::new(uc, None))
-    }
-    pub fn uc(&mut self) -> &mut UpdateContext {
-        self.0.uc
+impl<'ac> ActionContext<'ac> {
+    pub fn uc(&mut self) -> UpdateContext {
+        self.0.bump.reset();
+        UpdateContext::new(self.0)
     }
 
     /// Return [`ObsContext`] to get the new state.
-    pub fn oc(&mut self) -> &mut ObsContext<'a> {
-        self.uc().apply_notify();
-        &mut self.0
+    pub fn oc(&mut self) -> ObsContext {
+        let mut uc = self.uc();
+        uc.apply_notify();
+        ObsContext(uc)
     }
 }
 
@@ -665,7 +695,7 @@ impl AsyncAction {
             aac_source,
             data: RefCell::new(None),
         });
-        let id = ac.0.uc.0.async_actions.insert(action.clone());
+        let id = ac.0.tasks.async_actions.insert(action.clone());
         *action.data.borrow_mut() = Some(AsyncActionData {
             id,
             waker: RuntimeWaker::from_async_action(action.clone()),
@@ -680,7 +710,7 @@ impl AsyncAction {
     ) {
         let id_remove = self.aac_source.call(ac, || f(&mut self.data.borrow_mut()));
         if let Some(id_remove) = id_remove {
-            ac.0.uc.0.async_actions.remove(id_remove);
+            ac.0.tasks.async_actions.remove(id_remove);
         }
     }
 
@@ -901,14 +931,14 @@ impl AsyncObsContext {
     }
 }
 
-struct AsyncActionContextSource(Rc<RefCell<*mut ActionContext<'static>>>);
+struct AsyncActionContextSource(Rc<RefCell<*mut Runtime>>);
 
 impl AsyncActionContextSource {
     fn new() -> Self {
         Self(Rc::new(RefCell::new(null_mut())))
     }
     fn call<T>(&self, ac: &mut ActionContext, f: impl FnOnce() -> T) -> T {
-        let p = unsafe { transmute(ac) };
+        let p: *mut Runtime = ac.0;
         assert!(self.0.borrow().is_null());
         *self.0.borrow_mut() = p;
         let ret = f();
@@ -921,7 +951,7 @@ impl AsyncActionContextSource {
     }
 }
 
-pub struct AsyncActionContext(Rc<RefCell<*mut ActionContext<'static>>>);
+pub struct AsyncActionContext(Rc<RefCell<*mut Runtime>>);
 
 impl AsyncActionContext {
     pub fn call<T>(&self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
@@ -930,7 +960,7 @@ impl AsyncActionContext {
             !b.is_null(),
             "`AsyncActionContext` cannot be used after being moved."
         );
-        unsafe { f(&mut **b) }
+        unsafe { f(&mut (**b).ac()) }
     }
 }
 
