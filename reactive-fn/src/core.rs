@@ -6,7 +6,7 @@ use std::{
     cell::RefCell,
     collections::VecDeque,
     future::Future,
-    mem::{replace, take, transmute},
+    mem::{replace, take},
     pin::{pin, Pin},
     ptr::null_mut,
     rc::{Rc, Weak},
@@ -898,19 +898,35 @@ impl RuntimeWaker {
     }
 }
 
-pub(crate) struct AsyncObsContextSource(Rc<RefCell<*mut ObsContext<'static>>>);
+#[derive(Debug, Eq, PartialEq, Copy, Clone)]
+struct AsyncObsContextData {
+    tasks: *mut RuntimeTasks,
+    bump: *const Bump,
+    sink: *mut Option<ObsContextSink>,
+}
+impl AsyncObsContextData {
+    fn new(oc: &mut ObsContext) -> Self {
+        Self {
+            tasks: oc.0.tasks,
+            bump: oc.0._bump,
+            sink: &mut oc.0.sink,
+        }
+    }
+}
+
+pub(crate) struct AsyncObsContextSource(Rc<RefCell<Option<AsyncObsContextData>>>);
 
 impl AsyncObsContextSource {
     pub fn new() -> Self {
-        Self(Rc::new(RefCell::new(null_mut())))
+        Self(Rc::new(RefCell::new(None)))
     }
     pub fn call<T>(&self, oc: &mut ObsContext, f: impl FnOnce() -> T) -> T {
-        let p = unsafe { transmute(oc) };
-        assert!(self.0.borrow().is_null());
-        *self.0.borrow_mut() = p;
+        let data = AsyncObsContextData::new(oc);
+        assert!(self.0.borrow().is_none());
+        *self.0.borrow_mut() = Some(data);
         let ret = f();
-        assert!(*self.0.borrow() == p);
-        *self.0.borrow_mut() = null_mut();
+        assert!(*self.0.borrow() == Some(data));
+        *self.0.borrow_mut() = None;
         ret
     }
     pub fn context(&self) -> AsyncObsContext {
@@ -918,16 +934,25 @@ impl AsyncObsContextSource {
     }
 }
 
-pub struct AsyncObsContext(Rc<RefCell<*mut ObsContext<'static>>>);
+pub struct AsyncObsContext(Rc<RefCell<Option<AsyncObsContextData>>>);
 
 impl AsyncObsContext {
     pub fn get<T>(&mut self, f: impl FnOnce(&mut ObsContext) -> T) -> T {
-        let mut b = self.0.borrow_mut();
-        assert!(
-            !b.is_null(),
-            "`AsyncObsContext` cannot be used after being moved."
-        );
-        unsafe { f(&mut **b) }
+        let mut data = self.0.borrow_mut();
+        let Some(data) = data.as_mut() else {
+            panic!("`AsyncObsContext` cannot be used after being moved.")
+        };
+        unsafe {
+            let mut uc = UpdateContext {
+                tasks: &mut *data.tasks,
+                _bump: &*data.bump,
+                sink: None,
+            };
+            let mut oc = ObsContextGuard::new(&mut uc, (*data.sink).take());
+            let ret = f(oc.oc());
+            *data.sink = oc.finish();
+            ret
+        }
     }
 }
 
