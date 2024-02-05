@@ -125,7 +125,7 @@ impl RuntimeTasks {
 
 pub struct UpdateContext<'a> {
     tasks: &'a mut RuntimeTasks,
-    _bump: &'a Bump,
+    bump: &'a Bump,
     sink: Option<ObsContextSink>,
 }
 
@@ -133,7 +133,7 @@ impl<'a> UpdateContext<'a> {
     fn new(rt: &'a mut Runtime) -> Self {
         Self {
             tasks: &mut rt.tasks,
-            _bump: &mut rt.bump,
+            bump: &mut rt.bump,
             sink: None,
         }
     }
@@ -158,6 +158,9 @@ impl<'a> UpdateContext<'a> {
     }
     pub fn oc_with<T>(&mut self, f: impl FnOnce(&mut ObsContext) -> T) -> T {
         f(ObsContextGuard::new(self, None).oc())
+    }
+    pub fn alloc<T>(&mut self, value: T) -> &'a mut T {
+        self.bump.alloc(value)
     }
 
     pub(crate) fn schedule_flush(&mut self, node: Rc<dyn CallFlush>, slot: usize) {
@@ -413,7 +416,7 @@ impl Runtime {
         self.bump.reset();
         UpdateContext {
             tasks: &mut self.tasks,
-            _bump: &mut self.bump,
+            bump: &mut self.bump,
             sink: None,
         }
     }
@@ -601,6 +604,10 @@ impl<'oc> ObsContext<'oc> {
     }
     pub fn uc(&mut self) -> &mut UpdateContext<'oc> {
         &mut self.0
+    }
+
+    pub fn alloc<T>(&mut self, value: T) -> &'oc mut T {
+        self.0.alloc(value)
     }
 }
 
@@ -908,7 +915,7 @@ impl AsyncObsContextData {
     fn new(oc: &mut ObsContext) -> Self {
         Self {
             tasks: oc.0.tasks,
-            bump: oc.0._bump,
+            bump: oc.0.bump,
             sink: &mut oc.0.sink,
         }
     }
@@ -945,7 +952,7 @@ impl AsyncObsContext {
         unsafe {
             let mut uc = UpdateContext {
                 tasks: &mut *data.tasks,
-                _bump: &*data.bump,
+                bump: &*data.bump,
                 sink: None,
             };
             let mut oc = ObsContextGuard::new(&mut uc, (*data.sink).take());
