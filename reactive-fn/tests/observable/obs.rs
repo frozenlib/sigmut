@@ -8,7 +8,7 @@ use std::{cell::RefCell, rc::Rc};
 
 #[test]
 fn new() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     let cell0 = ObsCell::new(1);
     let cell1 = ObsCell::new(10);
@@ -23,25 +23,25 @@ fn new() {
     let ac = &mut rt.ac();
 
     assert_eq!(s.get(&mut ac.oc()), 11);
-    cp.verify("call");
+    c.verify("call");
     assert_eq!(s.get(&mut ac.oc()), 11);
-    cp.verify(());
+    c.verify(());
     cell0.set(2, ac);
     assert_eq!(s.get(&mut ac.oc()), 12);
-    cp.verify("call");
+    c.verify("call");
     assert_eq!(s.get(&mut ac.oc()), 12);
-    cp.verify(());
+    c.verify(());
     cell0.set(3, ac);
     cell1.set(30, ac);
     assert_eq!(s.get(&mut ac.oc()), 33);
-    cp.verify("call");
+    c.verify("call");
     assert_eq!(s.get(&mut ac.oc()), 33);
-    cp.verify(());
+    c.verify(());
 }
 
 #[test]
 fn from_get() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     let cell0 = ObsCell::new(1);
     let cell1 = ObsCell::new(10);
@@ -56,20 +56,20 @@ fn from_get() {
     let ac = &mut rt.ac();
 
     assert_eq!(s.get(&mut ac.oc()), 11);
-    cp.verify("call");
+    c.verify("call");
     assert_eq!(s.get(&mut ac.oc()), 11);
-    cp.verify("call");
+    c.verify("call");
     cell0.set(2, ac);
     assert_eq!(s.get(&mut ac.oc()), 12);
-    cp.verify("call");
+    c.verify("call");
     assert_eq!(s.get(&mut ac.oc()), 12);
-    cp.verify("call");
+    c.verify("call");
     cell0.set(3, ac);
     cell1.set(30, ac);
     assert_eq!(s.get(&mut ac.oc()), 33);
-    cp.verify("call");
+    c.verify("call");
     assert_eq!(s.get(&mut ac.oc()), 33);
-    cp.verify("call");
+    c.verify("call");
 }
 
 #[test]

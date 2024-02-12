@@ -3,7 +3,7 @@ use reactive_fn::{core::Runtime, ObsCell, Subscription};
 
 #[test]
 fn new() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     let sender = ObsCell::new(0);
     let receiver = sender.clone();
@@ -19,12 +19,12 @@ fn new() {
     sender.set(2, &mut rt.ac());
     rt.update();
 
-    cp.verify(["0", "1", "2"]);
+    c.verify(["0", "1", "2"]);
 }
 
 #[test]
 fn only_called_in_update() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     let sender = ObsCell::new(0);
     let receiver = sender.clone();
@@ -40,12 +40,12 @@ fn only_called_in_update() {
     sender.set(4, &mut rt.ac());
     rt.update();
 
-    cp.verify(["2", "4"]);
+    c.verify(["2", "4"]);
 }
 
 #[test]
 fn new_while() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     let sender = ObsCell::new(0);
     let receiver = sender.clone();
@@ -63,5 +63,5 @@ fn new_while() {
     sender.set(2, &mut rt.ac());
     rt.update();
 
-    cp.verify(["0", "1"]);
+    c.verify(["0", "1"]);
 }

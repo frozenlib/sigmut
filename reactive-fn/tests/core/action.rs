@@ -9,7 +9,7 @@ use crate::test_utils::task::sleep;
 
 #[test]
 fn test_spawn_action() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     spawn_action(|_| {
         call!("action");
@@ -17,12 +17,12 @@ fn test_spawn_action() {
 
     rt.update();
 
-    cp.verify("action");
+    c.verify("action");
 }
 
 #[test]
 async fn test_spawn_action_async() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     let (sender, receiver) = channel();
     spawn_action_async(|ac| async move {
@@ -36,7 +36,7 @@ async fn test_spawn_action_async() {
     })
     .await;
 
-    cp.verify(["1", "2"]);
+    c.verify(["1", "2"]);
 }
 
 #[test]
@@ -48,7 +48,7 @@ async fn async_action_drop_at_runtime_drop() {
         }
     }
 
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     spawn_action_async(|ac| async move {
         let _s = UseDrop(ac);
@@ -61,7 +61,7 @@ async fn async_action_drop_at_runtime_drop() {
     call!("runtime drop");
     drop(rt);
 
-    cp.verify(["runtime drop", "action drop"]);
+    c.verify(["runtime drop", "action drop"]);
 }
 
 #[test]
@@ -73,7 +73,7 @@ async fn available_call_in_drop_async() {
         }
     }
 
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     spawn_action_async(|ac| async move {
         let _s = UseCallOnDrop(ac);
@@ -86,12 +86,12 @@ async fn available_call_in_drop_async() {
     call!("runtime drop");
     drop(rt);
 
-    cp.verify(["runtime drop", "drop"]);
+    c.verify(["runtime drop", "drop"]);
 }
 
 #[test]
 async fn action_wake_runtime() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     let (sender, receiver) = channel();
     rt.run(|_| async {
@@ -107,5 +107,5 @@ async fn action_wake_runtime() {
     })
     .await;
 
-    cp.verify("action");
+    c.verify("action");
 }

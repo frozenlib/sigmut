@@ -46,7 +46,7 @@ async fn wait_for_update_empty() {
 
 #[test]
 async fn wait_for_update_subscribe() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     rt.run(|_| async {
         let x = ObsCell::new(10);
@@ -57,12 +57,12 @@ async fn wait_for_update_subscribe() {
     })
     .await;
 
-    cp.verify(["1", "get 10", "2"]);
+    c.verify(["1", "get 10", "2"]);
 }
 
 #[test]
 async fn wait_for_update_action() {
-    let mut cp = CallRecorder::new();
+    let mut c = CallRecorder::new();
     let mut rt = Runtime::new();
     rt.run(|_| async {
         let x = ObsCell::new(10);
@@ -78,5 +78,5 @@ async fn wait_for_update_action() {
     })
     .await;
 
-    cp.verify(["1", "get 20", "2"]);
+    c.verify(["1", "get 20", "2"]);
 }
