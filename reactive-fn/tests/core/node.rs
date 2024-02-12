@@ -225,11 +225,11 @@ fn dependants(
     all.push(compute(id_this));
 
     rt.update_with(false);
-    c.verify(Call::par(all.clone()));
+    c.verify(Call::par(&all));
 
     this.notify(&mut rt.ac());
     rt.update_with(false);
-    c.verify(Call::par(all));
+    c.verify(Call::par(&all));
 
     (0..count).for_each(|id| {
         deps[id].notify(&mut rt.ac());
