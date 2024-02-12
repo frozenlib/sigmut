@@ -1,5 +1,4 @@
 mod test_utils {
-    pub mod code_path;
     pub mod task;
 }
 

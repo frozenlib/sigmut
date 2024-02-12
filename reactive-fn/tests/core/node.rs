@@ -2,12 +2,11 @@
 
 use std::{cell::Cell, rc::Rc};
 
+use assert_call::{call, Call, CallRecorder};
 use reactive_fn::core::Runtime;
 use reactive_fn::helpers::dependency_node::{Compute, DependencyNode, DependencyNodeSettings};
 use reactive_fn::ObsContext;
 use rstest::rstest;
-
-use crate::test_utils::code_path::{code, CodePath, CodePathChecker};
 
 #[test]
 fn runtime() {
@@ -29,30 +28,29 @@ fn new_node_2() {
 
 #[test]
 fn new_with_owner() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut _rt = Runtime::new();
     let _node = Node::new(0, |_| true, false, false, true);
 
     // Not immediately computed.
-    cp.verify();
+    cp.verify(());
 }
 
 #[test]
 fn watch() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id = 0;
     let node = Node::new(id, |_| true, false, false, true);
 
     // Computed when `watch` is called.
     node.watch(&mut rt.oc());
-    cp.expect(compute(id));
-    cp.verify();
+    cp.verify(compute(id));
 }
 
 #[test]
 fn watch_2() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id = 0;
     let node = Node::new(id, |_| true, false, false, true);
@@ -60,28 +58,25 @@ fn watch_2() {
     // Multiple calls to `watch` are computed only once.
     node.watch(&mut rt.oc());
     node.watch(&mut rt.oc());
-    cp.expect(compute(id));
-    cp.verify();
+    cp.verify(compute(id));
 }
 
 #[test]
 fn watch_notify() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id = 0;
     let node = Node::new(id, |_| true, false, false, true);
 
     node.watch(&mut rt.oc());
-    cp.expect(compute(id));
-    cp.verify();
+    cp.verify(compute(id));
 
     node.notify(&mut rt.ac());
-    cp.verify();
+    cp.verify(());
 
     // After calling `notify`, the node is recomputed when `ObsContext` is retrieved.
     node.watch(&mut rt.oc());
-    cp.expect(compute(id));
-    cp.verify();
+    cp.verify(compute(id));
 }
 
 #[test]
@@ -120,42 +115,39 @@ fn new_node_is_up_to_date_in_compute() {
 
 #[test]
 fn is_hot_false() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id = 0;
 
     // If is_hot is false, it is not computed when `update` is called.
     let _node = Node::new(id, |_| true, false, false, true);
     rt.update();
-    cp.verify();
+    cp.verify(());
 }
 
 #[test]
 fn is_hot_true() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id = 0;
 
     // If is_hot is true, it is computed when `update` is called.
     let _node = Node::new(id, |_| true, false, true, true);
     rt.update();
-    cp.expect(compute(id));
-    cp.verify();
+    cp.verify(compute(id));
 }
 
 #[test]
 fn is_hot_false_discard() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id = 0;
     let node = Node::new(id, |_| true, false, false, true);
     node.watch(&mut rt.oc());
-    cp.expect([compute(id)]);
-    cp.verify();
+    cp.verify([compute(id)]);
 
     rt.update();
-    cp.expect([discard(id)]);
-    cp.verify();
+    cp.verify([discard(id)]);
 }
 
 #[rstest]
@@ -164,7 +156,7 @@ fn dependencies(
     #[values(false, true)] is_modify_always_this: bool,
     #[values(false, true)] is_modify_always_deps: bool,
 ) {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id_this = usize::MAX;
     let mut deps = Vec::new();
@@ -188,21 +180,22 @@ fn dependencies(
         is_modify_always_this,
     );
     this.watch(&mut rt.oc());
-    cp.expect([compute(id_this)]);
+
+    let mut cs = Vec::new();
+    cs.push(compute(id_this));
     for i in 0..count {
-        cp.expect([compute(i)]);
+        cs.push(compute(i));
     }
-    cp.verify();
+    cp.verify(cs);
 
     (0..count).for_each(|i| {
         deps[i].notify(&mut rt.ac());
         rt.update_with(false);
         if is_modify_always_deps {
-            cp.expect([compute(id_this), compute(i)]);
+            cp.verify([compute(id_this), compute(i)]);
         } else {
-            cp.expect([compute(i), compute(id_this)]);
+            cp.verify([compute(i), compute(id_this)]);
         }
-        cp.verify();
     });
 }
 
@@ -213,7 +206,7 @@ fn dependants(
     #[values(false, true)] is_modify_always_this: bool,
     #[values(false, true)] is_modify_always_deps: bool,
 ) {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id_this = usize::MAX;
     let mut deps = Vec::new();
@@ -228,30 +221,27 @@ fn dependants(
         ));
     }
 
-    let mut all: Vec<CodePath> = (0..count).map(compute).collect();
+    let mut all: Vec<Call> = (0..count).map(compute).collect();
     all.push(compute(id_this));
 
     rt.update_with(false);
-    cp.expect_set(all.clone());
-    cp.verify();
+    cp.verify(Call::par(all.clone()));
 
     this.notify(&mut rt.ac());
     rt.update_with(false);
-    cp.expect_set(all.clone());
-    cp.verify();
+    cp.verify(Call::par(all));
 
     (0..count).for_each(|id| {
         deps[id].notify(&mut rt.ac());
 
         rt.update_with(false);
-        cp.expect(compute(id));
-        cp.verify_msg(&format!("id = {id}"));
+        cp.verify_with_msg(compute(id), &format!("id = {id}"));
     });
 }
 
 #[test]
 fn change_dependency() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let mut deps = Vec::new();
     for id in 0..=1 {
@@ -276,37 +266,33 @@ fn change_dependency() {
     );
 
     rt.update();
-    cp.expect([compute(id_this), compute(0)]);
-    cp.verify();
+    cp.verify([compute(id_this), compute(0)]);
 
     deps[1].notify(&mut rt.ac());
     rt.update();
-    cp.verify();
+    cp.verify(());
 
     deps[0].notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(id_this), compute(0)]);
-    cp.verify();
+    cp.verify([compute(id_this), compute(0)]);
 
     d.set(1);
     this.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(id_this), compute(1), discard(0)]);
-    cp.verify();
+    cp.verify([compute(id_this), compute(1), discard(0)]);
 
     deps[0].notify(&mut rt.ac());
     rt.update();
-    cp.verify();
+    cp.verify(());
 
     deps[1].notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(id_this), compute(1)]);
-    cp.verify();
+    cp.verify([compute(id_this), compute(1)]);
 }
 
 #[test]
 fn is_modify_always_false() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let src = 0;
     let dep = 1;
@@ -324,27 +310,22 @@ fn is_modify_always_false() {
     let _dep_node = Node::new(dep, compute_depend_on(&src_node), false, true, true);
 
     rt.update();
-    cp.expect([compute(dep), compute(src)]);
-    cp.verify();
-
+    cp.verify([compute(dep), compute(src)]);
     // If the source is not modified, dependants will not recompute.
     is_modified.set(false);
     src_node.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(src)]);
-    cp.verify();
-
+    cp.verify([compute(src)]);
     // If the source is modified, dependants will recompute.
     is_modified.set(true);
     src_node.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(src), compute(dep)]);
-    cp.verify();
+    cp.verify([compute(src), compute(dep)]);
 }
 
 #[rstest]
 fn is_modify_always_true(#[values(false, true)] ret_is_modified: bool) {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let src = 0;
     let dep = 1;
@@ -352,20 +333,17 @@ fn is_modify_always_true(#[values(false, true)] ret_is_modified: bool) {
     let _dep_node = Node::new(dep, compute_depend_on(&src_node), false, true, true);
 
     rt.update();
-    cp.expect([compute(dep), compute(src)]);
-    cp.verify();
-
+    cp.verify([compute(dep), compute(src)]);
     // Since source is always modified, it is not recomputed to check if it has been modified or not.
     // Therefore, the compute is done after the request from the dependants.
     src_node.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(dep), compute(src)]);
-    cp.verify();
+    cp.verify([compute(dep), compute(src)]);
 }
 
 #[test]
 fn is_modify_always_false_true_true() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let is_modified = Rc::new(Cell::default());
     let node0 = Node::new(
@@ -382,27 +360,22 @@ fn is_modify_always_false_true_true() {
     let _node2 = Node::new(2, compute_depend_on(&node1), false, true, true);
 
     rt.update();
-    cp.expect([compute(2), compute(1), compute(0)]);
-    cp.verify();
-
+    cp.verify([compute(2), compute(1), compute(0)]);
     // If the source is not modified, dependants will not recompute.
     is_modified.set(false);
     node0.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(0)]);
-    cp.verify();
-
+    cp.verify([compute(0)]);
     // If the source is modified, dependants will recompute.
     is_modified.set(true);
     node0.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(0), compute(2), compute(1)]);
-    cp.verify();
+    cp.verify([compute(0), compute(2), compute(1)]);
 }
 
 #[test]
 fn is_modify_always_false_true_false() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let is_modified = Rc::new(Cell::default());
     let node0 = Node::new(
@@ -419,117 +392,98 @@ fn is_modify_always_false_true_false() {
     let _node2 = Node::new(2, compute_depend_on(&node1), false, true, false);
 
     rt.update();
-    cp.expect([compute(2), compute(1), compute(0)]);
-    cp.verify();
-
+    cp.verify([compute(2), compute(1), compute(0)]);
     // If the source is not modified, dependants will not recompute.
     // Nodes where is_modify_always is true are not precomputed.
     is_modified.set(false);
     node0.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(0)]);
-    cp.verify();
-
+    cp.verify([compute(0)]);
     // If the source is modified, dependants will recompute.
     // Nodes where is_modify_always is true are not precomputed.
     is_modified.set(true);
     node0.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(0), compute(2), compute(1)]);
-    cp.verify();
+    cp.verify([compute(0), compute(2), compute(1)]);
 }
 
 #[test]
 fn is_hasty_true() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let node0 = Node::new(0, |_| true, true, false, false);
 
     // Not recomputed if there is no dependant node.
     rt.update();
-    cp.verify();
-
+    cp.verify(());
     let node1 = Node::new(1, compute_depend_on(&node0), false, true, false);
 
     rt.update();
-    cp.expect([compute(1), compute(0)]);
-    cp.verify();
-
+    cp.verify([compute(1), compute(0)]);
     // Nodes where `is_hasty` is true are recomputed first.
     node0.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(0), compute(1)]);
-    cp.verify();
-
+    cp.verify([compute(0), compute(1)]);
     // Not recomputed if there is no dependant node.
     node0.notify(&mut rt.ac());
     drop(node1);
-    cp.expect([discard(0)]);
     rt.update();
-    cp.verify();
+    cp.verify([discard(0)]);
 }
 
 #[test]
 fn is_hasty_true_is_modify_always_true() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let node0 = Node::new(0, |_| true, false, false, false);
     let node1 = Node::new(1, compute_depend_on(&node0), true, false, true);
     let _node2 = Node::new(2, compute_depend_on(&node1), false, true, false);
 
     rt.update();
-    cp.expect([compute(2), compute(1), compute(0)]);
+    cp.verify([compute(2), compute(1), compute(0)]);
 
     // Nodes with is_hasty true are determined if they have been updated before other nodes.
     // If is_modify_always is true, it is not necessary to compute for this purpose, so its own computation is not performed first.
     node0.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(0), compute(2), compute(1)]);
-    cp.verify();
+    cp.verify([compute(0), compute(2), compute(1)]);
 }
 
 #[test]
 fn is_hasty_true_is_modify_always_false() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let node0 = Node::new(0, |_| true, false, false, false);
     let node1 = Node::new(1, compute_depend_on(&node0), true, false, false);
     let _node2 = Node::new(2, compute_depend_on(&node1), false, true, false);
 
     rt.update();
-    cp.expect([compute(2), compute(1), compute(0)]);
-    cp.verify();
-
+    cp.verify([compute(2), compute(1), compute(0)]);
     node0.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(0), compute(1), compute(2)]);
-    cp.verify();
+    cp.verify([compute(0), compute(1), compute(2)]);
 }
 
 #[test]
 fn is_hasty_true_is_hot_true() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let node0 = Node::new(0, |_| true, true, true, false);
     let node1 = Node::new(1, |_| true, true, false, false);
     let _node2 = Node::new(2, compute_depend_on(&node1), false, true, false);
 
     rt.update();
-    cp.expect_set([compute(0), compute(1), compute(2)]);
-    cp.verify();
-
+    cp.verify(Call::par([compute(0), compute(1), compute(2)]));
     // If is_hasty is true and there is no dependent node, it is computed with normal priority.
     node0.notify(&mut rt.ac());
     node1.notify(&mut rt.ac());
     rt.update();
-    cp.expect([compute(1)]);
-    cp.expect_set([compute(0), compute(2)]);
-    cp.verify();
+    cp.verify([compute(1), Call::par([compute(0), compute(2)])]);
 }
 
 #[test]
 fn stop_recompute_when_one_of_dependencies_is_modified() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     let id_this = usize::MAX;
     let dep0 = Node::new(0, move |_| true, false, false, false);
@@ -552,17 +506,16 @@ fn stop_recompute_when_one_of_dependencies_is_modified() {
         false,
     );
     rt.update();
-    cp.expect([compute(id_this), compute(0), compute(1)]);
+    cp.verify([compute(id_this), compute(0), compute(1)]);
 
     dep0.notify(&mut rt.ac());
     dep1.notify(&mut rt.ac());
     rt.update();
     // Not `0,1,this` or `1,0,this` , but as follows
-    cp.expect_any([
+    cp.verify(Call::any([
         [compute(0), compute(id_this), compute(1)],
         [compute(1), compute(id_this), compute(0)],
-    ]);
-    cp.verify();
+    ]));
 }
 
 #[rstest]
@@ -688,12 +641,12 @@ impl Node {
 
 impl Compute for Node {
     fn compute(&mut self, oc: &mut ObsContext) -> bool {
-        code(format!("compute {}", self.id));
+        call!("compute {}", self.id);
         (self.compute)(oc)
     }
 
     fn discard(&mut self) -> bool {
-        code(format!("discard {}", self.id));
+        call!("discard {}", self.id);
         false
     }
 }
@@ -706,9 +659,9 @@ fn compute_depend_on(node: &Rc<DependencyNode<Node>>) -> impl Fn(&mut ObsContext
     }
 }
 
-fn compute(x: usize) -> CodePath {
-    CodePath::new(format!("compute {x}"))
+fn compute(x: usize) -> Call {
+    Call::id(format!("compute {x}"))
 }
-fn discard(x: usize) -> CodePath {
-    CodePath::new(format!("discard {x}"))
+fn discard(x: usize) -> Call {
+    Call::id(format!("discard {x}"))
 }

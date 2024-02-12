@@ -1,15 +1,13 @@
 use std::time::Duration;
 
+use assert_call::{call, CallRecorder};
 use reactive_fn::{
     core::{wait_for_update, Runtime},
     spawn_action, ObsCell,
 };
 use rt_local::runtime::core::test;
 
-use crate::test_utils::{
-    code_path::{code, CodePathChecker},
-    task::sleep,
-};
+use crate::test_utils::task::sleep;
 
 #[test]
 fn new() {
@@ -48,39 +46,37 @@ async fn wait_for_update_empty() {
 
 #[test]
 async fn wait_for_update_subscribe() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     rt.run(|_| async {
         let x = ObsCell::new(10);
-        let _s = x.obs().subscribe(|x| code(format!("get {x}")));
-        code(1);
+        let _s = x.obs().subscribe(|x| call!("get {x}"));
+        call!("1");
         wait_for_update().await;
-        code(2);
+        call!("2");
     })
     .await;
 
-    cp.expect(["1", "get 10", "2"]);
-    cp.verify();
+    cp.verify(["1", "get 10", "2"]);
 }
 
 #[test]
 async fn wait_for_update_action() {
-    let mut cp = CodePathChecker::new();
+    let mut cp = CallRecorder::new();
     let mut rt = Runtime::new();
     rt.run(|_| async {
         let x = ObsCell::new(10);
-        let _s = x.obs().subscribe(|x| code(format!("get {x}")));
+        let _s = x.obs().subscribe(|x| call!("get {x}"));
         spawn_action({
             let x = x.clone();
             move |ac| x.set(20, ac)
         });
 
-        code(1);
+        call!("1");
         wait_for_update().await;
-        code(2);
+        call!("2");
     })
     .await;
 
-    cp.expect(["1", "get 20", "2"]);
-    cp.verify();
+    cp.verify(["1", "get 20", "2"]);
 }

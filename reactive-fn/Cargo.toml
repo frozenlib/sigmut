@@ -18,3 +18,4 @@ rstest = "0.18.2"
 serde_json = "1.0.107"
 rt-local = "0.1.4"
 tokio = { version = "1.33.0", features = ["rt-multi-thread", "macros", "time"] }
+assert-call = { git = "https://github.com/frozenlib/assert-call.git" }
