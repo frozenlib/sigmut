@@ -8,14 +8,14 @@ edition = "2021"
 [dependencies]
 slabmap = "0.2.0"
 derive-ex = "0.1.7"
-futures = "0.3.28"
-serde = "1.0.188"
+futures = "0.3.30"
+serde = "1.0.196"
 bumpalo = "3.14.0"
 reactive-fn-macros = { version = "0.1.0", path = "../reactive-fn-macros" }
 
 [dev-dependencies]
 rstest = "0.18.2"
-serde_json = "1.0.107"
+serde_json = "1.0.113"
 rt-local = "0.1.4"
-tokio = { version = "1.33.0", features = ["rt-multi-thread", "macros", "time"] }
+tokio = { version = "1.36.0", features = ["rt-multi-thread", "macros", "time"] }
 assert-call = { git = "https://github.com/frozenlib/assert-call.git" }
