@@ -81,6 +81,7 @@ fn watch_notify() {
 
 #[test]
 fn new_node_watch_in_compute() {
+    let _c = CallRecorder::new();
     let mut rt = Runtime::new();
     let _node = Node::new(
         0,
@@ -98,6 +99,7 @@ fn new_node_watch_in_compute() {
 
 #[test]
 fn new_node_is_up_to_date_in_compute() {
+    let _c = CallRecorder::new();
     let mut rt = Runtime::new();
     let _node = Node::new(
         0,
@@ -520,6 +522,7 @@ fn stop_recompute_when_one_of_dependencies_is_modified() {
 
 #[rstest]
 fn dependency_hold_strong_ref(#[values(false, true)] is_hot: bool) {
+    let _c = CallRecorder::new();
     let mut rt = Runtime::new();
     let node0 = Node::new(0, move |_| true, false, is_hot, false);
     let node0_w = Rc::downgrade(&node0);
@@ -556,6 +559,7 @@ fn dependency_hold_strong_ref(#[values(false, true)] is_hot: bool) {
 
 #[test]
 fn is_up_to_date() {
+    let _c = CallRecorder::new();
     let mut rt = Runtime::new();
     let node = Node::new(0, |_| true, false, false, true);
     assert!(!node.is_up_to_date(&mut rt.uc()));
@@ -572,6 +576,7 @@ fn is_up_to_date() {
 
 #[test]
 fn is_up_to_date_dependant() {
+    let _c = CallRecorder::new();
     let mut rt = Runtime::new();
     let node0 = Node::new(0, |_| true, false, false, true);
     let node1 = Node::new(1, compute_depend_on(&node0), false, true, true);
@@ -589,6 +594,7 @@ fn is_up_to_date_dependant() {
 
 #[test]
 fn is_hot_and_dependency() {
+    let _c = CallRecorder::new();
     let mut rt = Runtime::new();
     let node0 = Node::new(0, |_| true, false, false, false);
     let node1 = Node::new(0, compute_depend_on(&node0), false, true, false);
@@ -603,6 +609,7 @@ fn is_hot_and_dependency() {
 
 #[test]
 fn watch_in_borrow() {
+    let _c = CallRecorder::new();
     let mut rt = Runtime::new();
     let node0 = Node::new(0, |_| true, false, false, false);
     node0.watch(&mut rt.oc());
