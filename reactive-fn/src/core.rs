@@ -16,6 +16,10 @@ use std::{
 
 use crate::utils::PhantomNotSend;
 
+mod obs_ref;
+
+pub use obs_ref::*;
+
 thread_local! {
     static RG : RefCell<RuntimeGlobal> = Default::default();
 }
@@ -133,7 +137,7 @@ impl<'a> UpdateContext<'a> {
     fn new(rt: &'a mut Runtime) -> Self {
         Self {
             tasks: &mut rt.tasks,
-            bump: &mut rt.bump,
+            bump: &rt.bump,
             sink: None,
         }
     }
@@ -606,8 +610,8 @@ impl<'oc> ObsContext<'oc> {
         &mut self.0
     }
 
-    pub fn alloc<T>(&mut self, value: T) -> &'oc mut T {
-        self.0.alloc(value)
+    fn bump(&self) -> &'oc Bump {
+        self.0.bump
     }
 }
 

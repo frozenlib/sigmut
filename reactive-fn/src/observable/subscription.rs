@@ -87,7 +87,7 @@ impl Drop for Subscription {
 
 enum SubscriptionInner {
     None,
-    RcAny(Rc<dyn Any>),
+    RcAny(#[allow(dead_code)] Rc<dyn Any>),
     RcUnsubscribe {
         rc: Rc<dyn Unsubscribe>,
         slot: usize,

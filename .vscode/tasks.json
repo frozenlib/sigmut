@@ -63,6 +63,30 @@
     },
     {
       "type": "shell",
+      "label": "cargo miri test obs_ref",
+      "command": "cargo",
+      "args": [
+        "+nightly",
+        "miri",
+        "test",
+        "--test",
+        "obs_ref",
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      },
+      // "options": {
+      //   "env": {
+      //     "MIRIFLAGS": "-Zmiri-backtrace=full",
+      //   }
+      // }
+    },
+    {
+      "type": "shell",
       "label": "cargo watch test in window",
       "command": "wt",
       "args": [
@@ -101,6 +125,19 @@
         "-c",
         "-x",
         "nextest run --status-level=fail --fail-fast",
+      ],
+      "problemMatcher": [],
+    },
+    {
+      "type": "shell",
+      "label": "cargo watch miri",
+      "command": "wt",
+      "args": [
+        "new-tab",
+        "cargo-watch",
+        "-c",
+        "-x",
+        "+nightly miri test --test obs_ref test_watch",
       ],
       "problemMatcher": [],
     },
