@@ -41,7 +41,7 @@ async fn test_spawn_action_async() {
 
 #[test]
 async fn async_action_drop_at_runtime_drop() {
-    struct UseDrop(AsyncActionContext);
+    struct UseDrop(#[allow(dead_code)] AsyncActionContext);
     impl Drop for UseDrop {
         fn drop(&mut self) {
             call!("action drop");
