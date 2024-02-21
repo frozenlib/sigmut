@@ -144,7 +144,6 @@ fn from_value_large_map() {
     let mut rt = Runtime::new();
 
     let large = Large::new();
-    let value = Value(large);
     let or = ObsRefBuilder::from_value(Value(large), &mut rt.oc())
         .map(|x| x)
         .build();

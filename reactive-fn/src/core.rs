@@ -130,7 +130,7 @@ impl RuntimeTasks {
 pub struct UpdateContext<'a> {
     tasks: &'a mut RuntimeTasks,
     bump: &'a Bump,
-    sink: Option<ObsContextSink>,
+    sink: Option<&'a mut ObsContextSink>,
 }
 
 impl<'a> UpdateContext<'a> {
@@ -161,7 +161,11 @@ impl<'a> UpdateContext<'a> {
         is_used
     }
     pub fn oc_with<T>(&mut self, f: impl FnOnce(&mut ObsContext) -> T) -> T {
-        f(ObsContextGuard::new(self, None).oc())
+        f(&mut ObsContext(UpdateContext {
+            tasks: self.tasks,
+            bump: self.bump,
+            sink: None,
+        }))
     }
     pub fn alloc<T>(&mut self, value: T) -> &'a mut T {
         self.bump.alloc(value)
@@ -175,31 +179,6 @@ impl<'a> UpdateContext<'a> {
     }
     pub(crate) fn schedule_discard(&mut self, node: Rc<dyn CallDiscard>, slot: usize) {
         self.tasks.tasks_discard.push(TaskOf { node, slot });
-    }
-}
-
-struct ObsContextGuard<'a, 'oc> {
-    uc: &'a mut UpdateContext<'oc>,
-    sink_old: Option<Option<ObsContextSink>>,
-}
-
-impl<'a, 'oc> ObsContextGuard<'a, 'oc> {
-    fn new(uc: &'a mut UpdateContext<'oc>, sink: Option<ObsContextSink>) -> Self {
-        let sink_old = Some(replace(&mut uc.sink, sink));
-        Self { uc, sink_old }
-    }
-    fn oc(&mut self) -> &mut ObsContext<'oc> {
-        ObsContext::new(self.uc)
-    }
-    fn finish(mut self) -> Option<ObsContextSink> {
-        replace(&mut self.uc.sink, self.sink_old.take().unwrap())
-    }
-}
-impl<'oc> Drop for ObsContextGuard<'_, 'oc> {
-    fn drop(&mut self) {
-        if let Some(sink) = self.sink_old.take() {
-            self.uc.sink = sink;
-        }
     }
 }
 
@@ -288,15 +267,19 @@ impl SourceBindings {
         f: impl FnOnce(&mut ObsContext) -> T,
         uc: &mut UpdateContext,
     ) -> T {
-        let sink = ObsContextSink {
+        let mut sink = ObsContextSink {
             node,
             slot,
             bindings: take(self),
             bindings_len: self.0.len(),
         };
-        let mut oc = ObsContextGuard::new(uc, Some(sink));
-        let ret = f(oc.oc());
-        let sink = oc.finish().unwrap();
+        let mut oc = ObsContext(UpdateContext {
+            tasks: uc.tasks,
+            bump: uc.bump,
+            sink: Some(&mut sink),
+        });
+
+        let ret = f(&mut oc);
         *self = sink.bindings;
         for b in self.0.drain(sink.bindings_len..) {
             b.unbind(uc);
@@ -591,10 +574,6 @@ impl RuntimeContext {
 pub struct ObsContext<'oc>(UpdateContext<'oc>);
 
 impl<'oc> ObsContext<'oc> {
-    fn new<'a>(uc: &'a mut UpdateContext<'oc>) -> &'a mut Self {
-        unsafe { &mut *(uc as *mut UpdateContext<'oc> as *mut Self) }
-    }
-
     pub fn reset(&mut self) -> &mut Self {
         if let Some(sink) = &mut self.0.sink {
             sink.bindings_len = 0;
@@ -603,8 +582,12 @@ impl<'oc> ObsContext<'oc> {
     }
 
     /// Create a context that does not track dependencies.
-    pub fn untrack<T>(&mut self, f: impl Fn(&mut ObsContext<'oc>) -> T) -> T {
-        f(ObsContextGuard::new(&mut self.0, None).oc())
+    pub fn untrack<T>(&mut self) -> ObsContext {
+        ObsContext(UpdateContext {
+            tasks: self.0.tasks,
+            bump: self.0.bump,
+            sink: None,
+        })
     }
     pub fn uc(&mut self) -> &mut UpdateContext<'oc> {
         &mut self.0
@@ -913,14 +896,14 @@ impl RuntimeWaker {
 struct AsyncObsContextData {
     tasks: *mut RuntimeTasks,
     bump: *const Bump,
-    sink: *mut Option<ObsContextSink>,
+    sink: Option<*mut ObsContextSink>,
 }
 impl AsyncObsContextData {
     fn new(oc: &mut ObsContext) -> Self {
         Self {
             tasks: oc.0.tasks,
             bump: oc.0.bump,
-            sink: &mut oc.0.sink,
+            sink: oc.0.sink.as_mut().map(|x| *x as *mut _),
         }
     }
 }
@@ -954,15 +937,11 @@ impl AsyncObsContext {
             panic!("`AsyncObsContext` cannot be used after being moved.")
         };
         unsafe {
-            let mut uc = UpdateContext {
+            f(&mut ObsContext(UpdateContext {
                 tasks: &mut *data.tasks,
                 bump: &*data.bump,
-                sink: None,
-            };
-            let mut oc = ObsContextGuard::new(&mut uc, (*data.sink).take());
-            let ret = f(oc.oc());
-            *data.sink = oc.finish();
-            ret
+                sink: data.sink.map(|x| &mut *x),
+            }))
         }
     }
 }
