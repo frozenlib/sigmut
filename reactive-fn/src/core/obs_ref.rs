@@ -14,7 +14,7 @@ use crate::ObsContext;
 pub struct ObsRef<'a, T: ?Sized>(Data<'a, T>);
 
 impl<'a, T: ?Sized> ObsRef<'a, T> {
-    pub fn from_value(value: T, oc: &ObsContext<'a>) -> Self
+    pub fn from_value<'b: 'a>(value: T, oc: &ObsContext<'b>) -> Self
     where
         T: Sized + 'static,
     {
@@ -24,7 +24,7 @@ impl<'a, T: ?Sized> ObsRef<'a, T> {
         })
     }
 
-    pub fn from_value_non_static(value: T, oc: &ObsContext<'a>) -> Self
+    pub fn from_value_non_static<'b: 'a>(value: T, oc: &ObsContext<'b>) -> Self
     where
         T: Sized,
     {
@@ -38,9 +38,9 @@ impl<'a, T: ?Sized> ObsRef<'a, T> {
         })
     }
 
-    pub fn map_ref<U: ?Sized>(
+    pub fn map_ref_1<U: ?Sized>(
         this: Self,
-        f: impl for<'b> FnOnce(&'b T, &mut ObsContext<'b>) -> ObsRef<'b, U>,
+        f: impl for<'a0> FnOnce(&'a0 T, &mut ObsContext<'a0>) -> ObsRef<'a0, U>,
         oc: &mut ObsContext<'a>,
     ) -> ObsRef<'a, U> {
         unsafe {
@@ -63,10 +63,35 @@ impl<'a, T: ?Sized> ObsRef<'a, T> {
         }
     }
 
-    pub fn map<U: ?Sized>(
+    pub fn map_ref<'b: 'a, U: ?Sized>(
+        this: Self,
+        f: impl for<'a0, 'b0> FnOnce(&'a0 T, &mut ObsContext<'b0>, &'a0 &'b0 ()) -> ObsRef<'a0, U>,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, U> {
+        unsafe {
+            let (is_static, p) = this.0.pin(oc.bump());
+            ObsRef(match f(&*p.as_ptr(), oc, &&()).0 {
+                Data::ValueAndOwner {
+                    is_static: false,
+                    value,
+                    owner,
+                } => Data::ValueAndOwner {
+                    is_static,
+                    value,
+                    owner: p.handle.chain(owner, oc.bump()),
+                },
+                data @ (Data::ValueAndOwner {
+                    is_static: true, ..
+                }
+                | Data::ValueStatic(_)) => data,
+            })
+        }
+    }
+
+    pub fn map<'b: 'a, U: ?Sized>(
         this: Self,
         f: impl FnOnce(&T) -> &U,
-        oc: &ObsContext<'a>,
+        oc: &ObsContext<'b>,
     ) -> ObsRef<'a, U> {
         ObsRef(match this.0 {
             Data::ValueAndOwner {
@@ -388,13 +413,13 @@ impl<'a> Drop for RawAllocHandle<'a> {
 trait DynAllocHandle {}
 impl<T> DynAllocHandle for T {}
 
-pub struct ObsRefBuilder<'a, 'b, T: ?Sized> {
+pub struct ObsRefBuilder<'a, 'b, 'c, T: ?Sized> {
     r: ObsRef<'a, T>,
-    oc: &'b mut ObsContext<'a>,
+    oc: &'c mut ObsContext<'b>,
 }
 
-impl<'a, 'b, T: ?Sized> ObsRefBuilder<'a, 'b, T> {
-    pub fn from_value(value: T, oc: &'b mut ObsContext<'a>) -> ObsRefBuilder<'a, 'b, T>
+impl<'a, 'b: 'a, 'c, T: ?Sized> ObsRefBuilder<'a, 'b, 'c, T> {
+    pub fn from_value(value: T, oc: &'c mut ObsContext<'b>) -> ObsRefBuilder<'a, 'b, 'c, T>
     where
         T: Sized + 'static,
     {
@@ -403,7 +428,10 @@ impl<'a, 'b, T: ?Sized> ObsRefBuilder<'a, 'b, T> {
             oc,
         }
     }
-    pub fn from_value_non_static(value: T, oc: &'b mut ObsContext<'a>) -> ObsRefBuilder<'a, 'b, T>
+    pub fn from_value_non_static(
+        value: T,
+        oc: &'c mut ObsContext<'b>,
+    ) -> ObsRefBuilder<'a, 'b, 'c, T>
     where
         T: Sized,
     {
@@ -412,7 +440,7 @@ impl<'a, 'b, T: ?Sized> ObsRefBuilder<'a, 'b, T> {
             oc,
         }
     }
-    pub fn from_ref(value: &'a T, oc: &'b mut ObsContext<'a>) -> ObsRefBuilder<'a, 'b, T> {
+    pub fn from_ref(value: &'a T, oc: &'c mut ObsContext<'b>) -> ObsRefBuilder<'a, 'b, 'c, T> {
         ObsRefBuilder {
             r: ObsRef::from(value),
             oc,
@@ -420,8 +448,8 @@ impl<'a, 'b, T: ?Sized> ObsRefBuilder<'a, 'b, T> {
     }
     pub fn from_ref_cell(
         value: Ref<'a, T>,
-        oc: &'b mut ObsContext<'a>,
-    ) -> ObsRefBuilder<'a, 'b, T> {
+        oc: &'c mut ObsContext<'b>,
+    ) -> ObsRefBuilder<'a, 'b, 'c, T> {
         ObsRefBuilder {
             r: ObsRef::from(value),
             oc,
@@ -430,8 +458,8 @@ impl<'a, 'b, T: ?Sized> ObsRefBuilder<'a, 'b, T> {
 
     pub fn map<U: ?Sized>(
         self,
-        f: impl for<'c> FnOnce(&'c T) -> &'c U,
-    ) -> ObsRefBuilder<'a, 'b, U> {
+        f: impl for<'a0> FnOnce(&'a0 T) -> &'a0 U,
+    ) -> ObsRefBuilder<'a, 'b, 'c, U> {
         ObsRefBuilder {
             r: ObsRef::map(self.r, f, self.oc),
             oc: self.oc,
@@ -440,8 +468,8 @@ impl<'a, 'b, T: ?Sized> ObsRefBuilder<'a, 'b, T> {
 
     pub fn map_ref<U: ?Sized>(
         self,
-        f: impl for<'c> FnOnce(&'c T, &mut ObsContext<'c>) -> ObsRef<'c, U>,
-    ) -> ObsRefBuilder<'a, 'b, U> {
+        f: impl for<'a0, 'b0> FnOnce(&'a0 T, &mut ObsContext<'b0>, &'a0 &'b0 ()) -> ObsRef<'a0, U>,
+    ) -> ObsRefBuilder<'a, 'b, 'c, U> {
         ObsRefBuilder {
             r: ObsRef::map_ref(self.r, f, self.oc),
             oc: self.oc,

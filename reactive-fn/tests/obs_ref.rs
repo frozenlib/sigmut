@@ -6,7 +6,10 @@ use std::{
 use assert_call::{call, Call, CallRecorder};
 use derive_ex::derive_ex;
 use parse_display::Display;
-use reactive_fn::core::{ObsRef, ObsRefBuilder, Runtime};
+use reactive_fn::{
+    core::{ObsRef, ObsRefBuilder, Runtime},
+    ObsContext,
+};
 
 #[derive(Display, Clone, Copy, Eq, PartialEq)]
 #[display("large")]
@@ -227,7 +230,7 @@ fn from_value_small_map_ref_value_small() {
 
     let value = Value(10);
     let or = ObsRefBuilder::from_value(value, &mut rt.oc())
-        .map_ref(|_, oc| ObsRef::from_value(Value(20), oc))
+        .map_ref(|_, oc, _| ObsRef::from_value(Value(20), oc))
         .build();
     c.verify(e_drop(10));
     assert_eq!(**or, 20);
@@ -242,7 +245,7 @@ fn from_value_small_map_ref_value_large() {
 
     let value = Value(10);
     let or = ObsRefBuilder::from_value(value, &mut rt.oc())
-        .map_ref(|_, oc| ObsRef::from_value(Value(Large::new()), oc))
+        .map_ref(|_, oc, _| ObsRef::from_value(Value(Large::new()), oc))
         .build();
     c.verify(e_drop(10));
     let _: &Large = &or;
@@ -335,3 +338,24 @@ fn from_value_small_map_ref_value_large() {
 //     drop(or);
 //     c.verify(e_drop(20));
 // }
+
+#[test]
+fn bad() {
+    struct X;
+
+    let mut rt = Runtime::new();
+    let oc = &mut rt.oc();
+    let value = X;
+    let or = ObsRefBuilder::from_value_non_static(&value, oc)
+        .map_ref(|_, oc, _| ObsRef::from_value_non_static(10, oc))
+        .build();
+    drop(value);
+    drop(or);
+
+    // drop(oc);
+
+    // assert_eq!(**or, 10);
+    // c.verify(());
+    // drop(or);
+    // c.verify(e_drop(10));
+}
