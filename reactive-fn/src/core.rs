@@ -582,12 +582,21 @@ impl<'oc> ObsContext<'oc> {
     }
 
     /// Create a context that does not track dependencies.
-    pub fn untrack<T>(&mut self) -> ObsContext {
-        ObsContext(UpdateContext {
-            tasks: self.0.tasks,
-            bump: self.0.bump,
-            sink: None,
-        })
+    pub fn untrack<T>(&mut self, f: impl FnOnce(&mut ObsContext<'oc>) -> T) -> T {
+        struct UntrackGuard<'oc, 'a> {
+            oc: &'a mut ObsContext<'oc>,
+            sink: Option<&'oc mut ObsContextSink>,
+        }
+        impl Drop for UntrackGuard<'_, '_> {
+            fn drop(&mut self) {
+                self.oc.0.sink = self.sink.take();
+            }
+        }
+        f(UntrackGuard {
+            sink: self.0.sink.take(),
+            oc: self,
+        }
+        .oc)
     }
     pub fn uc(&mut self) -> &mut UpdateContext<'oc> {
         &mut self.0
