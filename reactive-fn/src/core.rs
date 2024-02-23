@@ -17,8 +17,10 @@ use std::{
 use crate::utils::PhantomNotSend;
 
 mod obs_ref;
+mod obs_ref_builder;
 
 pub use obs_ref::*;
+pub use obs_ref_builder::*;
 
 thread_local! {
     static RG : RefCell<RuntimeGlobal> = Default::default();
