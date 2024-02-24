@@ -1,6 +1,8 @@
 use super::{ObservableBuilder, RcObservable};
 use crate::{
-    core::{AsyncObsContext, AsyncObsContextSource, ObsContext, RuntimeWaker},
+    core::{
+        AsyncObsContext, AsyncObsContextSource, ObsContext, ObsRef, ObsRefBuilder, RuntimeWaker,
+    },
     helpers::{
         dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
         dependency_token::DependencyToken,
@@ -9,6 +11,7 @@ use crate::{
 };
 use futures::{Future, Stream};
 use std::{
+    cell::Ref,
     marker::PhantomData,
     pin::Pin,
     rc::Rc,
@@ -100,13 +103,13 @@ where
 {
     type Item = Poll<Fut::Output>;
 
-    fn rc_with<U>(
-        self: &Rc<Self>,
-        f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
-        oc: &mut ObsContext,
-    ) -> U {
+    fn rc_borrow<'a, 'b: 'a>(
+        self: Rc<Self>,
+        inner: &'a Self,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, Self::Item> {
         self.watch(oc);
-        f(&self.borrow().state, oc)
+        Ref::map(inner.borrow(), |x| &x.state).into()
     }
 }
 
@@ -183,13 +186,15 @@ where
 {
     type Item = Poll<S::Item>;
 
-    fn rc_with<U>(
-        self: &Rc<Self>,
-        f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
-        oc: &mut ObsContext,
-    ) -> U {
+    fn rc_borrow<'a, 'b: 'a>(
+        self: Rc<Self>,
+        inner: &'a Self,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, Self::Item> {
         self.watch(oc);
-        f(&self.borrow().state, oc)
+        ObsRefBuilder::from_ref_cell(inner.borrow(), oc)
+            .map(|x| &x.state)
+            .build()
     }
 }
 
@@ -369,13 +374,14 @@ where
 {
     type Item = Ops::Output;
 
-    fn rc_with<U>(
-        self: &Rc<Self>,
-        f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
-        oc: &mut ObsContext,
-    ) -> U {
+    fn rc_borrow<'a, 'b: 'a>(
+        self: Rc<Self>,
+        inner: &'a Self,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, Self::Item> {
         self.watch(oc);
-        let b = self.borrow();
-        f(b.ops.get(&b.state), oc)
+        ObsRefBuilder::from_ref_cell(inner.borrow(), oc)
+            .map(|b| b.ops.get(&b.state))
+            .build()
     }
 }

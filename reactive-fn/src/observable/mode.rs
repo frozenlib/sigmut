@@ -1,8 +1,8 @@
 use std::rc::Rc;
 
-use super::{Consumed, ObsSink, Observable};
+use super::Observable;
 use crate::{
-    core::ObsContext,
+    core::{ObsContext, ObsRef, ObsRefBuilder},
     helpers::dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
 };
 
@@ -39,7 +39,7 @@ impl<O: Observable + 'static> SetMode<O> {
 impl<O: Observable + 'static> SetMode<O> {}
 impl<O: Observable + 'static> Compute for SetMode<O> {
     fn compute(&mut self, oc: &mut ObsContext) -> bool {
-        self.o.with(|_value, _oc| {}, oc.reset());
+        self.o.borrow(oc.reset());
         true
     }
 
@@ -51,16 +51,9 @@ impl<O: Observable + 'static> Compute for SetMode<O> {
 impl<O: Observable + 'static> Observable for DependencyNode<SetMode<O>> {
     type Item = O::Item;
 
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        self.borrow().o.with(f, oc)
-    }
-    fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, Self::Item>) -> Consumed<'cb> {
-        self.borrow().o.get_to(s)
-    }
-    fn get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
-    where
-        Self::Item: ToOwned,
-    {
-        self.borrow().o.get(oc)
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        ObsRefBuilder::from_ref_cell(self.borrow(), oc)
+            .map_ref(|o, oc, _| o.o.borrow(oc))
+            .build()
     }
 }

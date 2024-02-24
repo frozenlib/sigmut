@@ -8,7 +8,4 @@ pub use crate::core::{
 pub use crate::observable::ObsCell;
 
 #[doc(no_inline)]
-pub use crate::observable::{
-    Callback, Consumed, Fold, Obs, ObsBuilder, ObsCallback, ObsSink, ObsValue, Observable,
-    Subscription,
-};
+pub use crate::observable::{Fold, Obs, ObsBuilder, ObsValue, Observable, Subscription};

@@ -24,7 +24,7 @@ pub fn derive_observable_fmt(input: TokenStream) -> Result<TokenStream> {
         ts.extend(quote! {
             impl #impl_g #ns::fmt::#id_obs_fmt for #id_self #type_g #wc {
                 fn obs_fmt(&self, f: &mut ::std::fmt::Formatter, oc: &mut #ns::core::ObsContext) -> ::std::fmt::Result {
-                    #ns::observable::Observable::with(self, |value, oc| value.obs_fmt(f, oc), oc)
+                    #ns::fmt::#id_obs_fmt::obs_fmt(&*#ns::observable::Observable::borrow(self, oc), f, oc)
                 }
             }
         });

@@ -1,5 +1,5 @@
 use super::{FromObservable, Obs, ObsBuilder, Observable, ObservableBuilder};
-use crate::core::ObsContext;
+use crate::core::{ObsContext, ObsRef};
 use reactive_fn_macros::ObservableFmt;
 
 #[derive(Clone, ObservableFmt)]
@@ -30,7 +30,7 @@ where
     }
     pub fn into_obs(self) -> Obs<T> {
         match self {
-            ObsValue::Constant(value) => Obs::new_value(value),
+            ObsValue::Constant(value) => Obs::from_value(value),
             ObsValue::Obs(o) => o,
         }
     }
@@ -38,10 +38,10 @@ where
 impl<T: 'static> Observable for ObsValue<T> {
     type Item = T;
 
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
         match self {
-            Self::Constant(value) => f(value, oc),
-            Self::Obs(obs) => obs.with(|value, oc| f(value, oc), oc),
+            Self::Constant(value) => value.into(),
+            Self::Obs(obs) => obs.borrow(oc),
         }
     }
 }

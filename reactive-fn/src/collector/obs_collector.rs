@@ -1,5 +1,5 @@
 use crate::{
-    core::{ActionContext, BindSource, ObsContext, SinkBindings, UpdateContext},
+    core::{ActionContext, BindSource, ObsContext, ObsRef, SinkBindings, UpdateContext},
     observable::{Obs, ObsBuilder, Observable, ObservableBuilder, RcObservable},
     spawn_action,
 };
@@ -48,12 +48,12 @@ impl<C: Collector> RawObsCollector<C> {
 impl<C: Collector> RcObservable for RawObsCollector<C> {
     type Item = C::Output;
 
-    fn rc_with<U>(
-        self: &Rc<Self>,
-        f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
-        oc: &mut ObsContext,
-    ) -> U {
-        f(&self.output(oc), oc)
+    fn rc_borrow<'a, 'b: 'a>(
+        self: Rc<Self>,
+        _inner: &'a Self,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, Self::Item> {
+        ObsRef::from_value(self.output(oc), oc)
     }
 }
 
@@ -113,8 +113,9 @@ impl<C: Collector> ObsCollector<C> {
 }
 impl<C: Collector> Observable for ObsCollector<C> {
     type Item = C::Output;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        f(&self.0.clone().output(oc), oc)
+
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        ObsRef::from_value(self.0.clone().output(oc), oc)
     }
 }
 

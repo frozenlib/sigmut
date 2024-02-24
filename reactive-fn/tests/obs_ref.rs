@@ -364,6 +364,12 @@ fn each_map_ref(
     init.init(ObsRefFnMapRef(map_ref));
 }
 
+fn _lifetime_covariant() {
+    fn _f<'a: 'b, 'b, T>(x: ObsRef<'a, T>) -> ObsRef<'b, T> {
+        x
+    }
+}
+
 fn bbox<T: ?Sized + Debug>(value: ObsRef<T>) {
     black_box(format!("{:?}", value));
     black_box(&*value);

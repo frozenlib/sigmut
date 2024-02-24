@@ -1,15 +1,16 @@
+use std::{borrow, iter::once, rc::Rc, task::Poll};
+
 use super::{
     from_async::{FnStreamScanOps, FromAsync, FromStreamFn, FromStreamScanBuilder},
-    stream, AssignOps, Consumed, DedupAssignOps, FnScanOps, Fold, Mode, Obs, ObsCallback, ObsSink,
-    Observable, RcObservable, ScanBuilder, ScanOps, SetMode, Subscription,
+    stream, AssignOps, DedupAssignOps, FnScanOps, Fold, Mode, Obs, Observable, RcObservable,
+    ScanBuilder, ScanOps, SetMode, Subscription,
 };
 use crate::{
-    core::{AsyncObsContext, ObsContext},
+    core::{AsyncObsContext, ObsContext, ObsRef},
     utils::into_owned,
 };
 use derive_ex::derive_ex;
 use futures::{Future, Stream};
-use std::{borrow::Borrow, iter::once, marker::PhantomData, rc::Rc, task::Poll};
 
 pub trait ObservableBuilder: 'static {
     type Item: ?Sized + 'static;
@@ -46,7 +47,7 @@ impl ObsBuilder<()> {
         let ops = DedupAssignOps(f);
         ObsBuilder(ScanBuilder::new(None, ops, false))
     }
-    pub const fn new_value<T: 'static>(value: T) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+    pub const fn from_value<T: 'static>(value: T) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
         ObsBuilder(FromObservable {
             o: FromValue(value),
             into_obs: Obs::from_observable,
@@ -92,39 +93,6 @@ impl ObsBuilder<()> {
         ObsBuilder(FromStaticRef(value))
     }
 
-    pub const fn from_static_get_to<T: ?Sized + 'static>(
-        f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Copy + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservable {
-            o: FromStaticGetTo {
-                f,
-                _phantom: PhantomData,
-            },
-            into_obs: Obs::from_observable_zst,
-        })
-    }
-
-    pub const fn from_static_get<T: 'static>(
-        f: impl Fn(&mut ObsContext) -> T + Copy + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservable {
-            o: FromStaticGet(f),
-            into_obs: Obs::from_observable_zst,
-        })
-    }
-
-    pub const fn from_get_to<T: ?Sized + 'static>(
-        f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + 'static,
-    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
-        ObsBuilder(FromObservable {
-            o: FromGetTo {
-                f,
-                _phantom: PhantomData,
-            },
-            into_obs: Obs::from_observable,
-        })
-    }
-
     pub const fn from_get<T: 'static>(
         f: impl Fn(&mut ObsContext) -> T + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
@@ -134,13 +102,40 @@ impl ObsBuilder<()> {
         })
     }
 
+    pub const fn from_get_zst<T: 'static>(
+        f: impl Fn(&mut ObsContext) -> T + Copy + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+        ObsBuilder(FromObservable {
+            o: FromGet(f),
+            into_obs: Obs::from_observable_zst,
+        })
+    }
+
+    pub const fn from_borrow<This: 'static, T: ?Sized + 'static>(
+        this: This,
+        f: impl for<'a, 'b> Fn(&'a This, &mut ObsContext<'b>, &'a &'b ()) -> ObsRef<'a, T> + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+        ObsBuilder(FromObservable {
+            o: FromBorrow { this, f },
+            into_obs: Obs::from_observable,
+        })
+    }
+    pub const fn from_borrow_zst<T: ?Sized + 'static>(
+        f: impl for<'b> Fn(&mut ObsContext<'b>) -> ObsRef<'b, T> + Copy + 'static,
+    ) -> ObsBuilder<impl ObservableBuilder<Item = T>> {
+        ObsBuilder(FromObservable {
+            o: FromBorrowZst(f),
+            into_obs: Obs::from_observable_zst,
+        })
+    }
+
     pub fn from_owned<T>(
-        owned: impl std::borrow::Borrow<T> + 'static,
+        owned: impl borrow::Borrow<T> + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = T>>
     where
         T: ?Sized + 'static,
     {
-        ObsBuilder::new_value(owned).map(|x| x.borrow())
+        ObsBuilder::from_value(owned).map(|x| x.borrow())
     }
 
     pub fn from_scan<St>(
@@ -270,7 +265,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         f: impl Fn(&B::Item) -> U + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = U>> {
         let o = self.observable();
-        ObsBuilder::from_get(move |oc| o.with(|value, _| f(value), oc))
+        ObsBuilder::from_get(move |oc| f(&o.borrow(oc)))
     }
     pub fn map_future<Fut>(
         self,
@@ -281,7 +276,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         B: 'static,
     {
         let o = self.observable();
-        ObsBuilder::from_future_fn(move |oc| o.with(|value, _oc| f(value), oc))
+        ObsBuilder::from_future_fn(move |oc| f(&o.borrow(oc)))
     }
     pub fn map_stream<S>(
         self,
@@ -292,7 +287,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         B: 'static,
     {
         let o = self.observable();
-        ObsBuilder::from_stream_fn(move |oc| o.with(|value, _oc| f(value), oc))
+        ObsBuilder::from_stream_fn(move |oc| f(&o.borrow(oc)))
     }
 
     pub fn flat_map<U: ?Sized + Observable + 'static>(
@@ -312,8 +307,9 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     where
         B::Item: Observable,
     {
-        let o = self.observable();
-        ObsBuilder::from_get_to(move |s| o.with(|value, oc| s.cb.context(oc).ret_flat(value), s.oc))
+        ObsBuilder::from_borrow(self.observable(), move |o, oc, _| {
+            ObsRef::map_ref(o.borrow(oc), |o, oc, _| o.borrow(oc), oc)
+        })
     }
 
     pub fn scan<St: 'static>(
@@ -325,9 +321,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         St: 'static,
     {
         let o = self.observable();
-        ObsBuilder::from_scan(initial_state, move |st, oc| {
-            o.with(|value, _oc| op(st, value), oc)
-        })
+        ObsBuilder::from_scan(initial_state, move |st, oc| op(st, &o.borrow(oc)))
     }
     pub fn scan_filter<St: 'static>(
         self,
@@ -335,9 +329,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         op: impl Fn(&mut St, &B::Item) -> bool + 'static,
     ) -> ObsBuilder<impl ObservableBuilder<Item = St>> {
         let o = self.observable();
-        ObsBuilder::from_scan_filter(initial_state, move |st, oc| {
-            o.with(|value, _oc| op(st, value), oc)
-        })
+        ObsBuilder::from_scan_filter(initial_state, move |st, oc| op(st, &o.borrow(oc)))
     }
 
     pub fn memo(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>>
@@ -348,7 +340,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         let ops = FnScanOps::new(
             move |st, oc| {
                 if let Some(st) = st {
-                    o.with(|value, _oc| value.clone_into(st), oc);
+                    o.borrow(oc).clone_into(st);
                 } else {
                     *st = Some(o.get(oc));
                 }
@@ -358,7 +350,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
                 true
             },
         )
-        .map(|st: &Option<_>| st.as_ref().unwrap().borrow());
+        .map2(|st: &Option<_>| borrow::Borrow::borrow(st.as_ref().unwrap()));
         ObsBuilder(ScanBuilder::new(None, ops, false))
     }
     pub fn dedup(self) -> ObsBuilder<impl ObservableBuilder<Item = B::Item>>
@@ -378,17 +370,13 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         let ops = FnScanOps::new(
             move |st, oc| {
                 if let Some(st) = st {
-                    o.with(
-                        |value, _oc| {
-                            if eq(Borrow::borrow(st), value) {
-                                false
-                            } else {
-                                value.clone_into(st);
-                                true
-                            }
-                        },
-                        oc,
-                    )
+                    let value = o.borrow(oc);
+                    if eq(borrow::Borrow::borrow(st), &*value) {
+                        false
+                    } else {
+                        value.clone_into(st);
+                        true
+                    }
                 } else {
                     *st = Some(o.get(oc));
                     true
@@ -399,7 +387,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
                 true
             },
         )
-        .map(|st: &Option<_>| st.as_ref().unwrap().borrow());
+        .map2(|st: &Option<_>| borrow::Borrow::borrow(st.as_ref().unwrap()));
         ObsBuilder(ScanBuilder::new(
             None::<<B::Item as ToOwned>::Owned>,
             ops,
@@ -422,9 +410,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         op: impl Fn(&mut St, &B::Item) + 'static,
     ) -> Fold<St> {
         let o = self.observable();
-        Fold::new(initial_state, move |st, oc| {
-            o.with(|value, _oc| op(st, value), oc);
-        })
+        Fold::new(initial_state, move |st, oc| op(st, &o.borrow(oc)))
     }
     pub fn collect_to<C>(self, collection: C) -> Fold<C>
     where
@@ -471,7 +457,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
 
     pub fn subscribe(self, mut f: impl FnMut(&B::Item) + 'static) -> Subscription {
         let o = self.observable();
-        Subscription::new(move |oc| o.with(|value, _oc| f(value), oc))
+        Subscription::new(move |oc| f(&o.borrow(oc)))
     }
     pub fn subscribe_async<Fut>(self, f: impl FnMut(&B::Item) -> Fut + 'static) -> Subscription
     where
@@ -479,7 +465,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
     {
         let o = self.observable();
         let mut f = f;
-        Subscription::new_future(move |oc| o.with(|value, _oc| f(value), oc))
+        Subscription::new_future(move |oc| f(&o.borrow(oc)))
     }
 
     pub fn stream(self) -> impl Stream<Item = <B::Item as ToOwned>::Owned> + Unpin + 'static
@@ -494,7 +480,7 @@ impl<B: ObservableBuilder> ObsBuilder<B> {
         f: impl Fn(&B::Item) -> U + 'static,
     ) -> impl Stream<Item = U> + Unpin + 'static {
         let o = self.observable();
-        stream(move |oc| o.with(|value, _oc| f(value), oc))
+        stream(move |oc| f(&o.borrow(oc)))
     }
 }
 
@@ -546,76 +532,13 @@ impl<T: ?Sized + 'static> ObservableBuilder for FromStaticRef<T> {
 }
 impl<T: ?Sized + 'static> Observable for FromStaticRef<T> {
     type Item = T;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        f(self.0, oc)
-    }
-}
 
-#[derive_ex(Copy, Clone, bound())]
-struct FromStaticGetTo<F, T>
-where
-    F: for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Copy + 'static,
-    T: ?Sized + 'static,
-{
-    f: F,
-    _phantom: PhantomData<fn(&Self) -> &T>,
-}
-impl<F, T> Observable for FromStaticGetTo<F, T>
-where
-    F: for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Copy + 'static,
-    T: ?Sized,
-{
-    type Item = T;
-
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        ObsCallback::with(|cb| self.get_to(cb.context(oc)), f)
-    }
-    fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, Self::Item>) -> super::Consumed<'cb> {
-        (self.f)(s)
+    fn borrow<'a, 'b: 'a>(&'a self, _oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        self.0.into()
     }
 }
 
 #[derive_ex(Copy, Clone)]
-struct FromStaticGet<F>(F);
-impl<F, T> Observable for FromStaticGet<F>
-where
-    T: 'static,
-    F: Fn(&mut ObsContext) -> T + Copy + 'static,
-{
-    type Item = T;
-
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        f(&(self.0)(oc), oc)
-    }
-    fn get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
-    where
-        Self::Item: ToOwned,
-    {
-        into_owned((self.0)(oc))
-    }
-}
-
-struct FromGetTo<F, T: ?Sized> {
-    f: F,
-    _phantom: PhantomData<fn(&Self) -> &T>,
-}
-
-impl<F, T> Observable for FromGetTo<F, T>
-where
-    F: for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb>,
-    T: ?Sized,
-{
-    type Item = T;
-
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        ObsCallback::with(|cb| self.get_to(cb.context(oc)), f)
-    }
-
-    fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, Self::Item>) -> super::Consumed<'cb> {
-        (self.f)(s)
-    }
-}
-
 struct FromGet<F>(F);
 
 impl<F, T> Observable for FromGet<F>
@@ -625,9 +548,10 @@ where
 {
     type Item = T;
 
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        f(&(self.0)(oc), oc)
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        ObsRef::from_value((self.0)(oc), oc)
     }
+
     fn get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
@@ -636,13 +560,46 @@ where
     }
 }
 
+#[derive_ex(Copy, Clone)]
+struct FromBorrow<This, F> {
+    this: This,
+    f: F,
+}
+
+impl<This, F, T> Observable for FromBorrow<This, F>
+where
+    F: for<'a, 'b> Fn(&'a This, &mut ObsContext<'b>, &'a &'b ()) -> ObsRef<'a, T>,
+    T: ?Sized + 'static,
+{
+    type Item = T;
+
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        (self.f)(&self.this, oc, &&())
+    }
+}
+
+#[derive_ex(Copy, Clone)]
+struct FromBorrowZst<F>(F);
+
+impl<F, T> Observable for FromBorrowZst<F>
+where
+    F: for<'b> Fn(&mut ObsContext<'b>) -> ObsRef<'b, T>,
+    T: ?Sized + 'static,
+{
+    type Item = T;
+
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        (self.0)(oc)
+    }
+}
+
 struct FromValue<T>(T);
 
 impl<T> Observable for FromValue<T> {
     type Item = T;
 
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        f(&self.0, oc)
+    fn borrow<'a, 'b: 'a>(&'a self, _oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        (&self.0).into()
     }
 }
 
@@ -657,8 +614,9 @@ where
     F: Fn(&O::Item) -> &T,
 {
     type Item = T;
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        self.o.with(|v, oc| f((self.f)(v), oc), oc)
+
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        ObsRef::map(self.o.borrow(oc), &self.f, oc)
     }
 }
 

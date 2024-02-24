@@ -1,7 +1,7 @@
 use super::{Obs, ObservableBuilder, RcObservable};
 use crate::{
     core::{
-        schedule_notify, ActionContext, BindSink, BindSource, ObsContext, SinkBindings,
+        schedule_notify, ActionContext, BindSink, BindSource, ObsContext, ObsRef, SinkBindings,
         UpdateContext,
     },
     ObsBuilder, Observable,
@@ -110,22 +110,21 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for ObsCell<T> {
 impl<T: 'static> RcObservable for RawObsCell<T> {
     type Item = T;
 
-    #[inline]
-    fn rc_with<U>(
-        self: &Rc<Self>,
-        f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
-        oc: &mut ObsContext,
-    ) -> U {
+    fn rc_borrow<'a, 'b: 'a>(
+        self: Rc<Self>,
+        inner: &'a Self,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, Self::Item> {
         self.watch(oc);
-        f(&self.value.borrow(), oc)
+        inner.value.borrow().into()
     }
 }
 impl<T: 'static> Observable for ObsCell<T> {
     type Item = T;
 
-    #[inline]
-    fn with<U>(&self, f: impl FnOnce(&Self::Item, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        self.0.with(f, oc)
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        self.0.watch(oc);
+        self.0.value.borrow().into()
     }
 }
 

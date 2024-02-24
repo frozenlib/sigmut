@@ -1,14 +1,11 @@
-use super::{
-    Consumed, DynObservable, Fold, ObsBuilder, ObsCallback, ObsSink, Observable, ObservableBuilder,
-    RcObservable, Subscription,
-};
-use crate::core::{AsyncObsContext, ObsContext};
+use super::{Fold, ObsBuilder, Observable, ObservableBuilder, RcObservable, Subscription};
+use crate::core::{AsyncObsContext, ObsContext, ObsRef};
 use derive_ex::derive_ex;
 use futures::{Future, Stream};
 use reactive_fn_macros::ObservableFmt;
-use std::{hash::Hash, mem, ptr, rc::Rc, task::Poll};
+use std::{any::Any, hash::Hash, mem, ptr, rc::Rc, task::Poll};
 
-trait BoxObservable: DynObservable {
+trait BoxObservable: Observable {
     fn clone_box(&self) -> Box<dyn BoxObservable<Item = Self::Item>>;
 }
 
@@ -23,30 +20,66 @@ where
 
 trait DynRcObservable {
     type Item: ?Sized;
-    fn rc_get_to<'cb>(self: Rc<Self>, s: ObsSink<'cb, '_, '_, Self::Item>) -> Consumed<'cb>;
-    fn rc_get(self: Rc<Self>, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
+
+    fn dyn_rc_borrow<'a, 'b: 'a>(
+        self: Rc<Self>,
+        inner: &'a dyn Any,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, Self::Item>;
+
+    fn dyn_rc_get(
+        self: Rc<Self>,
+        inner: &dyn Any,
+        oc: &mut ObsContext,
+    ) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned;
+
+    fn as_any(&self) -> &dyn Any;
 }
+impl<O: RcObservable + 'static> DynRcObservable for O {
+    type Item = <O as RcObservable>::Item;
 
-impl<O: RcObservable> DynRcObservable for O {
-    type Item = <Rc<O> as Observable>::Item;
-
-    fn rc_get_to<'cb>(self: Rc<Self>, s: ObsSink<'cb, '_, '_, Self::Item>) -> Consumed<'cb> {
-        RcObservable::rc_get_to(&self, s)
+    fn dyn_rc_borrow<'a, 'b: 'a>(
+        self: Rc<Self>,
+        inner: &'a dyn Any,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, Self::Item> {
+        self.clone().rc_borrow(inner.downcast_ref().unwrap(), oc)
     }
-    fn rc_get(self: Rc<Self>, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
+    fn dyn_rc_get(
+        self: Rc<Self>,
+        inner: &dyn Any,
+        oc: &mut ObsContext,
+    ) -> <Self::Item as ToOwned>::Owned
     where
         Self::Item: ToOwned,
     {
-        RcObservable::rc_get(&self, oc)
+        self.clone().rc_get(inner.downcast_ref().unwrap(), oc)
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+}
+impl<T: ?Sized + 'static> Observable for Rc<dyn DynRcObservable<Item = T>> {
+    type Item = T;
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        self.clone().dyn_rc_borrow(self.as_any(), oc)
+    }
+
+    fn get(&self, oc: &mut ObsContext) -> <Self::Item as ToOwned>::Owned
+    where
+        Self::Item: ToOwned,
+    {
+        self.clone().dyn_rc_get(self.as_any(), oc)
     }
 }
 
 enum RawObs<T: ?Sized + 'static> {
     StaticRef(&'static T),
     BoxObs(Box<dyn BoxObservable<Item = T>>),
-    RcObs(Rc<dyn DynObservable<Item = T>>),
+    RcObs(Rc<dyn Observable<Item = T>>),
     RcRcObs(Rc<dyn DynRcObservable<Item = T>>),
 }
 
@@ -88,11 +121,11 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         ObsBuilder::new_dedup(f).obs()
     }
-    pub fn new_value(value: T) -> Self
+    pub fn from_value(value: T) -> Self
     where
         T: Sized,
     {
-        ObsBuilder::new_value(value).obs()
+        ObsBuilder::from_value(value).obs()
     }
 
     pub fn from_observable(o: impl Observable<Item = T> + 'static) -> Self {
@@ -122,27 +155,35 @@ impl<T: ?Sized + 'static> Obs<T> {
     pub const fn from_static_ref(value: &'static T) -> Self {
         Self(RawObs::StaticRef(value))
     }
-    pub fn from_static_get_to(
-        f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + Copy + 'static,
-    ) -> Self {
-        ObsBuilder::from_static_get_to(f).obs()
-    }
-    pub fn from_static_get(f: impl Fn(&mut ObsContext) -> T + Copy + 'static) -> Self
-    where
-        T: Sized,
-    {
-        ObsBuilder::from_static_get(f).obs()
-    }
-    pub fn from_get_to(
-        f: impl for<'cb> Fn(ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> + 'static,
-    ) -> Self {
-        ObsBuilder::from_get_to(f).obs()
-    }
     pub fn from_get(f: impl Fn(&mut ObsContext) -> T + 'static) -> Self
     where
         T: Sized,
     {
         ObsBuilder::from_get(f).obs()
+    }
+    pub fn from_get_zst(f: impl Fn(&mut ObsContext) -> T + Copy + 'static) -> Self
+    where
+        T: Sized,
+    {
+        ObsBuilder::from_get_zst(f).obs()
+    }
+
+    pub fn from_borrow<This: 'static>(
+        this: This,
+        f: impl for<'a, 'b> Fn(&'a This, &mut ObsContext<'b>, &'a &'b ()) -> ObsRef<'a, T> + 'static,
+    ) -> Self
+    where
+        T: Sized,
+    {
+        ObsBuilder::from_borrow(this, f).obs()
+    }
+    pub fn from_borrow_zst(
+        f: impl for<'b> Fn(&mut ObsContext<'b>) -> ObsRef<'b, T> + Copy + 'static,
+    ) -> Self
+    where
+        T: Sized,
+    {
+        ObsBuilder::from_borrow_zst(f).obs()
     }
 
     pub fn from_owned(owned: impl std::borrow::Borrow<T> + 'static) -> Self {
@@ -217,31 +258,24 @@ impl<T: ?Sized + 'static> Obs<T> {
     {
         ObsBuilder::from_stream_scan_filter(initial_state, s, op).obs()
     }
-    pub fn with<U>(&self, f: impl FnOnce(&T, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        if let RawObs::StaticRef(x) = &self.0 {
-            f(x, oc)
-        } else {
-            ObsCallback::with(|cb| self.get_to(cb.context(oc)), f)
-        }
-    }
-    pub fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> {
-        match &self.0 {
-            RawObs::StaticRef(value) => s.ret(value),
-            RawObs::BoxObs(x) => x.dyn_get_to(s),
-            RawObs::RcObs(x) => x.dyn_get_to(s),
-            RawObs::RcRcObs(x) => x.clone().rc_get_to(s),
-        }
-    }
 
-    pub fn get(&self, oc: &mut ObsContext) -> T::Owned
+    pub fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, T> {
+        match &self.0 {
+            RawObs::StaticRef(value) => (*value).into(),
+            RawObs::BoxObs(x) => x.borrow(oc),
+            RawObs::RcObs(x) => x.borrow(oc),
+            RawObs::RcRcObs(x) => x.borrow(oc),
+        }
+    }
+    pub fn get(&self, oc: &mut ObsContext) -> <T as ToOwned>::Owned
     where
         T: ToOwned,
     {
         match &self.0 {
-            RawObs::StaticRef(value) => <T as ToOwned>::to_owned(value),
-            RawObs::BoxObs(x) => x.dyn_get(oc),
-            RawObs::RcObs(x) => x.dyn_get(oc),
-            RawObs::RcRcObs(x) => x.clone().rc_get(oc),
+            RawObs::StaticRef(value) => (*value).to_owned(),
+            RawObs::BoxObs(x) => x.get(oc),
+            RawObs::RcObs(x) => x.get(oc),
+            RawObs::RcRcObs(x) => x.get(oc),
         }
     }
 
@@ -409,11 +443,8 @@ impl<T: ?Sized + 'static> Obs<T> {
 impl<T: ?Sized + 'static> Observable for Obs<T> {
     type Item = T;
 
-    fn with<U>(&self, f: impl FnOnce(&T, &mut ObsContext) -> U, oc: &mut ObsContext) -> U {
-        Obs::with(self, f, oc)
-    }
-    fn get_to<'cb>(&self, s: ObsSink<'cb, '_, '_, T>) -> Consumed<'cb> {
-        Obs::get_to(self, s)
+    fn borrow<'a, 'b: 'a>(&'a self, oc: &mut ObsContext<'b>) -> ObsRef<'a, Self::Item> {
+        Obs::borrow(self, oc)
     }
 }
 

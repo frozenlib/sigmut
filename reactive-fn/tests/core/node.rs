@@ -552,10 +552,10 @@ fn dependency_hold_strong_ref(#[values(false, true)] is_hot: bool) {
     assert!(node0_w.upgrade().is_none());
 }
 
-// 旧依存継承
-// Wakerによる更新通知
-// 循環参照
-// 菱形参照
+// removed dependency
+// notify by waker
+// cyclic ref
+// diamond ref
 
 #[test]
 fn is_up_to_date() {

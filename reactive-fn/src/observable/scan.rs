@@ -1,10 +1,10 @@
 use super::{ObservableBuilder, RcObservable, Subscription};
 use crate::{
-    core::{ObsContext, UpdateContext},
+    core::{ObsContext, ObsRef, UpdateContext},
     helpers::dependency_node::{Compute, DependencyNode, DependencyNodeSettings},
     Obs,
 };
-use std::{marker::PhantomData, rc::Rc};
+use std::{cell::Ref, marker::PhantomData, rc::Rc};
 
 trait DynFold {
     type State;
@@ -36,7 +36,7 @@ pub(crate) trait ScanOps {
     fn discard(&self, state: &mut Self::St) -> bool;
     fn to_value<'a>(&self, state: &'a Self::St) -> &'a Self::Value;
 
-    fn map<U, F>(self, f: F) -> MapScanOps<Self, F>
+    fn map2<U, F>(self, f: F) -> MapScanOps<Self, F>
     where
         Self: Sized,
         U: ?Sized,
@@ -201,7 +201,7 @@ where
     {
         ScanBuilder {
             state: self.state,
-            ops: self.ops.map(f),
+            ops: self.ops.map2(f),
             is_hot: self.is_hot,
         }
     }
@@ -226,6 +226,9 @@ impl<Ops: ScanOps + 'static> RawScan<Ops> {
             },
         )
     }
+    fn to_value(&self) -> &Ops::Value {
+        self.ops.to_value(self.state.as_ref().unwrap())
+    }
 }
 
 impl<Ops: ScanOps + 'static> DynFold for DependencyNode<RawScan<Ops>> {
@@ -244,14 +247,13 @@ impl<Ops: ScanOps + 'static> DynFold for DependencyNode<RawScan<Ops>> {
 impl<Ops: ScanOps + 'static> RcObservable for DependencyNode<RawScan<Ops>> {
     type Item = Ops::Value;
 
-    fn rc_with<U>(
-        self: &Rc<Self>,
-        f: impl FnOnce(&Self::Item, &mut ObsContext) -> U,
-        oc: &mut ObsContext,
-    ) -> U {
+    fn rc_borrow<'a, 'b: 'a>(
+        self: Rc<Self>,
+        inner: &'a Self,
+        oc: &mut ObsContext<'b>,
+    ) -> ObsRef<'a, Self::Item> {
         self.watch(oc);
-        let b = self.borrow();
-        f(b.ops.to_value(b.state.as_ref().unwrap()), oc)
+        Ref::map(inner.borrow(), |b| b.to_value()).into()
     }
 }
 
