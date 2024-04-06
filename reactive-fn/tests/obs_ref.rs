@@ -42,6 +42,21 @@ fn e_drop(value: impl Display) -> Call {
 }
 
 #[test]
+fn move_value() {
+    let mut rt = Runtime::new();
+    let oc = &rt.oc();
+    check(1u8, oc);
+    check(1u16, oc);
+    check(1u32, oc);
+    check(1u64, oc);
+    check(1u128, oc);
+
+    fn check<T: PartialEq + Debug + Copy + 'static>(value: T, oc: &ObsContext) {
+        assert_eq!(*black_box(ObsRef::from_value(value, oc)), value);
+    }
+}
+
+#[test]
 fn from_value_small() {
     let mut c = CallRecorder::new();
     let mut rt = Runtime::new();

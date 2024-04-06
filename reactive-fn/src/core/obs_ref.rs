@@ -151,7 +151,7 @@ enum Data<'a, T: ?Sized> {
         value: Value<'a, T>,
         owner: AllocHandle<'a>,
     },
-    ValueStatic(Embedded<'a, T, 6>),
+    ValueStatic(Embedded<'a, T, 3>),
 }
 
 impl<'a, T: ?Sized> Data<'a, T> {
@@ -191,7 +191,7 @@ impl<'a, T: ?Sized> Deref for Data<'a, T> {
 
 enum Value<'a, T: ?Sized> {
     Ref(RawRef<'a, T>),
-    Embedded(Embedded<'a, T, 3>),
+    Embedded(Embedded<'a, T, 1>),
 }
 
 enum RawRef<'a, T: ?Sized> {
@@ -219,7 +219,8 @@ impl<'a, T: ?Sized> std::ops::Deref for RawRef<'a, T> {
     }
 }
 
-type Buf<const N: usize> = [MaybeUninit<isize>; N];
+type BufElement = u128;
+type Buf<const N: usize> = [MaybeUninit<BufElement>; N];
 
 struct Embedded<'a, T: ?Sized + 'a, const N: usize> {
     buf: Buf<N>,
@@ -228,9 +229,9 @@ struct Embedded<'a, T: ?Sized + 'a, const N: usize> {
 
 impl<T, const N: usize> Embedded<'_, T, N> {
     const fn is_supported() -> bool {
-        let layout_isize = Layout::new::<isize>();
+        let layout_elem = Layout::new::<BufElement>();
         let layout_t = Layout::new::<MaybeUninit<T>>();
-        layout_t.size() <= layout_isize.size() * N && layout_isize.size() % layout_t.align() == 0
+        layout_t.size() <= layout_elem.size() * N && layout_elem.size() % layout_t.align() == 0
     }
     pub fn new(value: T) -> Result<Self, T> {
         if !Self::is_supported() {
