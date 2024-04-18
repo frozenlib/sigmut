@@ -139,6 +139,16 @@ TODO
 
 [sycamore]: https://sycamore-rs.netlify.app/
 
+## Cheat sheet for [JavaScript Signals standard proposal] users
+
+| JavaScript Signals standard proposal | reactive-fn                 |
+| ------------------------------------ | --------------------------- |
+| `Signal`                             | `Obs`, `Observable`         |
+| `State`                              | `ObsCell`                   |
+| `new Computed`                       | `Obs::new`,`Obs::new_dedup` |
+
+[JavaScript Signals standard proposal]: https://github.com/tc39/proposal-signals
+
 ## License
 
 This project is dual licensed under Apache-2.0/MIT. See the two LICENSE-\* files for details.
