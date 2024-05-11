@@ -1,15 +1,9 @@
-use std::{
-    cell::RefCell,
-    future::Future,
-    pin::Pin,
-    rc::Rc,
-    task::{Context, Waker},
-};
+use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
 
 use crate::{
     core::{
-        waker_from_sink, AsyncSignalContext, AsyncSignalContextSource, BindSink, Dirty,
-        DirtyOrMaybeDirty, NotifyContext, Slot, SourceBindings, Task, UpdateContext,
+        AsyncSignalContext, AsyncSourceBinder, BindSink, DirtyOrMaybeDirty, NotifyContext, Slot,
+        Task, UpdateContext,
     },
     Scheduler, Subscription,
 };
@@ -23,17 +17,10 @@ where
     Subscription::from_rc(this)
 }
 
-const SLOT_DEPS: Slot = Slot(0);
-const SLOT_WAKE: Slot = Slot(1);
-
 struct SubscribeAsyncNodeData<GetFut, Fut> {
-    scs: AsyncSignalContextSource,
     get_fut: GetFut,
     fut: Pin<Box<Option<Fut>>>,
-    dirty: Dirty,
-    is_wake: bool,
-    sources: SourceBindings,
-    waker: Waker,
+    asb: AsyncSourceBinder,
 }
 
 struct SubscribeAsyncNode<GetFut, Fut> {
@@ -48,13 +35,9 @@ where
     fn new(f: GetFut, scheduler: Scheduler) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
             data: RefCell::new(SubscribeAsyncNodeData {
-                scs: AsyncSignalContextSource::new(),
                 get_fut: f,
                 fut: Box::pin(None),
-                dirty: Dirty::Dirty,
-                is_wake: false,
-                sources: SourceBindings::new(),
-                waker: waker_from_sink(this.clone(), SLOT_WAKE),
+                asb: AsyncSourceBinder::new(this),
             }),
             scheduler,
         })
@@ -65,37 +48,17 @@ where
     }
     fn call(self: &Rc<Self>, uc: &mut UpdateContext) {
         let d = &mut *self.data.borrow_mut();
-        if d.dirty.check(&mut d.sources, uc) {
-            let sink = Rc::downgrade(self);
-            d.fut.set(None);
-            d.fut.set(d.sources.update(
-                sink,
-                SLOT_DEPS,
-                true,
-                |sc| Some(d.scs.with(sc, || (d.get_fut)(d.scs.sc()))),
-                uc,
-            ));
-            d.dirty = Dirty::Clean;
-            d.is_wake = true;
+        if d.asb.is_clean() {
+            return;
         }
-        if d.is_wake {
-            if let Some(f) = d.fut.as_mut().as_pin_mut() {
-                let sink = Rc::downgrade(self);
-                let value = d.sources.update(
-                    sink,
-                    SLOT_DEPS,
-                    false,
-                    |sc| {
-                        d.scs
-                            .with(sc, || f.poll(&mut Context::from_waker(&d.waker)))
-                    },
-                    uc,
-                );
-                if value.is_ready() {
-                    d.fut.set(None);
-                }
+        if d.asb.check(uc) {
+            d.fut.set(None);
+            d.fut.set(Some(d.asb.init(&mut d.get_fut, uc)));
+        }
+        if let Some(fut) = d.fut.as_mut().as_pin_mut() {
+            if d.asb.poll(fut, uc).is_ready() {
+                d.fut.set(None);
             }
-            d.is_wake = false;
         }
     }
 }
@@ -105,14 +68,7 @@ where
     Fut: Future<Output = ()> + 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, _nc: &mut NotifyContext) {
-        let mut d = self.data.borrow_mut();
-        let need_schedule = d.dirty.is_clean() && !d.is_wake;
-        match slot {
-            SLOT_DEPS => d.dirty |= dirty,
-            SLOT_WAKE => d.is_wake = true,
-            _ => {}
-        }
-        if need_schedule {
+        if self.data.borrow_mut().asb.on_notify(slot, dirty) {
             self.schedule();
         }
     }

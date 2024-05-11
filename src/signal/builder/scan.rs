@@ -5,8 +5,8 @@ use std::{
 
 use crate::{
     core::{
-        BindKey, BindSink, BindSource, Dirty, DirtyOrMaybeDirty, Discard, NotifyContext,
-        SinkBindings, Slot, SourceBindings, UpdateContext,
+        BindKey, BindSink, BindSource, DirtyOrMaybeDirty, Discard, NotifyContext, SinkBindings,
+        Slot, SourceBinder, UpdateContext,
     },
     Signal, SignalContext, StateRef,
 };
@@ -108,13 +108,12 @@ where
     }
 
     fn build(self) -> Signal<Self::State> {
-        Signal::from_node(Rc::new(ScanNode {
+        Signal::from_node(Rc::new_cyclic(|this| ScanNode {
             sinks: RefCell::new(SinkBindings::new()),
             data: RefCell::new(ScanNodeData {
                 state: self.initial_state,
-                dirty: Dirty::Dirty,
                 scan: self.scan,
-                sources: SourceBindings::new(),
+                sb: SourceBinder::new(this, Slot(0)),
             }),
             discard: self.discard,
             map: self.map,
@@ -124,9 +123,8 @@ where
 
 struct ScanNodeData<St, Scan> {
     state: St,
-    dirty: Dirty,
     scan: Scan,
-    sources: SourceBindings,
+    sb: SourceBinder,
 }
 
 struct ScanNode<St, Scan, D, M> {
@@ -179,14 +177,12 @@ where
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
-    fn notify(self: Rc<Self>, _slot: Slot, dirty: DirtyOrMaybeDirty, uc: &mut NotifyContext) {
-        let mut data = self.data.borrow_mut();
-        if data.dirty.is_clean() {
+    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
+        if self.data.borrow_mut().sb.on_notify(slot, dirty) {
             self.sinks
                 .borrow_mut()
-                .notify(dirty.with_filter(Scan::FILTER), uc)
+                .notify(dirty.with_filter(Scan::FILTER), nc)
         }
-        data.dirty |= dirty;
     }
 }
 
@@ -198,19 +194,15 @@ where
     M: MapFn<St> + 'static,
 {
     fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
-        if self.data.borrow().dirty.is_clean() {
+        if self.data.borrow().sb.is_clean() {
             return;
         }
         let d = &mut *self.data.borrow_mut();
-        if d.dirty.check(&mut d.sources, uc) {
-            let sink = Rc::downgrade(self);
-            let is_dirty =
-                d.sources
-                    .update(sink, Slot(0), true, |sc| d.scan.call(&mut d.state, sc), uc);
+        if d.sb.check(uc) {
+            let is_dirty = d.sb.update(|sc| d.scan.call(&mut d.state, sc), uc);
             if Scan::FILTER {
                 self.sinks.borrow_mut().update(is_dirty, uc);
             }
-            d.dirty = Dirty::Clean;
         }
     }
     fn watch(self: &Rc<Self>, sc: &mut SignalContext) {
@@ -231,9 +223,7 @@ where
         }
         let mut data = self.data.borrow_mut();
         if self.discard.call(&mut data.state) {
-            let data = &mut *self.data.borrow_mut();
-            data.sources.clear(uc);
-            data.dirty = Dirty::Dirty;
+            data.sb.clear(uc);
         }
     }
 }

@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::{
     core::{
-        BindSink, Dirty, DirtyOrMaybeDirty, NotifyContext, Scheduler, Slot, SourceBindings, Task,
+        BindSink, DirtyOrMaybeDirty, NotifyContext, Scheduler, Slot, SourceBinder, Task,
         UpdateContext,
     },
     SignalContext, Subscription,
@@ -15,15 +15,14 @@ pub fn subscribe_with(
     f: impl FnMut(&mut SignalContext) + 'static,
     scheduler: &Scheduler,
 ) -> Subscription {
-    let node = Rc::new(SubscribeNode::new(f, scheduler.clone()));
+    let node = SubscribeNode::new(f, scheduler.clone());
     node.schedule();
     Subscription::from_rc(node)
 }
 
 struct SubscribeNodeData<F> {
     f: F,
-    dirty: Dirty,
-    sources: SourceBindings,
+    sb: SourceBinder,
 }
 
 struct SubscribeNode<F> {
@@ -34,15 +33,14 @@ impl<F> SubscribeNode<F>
 where
     F: FnMut(&mut SignalContext) + 'static,
 {
-    fn new(f: F, scheduler: Scheduler) -> Self {
-        Self {
+    fn new(f: F, scheduler: Scheduler) -> Rc<Self> {
+        Rc::new_cyclic(|this| Self {
             data: RefCell::new(SubscribeNodeData {
                 f,
-                dirty: Dirty::Dirty,
-                sources: SourceBindings::new(),
+                sb: SourceBinder::new(this, Slot(0)),
             }),
             scheduler,
-        }
+        })
     }
 
     fn schedule(self: &Rc<Self>) {
@@ -50,10 +48,8 @@ where
     }
     fn call(self: Rc<Self>, uc: &mut UpdateContext) {
         let d = &mut *self.data.borrow_mut();
-        if d.dirty.check(&mut d.sources, uc) {
-            let sink = Rc::downgrade(&self);
-            d.sources.update(sink, Slot(0), true, &mut d.f, uc);
-            d.dirty = Dirty::Clean;
+        if d.sb.check(uc) {
+            d.sb.update(&mut d.f, uc);
         }
     }
 }
@@ -62,11 +58,9 @@ impl<F> BindSink for SubscribeNode<F>
 where
     F: FnMut(&mut SignalContext) + 'static,
 {
-    fn notify(self: Rc<Self>, _slot: Slot, dirty: DirtyOrMaybeDirty, _nc: &mut NotifyContext) {
-        let mut data = self.data.borrow_mut();
-        if data.dirty.is_clean() {
+    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, _nc: &mut NotifyContext) {
+        if self.data.borrow_mut().sb.on_notify(slot, dirty) {
             self.schedule();
         }
-        data.dirty |= dirty;
     }
 }

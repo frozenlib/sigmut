@@ -14,8 +14,8 @@ use slabmap::SlabMap;
 
 use crate::{
     core::{
-        schedule_notify, BindKey, BindSink, BindSource, Dirty, DirtyOrMaybeDirty, NotifyContext,
-        SinkBindings, Slot, SourceBindings, UpdateContext,
+        schedule_notify, BindKey, BindSink, BindSource, DirtyOrMaybeDirty, NotifyContext,
+        SinkBindings, Slot, SourceBinder, UpdateContext,
     },
     utils::{is_sorted, to_range, Changes, IndexNewToOld, RefCountOps},
     ActionContext, SignalContext,
@@ -27,7 +27,7 @@ pub struct SignalVec<T: 'static>(RawSignalVec<T>);
 
 impl<T: 'static> SignalVec<T> {
     pub fn from_scan(f: impl FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static) -> Self {
-        Self(RawSignalVec::Rc(Rc::new(Scan::new(f))))
+        Self(RawSignalVec::Rc(Scan::new(f)))
     }
     pub fn reader(&self) -> SignalVecReader<T> {
         SignalVecReader {
@@ -786,12 +786,16 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn new(f: F) -> Self {
-        Self {
-            data: RefCell::new(ScanData::new(f)),
+    fn new(f: F) -> Rc<Self> {
+        Rc::new_cyclic(|this| Self {
+            data: RefCell::new(ScanData {
+                data: ItemsData::new(),
+                sb: SourceBinder::new(this, Slot(0)),
+                f,
+            }),
             ref_counts: RefCell::new(RefCountOps::new()),
             sinks: RefCell::new(SinkBindings::new()),
-        }
+        })
     }
     fn to_this(this: Rc<dyn Any>) -> Rc<Self> {
         this.downcast::<Self>().unwrap()
@@ -804,21 +808,18 @@ where
     }
 
     fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
-        if self.data.borrow().dirty.is_clean() {
+        if self.data.borrow().sb.is_clean() {
             return;
         }
         let d = &mut *self.data.borrow_mut();
         let mut is_dirty = false;
-        if d.dirty.check(&mut d.sources, uc) {
+        if d.sb.check(uc) {
             let age = d.data.edit_start(&self.ref_counts);
             let mut items = ItemsMut {
                 data: ItemsMutData::Direct(&mut d.data),
                 age,
             };
-            let sink = Rc::downgrade(self);
-            d.sources
-                .update(sink, Slot(0), true, |sc| (d.f)(&mut items, sc), uc);
-            d.dirty = Dirty::Clean;
+            d.sb.update(|sc| (d.f)(&mut items, sc), uc);
             is_dirty = items.is_dirty();
         }
         self.sinks.borrow_mut().update(is_dirty, uc);
@@ -854,8 +855,10 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn notify(self: Rc<Self>, _slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
-        self.sinks.borrow_mut().notify(dirty, nc)
+    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
+        if self.data.borrow_mut().sb.on_notify(slot, dirty) {
+            self.sinks.borrow_mut().notify(dirty, nc)
+        }
     }
 }
 impl<T, F> BindSource for Scan<T, F>
@@ -875,21 +878,6 @@ where
 
 struct ScanData<T, F> {
     data: ItemsData<T>,
-    sources: SourceBindings,
-    dirty: Dirty,
+    sb: SourceBinder,
     f: F,
-}
-impl<T, F> ScanData<T, F>
-where
-    T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
-{
-    fn new(f: F) -> Self {
-        Self {
-            data: ItemsData::new(),
-            dirty: Dirty::Dirty,
-            sources: SourceBindings::new(),
-            f,
-        }
-    }
 }

@@ -103,9 +103,9 @@ where
     fn update(self: Rc<Self>, uc: &mut UpdateContext) {
         let d = &mut *self.0.borrow_mut();
         d.is_scheduled = false;
-        if d.dirty.check(&mut d.sources, uc) {
+        if d.sources.check(uc) {
             let sink = Rc::downgrade(&self);
-            let value = d.sources.update(sink, Slot(0), true, |sc| (d.f)(sc), uc);
+            let value = d.sources.update(sink, Slot(0), |sc| (d.f)(sc), uc);
             d.dirty = Dirty::Clean;
             if let ValueState::Pending(waker) = replace(&mut d.value, ValueState::Ready(value)) {
                 waker.wake();

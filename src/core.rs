@@ -20,9 +20,13 @@ use bumpalo::Bump;
 use derive_ex::derive_ex;
 use slabmap::SlabMap;
 
+mod async_source_binder;
+mod source_binder;
 mod state_ref;
 mod state_ref_builder;
 
+pub use async_source_binder::AsyncSourceBinder;
+pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
@@ -405,12 +409,6 @@ impl Dirty {
     pub fn is_clean(self) -> bool {
         self == Dirty::Clean
     }
-    pub fn check(&mut self, sources: &mut SourceBindings, uc: &mut UpdateContext) -> bool {
-        if *self == Dirty::MaybeDirty {
-            *self = Dirty::from_is_dirty(sources.check(uc));
-        }
-        *self == Self::Dirty
-    }
 }
 
 impl BitOr for Dirty {
@@ -499,7 +497,24 @@ impl SourceBindings {
         }
         false
     }
+    fn check_with(&mut self, dirty: &mut Dirty, uc: &mut UpdateContext) -> bool {
+        if *dirty == Dirty::MaybeDirty {
+            *dirty = Dirty::from_is_dirty(self.check(uc));
+        }
+        *dirty == Dirty::Dirty
+    }
+
     pub fn update<T>(
+        &mut self,
+        sink: Weak<dyn BindSink>,
+        slot: Slot,
+        f: impl FnOnce(&mut SignalContext) -> T,
+        uc: &mut UpdateContext,
+    ) -> T {
+        self.update_with(sink, slot, true, f, uc)
+    }
+
+    pub fn update_with<T>(
         &mut self,
         sink: Weak<dyn BindSink>,
         slot: Slot,
@@ -944,12 +959,12 @@ impl Drop for RawWake {
 }
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
-struct AsyncSignalContextData {
+struct SignalContextPtr {
     rt: *mut RawRuntime,
     bump: *const Bump,
     sink: Option<*mut Sink>,
 }
-impl AsyncSignalContextData {
+impl SignalContextPtr {
     fn new(sc: &mut SignalContext) -> Self {
         Self {
             rt: sc.rt,
@@ -960,14 +975,17 @@ impl AsyncSignalContextData {
 }
 
 #[derive_ex(Default)]
-pub struct AsyncSignalContextSource(Rc<RefCell<Option<AsyncSignalContextData>>>);
+struct AsyncSignalContextSource(Rc<RefCell<Option<SignalContextPtr>>>);
 
 impl AsyncSignalContextSource {
     pub fn new() -> Self {
         Self(Rc::new(RefCell::new(None)))
     }
+    pub fn sc(&self) -> AsyncSignalContext {
+        AsyncSignalContext(self.0.clone())
+    }
     pub fn with<T>(&self, sc: &mut SignalContext, f: impl FnOnce() -> T) -> T {
-        let data = AsyncSignalContextData::new(sc);
+        let data = SignalContextPtr::new(sc);
         assert!(self.0.borrow().is_none());
         *self.0.borrow_mut() = Some(data);
         let ret = f();
@@ -975,12 +993,9 @@ impl AsyncSignalContextSource {
         *self.0.borrow_mut() = None;
         ret
     }
-    pub fn sc(&self) -> AsyncSignalContext {
-        AsyncSignalContext(self.0.clone())
-    }
 }
 
-pub struct AsyncSignalContext(Rc<RefCell<Option<AsyncSignalContextData>>>);
+pub struct AsyncSignalContext(Rc<RefCell<Option<SignalContextPtr>>>);
 
 impl AsyncSignalContext {
     pub fn with<T>(&mut self, f: impl FnOnce(&mut SignalContext) -> T) -> T {

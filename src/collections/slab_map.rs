@@ -10,8 +10,8 @@ use slabmap::SlabMap;
 
 use crate::{
     core::{
-        BindKey, BindSink, BindSource, Dirty, DirtyOrMaybeDirty, NotifyContext, SinkBindings, Slot,
-        SourceBindings, UpdateContext,
+        BindKey, BindSink, BindSource, DirtyOrMaybeDirty, NotifyContext, SinkBindings, Slot,
+        SourceBinder, UpdateContext,
     },
     utils::{Changes, RefCountOps},
     ActionContext, SignalContext,
@@ -456,11 +456,10 @@ where
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
     fn new(f: F) -> Rc<Self> {
-        Rc::new(Self {
+        Rc::new_cyclic(|this| Self {
             data: RefCell::new(ScanData {
-                sources: SourceBindings::new(),
+                sb: SourceBinder::new(this, Slot(0)),
                 items: ItemsMut::new(),
-                dirty: Dirty::Dirty,
                 f,
             }),
             ref_counts: RefCell::new(RefCountOps::new()),
@@ -469,16 +468,13 @@ where
     }
 
     fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
-        if self.data.borrow().dirty.is_clean() {
+        if self.data.borrow().sb.is_clean() {
             return;
         }
         let d = &mut *self.data.borrow_mut();
-        if d.dirty.check(&mut d.sources, uc) {
-            let sink = Rc::downgrade(self);
+        if d.sb.check(uc) {
             let age = d.items.edit_start(&self.ref_counts);
-            d.sources
-                .update(sink, Slot(0), true, |sc| (d.f)(&mut d.items, sc), uc);
-            d.dirty = Dirty::Clean;
+            d.sb.update(|sc| (d.f)(&mut d.items, sc), uc);
             d.items
                 .edit_end_and_update(age, &mut self.sinks.borrow_mut(), uc);
         }
@@ -535,20 +531,17 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn notify(self: Rc<Self>, _slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
-        let d = &mut *self.data.borrow_mut();
-        if !d.dirty.is_clean() {
+    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
+        if self.data.borrow_mut().sb.on_notify(slot, dirty) {
             self.sinks
                 .borrow_mut()
                 .notify_all(DirtyOrMaybeDirty::MaybeDirty, nc);
         }
-        d.dirty |= dirty;
     }
 }
 
 struct ScanData<T, F> {
-    sources: SourceBindings,
+    sb: SourceBinder,
     items: ItemsMut<T>,
-    dirty: Dirty,
     f: F,
 }
