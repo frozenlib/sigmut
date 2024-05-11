@@ -11,9 +11,9 @@ edition = "2021"
 [dependencies]
 sigmut-macros = { version = "0.1.0", path = "macros" }
 slabmap = "0.2.0"
-bumpalo = "3.14.0"
+bumpalo = "3.16.0"
 derive-ex = "0.1.8"
-serde = "1.0.198"
+serde = "1.0.201"
 futures = "0.3.30"
 iter-n = "0.1.0"
 
