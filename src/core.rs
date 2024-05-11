@@ -508,16 +508,6 @@ impl SourceBindings {
         &mut self,
         sink: Weak<dyn BindSink>,
         slot: Slot,
-        f: impl FnOnce(&mut SignalContext) -> T,
-        uc: &mut UpdateContext,
-    ) -> T {
-        self.update_with(sink, slot, true, f, uc)
-    }
-
-    pub fn update_with<T>(
-        &mut self,
-        sink: Weak<dyn BindSink>,
-        slot: Slot,
         reset: bool,
         f: impl FnOnce(&mut SignalContext) -> T,
         uc: &mut UpdateContext,

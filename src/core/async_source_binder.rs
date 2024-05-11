@@ -49,6 +49,7 @@ impl AsyncSourceBinder {
         self.sources.update(
             self.sink.clone(),
             SLOT_DEPS,
+            true,
             |sc| self.sc.with(sc, || f(asc)),
             uc,
         )
@@ -59,7 +60,7 @@ impl AsyncSourceBinder {
         uc: &mut UpdateContext,
     ) -> Poll<T> {
         self.is_wake = false;
-        self.sources.update_with(
+        self.sources.update(
             self.sink.clone(),
             SLOT_DEPS,
             false,

@@ -32,7 +32,8 @@ impl SourceBinder {
         uc: &mut UpdateContext,
     ) -> T {
         self.dirty = Dirty::Clean;
-        self.sources.update(self.sink.clone(), self.slot, f, uc)
+        self.sources
+            .update(self.sink.clone(), self.slot, true, f, uc)
     }
     pub fn clear(&mut self, uc: &mut UpdateContext) {
         self.sources.clear(uc);
