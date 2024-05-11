@@ -3,7 +3,7 @@ name: CI
 on:
   push:
   pull_request:
-  schedule: [cron: "20 5 * * *"]
+  schedule: [cron: "20 10 * * *"]
 
 jobs:
   build:
@@ -21,16 +21,16 @@ jobs:
         run: cargo test --verbose --no-run
       - name: Run tests
         run: cargo test --verbose
-      # - name: Run compile fail tests
-      #   run: cargo test --test compile_fail --verbose -- --ignored
+        # - name: Run compile fail tests
+        # run: cargo test --test compile_fail --verbose -- --ignored
       - name: Clippy
         run: cargo clippy --all-features --tests --lib -- -W clippy::all
         env:
           RUSTFLAGS: -D warnings
       - name: Rustup toolchain install nightly
-        run: rustup toolchain install nightly
+        run: rustup toolchain install nightly --allow-downgrade --profile minimal
       - name: Set minimal versions
-        run: cargo +nightly update -Z minimal-versions
+        run: cargo +nightly update -Z direct-minimal-versions
       - name: Build tests (minimal versions)
         run: cargo test --verbose --no-run
       - name: Run tests (minimal versions)
