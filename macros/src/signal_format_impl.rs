@@ -53,9 +53,10 @@ pub fn signal_format(input: TokenStream) -> Result<TokenStream> {
                 let _ = std::format!(#format_str #(,#dummy_args)*);
             }
 
+            #[allow(unused_imports)]
             use ::std::fmt::Write;
-            use #h::SignalStringBuilder;
-            use #h::HelperForNonSignal;
+            #[allow(unused_imports)]
+            use #h::{SignalStringBuilder, HelperForNonSignal};
             let #b = #h::signal_string_builder();
             #(#lets)*
             #b.build()
