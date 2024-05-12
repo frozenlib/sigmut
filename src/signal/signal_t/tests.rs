@@ -68,7 +68,7 @@ fn new_dedup() {
 
     let st = State::new(5);
     let st_ = st.clone();
-    let s = Signal::new(move |sc| st_.get(sc)).dedup();
+    let s = Signal::new_dedup(move |sc| st_.get(sc));
 
     assert_eq!(s.get(&mut rt.sc()), 5);
 
