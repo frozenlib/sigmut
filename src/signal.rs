@@ -1,6 +1,6 @@
 mod builder;
 mod scan_async;
-mod signal_node;
+mod signal_t;
 
 pub use builder::SignalBuilder;
-pub use signal_node::*;
+pub use signal_t::*;
