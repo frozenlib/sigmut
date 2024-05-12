@@ -90,6 +90,8 @@ TODO
 | `batch`          | `spawn_action`           |
 | `untrack`        | `SignalContext::untrack` |
 | `Owner`          | `SignalContext`          |
+| `observable`     | `to_stream`              |
+| `from`           | `from_stream`            |
 
 [solidjs]: https://www.solidjs.com/docs/latest/api#basic-reactivity
 
