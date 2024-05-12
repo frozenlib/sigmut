@@ -12,6 +12,9 @@ use bumpalo::Bump;
 
 use crate::{core::SignalContext, utils::into_owned};
 
+#[cfg(test)]
+mod tests;
+
 pub struct StateRef<'a, T: ?Sized>(Data<'a, T>);
 
 impl<'a, T: ?Sized> StateRef<'a, T> {

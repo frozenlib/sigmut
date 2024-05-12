@@ -8,7 +8,8 @@ use assert_call::{call, Call, CallRecorder};
 use derive_ex::derive_ex;
 use parse_display::Display;
 use rstest::rstest;
-use sigmut::{
+
+use crate::{
     core::{Runtime, StateRefBuilder},
     SignalContext, StateRef,
 };

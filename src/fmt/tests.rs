@@ -1,9 +1,9 @@
 use std::fmt::Display;
 
-use sigmut::{core::Runtime, signal::ToSignal, signal_format, State};
+use crate::{core::Runtime, signal::ToSignal, signal_format, State};
 
 #[allow(unused)]
-use sigmut::signal_format_dump;
+use crate::signal_format_dump;
 
 #[test]
 fn none() {
