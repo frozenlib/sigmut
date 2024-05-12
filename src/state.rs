@@ -3,6 +3,7 @@ use std::{
     rc::Rc,
 };
 
+use derive_ex::derive_ex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -15,6 +16,7 @@ use crate::{
 };
 
 #[derive(Default)]
+#[derive_ex(Clone, bound())]
 pub struct State<T: 'static>(Rc<StateNode<T>>);
 
 impl<T: 'static> State<T> {

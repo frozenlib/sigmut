@@ -10,6 +10,9 @@ use crate::{
 
 use super::{builder::SignalBuilder, scan_async::build_scan_async};
 
+#[cfg(test)]
+mod tests;
+
 pub trait SignalNode: 'static {
     type Value: ?Sized + 'static;
     fn borrow<'a, 's: 'a>(
