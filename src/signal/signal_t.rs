@@ -4,8 +4,8 @@ use derive_ex::{derive_ex, Ex};
 use futures::Stream;
 
 use crate::{
-    core::AsyncSignalContext, stream_from, subscribe, subscribe_with, Scheduler, SignalContext,
-    StateRef, Subscription,
+    core::AsyncSignalContext, effect, effect_with, stream_from, Scheduler, SignalContext, StateRef,
+    Subscription,
 };
 
 use super::{builder::SignalBuilder, scan_async::build_scan_async};
@@ -189,17 +189,17 @@ impl<T: ?Sized + 'static> Signal<T> {
         .build()
     }
 
-    pub fn subscribe(&self, mut f: impl FnMut(&T) + 'static) -> Subscription {
+    pub fn effect(&self, mut f: impl FnMut(&T) + 'static) -> Subscription {
         let this = self.clone();
-        subscribe(move |sc| f(&this.borrow(sc)))
+        effect(move |sc| f(&this.borrow(sc)))
     }
-    pub fn subscribe_with(
+    pub fn effect_with(
         &self,
         mut f: impl FnMut(&T) + 'static,
         scheduler: &Scheduler,
     ) -> Subscription {
         let this = self.clone();
-        subscribe_with(move |sc| f(&this.borrow(sc)), scheduler)
+        effect_with(move |sc| f(&this.borrow(sc)), scheduler)
     }
 
     pub fn to_stream(&self) -> impl Stream<Item = T::Owned> + Unpin + 'static

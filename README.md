@@ -35,7 +35,7 @@ TODO
 | `Select`               | `Signal::map`, `Signal::new` |
 | `SelectMany`           | `Signal::new`                |
 | `Scan`                 | `SignalBuilder::from_scan`   |
-| `Subscribe`            | `Signal::subscribe`          |
+| `Subscribe`            | `Signal::effect`             |
 | `Switch`               | `Signal::new`                |
 
 ### `System.Reactive.Threading.Tasks.TaskObservableExtensions` methods
@@ -74,7 +74,7 @@ TODO
 | -------------- | -------------- |
 | `signal`       | `State::new`   |
 | `computed`     | `Singal::new`  |
-| `effect`       | `subscribe`    |
+| `effect`       | `effect`       |
 | `batch`        | `spawn_action` |
 
 [preact signals]: https://preactjs.com/guide/v10/signals/
@@ -84,7 +84,7 @@ TODO
 | Preact Signals   | sigmut                   |
 | ---------------- | ------------------------ |
 | `creaetSignal`   | `State::new`             |
-| `createEffect`   | `subscribe`              |
+| `createEffect`   | `effect`                 |
 | `createMemo`     | `Signal::new`            |
 | `createResource` | `Signal::from_async`     |
 | `batch`          | `spawn_action`           |
@@ -102,7 +102,7 @@ TODO
 | `RwSignal`      | `State`                  |
 | `Signal`        | `Signal`                 |
 | `create_memo`   | `Signal::new_dedup`      |
-| `create_effect` | `subscribe`              |
+| `create_effect` | `effect`                 |
 | `batch`         | `spawn_action`           |
 | `untrack`       | `SignalContext::untrack` |
 | `Owner`         | `SignalContext`          |
@@ -114,7 +114,7 @@ TODO
 | Preact Signals   | sigmut               |
 | ---------------- | -------------------- |
 | `useSignal`      | `State::new`         |
-| `useTask$()`     | `subscribe`          |
+| `useTask$()`     | `effect`             |
 | `useComputed$()` | `Signal::new`        |
 | `useResource$()` | `Signal::from_async` |
 
@@ -137,7 +137,7 @@ TODO
 | `ReadSignal`      | `Signal`            |
 | `create_signal`   | `State::new`        |
 | `create_selector` | `Signal::new_dedup` |
-| `create_effect`   | `subscribe`         |
+| `create_effect`   | `effect`            |
 | `create_memo`     | `Signal::new`       |
 
 [sycamore]: https://sycamore-rs.netlify.app/
@@ -161,7 +161,7 @@ TODO
 | `Memo`         | `Singnal`     |
 | `use_signal`   | `State::new`  |
 | `use_memo`     | `Signal::new` |
-| `use_effect`   | `subscribe`   |
+| `use_effect`   | `effect`      |
 
 [dioxus]: https://dioxuslabs.com/
 
@@ -171,7 +171,7 @@ TODO
 | -------------- | -------------- |
 | `$state`       | `State::new`   |
 | `$derived`     | `Singnal::new` |
-| `$effect`      | `subscribe`    |
+| `$effect`      | `effect`       |
 | `$effect.root` | `Runtime::sc`  |
 
 [Svelte runes]: https://svelte-5-preview.vercel.app/docs/runes
@@ -182,7 +182,7 @@ TODO
 | -------------- | -------------- |
 | `observable`   | `State`        |
 | `action`       | `spawn_action` |
-| `reaction`     | `subscribe`    |
+| `reaction`     | `effect`       |
 | `computed`     | `Signal`       |
 
 [MobX]: https://mobx.js.org/api.html

@@ -8,33 +8,33 @@ use crate::{
     Scheduler, Subscription,
 };
 
-pub fn subscribe_async<Fut>(f: impl FnMut(AsyncSignalContext) -> Fut + 'static) -> Subscription
+pub fn effect_async<Fut>(f: impl FnMut(AsyncSignalContext) -> Fut + 'static) -> Subscription
 where
     Fut: Future<Output = ()> + 'static,
 {
-    let this = SubscribeAsyncNode::new(f, Scheduler::default());
+    let this = EffectAsyncNode::new(f, Scheduler::default());
     this.schedule();
     Subscription::from_rc(this)
 }
 
-struct SubscribeAsyncNodeData<GetFut, Fut> {
+struct EffectAsyncData<GetFut, Fut> {
     get_fut: GetFut,
     fut: Pin<Box<Option<Fut>>>,
     asb: AsyncSourceBinder,
 }
 
-struct SubscribeAsyncNode<GetFut, Fut> {
-    data: RefCell<SubscribeAsyncNodeData<GetFut, Fut>>,
+struct EffectAsyncNode<GetFut, Fut> {
+    data: RefCell<EffectAsyncData<GetFut, Fut>>,
     scheduler: Scheduler,
 }
-impl<GetFut, Fut> SubscribeAsyncNode<GetFut, Fut>
+impl<GetFut, Fut> EffectAsyncNode<GetFut, Fut>
 where
     GetFut: FnMut(AsyncSignalContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
     fn new(f: GetFut, scheduler: Scheduler) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
-            data: RefCell::new(SubscribeAsyncNodeData {
+            data: RefCell::new(EffectAsyncData {
                 get_fut: f,
                 fut: Box::pin(None),
                 asb: AsyncSourceBinder::new(this),
@@ -62,7 +62,7 @@ where
         }
     }
 }
-impl<F, Fut> BindSink for SubscribeAsyncNode<F, Fut>
+impl<F, Fut> BindSink for EffectAsyncNode<F, Fut>
 where
     F: FnMut(AsyncSignalContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,

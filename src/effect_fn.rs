@@ -8,34 +8,34 @@ use crate::{
     SignalContext, Subscription,
 };
 
-pub fn subscribe(f: impl FnMut(&mut SignalContext) + 'static) -> Subscription {
-    subscribe_with(f, &Scheduler::default())
+pub fn effect(f: impl FnMut(&mut SignalContext) + 'static) -> Subscription {
+    effect_with(f, &Scheduler::default())
 }
-pub fn subscribe_with(
+pub fn effect_with(
     f: impl FnMut(&mut SignalContext) + 'static,
     scheduler: &Scheduler,
 ) -> Subscription {
-    let node = SubscribeNode::new(f, scheduler.clone());
+    let node = EffectNode::new(f, scheduler.clone());
     node.schedule();
     Subscription::from_rc(node)
 }
 
-struct SubscribeNodeData<F> {
+struct EffectData<F> {
     f: F,
     sb: SourceBinder,
 }
 
-struct SubscribeNode<F> {
-    data: RefCell<SubscribeNodeData<F>>,
+struct EffectNode<F> {
+    data: RefCell<EffectData<F>>,
     scheduler: Scheduler,
 }
-impl<F> SubscribeNode<F>
+impl<F> EffectNode<F>
 where
     F: FnMut(&mut SignalContext) + 'static,
 {
     fn new(f: F, scheduler: Scheduler) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
-            data: RefCell::new(SubscribeNodeData {
+            data: RefCell::new(EffectData {
                 f,
                 sb: SourceBinder::new(this, Slot(0)),
             }),
@@ -54,7 +54,7 @@ where
     }
 }
 
-impl<F> BindSink for SubscribeNode<F>
+impl<F> BindSink for EffectNode<F>
 where
     F: FnMut(&mut SignalContext) + 'static,
 {
