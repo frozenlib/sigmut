@@ -12,7 +12,17 @@ pub fn effect_async<Fut>(f: impl FnMut(AsyncSignalContext) -> Fut + 'static) -> 
 where
     Fut: Future<Output = ()> + 'static,
 {
-    let this = EffectAsyncNode::new(f, Scheduler::default());
+    effect_async_with(f, &Scheduler::default())
+}
+
+pub fn effect_async_with<Fut>(
+    f: impl FnMut(AsyncSignalContext) -> Fut + 'static,
+    scheduler: &Scheduler,
+) -> Subscription
+where
+    Fut: Future<Output = ()> + 'static,
+{
+    let this = EffectAsyncNode::new(f, scheduler.clone());
     this.schedule();
     Subscription::from_rc(this)
 }
