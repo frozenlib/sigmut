@@ -75,3 +75,39 @@ fn new_dedup() {
     st.set(10, rt.ac());
     assert_eq!(s.get(&mut rt.sc()), 10);
 }
+
+#[test]
+fn from_value() {
+    let mut rt = Runtime::new();
+
+    let s = Signal::from_value(5);
+
+    assert_eq!(s.get(&mut rt.sc()), 5);
+}
+
+#[test]
+fn from_value_map() {
+    let mut rt = Runtime::new();
+
+    let value = (5, 10);
+    let s = Signal::from_value_map(value, |x| &x.0);
+
+    assert_eq!(s.get(&mut rt.sc()), 5);
+}
+
+#[test]
+fn from_owned() {
+    let mut rt = Runtime::new();
+
+    let owned = String::from("hello");
+    let s = Signal::<str>::from_owned(owned);
+
+    assert_eq!(s.get(&mut rt.sc()), "hello");
+}
+
+#[test]
+fn from_static_ref() {
+    let mut rt = Runtime::new();
+    let s = Signal::from_static_ref(&5);
+    assert_eq!(s.get(&mut rt.sc()), 5);
+}
