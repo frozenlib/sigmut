@@ -155,19 +155,19 @@ TODO
 
 ## Cheet sheet for [dioxus] users
 
-| dioxus_signals | sigmut        |
-| -------------- | ------------- |
-| `Signal`       | `State`       |
-| `Memo`         | `Singnal`     |
-| `use_signal`   | `State::new`  |
-| `use_memo`     | `Signal::new` |
-| `use_effect`   | `effect`      |
+| dioxus       | sigmut        |
+| ------------ | ------------- |
+| `Signal`     | `State`       |
+| `Memo`       | `Singnal`     |
+| `use_signal` | `State::new`  |
+| `use_memo`   | `Signal::new` |
+| `use_effect` | `effect`      |
 
 [dioxus]: https://dioxuslabs.com/
 
 ## Cheet sheet for [Svelte runes] users
 
-| dioxus_signals | sigmut         |
+| Svelte runes   | sigmut         |
 | -------------- | -------------- |
 | `$state`       | `State::new`   |
 | `$derived`     | `Singnal::new` |
@@ -178,12 +178,12 @@ TODO
 
 ## Cheet sheet for [MobX] users
 
-| dioxus_signals | sigmut         |
-| -------------- | -------------- |
-| `observable`   | `State`        |
-| `action`       | `spawn_action` |
-| `reaction`     | `effect`       |
-| `computed`     | `Signal`       |
+| MobX         | sigmut         |
+| ------------ | -------------- |
+| `observable` | `State`        |
+| `action`     | `spawn_action` |
+| `reaction`   | `effect`       |
+| `computed`   | `Signal`       |
 
 [MobX]: https://mobx.js.org/api.html
 
