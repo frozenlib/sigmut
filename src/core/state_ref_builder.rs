@@ -2,17 +2,17 @@ use std::cell::Ref;
 
 use crate::{SignalContext, StateRef};
 
-pub struct StateRefBuilder<'a, 'b, 'c, T: ?Sized> {
+pub struct StateRefBuilder<'a, 'b, 's, T: ?Sized> {
     r: StateRef<'a, T>,
-    sc: &'c mut SignalContext<'b>,
+    sc: &'b mut SignalContext<'s>,
 }
 
-impl<'a, 'b: 'a, 'c, T: ?Sized> StateRefBuilder<'a, 'b, 'c, T> {
-    pub fn new(r: StateRef<'a, T>, sc: &'c mut SignalContext<'b>) -> Self {
+impl<'a, 'b, 's: 'a, T: ?Sized> StateRefBuilder<'a, 'b, 's, T> {
+    pub fn new(r: StateRef<'a, T>, sc: &'b mut SignalContext<'s>) -> Self {
         StateRefBuilder { r, sc }
     }
 
-    pub fn from_value(value: T, sc: &'c mut SignalContext<'b>) -> StateRefBuilder<'a, 'b, 'c, T>
+    pub fn from_value(value: T, sc: &'b mut SignalContext<'s>) -> StateRefBuilder<'a, 'b, 's, T>
     where
         T: Sized + 'static,
     {
@@ -23,8 +23,8 @@ impl<'a, 'b: 'a, 'c, T: ?Sized> StateRefBuilder<'a, 'b, 'c, T> {
     }
     pub fn from_value_non_static(
         value: T,
-        sc: &'c mut SignalContext<'b>,
-    ) -> StateRefBuilder<'a, 'b, 'c, T>
+        sc: &'b mut SignalContext<'s>,
+    ) -> StateRefBuilder<'a, 'b, 's, T>
     where
         T: Sized,
     {
@@ -33,7 +33,7 @@ impl<'a, 'b: 'a, 'c, T: ?Sized> StateRefBuilder<'a, 'b, 'c, T> {
             sc,
         }
     }
-    pub fn from_ref(value: &'a T, sc: &'c mut SignalContext<'b>) -> StateRefBuilder<'a, 'b, 'c, T> {
+    pub fn from_ref(value: &'a T, sc: &'b mut SignalContext<'s>) -> StateRefBuilder<'a, 'b, 's, T> {
         StateRefBuilder {
             r: StateRef::from(value),
             sc,
@@ -41,8 +41,8 @@ impl<'a, 'b: 'a, 'c, T: ?Sized> StateRefBuilder<'a, 'b, 'c, T> {
     }
     pub fn from_ref_cell(
         value: Ref<'a, T>,
-        sc: &'c mut SignalContext<'b>,
-    ) -> StateRefBuilder<'a, 'b, 'c, T> {
+        sc: &'b mut SignalContext<'s>,
+    ) -> StateRefBuilder<'a, 'b, 's, T> {
         StateRefBuilder {
             r: StateRef::from(value),
             sc,
@@ -52,7 +52,7 @@ impl<'a, 'b: 'a, 'c, T: ?Sized> StateRefBuilder<'a, 'b, 'c, T> {
     pub fn map<U: ?Sized>(
         self,
         f: impl for<'a0> FnOnce(&'a0 T) -> &'a0 U,
-    ) -> StateRefBuilder<'a, 'b, 'c, U> {
+    ) -> StateRefBuilder<'a, 'b, 's, U> {
         StateRefBuilder {
             r: StateRef::map(self.r, f, self.sc),
             sc: self.sc,
@@ -61,8 +61,8 @@ impl<'a, 'b: 'a, 'c, T: ?Sized> StateRefBuilder<'a, 'b, 'c, T> {
 
     pub fn map_ref<U: ?Sized>(
         self,
-        f: impl for<'a0, 'b0> FnOnce(&'a0 T, &mut SignalContext<'b0>, &'a0 &'b0 ()) -> StateRef<'a0, U>,
-    ) -> StateRefBuilder<'a, 'b, 'c, U> {
+        f: impl for<'a0, 's0> FnOnce(&'a0 T, &mut SignalContext<'s0>, &'a0 &'s0 ()) -> StateRef<'a0, U>,
+    ) -> StateRefBuilder<'a, 'b, 's, U> {
         StateRefBuilder {
             r: StateRef::map_ref(self.r, f, self.sc),
             sc: self.sc,

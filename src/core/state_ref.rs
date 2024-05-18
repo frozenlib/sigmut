@@ -44,7 +44,7 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
 
     pub fn map_ref<'s: 'a, U: ?Sized>(
         this: Self,
-        f: impl for<'a0, 't0> FnOnce(&'a0 T, &mut SignalContext<'t0>, &'a0 &'t0 ()) -> StateRef<'a0, U>,
+        f: impl for<'a0, 's0> FnOnce(&'a0 T, &mut SignalContext<'s0>, &'a0 &'s0 ()) -> StateRef<'a0, U>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, U> {
         unsafe {
