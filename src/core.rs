@@ -4,10 +4,10 @@ use std::{
     cell::RefCell,
     cmp::max,
     collections::VecDeque,
-    future::Future,
+    future::{poll_fn, Future},
     mem::{replace, swap, take, transmute},
     ops::{BitOr, BitOrAssign},
-    pin::{pin, Pin},
+    pin::Pin,
     ptr::null_mut,
     rc::{Rc, Weak},
     result::Result,
@@ -30,32 +30,26 @@ pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
-use crate::utils::PhantomNotSend;
-
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
 }
 
 struct Globals {
     is_runtime_exists: bool,
-    phase: usize,
     unbinds: Vec<Vec<SourceBinding>>,
     actions: Vec<Action>,
     notifys: Vec<NotifyTask>,
     wakes: WakeTable,
-    wait_for_update_wakers: Vec<Waker>,
     schedulers: SlabMap<Weak<SchedulerData>>,
 }
 impl Globals {
     fn new() -> Self {
         Self {
             is_runtime_exists: false,
-            phase: 0,
             unbinds: Vec::new(),
             actions: Vec::new(),
             notifys: Vec::new(),
             wakes: WakeTable::default(),
-            wait_for_update_wakers: Vec::new(),
             schedulers: SlabMap::new(),
         }
     }
@@ -78,40 +72,28 @@ impl Globals {
         self.notifys.push(NotifyTask { sink, slot });
         self.wake();
     }
-    fn apply_wake(&mut self) -> bool {
+    fn apply_wake(&mut self, cx: &mut Context) -> Poll<()> {
         let mut requests = self.wakes.requests.0.lock().unwrap();
-        for key in requests.drops.drain(..) {
-            self.wakes.tasks.remove(key);
-        }
-        for key in requests.wakes.drain(..) {
-            if let Some(task) = self.wakes.tasks.get(key) {
-                match task {
-                    WakeTask::Notify(task) => {
-                        self.notifys.push(task.clone());
+        if requests.drops.is_empty() && requests.wakes.is_empty() {
+            requests.waker = Some(cx.waker().clone());
+            Poll::Pending
+        } else {
+            for key in requests.drops.drain(..) {
+                self.wakes.tasks.remove(key);
+            }
+            for key in requests.wakes.drain(..) {
+                if let Some(task) = self.wakes.tasks.get(key) {
+                    match task {
+                        WakeTask::Notify(task) => {
+                            self.notifys.push(task.clone());
+                        }
+                        WakeTask::AsyncAction(action) => self.actions.push(action.to_action()),
                     }
-                    WakeTask::AsyncAction(action) => self.actions.push(action.to_action()),
                 }
             }
+            requests.waker = None;
+            Poll::Ready(())
         }
-        requests.waker = None;
-        take(&mut requests.is_wake_main)
-    }
-    fn poll_wait_for_update(&mut self, phase: usize, cx: &mut Context) -> Poll<()> {
-        if !self.is_runtime_exists || phase != self.phase {
-            return Poll::Ready(());
-        }
-        self.wait_for_update_wakers.push(cx.waker().clone());
-        self.wake();
-        Poll::Pending
-    }
-    fn resume_wait_for_update(&mut self) -> bool {
-        let mut is_used = false;
-        self.phase += 1;
-        while let Some(waker) = self.wait_for_update_wakers.pop() {
-            is_used = true;
-            waker.wake();
-        }
-        is_used
     }
     fn wake(&mut self) {
         self.wakes.requests.0.lock().unwrap().wake();
@@ -228,26 +210,12 @@ impl Runtime {
             }
             break;
         }
-        self.resume_wait_for_update();
-    }
-    pub fn resume_wait_for_update(&mut self) {
-        Globals::with(|g| g.resume_wait_for_update());
     }
 
-    pub async fn run<Fut: Future>(&mut self, f: impl FnOnce(RuntimeContext) -> Fut) -> Fut::Output {
-        let rts = RuntimeContextSource::new();
-        let rt = rts.context();
-        let fut = pin!(rts.apply(self, move || f(rt)));
-        let wake = Globals::with(|g| RawWake::new(&g.wakes.requests, None));
-        wake.requests().is_wake_main = true;
-        RuntimeMain {
-            rt: self,
-            rts,
-            fut,
-            wake,
-        }
-        .await
+    pub async fn wait_for_ready(&mut self) {
+        poll_fn(|cx| Globals::with(|g| g.apply_wake(cx))).await
     }
+
     fn cancel_async_actions(&mut self) {
         let mut acts = Vec::new();
         while !self.rt.async_actions.is_empty() {
@@ -299,67 +267,6 @@ impl RawRuntime {
     }
 }
 
-struct RuntimeMain<'a, Fut> {
-    rt: &'a mut Runtime,
-    rts: RuntimeContextSource,
-    wake: Arc<RawWake>,
-    fut: Pin<&'a mut Fut>,
-}
-
-impl<'a, Fut: Future> Future for RuntimeMain<'a, Fut> {
-    type Output = Fut::Output;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        loop {
-            if Globals::with(|g| g.apply_wake()) {
-                let waker = Waker::from(this.wake.clone());
-                let mut cx = Context::from_waker(&waker);
-                let p = this.rts.apply(this.rt, || this.fut.as_mut().poll(&mut cx));
-                if p.is_ready() {
-                    return p;
-                }
-                continue;
-            }
-            if this.rt.run_actions() {
-                continue;
-            }
-            // todo
-            //
-            // if this.rt.update() {
-            //     continue;
-            // }
-            if Globals::with(|rt| rt.resume_wait_for_update()) {
-                continue;
-            }
-            if !this.wake.requests().try_finish_poll(cx) {
-                continue;
-            }
-            return Poll::Pending;
-        }
-    }
-}
-
-struct RuntimeContextSource(Rc<RefCell<*mut Runtime>>);
-
-impl RuntimeContextSource {
-    pub fn new() -> Self {
-        Self(Rc::new(RefCell::new(null_mut())))
-    }
-    pub fn context(&self) -> RuntimeContext {
-        RuntimeContext(self.0.clone())
-    }
-
-    fn apply<T>(&self, rt: &mut Runtime, f: impl FnOnce() -> T) -> T {
-        let rt: *mut Runtime = rt;
-        assert!(self.0.borrow().is_null());
-        *self.0.borrow_mut() = rt;
-        let ret = f();
-        *self.0.borrow_mut() = null_mut();
-        ret
-    }
-}
-
 #[derive(Clone)]
 pub struct RuntimeContext(Rc<RefCell<*mut Runtime>>);
 
@@ -375,9 +282,6 @@ impl RuntimeContext {
     }
     pub fn update(&self) {
         self.with(|rt| rt.update())
-    }
-    pub fn resume_wait_for_update(&self) {
-        self.with(|rt| rt.resume_wait_for_update())
     }
 
     fn with<T>(&self, f: impl FnOnce(&mut Runtime) -> T) -> T {
@@ -872,7 +776,7 @@ struct WakeTable {
 
 impl WakeTable {
     fn insert(&mut self, task: WakeTask) -> Arc<RawWake> {
-        RawWake::new(&self.requests, Some(self.tasks.insert(task)))
+        RawWake::new(&self.requests, self.tasks.insert(task))
     }
 }
 enum WakeTask {
@@ -895,17 +799,9 @@ struct WakeRequests(Arc<Mutex<RawWakeRequests>>);
 struct RawWakeRequests {
     wakes: Vec<usize>,
     drops: Vec<usize>,
-    is_wake_main: bool,
     waker: Option<Waker>,
 }
 impl RawWakeRequests {
-    fn try_finish_poll(&mut self, cx: &mut Context) -> bool {
-        let is_finish = self.drops.is_empty() && self.wakes.is_empty() && !self.is_wake_main;
-        if is_finish {
-            self.waker = Some(cx.waker().clone());
-        }
-        is_finish
-    }
     fn wake(&mut self) {
         if let Some(waker) = self.waker.take() {
             waker.wake();
@@ -915,10 +811,10 @@ impl RawWakeRequests {
 
 struct RawWake {
     requests: WakeRequests,
-    key: Option<usize>,
+    key: usize,
 }
 impl RawWake {
-    fn new(requests: &WakeRequests, key: Option<usize>) -> Arc<Self> {
+    fn new(requests: &WakeRequests, key: usize) -> Arc<Self> {
         Arc::new(RawWake {
             requests: requests.clone(),
             key,
@@ -931,20 +827,14 @@ impl RawWake {
 
 impl Wake for RawWake {
     fn wake(self: Arc<Self>) {
-        let mut requests = self.requests.0.lock().unwrap();
-        if let Some(key) = self.key {
-            requests.wakes.push(key);
-        } else {
-            requests.is_wake_main = true;
-        }
+        let mut requests = self.requests();
+        requests.wakes.push(self.key);
         requests.wake();
     }
 }
 impl Drop for RawWake {
     fn drop(&mut self) {
-        if let Some(key) = self.key {
-            self.requests.0.lock().unwrap().drops.push(key);
-        }
+        self.requests().drops.push(self.key);
     }
 }
 
@@ -1033,39 +923,6 @@ impl AsyncActionContext {
             "`AsyncActionContext` cannot be used after being moved."
         );
         unsafe { f((**b).ac()) }
-    }
-}
-
-/// Wait until there are no more immediately runnable actions and state updates.
-///
-/// If [`Runtime::run`] is not being called in the current thread, it will not complete until `Runtime::run` is called.
-///
-/// # Panics
-///
-/// Panics if there is no `Runtime` in the current thread.
-pub async fn wait_for_update() {
-    let phase = Globals::with(|rt| {
-        if !rt.is_runtime_exists {
-            panic!("There is no `Runtime` in the current thread.");
-        }
-        rt.phase
-    });
-    WaitForUpdate {
-        phase,
-        _not_send: PhantomNotSend::default(),
-    }
-    .await
-}
-
-struct WaitForUpdate {
-    phase: usize,
-    _not_send: PhantomNotSend,
-}
-impl Future for WaitForUpdate {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context) -> Poll<Self::Output> {
-        Globals::with(|rt| rt.poll_wait_for_update(self.phase, cx))
     }
 }
 
