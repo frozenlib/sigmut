@@ -15,6 +15,9 @@ use crate::{
     ActionContext, Signal, SignalContext, StateRef,
 };
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Default)]
 #[derive_ex(Clone, bound())]
 pub struct State<T: 'static>(Rc<StateNode<T>>);
