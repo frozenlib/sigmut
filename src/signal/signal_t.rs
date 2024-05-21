@@ -1,4 +1,4 @@
-use std::{any::Any, future::Future, rc::Rc, task::Poll};
+use std::{any::Any, future::Future, ptr, rc::Rc, task::Poll};
 
 use derive_ex::{derive_ex, Ex};
 use futures::Stream;
@@ -53,6 +53,15 @@ impl<S: SignalNode + 'static> DynSignalNode for S {
 enum RawSignal<T: ?Sized + 'static> {
     StaticRef(&'static T),
     Node(Rc<dyn DynSignalNode<Value = T>>),
+}
+impl<T: ?Sized + 'static> RawSignal<T> {
+    fn ptr_eq(this: &Self, other: &Self) -> bool {
+        match (this, other) {
+            (Self::StaticRef(a), Self::StaticRef(b)) => ptr::eq(a, b),
+            (Self::Node(a), Self::Node(b)) => Rc::ptr_eq(a, b),
+            _ => false,
+        }
+    }
 }
 
 #[derive(Ex)]
@@ -215,6 +224,10 @@ impl<T: ?Sized + 'static> Signal<T> {
     ) -> impl Stream<Item = U> + Unpin + 'static {
         let this = self.clone();
         stream_from(move |sc| f(&this.borrow(sc)))
+    }
+
+    pub fn ptr_eq(this: &Self, other: &Self) -> bool {
+        RawSignal::ptr_eq(&this.0, &other.0)
     }
 }
 impl<T: ?Sized + 'static> ToSignal for Signal<T> {
