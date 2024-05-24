@@ -230,6 +230,15 @@ impl<T: ?Sized + 'static> Signal<T> {
         RawSignal::ptr_eq(&this.0, &other.0)
     }
 }
+impl<T: 'static> Signal<Poll<T>> {
+    pub async fn get_async(&self, sc: &mut AsyncSignalContext) -> T
+    where
+        T: Clone,
+    {
+        sc.poll_fn(|sc| self.get(sc)).await
+    }
+}
+
 impl<T: ?Sized + 'static> ToSignal for Signal<T> {
     type Value = T;
     fn to_signal(&self) -> Signal<Self::Value> {
