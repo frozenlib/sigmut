@@ -380,6 +380,9 @@ impl<T: 'static> BindSource for RawStateSlabMap<T> {
     fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(slot, key, uc);
     }
+    fn rebind(self: Rc<Self>, _slot: Slot, _key: BindKey, _sc: &mut SignalContext) {
+        todo!()
+    }
 }
 
 struct SinkBindingsSet {
@@ -524,6 +527,10 @@ where
 
     fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(slot, key, uc)
+    }
+
+    fn rebind(self: Rc<Self>, _slot: Slot, _key: BindKey, _sc: &mut SignalContext) {
+        todo!()
     }
 }
 impl<T, F> BindSink for Scan<T, F>

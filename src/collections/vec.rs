@@ -684,6 +684,10 @@ impl<T> BindSource for RawStateVec<T> {
     fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(key, uc);
     }
+
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
+    }
 }
 
 struct ItemsData<T> {
@@ -873,6 +877,10 @@ where
 
     fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(key, uc);
+    }
+
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }
 

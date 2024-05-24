@@ -137,6 +137,10 @@ where
             uc.schedule_discard(self, Slot(0));
         }
     }
+
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
+    }
 }
 
 impl<St, T, GetFut, Fut, Scan, Map> BindSink for ScanAsyncNode<St, GetFut, Fut, Scan, Map>

@@ -20,12 +20,12 @@ use bumpalo::Bump;
 use derive_ex::derive_ex;
 use slabmap::SlabMap;
 
-mod async_source_binder;
+mod async_signal_context;
 mod source_binder;
 mod state_ref;
 mod state_ref_builder;
 
-pub use async_source_binder::AsyncSourceBinder;
+pub use async_signal_context::*;
 pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
@@ -384,6 +384,9 @@ impl SourceBinding {
     fn unbind(self, uc: &mut UpdateContext) {
         self.source.unbind(self.slot, self.key, uc);
     }
+    fn rebind(self, sc: &mut SignalContext) {
+        self.source.rebind(self.slot, self.key, sc);
+    }
 }
 
 #[derive(Default)]
@@ -476,31 +479,48 @@ impl SinkBindings {
             return;
         };
         let sources_index = sink.sources_len;
-        sink.sources_len += 1;
         if let Some(source_old) = sink.sources.0.get(sources_index) {
             if source_old.is_same(&this, this_slot) {
+                sink.sources_len += 1;
                 self.0[source_old.key.0].dirty = Dirty::Clean;
                 return;
             }
         }
-        let sink_binding = SinkBinding {
+        let key = BindKey(self.0.insert(SinkBinding {
             sink: sink.sink.clone(),
             slot: sink.slot,
             dirty: Dirty::Clean,
-        };
-        let key = BindKey(self.0.insert(sink_binding));
-        let source_binding = SourceBinding {
+        }));
+        if let Some(old) = sink.push(SourceBinding {
             source: this,
             slot: this_slot,
             key,
-        };
-        if sources_index < sink.sources.0.len() {
-            replace(&mut sink.sources.0[sources_index], source_binding)
-                .unbind(UpdateContext::new(sc));
-        } else {
-            sink.sources.0.push(source_binding);
+        }) {
+            old.unbind(sc.uc());
         }
     }
+    pub fn rebind(
+        &mut self,
+        this: Rc<dyn BindSource>,
+        this_slot: Slot,
+        key: BindKey,
+        sc: &mut SignalContext,
+    ) -> bool {
+        if let Some(sink) = &mut sc.sink {
+            self.0[key.0].slot = sink.slot;
+            if let Some(old) = sink.push(SourceBinding {
+                source: this,
+                slot: this_slot,
+                key,
+            }) {
+                old.unbind(sc.uc());
+            }
+            false
+        } else {
+            self.unbind(key, sc.uc())
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
@@ -517,6 +537,7 @@ impl SinkBindings {
     pub fn unbind(&mut self, key: BindKey, _uc: &mut UpdateContext) -> bool {
         self.0.remove(key.0).is_some() && self.0.is_empty()
     }
+
     pub fn notify(&mut self, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
         self.0.optimize();
         for binding in self.0.values_mut() {
@@ -541,6 +562,19 @@ struct Sink {
     slot: Slot,
     sources: SourceBindings,
     sources_len: usize,
+}
+impl Sink {
+    #[must_use]
+    fn push(&mut self, binding: SourceBinding) -> Option<SourceBinding> {
+        let index = self.sources_len;
+        self.sources_len += 1;
+        if index < self.sources.0.len() {
+            Some(replace(&mut self.sources.0[index], binding))
+        } else {
+            self.sources.0.push(binding);
+            None
+        }
+    }
 }
 
 #[repr(transparent)]
@@ -606,6 +640,11 @@ impl<'s> SignalContext<'s> {
         }
         .sc)
     }
+    fn extend(&mut self, from: &mut SourceBindings) {
+        for binding in from.0.drain(..) {
+            binding.rebind(self);
+        }
+    }
 }
 
 pub trait BindSink: 'static {
@@ -615,6 +654,7 @@ pub trait BindSink: 'static {
 pub trait BindSource: 'static {
     fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool;
     fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext);
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext);
 }
 
 #[derive(Clone)]
@@ -835,61 +875,6 @@ impl Wake for RawWake {
 impl Drop for RawWake {
     fn drop(&mut self) {
         self.requests().drops.push(self.key);
-    }
-}
-
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-struct SignalContextPtr {
-    rt: *mut RawRuntime,
-    bump: *const Bump,
-    sink: Option<*mut Sink>,
-}
-impl SignalContextPtr {
-    fn new(sc: &mut SignalContext) -> Self {
-        Self {
-            rt: sc.rt,
-            bump: sc.bump,
-            sink: sc.sink.as_mut().map(|x| *x as *mut _),
-        }
-    }
-}
-
-#[derive_ex(Default)]
-struct AsyncSignalContextSource(Rc<RefCell<Option<SignalContextPtr>>>);
-
-impl AsyncSignalContextSource {
-    pub fn new() -> Self {
-        Self(Rc::new(RefCell::new(None)))
-    }
-    pub fn sc(&self) -> AsyncSignalContext {
-        AsyncSignalContext(self.0.clone())
-    }
-    pub fn with<T>(&self, sc: &mut SignalContext, f: impl FnOnce() -> T) -> T {
-        let data = SignalContextPtr::new(sc);
-        assert!(self.0.borrow().is_none());
-        *self.0.borrow_mut() = Some(data);
-        let ret = f();
-        assert!(*self.0.borrow() == Some(data));
-        *self.0.borrow_mut() = None;
-        ret
-    }
-}
-
-pub struct AsyncSignalContext(Rc<RefCell<Option<SignalContextPtr>>>);
-
-impl AsyncSignalContext {
-    pub fn with<T>(&mut self, f: impl FnOnce(&mut SignalContext) -> T) -> T {
-        let mut data = self.0.borrow_mut();
-        let Some(data) = data.as_mut() else {
-            panic!("`AsyncSignalContext` cannot be used after being moved.")
-        };
-        unsafe {
-            f(&mut SignalContext {
-                rt: &mut *data.rt,
-                bump: &*data.bump,
-                sink: data.sink.map(|x| &mut *x),
-            })
-        }
     }
 }
 
