@@ -138,11 +138,9 @@ struct Sender<T>(Rc<RefCell<OneshotBroadcast<T>>>);
 
 impl<T> Sender<T> {
     fn send(&self, value: T) {
-        println!("send");
         let mut data = self.0.borrow_mut();
         data.value = Some(value);
         if let Some(waker) = data.waker.take() {
-            println!("wake");
             waker.wake();
         }
     }
@@ -157,10 +155,8 @@ impl<T: Clone> Receiver<T> {
         poll_fn(|cx| {
             let mut d = self.0.borrow_mut();
             if let Some(value) = &d.value {
-                println!("ready");
                 Poll::Ready(value.clone())
             } else {
-                println!("pending");
                 d.waker = Some(cx.waker().clone());
                 Poll::Pending
             }
