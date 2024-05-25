@@ -1,4 +1,13 @@
+use std::{
+    cell::RefCell,
+    future::poll_fn,
+    rc::Rc,
+    task::{Poll, Waker},
+};
+
 use crate::{core::Runtime, Signal, State};
+use derive_ex::{derive_ex, Ex};
+use rt_local::runtime::core::test;
 
 #[test]
 fn new() {
@@ -110,4 +119,72 @@ fn from_static_ref() {
     let mut rt = Runtime::new();
     let s = Signal::from_static_ref(&5);
     assert_eq!(s.get(&mut rt.sc()), 5);
+}
+
+struct OneshotBroadcast<T> {
+    value: Option<T>,
+    waker: Option<Waker>,
+}
+
+fn oneshot_broadcast<T>() -> (Sender<T>, Receiver<T>) {
+    let data = Rc::new(RefCell::new(OneshotBroadcast {
+        value: None,
+        waker: None,
+    }));
+    (Sender(data.clone()), Receiver(data))
+}
+
+struct Sender<T>(Rc<RefCell<OneshotBroadcast<T>>>);
+
+impl<T> Sender<T> {
+    fn send(&self, value: T) {
+        println!("send");
+        let mut data = self.0.borrow_mut();
+        data.value = Some(value);
+        if let Some(waker) = data.waker.take() {
+            println!("wake");
+            waker.wake();
+        }
+    }
+}
+
+#[derive(Ex)]
+#[derive_ex(Clone(bound()))]
+struct Receiver<T>(Rc<RefCell<OneshotBroadcast<T>>>);
+
+impl<T: Clone> Receiver<T> {
+    async fn recv(&self) -> T {
+        poll_fn(|cx| {
+            let mut d = self.0.borrow_mut();
+            if let Some(value) = &d.value {
+                println!("ready");
+                Poll::Ready(value.clone())
+            } else {
+                println!("pending");
+                d.waker = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        })
+        .await
+    }
+}
+
+#[test]
+async fn from_async() {
+    let mut rt = Runtime::new();
+
+    let (sender, receiver) = oneshot_broadcast::<i32>();
+
+    let s = Signal::from_async(move |_| {
+        let receiver = receiver.clone();
+        async move { receiver.recv().await }
+    });
+
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+    rt.update();
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+    sender.send(20);
+    rt.wait_for_ready().await;
+    rt.update();
+    assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
 }

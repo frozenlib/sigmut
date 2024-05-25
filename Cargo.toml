@@ -16,6 +16,7 @@ derive-ex = "0.1.8"
 serde = "1.0.201"
 futures = "0.3.30"
 iter-n = "0.1.0"
+rt-local = "0.1.4"
 
 [dev-dependencies]
 assert-call = "0.1.1"
