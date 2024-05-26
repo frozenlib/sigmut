@@ -180,7 +180,6 @@ async fn from_async() {
     rt.update();
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
     sender.send(20);
-    rt.wait_for_ready().await;
     rt.update();
     assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
 }

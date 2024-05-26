@@ -3,26 +3,26 @@ use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
 use crate::{
     core::{
         AsyncSignalContext, AsyncSourceBinder, BindSink, DirtyOrMaybeDirty, NotifyContext, Slot,
-        Task, UpdateContext,
+        Task, TaskKind, UpdateContext,
     },
-    Scheduler, Subscription,
+    Subscription,
 };
 
 pub fn effect_async<Fut>(f: impl FnMut(AsyncSignalContext) -> Fut + 'static) -> Subscription
 where
     Fut: Future<Output = ()> + 'static,
 {
-    effect_async_with(f, &Scheduler::default())
+    effect_async_with(f, TaskKind::default())
 }
 
 pub fn effect_async_with<Fut>(
     f: impl FnMut(AsyncSignalContext) -> Fut + 'static,
-    scheduler: &Scheduler,
+    kind: TaskKind,
 ) -> Subscription
 where
     Fut: Future<Output = ()> + 'static,
 {
-    let this = EffectAsyncNode::new(f, scheduler.clone());
+    let this = EffectAsyncNode::new(f, kind);
     this.schedule();
     Subscription::from_rc(this)
 }
@@ -35,26 +35,25 @@ struct EffectAsyncData<GetFut, Fut> {
 
 struct EffectAsyncNode<GetFut, Fut> {
     data: RefCell<EffectAsyncData<GetFut, Fut>>,
-    scheduler: Scheduler,
+    kind: TaskKind,
 }
 impl<GetFut, Fut> EffectAsyncNode<GetFut, Fut>
 where
     GetFut: FnMut(AsyncSignalContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
-    fn new(f: GetFut, scheduler: Scheduler) -> Rc<Self> {
+    fn new(f: GetFut, kind: TaskKind) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
             data: RefCell::new(EffectAsyncData {
                 get_fut: f,
                 fut: Box::pin(None),
                 asb: AsyncSourceBinder::new(this),
             }),
-            scheduler,
+            kind,
         })
     }
     fn schedule(self: &Rc<Self>) {
-        Task::from_weak_fn(Rc::downgrade(self), |this, uc| this.call(uc))
-            .schedule_with(&self.scheduler)
+        Task::from_weak_fn(Rc::downgrade(self), |this, uc| this.call(uc)).schedule_with(self.kind)
     }
     fn call(self: &Rc<Self>, uc: &mut UpdateContext) {
         let d = &mut *self.data.borrow_mut();

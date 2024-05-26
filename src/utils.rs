@@ -6,6 +6,8 @@ use std::{
     ops::{Bound, Range, RangeBounds},
 };
 
+pub(crate) mod isize_map;
+
 #[derive(Default)]
 pub(crate) struct PhantomNotSend(PhantomData<*mut u8>);
 

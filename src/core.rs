@@ -2,8 +2,7 @@ use core::panic;
 use std::{
     any::Any,
     cell::RefCell,
-    cmp::max,
-    collections::VecDeque,
+    cmp::{max, min},
     future::{poll_fn, Future},
     mem::{replace, swap, take, transmute},
     ops::{BitOr, BitOrAssign},
@@ -17,7 +16,8 @@ use std::{
 };
 
 use bumpalo::Bump;
-use derive_ex::derive_ex;
+use derive_ex::{derive_ex, Ex};
+use parse_display::Display;
 use slabmap::SlabMap;
 
 mod async_signal_context;
@@ -30,6 +30,8 @@ pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
+use crate::utils::isize_map::ISizeMap;
+
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
 }
@@ -39,8 +41,9 @@ struct Globals {
     unbinds: Vec<Vec<SourceBinding>>,
     actions: Vec<Action>,
     notifys: Vec<NotifyTask>,
+    need_wake: bool,
     wakes: WakeTable,
-    schedulers: SlabMap<Weak<SchedulerData>>,
+    tasks: Tasks,
 }
 impl Globals {
     fn new() -> Self {
@@ -49,8 +52,9 @@ impl Globals {
             unbinds: Vec::new(),
             actions: Vec::new(),
             notifys: Vec::new(),
+            need_wake: false,
             wakes: WakeTable::default(),
-            schedulers: SlabMap::new(),
+            tasks: Tasks::new(),
         }
     }
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
@@ -59,9 +63,42 @@ impl Globals {
     fn try_with<T>(f: impl FnOnce(&mut Self) -> T) -> Result<T, AccessError> {
         GLOBALS.try_with(|g| f(&mut g.borrow_mut()))
     }
+    fn schedule_task(kind: TaskKind, task: Task) {
+        Self::with(|g| {
+            g.assert_exists();
+            g.tasks.push(kind, task);
+            g.wake();
+        })
+    }
+    fn get_notifys(notifys: &mut Vec<NotifyTask>) -> bool {
+        Self::with(|g| {
+            g.apply_wake();
+            swap(notifys, &mut g.notifys);
+        });
+        !notifys.is_empty()
+    }
+
+    fn get_tasks(kind: Option<TaskKind>, tasks: &mut Vec<Task>) {
+        Self::with(|g| {
+            g.tasks.drain(kind, tasks);
+        })
+    }
+    fn get_actions(actions: &mut Vec<Action>) -> bool {
+        Self::with(|g| {
+            g.apply_wake();
+            swap(actions, &mut g.actions);
+        });
+        !actions.is_empty()
+    }
+
     fn swap_vec<T>(f: impl FnOnce(&mut Self) -> &mut Vec<T>, values: &mut Vec<T>) -> bool {
         Self::with(|g| swap(f(g), values));
         !values.is_empty()
+    }
+    fn assert_exists(&self) {
+        if !self.is_runtime_exists {
+            panic!("`Runtime` is not created.");
+        }
     }
 
     fn push_action(&mut self, action: Action) {
@@ -72,30 +109,50 @@ impl Globals {
         self.notifys.push(NotifyTask { sink, slot });
         self.wake();
     }
-    fn apply_wake(&mut self, cx: &mut Context) -> Poll<()> {
+    fn apply_wake(&mut self) {
         let mut requests = self.wakes.requests.0.lock().unwrap();
-        if requests.drops.is_empty() && requests.wakes.is_empty() {
-            requests.waker = Some(cx.waker().clone());
-            Poll::Pending
-        } else {
-            for key in requests.drops.drain(..) {
-                self.wakes.tasks.remove(key);
-            }
-            for key in requests.wakes.drain(..) {
-                if let Some(task) = self.wakes.tasks.get(key) {
-                    match task {
-                        WakeTask::Notify(task) => {
-                            self.notifys.push(task.clone());
-                        }
-                        WakeTask::AsyncAction(action) => self.actions.push(action.to_action()),
+        for key in requests.drops.drain(..) {
+            self.wakes.tasks.remove(key);
+        }
+        for key in requests.wakes.drain(..) {
+            if let Some(task) = self.wakes.tasks.get(key) {
+                match task {
+                    WakeTask::Notify(task) => {
+                        self.notifys.push(task.clone());
                     }
+                    WakeTask::AsyncAction(action) => self.actions.push(action.to_action()),
                 }
             }
-            requests.waker = None;
-            Poll::Ready(())
         }
     }
+    fn wait_for_ready(&mut self, cx: &Context) -> Poll<()> {
+        self.need_wake = false;
+        if !self.notifys.is_empty()
+            || !self.actions.is_empty()
+            || !self.tasks.is_empty()
+            || !self.unbinds.is_empty()
+        {
+            return Poll::Ready(());
+        }
+        let mut requests = self.wakes.requests.0.lock().unwrap();
+        if !requests.drops.is_empty() || !requests.wakes.is_empty() {
+            return Poll::Ready(());
+        }
+        requests.waker = Some(cx.waker().clone());
+        self.need_wake = true;
+        Poll::Pending
+    }
+
+    fn finish_runtime(&mut self) {
+        self.is_runtime_exists = false;
+        take(&mut self.tasks);
+    }
+
     fn wake(&mut self) {
+        if !self.need_wake {
+            return;
+        }
+        self.need_wake = false;
         self.wakes.requests.0.lock().unwrap().wake();
     }
 }
@@ -105,6 +162,10 @@ impl Globals {
 pub struct Runtime {
     rt: RawRuntime,
     bump: Bump,
+    notifys_buffer: Vec<NotifyTask>,
+    actions_buffer: Vec<Action>,
+    tasks_buffer: Vec<Task>,
+    unbinds_buffer: Vec<Vec<SourceBinding>>,
 }
 impl Runtime {
     pub fn new() -> Self {
@@ -114,6 +175,10 @@ impl Runtime {
         Self {
             rt: RawRuntime::new(),
             bump: Bump::new(),
+            notifys_buffer: Vec::new(),
+            actions_buffer: Vec::new(),
+            tasks_buffer: Vec::new(),
+            unbinds_buffer: Vec::new(),
         }
     }
 
@@ -141,23 +206,30 @@ impl Runtime {
 
     pub fn run_actions(&mut self) -> bool {
         let mut handled = false;
-        let mut actions = take(&mut self.rt.actions_buffer);
-        while Globals::swap_vec(|g| &mut g.actions, &mut actions) {
+        let mut actions = take(&mut self.actions_buffer);
+        while Globals::get_actions(&mut actions) {
             for action in actions.drain(..) {
                 action.call(self.ac());
                 handled = true;
             }
         }
-        self.rt.actions_buffer = actions;
+        self.actions_buffer = actions;
         handled
     }
-    pub fn run_tasks(&mut self, scheduler: &Scheduler) -> bool {
+    pub fn run_tasks(&mut self, kind: Option<TaskKind>) -> bool {
         self.apply_notify();
-        scheduler.run(&mut self.uc())
+        let mut tasks = take(&mut self.tasks_buffer);
+        Globals::get_tasks(kind, &mut tasks);
+        let handled = !tasks.is_empty();
+        for task in tasks.drain(..) {
+            task.run(&mut self.uc());
+        }
+        self.tasks_buffer = tasks;
+        handled
     }
     fn apply_unbind(&mut self) -> bool {
         let mut handled = false;
-        let mut unbinds = take(&mut self.rt.unbinds_buffer);
+        let mut unbinds = take(&mut self.unbinds_buffer);
         while Globals::swap_vec(|g| &mut g.unbinds, &mut unbinds) {
             for unbind in unbinds.drain(..) {
                 for sb in unbind {
@@ -166,19 +238,19 @@ impl Runtime {
                 handled = true;
             }
         }
-        self.rt.unbinds_buffer = unbinds;
+        self.unbinds_buffer = unbinds;
         handled
     }
     fn apply_notify(&mut self) -> bool {
         let mut handled = self.apply_unbind();
-        let mut notifys = take(&mut self.rt.notifys_buffer);
-        while Globals::swap_vec(|g| &mut g.notifys, &mut notifys) {
+        let mut notifys = take(&mut self.notifys_buffer);
+        while Globals::get_notifys(&mut notifys) {
             for notify in notifys.drain(..) {
                 notify.call_notify(self.nc());
                 handled = true;
             }
         }
-        self.rt.notifys_buffer = notifys;
+        self.notifys_buffer = notifys;
         handled
     }
     pub fn run_discards(&mut self) -> bool {
@@ -202,7 +274,7 @@ impl Runtime {
             if self.run_actions() {
                 continue;
             }
-            if self.run_tasks(&Scheduler::default()) {
+            if self.run_tasks(None) {
                 continue;
             }
             if self.run_discards() {
@@ -213,7 +285,7 @@ impl Runtime {
     }
 
     pub async fn wait_for_ready(&mut self) {
-        poll_fn(|cx| Globals::with(|g| g.apply_wake(cx))).await
+        poll_fn(|cx| Globals::with(|g| g.wait_for_ready(cx))).await
     }
 
     fn cancel_async_actions(&mut self) {
@@ -226,33 +298,18 @@ impl Runtime {
             acts.clear();
         }
     }
-    fn cancel_tasks(&mut self) {
-        Scheduler::default().0.cancel();
-        for s in Globals::with(|g| {
-            g.schedulers
-                .values()
-                .filter_map(|s| s.upgrade())
-                .collect::<Vec<_>>()
-        }) {
-            s.cancel();
-        }
-    }
 }
 
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.cancel_async_actions();
-        self.cancel_tasks();
-        Globals::with(|g| g.is_runtime_exists = false);
+        Globals::with(|g| g.finish_runtime());
     }
 }
 
 struct RawRuntime {
     discards: Vec<DiscardTask>,
     async_actions: SlabMap<Rc<AsyncAction>>,
-    actions_buffer: Vec<Action>,
-    unbinds_buffer: Vec<Vec<SourceBinding>>,
-    notifys_buffer: Vec<NotifyTask>,
 }
 
 impl RawRuntime {
@@ -260,38 +317,6 @@ impl RawRuntime {
         Self {
             discards: Vec::new(),
             async_actions: SlabMap::new(),
-            actions_buffer: Vec::new(),
-            unbinds_buffer: Vec::new(),
-            notifys_buffer: Vec::new(),
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct RuntimeContext(Rc<RefCell<*mut Runtime>>);
-
-impl RuntimeContext {
-    pub fn run_actions(&self) -> bool {
-        self.with(|rt| rt.run_actions())
-    }
-    pub fn run_tasks(&self, scheduler: &Scheduler) -> bool {
-        self.with(|rt| rt.run_tasks(scheduler))
-    }
-    pub fn run_discards(&self) -> bool {
-        self.with(|rt| rt.run_discards())
-    }
-    pub fn update(&self) {
-        self.with(|rt| rt.update())
-    }
-
-    fn with<T>(&self, f: impl FnOnce(&mut Runtime) -> T) -> T {
-        unsafe {
-            let p = self.0.borrow_mut();
-            if let Some(rt) = p.as_mut() {
-                f(rt)
-            } else {
-                panic!("`RuntimeContext` cannot be used after being moved.");
-            }
         }
     }
 }
@@ -940,11 +965,11 @@ impl Task {
         })
     }
 
-    pub fn schedule_with(self, scheduler: &Scheduler) {
-        scheduler.schedule(self)
+    pub fn schedule_with(self, kind: TaskKind) {
+        Globals::schedule_task(kind, self)
     }
     pub fn schedule(self) {
-        DEFAULT_SCHEDULER.with(|s| s.schedule(self))
+        self.schedule_with(TaskKind::default());
     }
     fn run(self, uc: &mut UpdateContext) {
         match self.0 {
@@ -969,74 +994,68 @@ enum RawTask {
     },
 }
 
-thread_local! {
-    static DEFAULT_SCHEDULER: Scheduler = Scheduler::new_default();
+#[derive(Clone, Copy, Display, Debug, Ex)]
+#[derive_ex(PartialEq, Eq, Hash, Default)]
+#[display("{name}")]
+#[default(Self::new(0, "<default>"))]
+pub struct TaskKind {
+    id: i8,
+    #[eq(ignore)]
+    name: &'static str,
+}
+impl TaskKind {
+    pub const fn new(id: i8, name: &'static str) -> Self {
+        Self { id, name }
+    }
 }
 
-struct SchedulerData {
-    name: String,
-    id: Option<usize>,
-    tasks: RefCell<VecDeque<Task>>,
+#[derive(Ex)]
+#[derive_ex(Default)]
+#[default(Self::new())]
+struct Tasks {
+    tasks: ISizeMap<Vec<Task>>,
+    start: isize,
+    last: isize,
 }
-impl SchedulerData {
-    fn cancel(&self) {
-        self.tasks.borrow_mut().clear();
-    }
-}
-
-#[derive(Clone)]
-pub struct Scheduler(Rc<SchedulerData>);
-
-impl Scheduler {
-    pub fn new(_rt: &Runtime, name: &str) -> Self {
-        let id = Globals::with(|g| g.schedulers.insert(Weak::default()));
-        let s = Self::new_raw(Some(id), name);
-        Globals::with(|g| g.schedulers[id] = Rc::downgrade(&s.0));
-        s
-    }
-    fn new_default() -> Self {
-        Self::new_raw(None, "<default>")
-    }
-    fn new_raw(id: Option<usize>, name: &str) -> Self {
-        Self(Rc::new(SchedulerData {
-            id,
-            name: name.to_string(),
-            tasks: RefCell::new(VecDeque::new()),
-        }))
-    }
-
-    fn schedule(&self, task: Task) {
-        let mut tasks = self.0.tasks.borrow_mut();
-        let is_wake = !tasks.is_empty();
-        tasks.push_back(task);
-        if is_wake {
-            Globals::with(|g| g.wake());
+impl Tasks {
+    fn new() -> Self {
+        Self {
+            tasks: ISizeMap::new(),
+            start: isize::MAX,
+            last: isize::MIN,
         }
     }
-    fn run(&self, uc: &mut UpdateContext) -> bool {
-        let mut handled = false;
-        while let Some(task) = self.0.tasks.borrow_mut().pop_front() {
-            handled = true;
-            task.run(uc);
-        }
-        handled
-    }
-}
-impl Drop for Scheduler {
-    fn drop(&mut self) {
-        if let Some(id) = self.0.id {
-            Globals::with(|g| g.schedulers.remove(id));
-        }
-    }
-}
 
-impl Default for Scheduler {
-    fn default() -> Self {
-        DEFAULT_SCHEDULER.with(|s| s.clone())
+    fn is_empty(&self) -> bool {
+        self.start == isize::MAX
     }
-}
-impl std::fmt::Debug for Scheduler {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple(&self.0.name).finish()
+    fn set_empty(&mut self) {
+        self.start = isize::MAX;
+        self.last = isize::MIN;
+    }
+    fn push(&mut self, kind: TaskKind, task: Task) {
+        let index = kind.id as isize;
+        self.tasks[index].push(task);
+        self.start = min(self.start, index);
+        self.last = max(self.last, index);
+    }
+    fn drain(&mut self, kind: Option<TaskKind>, to: &mut Vec<Task>) {
+        if let Some(kind) = kind {
+            let index = kind.id as isize;
+            if let Some(tasks) = self.tasks.get_mut(index) {
+                to.append(tasks)
+            }
+            if self.start == index {
+                self.start += 1;
+            }
+            if self.start > self.last {
+                self.set_empty();
+            }
+        } else {
+            for index in self.start..=self.last {
+                to.append(&mut self.tasks[index])
+            }
+            self.set_empty();
+        }
     }
 }

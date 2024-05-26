@@ -13,7 +13,7 @@ pub mod utils;
 #[doc(inline)]
 pub use crate::core::{
     spawn_action, spawn_action_async, spawn_action_rc, ActionContext, AsyncActionContext,
-    AsyncSignalContext, Scheduler, SignalContext, StateRef, StateRefBuilder,
+    AsyncSignalContext, SignalContext, StateRef, StateRefBuilder, TaskKind,
 };
 
 #[doc(inline)]
