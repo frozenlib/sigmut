@@ -380,8 +380,8 @@ impl<T: 'static> BindSource for RawStateSlabMap<T> {
     fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) {
         self.sinks.borrow_mut().unbind(slot, key, uc);
     }
-    fn rebind(self: Rc<Self>, _slot: Slot, _key: BindKey, _sc: &mut SignalContext) {
-        todo!()
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }
 
@@ -424,6 +424,18 @@ impl SinkBindingsSet {
             s.unbind(key, uc);
         }
     }
+    fn rebind(
+        &mut self,
+        this: Rc<dyn BindSource>,
+        slot: Slot,
+        key: BindKey,
+        sc: &mut SignalContext,
+    ) {
+        if let Some(s) = self.get_mut(slot) {
+            s.rebind(this, slot, key, sc);
+        }
+    }
+
     fn is_dirty(&self, slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool {
         if let Some(s) = self.get(slot) {
             s.is_dirty(key, uc)
@@ -529,8 +541,8 @@ where
         self.sinks.borrow_mut().unbind(slot, key, uc)
     }
 
-    fn rebind(self: Rc<Self>, _slot: Slot, _key: BindKey, _sc: &mut SignalContext) {
-        todo!()
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc)
     }
 }
 impl<T, F> BindSink for Scan<T, F>
