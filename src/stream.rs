@@ -1,8 +1,5 @@
 use crate::{
-    core::{
-        BindSink, Dirty, DirtyOrMaybeDirty, NotifyContext, Slot, SourceBindings, Task,
-        UpdateContext,
-    },
+    core::{BindSink, DirtyOrMaybeDirty, NotifyContext, Slot, SourceBinder, Task, UpdateContext},
     SignalContext,
 };
 use futures::Stream;
@@ -34,21 +31,25 @@ struct Node<F, T>(RefCell<Data<F, T>>);
 
 struct Data<F, T> {
     f: F,
-    dirty: Dirty,
     is_scheduled: bool,
     value: ValueState<T>,
-    sources: SourceBindings,
+    sb: SourceBinder,
 }
 
-impl<F, T> SignalStream<F, T> {
+impl<F, T> SignalStream<F, T>
+where
+    F: FnMut(&mut SignalContext) -> T + 'static,
+    T: 'static,
+{
     pub fn new(f: F) -> Self {
-        Self(Rc::new(Node(RefCell::new(Data {
-            f,
-            dirty: Dirty::Dirty,
-            is_scheduled: false,
-            value: ValueState::None,
-            sources: SourceBindings::new(),
-        }))))
+        Self(Rc::new_cyclic(|this| {
+            Node(RefCell::new(Data {
+                f,
+                is_scheduled: false,
+                value: ValueState::None,
+                sb: SourceBinder::new(this, Slot(0)),
+            }))
+        }))
     }
 }
 
@@ -64,7 +65,7 @@ where
         match take(&mut d.value) {
             ValueState::None | ValueState::Pending(_) => {
                 d.value = ValueState::Pending(cx.waker().clone());
-                if !d.dirty.is_clean() {
+                if !d.sb.is_clean() {
                     self.0.schedule(&mut d);
                 }
                 Poll::Pending
@@ -79,12 +80,11 @@ where
     F: FnMut(&mut SignalContext) -> T + 'static,
     T: 'static,
 {
-    fn notify(self: Rc<Self>, _slot: Slot, dirty: DirtyOrMaybeDirty, _nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, _nc: &mut NotifyContext) {
         let mut d = self.0.borrow_mut();
-        if d.dirty.is_clean() {
+        if d.sb.on_notify(slot, dirty) {
             self.schedule(&mut d);
         }
-        d.dirty |= dirty;
     }
 }
 
@@ -103,10 +103,8 @@ where
     fn update(self: Rc<Self>, uc: &mut UpdateContext) {
         let d = &mut *self.0.borrow_mut();
         d.is_scheduled = false;
-        if d.sources.check(uc) {
-            let sink = Rc::downgrade(&self);
-            let value = d.sources.update(sink, Slot(0), true, |sc| (d.f)(sc), uc);
-            d.dirty = Dirty::Clean;
+        if d.sb.check(uc) {
+            let value = d.sb.update(|sc| (d.f)(sc), uc);
             if let ValueState::Pending(waker) = replace(&mut d.value, ValueState::Ready(value)) {
                 waker.wake();
             }

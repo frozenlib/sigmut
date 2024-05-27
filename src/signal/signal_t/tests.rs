@@ -8,7 +8,8 @@ use std::{
 use crate::{core::Runtime, effect, Signal, State};
 use assert_call::{call, CallRecorder};
 use derive_ex::{derive_ex, Ex};
-use rt_local::runtime::core::test;
+use futures::StreamExt;
+use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
 
 #[test]
 fn new() {
@@ -268,6 +269,30 @@ fn get_async() {
 
     s0.set(Poll::Pending, rt.ac());
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+}
+
+#[test]
+async fn to_stream() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let s = State::new(5);
+    let _task = spawn_local(
+        s.to_signal()
+            .to_stream()
+            .for_each(|x| async move { call!("{x}") }),
+    );
+    wait_for_idle().await;
+
+    rt.update();
+    wait_for_idle().await;
+
+    cr.verify("5");
+
+    s.set(10, rt.ac());
+    rt.update();
+    wait_for_idle().await;
+    cr.verify("10");
 }
 
 #[test]
