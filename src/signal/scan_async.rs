@@ -66,11 +66,9 @@ where
     }
 
     fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
-        let d = self.data.borrow();
-        if d.asb.is_clean() {
+        if uc.borrow(&self.data).asb.is_clean() {
             return;
         }
-        drop(d);
 
         let d = &mut *self.data.borrow_mut();
         let mut is_dirty = false;

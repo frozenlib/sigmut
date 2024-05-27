@@ -198,7 +198,7 @@ where
     M: MapFn<St> + 'static,
 {
     fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
-        if self.data.borrow().sb.is_clean() {
+        if uc.borrow(&self.data).sb.is_clean() {
             return;
         }
         let d = &mut *self.data.borrow_mut();

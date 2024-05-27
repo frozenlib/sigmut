@@ -1,7 +1,7 @@
 use core::panic;
 use std::{
     any::Any,
-    cell::RefCell,
+    cell::{Ref, RefCell},
     cmp::{max, min},
     future::{poll_fn, Future},
     mem::{replace, swap, take, transmute},
@@ -624,6 +624,12 @@ impl<'s> UpdateContext<'s> {
             sink: None,
         })
     }
+    pub fn borrow<'a, T>(&self, cell: &'a RefCell<T>) -> Ref<'a, T> {
+        match cell.try_borrow() {
+            Ok(b) => b,
+            Err(_) => panic!("detect cyclic dependency"),
+        }
+    }
 }
 
 #[repr(transparent)]
@@ -1059,3 +1065,10 @@ impl Tasks {
         }
     }
 }
+
+#[non_exhaustive]
+#[derive(Display, Debug)]
+#[display("detect cyclic dependency")]
+pub struct CyclicError {}
+
+impl std::error::Error for CyclicError {}
