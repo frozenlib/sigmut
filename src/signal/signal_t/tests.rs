@@ -5,7 +5,8 @@ use std::{
     task::{Poll, Waker},
 };
 
-use crate::{core::Runtime, Signal, State};
+use crate::{core::Runtime, effect, Signal, State};
+use assert_call::{call, CallRecorder};
 use derive_ex::{derive_ex, Ex};
 use rt_local::runtime::core::test;
 
@@ -182,4 +183,72 @@ async fn from_async() {
     sender.send(20);
     rt.update();
     assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
+}
+
+#[test]
+fn from_async_effeft() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let (sender, receiver) = oneshot_broadcast::<i32>();
+
+    let s = Signal::from_async(move |_| {
+        let receiver = receiver.clone();
+        async move { receiver.recv().await }
+    });
+
+    let _e = effect({
+        let s = s.clone();
+        move |sc| {
+            call!("{:?}", s.get(sc));
+        }
+    });
+
+    rt.update();
+    cr.verify(format!("{:?}", Poll::<i32>::Pending));
+
+    sender.send(20);
+    rt.update();
+    cr.verify(format!("{:?}", Poll::<i32>::Ready(20)));
+}
+
+#[test]
+fn get_async() {
+    let mut rt = Runtime::new();
+
+    let s0 = State::new(Poll::<i32>::Pending);
+
+    let s = Signal::from_async({
+        let s0 = s0.clone();
+        move |mut sc| {
+            let s0 = s0.clone();
+            async move { s0.to_signal().get_async(&mut sc).await }
+        }
+    });
+
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+
+    s0.set(Poll::Ready(20), rt.ac());
+    assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
+
+    s0.set(Poll::Ready(30), rt.ac());
+    assert_eq!(s.get(&mut rt.sc()), Poll::Ready(30));
+
+    s0.set(Poll::Pending, rt.ac());
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+}
+
+#[test]
+#[should_panic]
+fn cyclic() {
+    let mut rt = Runtime::new();
+
+    let s0 = Rc::new(RefCell::new(Signal::from_value(0)));
+    let s = Signal::new({
+        let s0 = s0.clone();
+        move |sc| s0.borrow().get(sc)
+    });
+    s0.borrow_mut().clone_from(&s);
+
+    s.get(&mut rt.sc());
 }
