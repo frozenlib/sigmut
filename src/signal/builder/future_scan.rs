@@ -113,6 +113,16 @@ struct FutureScanNodeData<St, I, Scan> {
     state: St,
     task: Option<FutureScanNodeTask<I, Scan>>,
 }
+impl<St, I, Scan> FutureScanNodeData<St, I, Scan> {
+    fn is_wake(&self) -> bool {
+        if let Some(task) = &self.task {
+            task.is_wake
+        } else {
+            false
+        }
+    }
+}
+
 struct FutureScanNode<St, I, Scan, Map> {
     sinks: RefCell<SinkBindings>,
     data: RefCell<FutureScanNodeData<St, I, Scan>>,
@@ -148,21 +158,21 @@ where
     }
 
     fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
+        if !uc.borrow(&self.data).is_wake() {
+            return;
+        }
         let d = &mut *self.data.borrow_mut();
-        let Some(t) = d.task.as_mut() else {
-            return;
-        };
-        if !t.is_wake {
-            return;
-        }
-        let mut is_dirty = false;
-        if let Poll::Ready(value) = t.future.as_mut().poll(&mut Context::from_waker(&t.waker)) {
+        let t = d.task.as_mut().unwrap();
+        let is_dirty = if let Poll::Ready(value) =
+            t.future.as_mut().poll(&mut Context::from_waker(&t.waker))
+        {
             let t = d.task.take().unwrap();
-            is_dirty = t.f.call(&mut d.state, value);
-        }
-        if Scan::FILTER {
-            self.sinks.borrow_mut().update(is_dirty, uc);
-        }
+            t.f.call(&mut d.state, value)
+        } else {
+            t.is_wake = false;
+            false
+        };
+        self.sinks.borrow_mut().update(is_dirty, uc);
     }
 }
 impl<St, I, Scan, Map> SignalNode for FutureScanNode<St, I, Scan, Map>

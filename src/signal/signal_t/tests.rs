@@ -213,6 +213,38 @@ fn from_async_effeft() {
 }
 
 #[test]
+async fn from_future() {
+    let mut rt = Runtime::new();
+
+    let (sender, receiver) = oneshot_broadcast::<i32>();
+
+    let s = Signal::from_future(async move { receiver.recv().await });
+
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+    rt.update();
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+    sender.send(20);
+    rt.update();
+    assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
+}
+
+#[test]
+async fn from_future_borrow2() {
+    let mut rt = Runtime::new();
+
+    let (_sender, receiver) = oneshot_broadcast::<i32>();
+
+    let s = Signal::from_future(async move { receiver.recv().await });
+
+    let mut sc = rt.sc();
+    let b0 = s.borrow(&mut sc);
+    let b1 = s.borrow(&mut sc);
+
+    assert_eq!(*b0, Poll::Pending);
+    assert_eq!(*b1, Poll::Pending);
+}
+
+#[test]
 fn get_async() {
     let mut rt = Runtime::new();
 
