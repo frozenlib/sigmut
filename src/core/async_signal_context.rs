@@ -72,6 +72,8 @@ impl AsyncSignalContext {
     ///
     /// If `f` returns `Ready`, the dependencies recorded in `SignalContext` are added to the dependencies in `AsyncSignalContext`,
     /// and the asynchronous function is completed.
+    ///
+    /// Only the dependencies recorded in `SingalContext` in the last call of `f` are added to `AsyncSignalContext` dependencies.
     pub async fn poll_fn<T>(&mut self, f: impl Fn(&mut SignalContext) -> Poll<T>) -> T {
         poll_fn(|cx| {
             let s = &mut *self.0.s.borrow_mut();
