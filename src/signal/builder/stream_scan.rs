@@ -87,6 +87,17 @@ struct StreamScanNodeData<St, I, Scan> {
     state: St,
     task: Option<StreamScanNodeTask<I, Scan>>,
 }
+
+impl<St, I, Scan> StreamScanNodeData<St, I, Scan> {
+    fn is_wake(&self) -> bool {
+        if let Some(task) = &self.task {
+            task.is_wake
+        } else {
+            false
+        }
+    }
+}
+
 struct StreamScanNode<St, I, Scan, Map> {
     sinks: RefCell<SinkBindings>,
     data: RefCell<StreamScanNodeData<St, I, Scan>>,
@@ -122,13 +133,11 @@ where
     }
 
     fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
-        let d = &mut *self.data.borrow_mut();
-        let Some(t) = d.task.as_mut() else {
-            return;
-        };
-        if !t.is_wake {
+        if !uc.borrow(&self.data).is_wake() {
             return;
         }
+        let d = &mut *self.data.borrow_mut();
+        let t = d.task.as_mut().unwrap();
         let mut is_dirty = false;
         if let Poll::Ready(item) = t
             .stream
@@ -140,6 +149,9 @@ where
             if is_end {
                 d.task.take();
             }
+        }
+        if let Some(t) = d.task.as_mut() {
+            t.is_wake = false;
         }
         self.sinks.borrow_mut().update(is_dirty, uc);
     }

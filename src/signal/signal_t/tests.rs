@@ -296,6 +296,39 @@ async fn to_stream() {
 }
 
 #[test]
+async fn from_stream() {
+    let mut rt = Runtime::new();
+    let s0 = State::new(10);
+    let s1 = Signal::from_stream(s0.to_signal().to_stream());
+
+    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Pending);
+
+    s0.set(20, rt.ac());
+    wait_for_idle().await;
+    rt.update();
+    wait_for_idle().await;
+    rt.update();
+    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Ready(20));
+
+    s0.set(20, rt.ac());
+    wait_for_idle().await;
+    rt.update();
+    wait_for_idle().await;
+    rt.update();
+    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Ready(20));
+}
+
+#[test]
+async fn from_stream_borrow2() {
+    let mut rt = Runtime::new();
+    let s = Signal::from_stream(State::new(10).to_signal().to_stream());
+
+    let sc = &mut rt.sc();
+    let _b0 = s.borrow(sc);
+    let _b1 = s.borrow(sc);
+}
+
+#[test]
 #[should_panic]
 fn cyclic() {
     let mut rt = Runtime::new();
