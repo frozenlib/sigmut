@@ -66,6 +66,12 @@ impl AsyncSignalContext {
         unsafe { f(&mut sc(&mut self.0.s.borrow_mut().sc)) }
     }
 
+    /// Creates a future that wraps a signal function returning [`Poll`].
+    ///
+    /// If `f` returns `Pending`, `f` is called again when the dependencies recorded in the `SignalContext` change.
+    ///
+    /// If `f` returns `Ready`, the dependencies recorded in `SignalContext` are added to the dependencies in `AsyncSignalContext`,
+    /// and the asynchronous function is completed.
     pub async fn poll_fn<T>(&mut self, f: impl Fn(&mut SignalContext) -> Poll<T>) -> T {
         poll_fn(|cx| {
             let s = &mut *self.0.s.borrow_mut();
