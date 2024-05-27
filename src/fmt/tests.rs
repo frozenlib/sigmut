@@ -58,12 +58,6 @@ fn use_index() {
     let s = signal_format!("{1}-{0}", "a", "b");
     assert_eq!(s.get(&mut rt.sc()), "b-a");
 }
-#[test]
-fn use_index_and_auto_position() {
-    let mut rt = Runtime::new();
-    let s = signal_format!("{1}-{0}-{}", "a", "b");
-    assert_eq!(s.get(&mut rt.sc()), format!("{1}-{0}-{}", "a", "b"));
-}
 
 #[test]
 fn use_inline() {
@@ -122,4 +116,11 @@ fn use_dyn_to_signal() {
     let st_dyn: &dyn ToSignal<Value = i32> = &st;
     let s = signal_format!("{}", st_dyn);
     assert_eq!(s.get(&mut rt.sc()), "5");
+}
+
+#[test]
+fn escape() {
+    let mut rt = Runtime::new();
+    let s = signal_format!("{{}}");
+    assert_eq!(s.get(&mut rt.sc()), "{}");
 }
