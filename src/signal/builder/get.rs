@@ -1,6 +1,6 @@
 use crate::{Signal, SignalBuilder, SignalContext, StateRef};
 
-use super::{Build, GetBuild, ScanBuild};
+use super::{Build, DedupBuild, GetBuild, ScanBuild};
 
 pub fn get_builder<T: 'static>(
     get: impl Fn(&mut SignalContext) -> T + 'static,
@@ -66,11 +66,26 @@ where
     T: 'static,
     F: Fn(&mut SignalContext) -> T + 'static,
 {
-    fn dedup(self) -> impl ScanBuild<State = Self::State>
+    fn dedup(self) -> impl DedupBuild<State = Self::State>
     where
         Self::State: PartialEq,
     {
         GetBuilder(GetFnGetDedup(self.0 .0))
+    }
+}
+impl<Get> DedupBuild for GetBuilder<Get>
+where
+    Get: GetFn,
+{
+    fn discard_value(self, f: impl Fn(Self::State) + 'static) -> impl Build<State = Self::State> {
+        self.0
+            .into_scan_build()
+            .discard(move |st| {
+                if let Some(st) = st.take() {
+                    f(st);
+                }
+            })
+            .map(|st| st.as_ref().unwrap())
     }
 }
 

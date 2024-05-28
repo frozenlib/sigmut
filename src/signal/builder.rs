@@ -59,14 +59,29 @@ impl SignalBuilder<()> {
         SignalBuilder(stream_scan_builder(initial_state, stream, f))
     }
 }
-impl<B: GetBuild> SignalBuilder<B> {
-    pub fn dedup(self) -> SignalBuilder<impl ScanBuild<State = B::State>>
+impl<B: GetBuild> SignalBuilder<B>
+where
+    B::State: Sized,
+{
+    pub fn dedup(self) -> SignalBuilder<impl DedupBuild<State = B::State>>
     where
         B::State: PartialEq,
     {
         SignalBuilder(self.0.dedup())
     }
 }
+impl<B: DedupBuild> SignalBuilder<B>
+where
+    B::State: Sized,
+{
+    pub fn discard_value(
+        self,
+        f: impl Fn(B::State) + 'static,
+    ) -> SignalBuilder<impl Build<State = B::State>> {
+        SignalBuilder(self.0.discard_value(f))
+    }
+}
+
 impl<B: ScanBuild> SignalBuilder<B> {
     pub fn discard(
         self,
@@ -121,10 +136,19 @@ impl<B: Build> SignalBuilder<B> {
     }
 }
 
-pub trait GetBuild: ScanBuild {
-    fn dedup(self) -> impl ScanBuild<State = Self::State>
+pub trait GetBuild: DedupBuild
+where
+    Self::State: Sized,
+{
+    fn dedup(self) -> impl DedupBuild<State = Self::State>
     where
         Self::State: PartialEq;
+}
+pub trait DedupBuild: ScanBuild
+where
+    Self::State: Sized,
+{
+    fn discard_value(self, f: impl Fn(Self::State) + 'static) -> impl Build<State = Self::State>;
 }
 pub trait ScanBuild: Build {
     fn discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State>;
