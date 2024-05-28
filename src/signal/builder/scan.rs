@@ -169,7 +169,6 @@ where
             self.schedule_discard(uc);
         }
     }
-
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
         if self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc) {
             self.schedule_discard(sc.uc());
@@ -203,6 +202,9 @@ where
         if uc.borrow(&self.data).sb.is_clean() {
             return;
         }
+        if self.sinks.borrow().is_empty() {
+            self.clone().schedule_discard(uc);
+        }
         let d = &mut *self.data.borrow_mut();
         if d.sb.check(uc) {
             let is_dirty = d.sb.update(|sc| d.scan.call(&mut d.state, sc), uc);
@@ -212,10 +214,8 @@ where
         }
     }
     fn watch(self: &Rc<Self>, sc: &mut SignalContext) {
+        self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
         self.update(sc.uc());
-        if self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc) {
-            self.clone().schedule_discard(sc.uc());
-        }
     }
     fn schedule_discard(self: Rc<Self>, uc: &mut UpdateContext) {
         uc.schedule_discard(self, Slot(0))
