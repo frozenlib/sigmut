@@ -166,12 +166,14 @@ where
 
     fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
         if self.sinks.borrow_mut().unbind(key, uc) {
-            uc.schedule_discard(self, Slot(0))
+            self.schedule_discard(uc);
         }
     }
 
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
-        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
+        if self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc) {
+            self.schedule_discard(sc.uc());
+        }
     }
 }
 impl<St, Scan, D, M> BindSink for ScanNode<St, Scan, D, M>
@@ -211,7 +213,12 @@ where
     }
     fn watch(self: &Rc<Self>, sc: &mut SignalContext) {
         self.update(sc.uc());
-        self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
+        if self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc) {
+            self.clone().schedule_discard(sc.uc());
+        }
+    }
+    fn schedule_discard(self: Rc<Self>, uc: &mut UpdateContext) {
+        uc.schedule_discard(self, Slot(0))
     }
 }
 impl<St, Scan, D, M> Discard for ScanNode<St, Scan, D, M>

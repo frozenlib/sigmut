@@ -499,16 +499,21 @@ impl SinkBindings {
     pub fn new() -> Self {
         Self(SlabMap::new())
     }
-    pub fn bind(&mut self, this: Rc<dyn BindSource>, this_slot: Slot, sc: &mut SignalContext) {
+    pub fn bind(
+        &mut self,
+        this: Rc<dyn BindSource>,
+        this_slot: Slot,
+        sc: &mut SignalContext,
+    ) -> bool {
         let Some(sink) = &mut sc.sink else {
-            return;
+            return self.0.is_empty();
         };
         let sources_index = sink.sources_len;
         if let Some(source_old) = sink.sources.0.get(sources_index) {
             if source_old.is_same(&this, this_slot) {
                 sink.sources_len += 1;
                 self.0[source_old.key.0].dirty = Dirty::Clean;
-                return;
+                return false;
             }
         }
         let key = BindKey(self.0.insert(SinkBinding {
@@ -523,6 +528,7 @@ impl SinkBindings {
         }) {
             old.unbind(sc.uc());
         }
+        false
     }
     pub fn rebind(
         &mut self,

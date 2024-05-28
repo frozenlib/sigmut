@@ -5,7 +5,7 @@ use std::{
     task::{Poll, Waker},
 };
 
-use crate::{core::Runtime, effect, Signal, State};
+use crate::{core::Runtime, effect, Signal, SignalBuilder, State};
 use assert_call::{call, CallRecorder};
 use derive_ex::{derive_ex, Ex};
 use futures::StreamExt;
@@ -71,6 +71,46 @@ fn new_nested_3() {
 
     st.set(10, rt.ac());
     assert_eq!(s3.get(&mut rt.sc()), 10);
+}
+
+#[test]
+fn new_discard() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    struct X;
+    impl Drop for X {
+        fn drop(&mut self) {
+            call!("drop");
+        }
+    }
+
+    let s = Signal::new(move |_| X);
+    s.borrow(&mut rt.sc());
+    cr.verify(());
+    rt.update();
+    cr.verify("drop");
+}
+
+#[test]
+fn keep() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    struct X;
+    impl Drop for X {
+        fn drop(&mut self) {
+            call!("drop");
+        }
+    }
+
+    let s = SignalBuilder::new(move |_| X).keep().build();
+    s.borrow(&mut rt.sc());
+    cr.verify(());
+    rt.update();
+    cr.verify(());
+    drop(s);
+    cr.verify("drop");
 }
 
 #[test]
