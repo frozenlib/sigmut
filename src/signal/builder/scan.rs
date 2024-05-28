@@ -12,8 +12,8 @@ use crate::{
 };
 
 use super::{
-    Build, DiscardFn, DiscardFnKeep, DiscardFnVoid, MapFn, MapFnNone, MapFnRaw, ScanBuild,
-    ScanFnBool, ScanFnVoid, SignalNode,
+    Build, DiscardFn, DiscardFnKeep, DiscardFnVoid, DiscardScheduledCell, MapFn, MapFnNone,
+    MapFnRaw, ScanBuild, ScanFnBool, ScanFnVoid, SignalNode,
 };
 
 pub(super) fn scan_builder<St>(
@@ -116,6 +116,7 @@ where
                 sb: SourceBinder::new(this, Slot(0)),
             }),
             discard: self.discard,
+            discard_scheduled: Default::default(),
             map: self.map,
         }))
     }
@@ -127,10 +128,14 @@ struct ScanNodeData<St, Scan> {
     sb: SourceBinder,
 }
 
-struct ScanNode<St, Scan, D, M> {
+struct ScanNode<St, Scan, D, M>
+where
+    D: DiscardFn<St>,
+{
     sinks: RefCell<SinkBindings>,
     data: RefCell<ScanNodeData<St, Scan>>,
     discard: D,
+    discard_scheduled: D::ScheduledCell,
     map: M,
 }
 impl<St, Scan, D, M> SignalNode for ScanNode<St, Scan, D, M>
@@ -165,14 +170,12 @@ where
     }
 
     fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
-        if self.sinks.borrow_mut().unbind(key, uc) {
-            self.schedule_discard(uc);
-        }
+        self.sinks.borrow_mut().unbind(key, uc);
+        self.try_schedule_discard(uc);
     }
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
-        if self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc) {
-            self.schedule_discard(sc.uc());
-        }
+        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
+        self.try_schedule_discard(sc.uc());
     }
 }
 impl<St, Scan, D, M> BindSink for ScanNode<St, Scan, D, M>
@@ -202,9 +205,7 @@ where
         if uc.borrow(&self.data).sb.is_clean() {
             return;
         }
-        if self.sinks.borrow().is_empty() {
-            self.clone().schedule_discard(uc);
-        }
+        self.try_schedule_discard(uc);
         let d = &mut *self.data.borrow_mut();
         if d.sb.check(uc) {
             let is_dirty = d.sb.update(|sc| d.scan.call(&mut d.state, sc), uc);
@@ -217,8 +218,10 @@ where
         self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
         self.update(sc.uc());
     }
-    fn schedule_discard(self: Rc<Self>, uc: &mut UpdateContext) {
-        uc.schedule_discard(self, Slot(0))
+    fn try_schedule_discard(self: &Rc<Self>, uc: &mut UpdateContext) {
+        if self.discard_scheduled.try_schedule(&self.sinks) {
+            uc.schedule_discard(self.clone(), Slot(0))
+        }
     }
 }
 impl<St, Scan, D, M> Discard for ScanNode<St, Scan, D, M>
@@ -229,12 +232,12 @@ where
     M: MapFn<St> + 'static,
 {
     fn discard(self: Rc<Self>, _slot: Slot, uc: &mut UpdateContext) {
-        if !self.sinks.borrow().is_empty() {
-            return;
-        }
-        let mut data = self.data.borrow_mut();
-        if self.discard.call(&mut data.state) {
-            data.sb.clear(uc);
+        self.discard_scheduled.reset_schedule();
+        if self.sinks.borrow().is_empty() {
+            let mut d = self.data.borrow_mut();
+            if self.discard.call(&mut d.state) {
+                d.sb.clear(uc);
+            }
         }
     }
 }

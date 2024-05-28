@@ -183,6 +183,7 @@ where
     Map: Fn(&St) -> &T + 'static,
 {
     fn discard(self: Rc<Self>, _slot: Slot, uc: &mut UpdateContext) {
+        self.discard_scheduled.set(false);
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();
             d.fut.set(None);

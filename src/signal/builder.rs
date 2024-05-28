@@ -1,8 +1,11 @@
-use std::future::Future;
+use std::{
+    cell::{Cell, RefCell},
+    future::Future,
+};
 
 use futures::Stream;
 
-use crate::{Signal, SignalContext, StateRef, StateRefBuilder};
+use crate::{core::SinkBindings, Signal, SignalContext, StateRef, StateRefBuilder};
 
 use self::{
     future_scan::future_scan_builder, get::get_builder, scan::scan_builder,
@@ -180,12 +183,14 @@ struct ScanFnVoid<F>(F);
 struct ScanFnBool<F>(F);
 
 trait DiscardFn<St> {
+    type ScheduledCell: DiscardScheduledCell;
     fn call(&self, st: &mut St) -> bool;
 }
 
 struct DiscardFnNone;
 
 impl<St> DiscardFn<St> for DiscardFnNone {
+    type ScheduledCell = Cell<bool>;
     fn call(&self, _: &mut St) -> bool {
         false
     }
@@ -194,6 +199,7 @@ impl<St> DiscardFn<St> for DiscardFnNone {
 struct DiscardFnKeep;
 
 impl<St> DiscardFn<St> for DiscardFnKeep {
+    type ScheduledCell = ();
     fn call(&self, _: &mut St) -> bool {
         true
     }
@@ -202,6 +208,7 @@ impl<St> DiscardFn<St> for DiscardFnKeep {
 struct DiscardFnVoid<F>(F);
 
 impl<St, F: Fn(&mut St)> DiscardFn<St> for DiscardFnVoid<F> {
+    type ScheduledCell = Cell<bool>;
     fn call(&self, st: &mut St) -> bool {
         (self.0)(st);
         false
@@ -260,4 +267,28 @@ where
     ) -> StateRef<'a, Self::Output> {
         (self.f)(self.m.apply(input, sc), sc, &&())
     }
+}
+
+trait DiscardScheduledCell: Default {
+    fn try_schedule(&self, sinks: &RefCell<SinkBindings>) -> bool;
+    fn reset_schedule(&self);
+}
+impl DiscardScheduledCell for Cell<bool> {
+    fn try_schedule(&self, sinks: &RefCell<SinkBindings>) -> bool {
+        if self.get() || !sinks.borrow().is_empty() {
+            false
+        } else {
+            self.set(true);
+            true
+        }
+    }
+    fn reset_schedule(&self) {
+        self.set(false);
+    }
+}
+impl DiscardScheduledCell for () {
+    fn try_schedule(&self, _: &RefCell<SinkBindings>) -> bool {
+        false
+    }
+    fn reset_schedule(&self) {}
 }
