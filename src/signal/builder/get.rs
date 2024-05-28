@@ -13,7 +13,7 @@ trait GetFn: Sized {
     fn into_scan_build(self) -> impl ScanBuild<State = Option<Self::Output>>;
     fn into_build(self) -> impl Build<State = Self::Output> {
         self.into_scan_build()
-            .discard(|st| {
+            .on_discard(|st| {
                 st.take();
             })
             .map(|st| st.as_ref().unwrap())
@@ -77,10 +77,13 @@ impl<Get> DedupBuild for GetBuilder<Get>
 where
     Get: GetFn,
 {
-    fn discard_value(self, f: impl Fn(Self::State) + 'static) -> impl Build<State = Self::State> {
+    fn on_discard_value(
+        self,
+        f: impl Fn(Self::State) + 'static,
+    ) -> impl Build<State = Self::State> {
         self.0
             .into_scan_build()
-            .discard(move |st| {
+            .on_discard(move |st| {
                 if let Some(st) = st.take() {
                     f(st);
                 }
@@ -93,10 +96,10 @@ impl<Get> ScanBuild for GetBuilder<Get>
 where
     Get: GetFn,
 {
-    fn discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State> {
+    fn on_discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State> {
         self.0
             .into_scan_build()
-            .discard(move |st| {
+            .on_discard(move |st| {
                 if let Some(st) = st {
                     f(st);
                 }

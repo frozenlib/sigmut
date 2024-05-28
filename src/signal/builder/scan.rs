@@ -64,7 +64,7 @@ where
     Scan: ScanFn<St> + 'static,
     D: DiscardFn<St> + 'static,
 {
-    fn discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State> {
+    fn on_discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State> {
         ScanBuilder {
             initial_state: self.initial_state,
             scan: self.scan,

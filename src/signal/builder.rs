@@ -74,20 +74,20 @@ impl<B: DedupBuild> SignalBuilder<B>
 where
     B::State: Sized,
 {
-    pub fn discard_value(
+    pub fn on_discard_value(
         self,
         f: impl Fn(B::State) + 'static,
     ) -> SignalBuilder<impl Build<State = B::State>> {
-        SignalBuilder(self.0.discard_value(f))
+        SignalBuilder(self.0.on_discard_value(f))
     }
 }
 
 impl<B: ScanBuild> SignalBuilder<B> {
-    pub fn discard(
+    pub fn on_discard(
         self,
         f: impl Fn(&mut B::State) + 'static,
     ) -> SignalBuilder<impl Build<State = B::State>> {
-        SignalBuilder(self.0.discard(f))
+        SignalBuilder(self.0.on_discard(f))
     }
     pub fn keep(self) -> SignalBuilder<impl Build<State = B::State>> {
         SignalBuilder(self.0.keep())
@@ -148,10 +148,11 @@ pub trait DedupBuild: ScanBuild
 where
     Self::State: Sized,
 {
-    fn discard_value(self, f: impl Fn(Self::State) + 'static) -> impl Build<State = Self::State>;
+    fn on_discard_value(self, f: impl Fn(Self::State) + 'static)
+        -> impl Build<State = Self::State>;
 }
 pub trait ScanBuild: Build {
-    fn discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State>;
+    fn on_discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State>;
     fn keep(self) -> impl Build<State = Self::State>;
 }
 pub trait Build: Sized {
