@@ -93,6 +93,35 @@ fn new_discard() {
 }
 
 #[test]
+fn on_discard_on_no_dependants() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let s = SignalBuilder::new(move |_| ())
+        .on_discard(|_| call!("discard"))
+        .build();
+    s.get(&mut rt.sc());
+    cr.verify(());
+    rt.update();
+    cr.verify("discard");
+}
+#[test]
+fn on_discard_on_drop() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let s = SignalBuilder::new(move |_| ())
+        .on_discard(|_| call!("discard"))
+        .build();
+    s.get(&mut rt.sc());
+    cr.verify(());
+    drop(s);
+    cr.verify(());
+    rt.update();
+    cr.verify("discard");
+}
+
+#[test]
 fn keep() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
