@@ -1,4 +1,10 @@
-use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc, task::Poll};
+use std::{
+    cell::{Cell, RefCell},
+    future::Future,
+    pin::Pin,
+    rc::Rc,
+    task::Poll,
+};
 
 use crate::{
     core::{
@@ -41,6 +47,7 @@ where
     data: RefCell<ScanAsyncNodeData<St, Fut, Scan>>,
     map: Map,
     sinks: RefCell<SinkBindings>,
+    discard_scheduled: Cell<bool>,
 }
 impl<St, T, GetFut, Fut, Scan, Map> ScanAsyncNode<St, GetFut, Fut, Scan, Map>
 where
@@ -62,6 +69,7 @@ where
             }),
             map,
             sinks: RefCell::new(SinkBindings::new()),
+            discard_scheduled: Cell::new(false),
         })
     }
 
@@ -69,7 +77,7 @@ where
         if uc.borrow(&self.data).asb.is_clean() {
             return;
         }
-
+        self.try_schedule_discard(uc);
         let d = &mut *self.data.borrow_mut();
         let mut is_dirty = false;
         if d.asb.check(uc) {
@@ -90,6 +98,11 @@ where
             self.sinks.borrow_mut().update(is_dirty, uc);
         }
     }
+    fn try_schedule_discard(self: &Rc<Self>, uc: &mut UpdateContext) {
+        if self.sinks.borrow().is_empty() && !self.discard_scheduled.replace(true) {
+            uc.schedule_discard(self.clone(), Slot(0));
+        }
+    }
 }
 impl<St, T, GetFut, Fut, Scan, Map> SignalNode for ScanAsyncNode<St, GetFut, Fut, Scan, Map>
 where
@@ -107,8 +120,8 @@ where
         inner: &'a Self,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
-        self.update(sc.uc());
         self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
+        self.update(sc.uc());
         StateRef::map(
             inner.data.borrow().into(),
             |data| (self.map)(&data.state),
@@ -131,13 +144,13 @@ where
     }
 
     fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
-        if self.sinks.borrow_mut().unbind(key, uc) {
-            uc.schedule_discard(self, Slot(0));
-        }
+        self.sinks.borrow_mut().unbind(key, uc);
+        self.try_schedule_discard(uc);
     }
 
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
+        self.try_schedule_discard(sc.uc());
     }
 }
 

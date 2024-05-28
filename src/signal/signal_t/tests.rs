@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     cell::RefCell,
     future::poll_fn,
     rc::Rc,
@@ -10,6 +11,16 @@ use assert_call::{call, CallRecorder};
 use derive_ex::{derive_ex, Ex};
 use futures::StreamExt;
 use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
+
+fn on_drop(s: &'static str) -> impl Any {
+    struct OnDrop(&'static str);
+    impl Drop for OnDrop {
+        fn drop(&mut self) {
+            call!("{}", self.0);
+        }
+    }
+    OnDrop(s)
+}
 
 #[test]
 fn new() {
@@ -78,14 +89,7 @@ fn new_discard() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
-    struct X;
-    impl Drop for X {
-        fn drop(&mut self) {
-            call!("drop");
-        }
-    }
-
-    let s = Signal::new(move |_| X);
+    let s = Signal::new(move |_| on_drop("drop"));
     s.borrow(&mut rt.sc());
     cr.verify(());
     rt.update();
@@ -126,14 +130,7 @@ fn keep() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
-    struct X;
-    impl Drop for X {
-        fn drop(&mut self) {
-            call!("drop");
-        }
-    }
-
-    let s = SignalBuilder::new(move |_| X).keep().build();
+    let s = SignalBuilder::new(move |_| on_drop("drop")).keep().build();
     s.borrow(&mut rt.sc());
     cr.verify(());
     rt.update();
@@ -256,7 +253,7 @@ async fn from_async() {
 }
 
 #[test]
-fn from_async_effeft() {
+fn from_async_effect() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
@@ -280,6 +277,27 @@ fn from_async_effeft() {
     sender.send(20);
     rt.update();
     cr.verify(format!("{:?}", Poll::<i32>::Ready(20)));
+}
+
+#[test]
+fn from_async_no_dependants() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let (_sender, receiver) = oneshot_broadcast::<i32>();
+
+    let s = Signal::from_async(move |_| {
+        let receiver = receiver.clone();
+        async move {
+            let _x = on_drop("drop");
+            receiver.recv().await
+        }
+    });
+
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+    cr.verify(());
+    rt.update();
+    cr.verify("drop");
 }
 
 #[test]
