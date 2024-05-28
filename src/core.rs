@@ -530,7 +530,7 @@ impl SinkBindings {
         this_slot: Slot,
         key: BindKey,
         sc: &mut SignalContext,
-    ) -> bool {
+    ) {
         if let Some(sink) = &mut sc.sink {
             self.0[key.0].slot = sink.slot;
             if let Some(old) = sink.push(SourceBinding {
@@ -540,9 +540,8 @@ impl SinkBindings {
             }) {
                 old.unbind(sc.uc());
             }
-            false
         } else {
-            self.unbind(key, sc.uc())
+            self.unbind(key, sc.uc());
         }
     }
 
@@ -557,10 +556,8 @@ impl SinkBindings {
         }
     }
     /// Unbinds the dependency identified by the given `key`.
-    ///
-    /// Returns `true` if the dependency is successfully unbind and no more dependencies exist.
-    pub fn unbind(&mut self, key: BindKey, _uc: &mut UpdateContext) -> bool {
-        self.0.remove(key.0).is_some() && self.0.is_empty()
+    pub fn unbind(&mut self, key: BindKey, _uc: &mut UpdateContext) {
+        self.0.remove(key.0);
     }
 
     pub fn notify(&mut self, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
