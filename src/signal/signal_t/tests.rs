@@ -140,17 +140,51 @@ fn keep() {
 }
 
 #[test]
-fn new_dedup() {
+fn new_no_dedup() {
     let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
 
     let st = State::new(5);
-    let st_ = st.clone();
-    let s = Signal::new_dedup(move |sc| st_.get(sc));
 
-    assert_eq!(s.get(&mut rt.sc()), 5);
+    let s = Signal::new({
+        let st = st.clone();
+        move |sc| st.get(sc)
+    });
+    let _e = s.effect(|x| call!("{x}"));
+    rt.update();
+    cr.verify("5");
+
+    st.set(5, rt.ac());
+    rt.update();
+    cr.verify("5");
 
     st.set(10, rt.ac());
-    assert_eq!(s.get(&mut rt.sc()), 10);
+    rt.update();
+    cr.verify("10");
+}
+
+#[test]
+fn new_dedup() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let st = State::new(5);
+
+    let s = Signal::new_dedup({
+        let st = st.clone();
+        move |sc| st.get(sc)
+    });
+    let _e = s.effect(|x| call!("{x}"));
+    rt.update();
+    cr.verify("5");
+
+    st.set(5, rt.ac());
+    rt.update();
+    cr.verify(());
+
+    st.set(10, rt.ac());
+    rt.update();
+    cr.verify("10");
 }
 
 #[test]

@@ -46,14 +46,15 @@ where
 {
     type Output = T;
     fn into_scan_build(self) -> impl ScanBuild<State = Option<Self::Output>> {
-        SignalBuilder::from_scan(None, move |st, sc| {
+        SignalBuilder::from_scan_filter(None, move |st, sc| {
             let value = (self.0)(sc);
             if let Some(old) = st {
                 if old == &value {
-                    return;
+                    return false;
                 }
             }
             *st = Some(value);
+            true
         })
         .0
     }
