@@ -1,14 +1,7 @@
-use std::{
-    any::Any,
-    cell::RefCell,
-    future::poll_fn,
-    rc::Rc,
-    task::{Poll, Waker},
-};
+use std::{any::Any, cell::RefCell, rc::Rc, task::Poll};
 
-use crate::{core::Runtime, effect, Signal, SignalBuilder, State};
+use crate::{core::Runtime, effect, utils::sync::oneshot_broadcast, Signal, SignalBuilder, State};
 use assert_call::{call, CallRecorder};
-use derive_ex::{derive_ex, Ex};
 use futures::StreamExt;
 use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
 
@@ -237,50 +230,6 @@ fn from_static_ref() {
     let mut rt = Runtime::new();
     let s = Signal::from_static_ref(&5);
     assert_eq!(s.get(&mut rt.sc()), 5);
-}
-
-struct OneshotBroadcast<T> {
-    value: Option<T>,
-    waker: Option<Waker>,
-}
-
-fn oneshot_broadcast<T>() -> (Sender<T>, Receiver<T>) {
-    let data = Rc::new(RefCell::new(OneshotBroadcast {
-        value: None,
-        waker: None,
-    }));
-    (Sender(data.clone()), Receiver(data))
-}
-
-struct Sender<T>(Rc<RefCell<OneshotBroadcast<T>>>);
-
-impl<T> Sender<T> {
-    fn send(&self, value: T) {
-        let mut data = self.0.borrow_mut();
-        data.value = Some(value);
-        if let Some(waker) = data.waker.take() {
-            waker.wake();
-        }
-    }
-}
-
-#[derive(Ex)]
-#[derive_ex(Clone(bound()))]
-struct Receiver<T>(Rc<RefCell<OneshotBroadcast<T>>>);
-
-impl<T: Clone> Receiver<T> {
-    async fn recv(&self) -> T {
-        poll_fn(|cx| {
-            let mut d = self.0.borrow_mut();
-            if let Some(value) = &d.value {
-                Poll::Ready(value.clone())
-            } else {
-                d.waker = Some(cx.waker().clone());
-                Poll::Pending
-            }
-        })
-        .await
-    }
 }
 
 #[test]
