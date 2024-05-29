@@ -1,4 +1,11 @@
-use std::{any::Any, future::Future, ptr, rc::Rc, task::Poll};
+use std::{
+    any::{type_name, Any},
+    fmt::Debug,
+    future::Future,
+    ptr,
+    rc::Rc,
+    task::Poll,
+};
 
 use derive_ex::{derive_ex, Ex};
 use futures::Stream;
@@ -20,6 +27,10 @@ pub trait SignalNode: 'static {
         inner: &'a Self,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value>;
+
+    fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: Debug;
 }
 
 trait DynSignalNode {
@@ -29,6 +40,10 @@ trait DynSignalNode {
         inner: &'a dyn Any,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value>;
+
+    fn dyn_fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: Debug;
 
     fn as_any(&self) -> &dyn Any;
 }
@@ -42,6 +57,12 @@ impl<S: SignalNode + 'static> DynSignalNode for S {
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
         self.borrow(inner.downcast_ref().unwrap(), sc)
+    }
+    fn dyn_fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: Debug,
+    {
+        self.fmt_debug(f)
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -234,6 +255,14 @@ impl<T: 'static> Signal<Poll<T>> {
         sc.poll_fn(|sc| self.get(sc)).await
     }
 }
+impl<T: 'static + ?Sized + Debug> Debug for Signal<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.0 {
+            RawSignal::StaticRef(value) => value.fmt(f),
+            RawSignal::Node(node) => node.dyn_fmt_debug(f),
+        }
+    }
+}
 
 impl<T: ?Sized + 'static> ToSignal for Signal<T> {
     type Value = T;
@@ -261,6 +290,13 @@ where
     ) -> StateRef<'a, Self::Value> {
         StateRef::map((&inner.value).into(), &inner.map, sc)
     }
+
+    fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: Debug,
+    {
+        (self.map)(&self.value).fmt(f)
+    }
 }
 
 struct FromBorrowNode<T, F> {
@@ -281,6 +317,13 @@ where
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
         (inner.borrow)(&inner.this, sc, &&())
+    }
+
+    fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: Debug,
+    {
+        write!(f, "<borrow({})>", type_name::<T>())
     }
 }
 

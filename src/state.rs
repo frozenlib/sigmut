@@ -196,6 +196,16 @@ impl<T: 'static> SignalNode for StateNode<T> {
         self.bind(sc);
         inner.value.borrow().into()
     }
+
+    fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: std::fmt::Debug,
+    {
+        match self.value.try_borrow() {
+            Ok(value) => value.fmt(f),
+            Err(_) => write!(f, "<borrowed>"),
+        }
+    }
 }
 
 pub struct StateRefMut<'a, T: 'static> {

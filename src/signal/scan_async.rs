@@ -128,6 +128,13 @@ where
             sc,
         )
     }
+
+    fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: std::fmt::Debug,
+    {
+        write!(f, "<async>")
+    }
 }
 impl<St, T, GetFut, Fut, Scan, Map> BindSource for ScanAsyncNode<St, GetFut, Fut, Scan, Map>
 where

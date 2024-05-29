@@ -193,6 +193,13 @@ where
         self.map
             .apply(Ref::map(inner.data.borrow(), |data| &data.state).into(), sc)
     }
+
+    fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: std::fmt::Debug,
+    {
+        write!(f, "<future_scan>")
+    }
 }
 impl<St, I, Scan, Map> BindSink for FutureScanNode<St, I, Scan, Map>
 where

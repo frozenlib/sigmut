@@ -156,6 +156,13 @@ where
         self.map
             .apply(Ref::map(inner.data.borrow(), |x| &x.state).into(), sc)
     }
+
+    fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
+    where
+        Self::Value: std::fmt::Debug,
+    {
+        write!(f, "<scan>")
+    }
 }
 impl<St, Scan, D, M> BindSource for ScanNode<St, Scan, D, M>
 where
