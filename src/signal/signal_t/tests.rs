@@ -78,6 +78,50 @@ fn new_nested_3() {
 }
 
 #[test]
+fn new_borrow2() {
+    let mut rt = Runtime::new();
+
+    let s = Signal::new(move |_| 10);
+
+    let mut sc = rt.sc();
+    let b0 = s.borrow(&mut sc);
+    let b1 = s.borrow(&mut sc);
+    drop(b0);
+    drop(b1);
+}
+
+#[test]
+fn new_effect() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let a = State::new(5);
+    let b = State::new(10);
+    let s = Signal::new({
+        let a = a.clone();
+        let b = b.clone();
+        move |sc| a.get(sc) + b.get(sc)
+    });
+    let _e = s.effect(|x| call!("{x}"));
+
+    rt.update();
+    cr.verify("15");
+
+    a.set(10, rt.ac());
+    rt.update();
+    cr.verify("20");
+
+    b.set(20, rt.ac());
+    rt.update();
+    cr.verify("30");
+
+    a.set(15, rt.ac());
+    b.set(25, rt.ac());
+    rt.update();
+    cr.verify("40");
+}
+
+#[test]
 fn new_discard() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
@@ -233,6 +277,71 @@ fn from_static_ref() {
 }
 
 #[test]
+async fn from_future() {
+    let mut rt = Runtime::new();
+
+    let (sender, receiver) = oneshot_broadcast::<i32>();
+
+    let s = Signal::from_future(async move { receiver.recv().await });
+
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+    rt.update();
+    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
+    sender.send(20);
+    rt.update();
+    assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
+}
+
+#[test]
+async fn from_future_borrow2() {
+    let mut rt = Runtime::new();
+
+    let (_sender, receiver) = oneshot_broadcast::<i32>();
+
+    let s = Signal::from_future(async move { receiver.recv().await });
+
+    let mut sc = rt.sc();
+    let b0 = s.borrow(&mut sc);
+    let b1 = s.borrow(&mut sc);
+
+    assert_eq!(*b0, Poll::Pending);
+    assert_eq!(*b1, Poll::Pending);
+}
+
+#[test]
+async fn from_stream() {
+    let mut rt = Runtime::new();
+    let s0 = State::new(10);
+    let s1 = Signal::from_stream(s0.to_signal().to_stream());
+
+    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Pending);
+
+    s0.set(20, rt.ac());
+    wait_for_idle().await;
+    rt.update();
+    wait_for_idle().await;
+    rt.update();
+    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Ready(20));
+
+    s0.set(20, rt.ac());
+    wait_for_idle().await;
+    rt.update();
+    wait_for_idle().await;
+    rt.update();
+    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Ready(20));
+}
+
+#[test]
+async fn from_stream_borrow2() {
+    let mut rt = Runtime::new();
+    let s = Signal::from_stream(State::new(10).to_signal().to_stream());
+
+    let sc = &mut rt.sc();
+    let _b0 = s.borrow(sc);
+    let _b1 = s.borrow(sc);
+}
+
+#[test]
 async fn from_async() {
     let mut rt = Runtime::new();
 
@@ -300,38 +409,6 @@ fn from_async_no_dependants() {
 }
 
 #[test]
-async fn from_future() {
-    let mut rt = Runtime::new();
-
-    let (sender, receiver) = oneshot_broadcast::<i32>();
-
-    let s = Signal::from_future(async move { receiver.recv().await });
-
-    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
-    rt.update();
-    assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
-    sender.send(20);
-    rt.update();
-    assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
-}
-
-#[test]
-async fn from_future_borrow2() {
-    let mut rt = Runtime::new();
-
-    let (_sender, receiver) = oneshot_broadcast::<i32>();
-
-    let s = Signal::from_future(async move { receiver.recv().await });
-
-    let mut sc = rt.sc();
-    let b0 = s.borrow(&mut sc);
-    let b1 = s.borrow(&mut sc);
-
-    assert_eq!(*b0, Poll::Pending);
-    assert_eq!(*b1, Poll::Pending);
-}
-
-#[test]
 fn get_async() {
     let mut rt = Runtime::new();
 
@@ -379,39 +456,6 @@ async fn to_stream() {
     rt.update();
     wait_for_idle().await;
     cr.verify("10");
-}
-
-#[test]
-async fn from_stream() {
-    let mut rt = Runtime::new();
-    let s0 = State::new(10);
-    let s1 = Signal::from_stream(s0.to_signal().to_stream());
-
-    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Pending);
-
-    s0.set(20, rt.ac());
-    wait_for_idle().await;
-    rt.update();
-    wait_for_idle().await;
-    rt.update();
-    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Ready(20));
-
-    s0.set(20, rt.ac());
-    wait_for_idle().await;
-    rt.update();
-    wait_for_idle().await;
-    rt.update();
-    assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Ready(20));
-}
-
-#[test]
-async fn from_stream_borrow2() {
-    let mut rt = Runtime::new();
-    let s = Signal::from_stream(State::new(10).to_signal().to_stream());
-
-    let sc = &mut rt.sc();
-    let _b0 = s.borrow(sc);
-    let _b1 = s.borrow(sc);
 }
 
 #[test]
