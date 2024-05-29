@@ -192,7 +192,6 @@ fn from_value() {
     let mut rt = Runtime::new();
 
     let s = Signal::from_value(5);
-
     assert_eq!(s.get(&mut rt.sc()), 5);
 }
 
@@ -214,6 +213,23 @@ fn from_owned() {
     let s = Signal::<str>::from_owned(owned);
 
     assert_eq!(s.get(&mut rt.sc()), "hello");
+}
+
+#[test]
+fn from_borrow() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let st = State::new(5);
+    let s = Signal::from_borrow(st.clone(), |st, sc, _| st.borrow(sc));
+
+    let _e = s.effect(|x| call!("{x}"));
+    rt.update();
+    cr.verify("5");
+
+    st.set(10, rt.ac());
+    rt.update();
+    cr.verify("10");
 }
 
 #[test]
