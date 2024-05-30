@@ -108,9 +108,9 @@ impl<S: ?Sized + ToSignal> Helper<'_, S> {
     pub fn signal_fmt(
         &self,
         b: impl SignalStringBuilder,
-        f: impl Fn(&mut String, &S::Value) -> fmt::Result + 'static,
+        f: impl Fn(&mut String, FmtRef<S::Value>) -> fmt::Result + 'static,
     ) -> impl SignalStringBuilder {
-        b.push_signal(self.0.to_signal(), move |s, v| f(s, v).unwrap())
+        b.push_signal(self.0.to_signal(), move |s, v| f(s, FmtRef(v)).unwrap())
     }
 }
 
@@ -119,7 +119,7 @@ pub trait HelperForNonSignal {
     fn signal_fmt(
         &self,
         b: impl SignalStringBuilder,
-        f: impl Fn(&mut String, &Self::Value) -> fmt::Result + 'static,
+        f: impl Fn(&mut String, FmtRef<Self::Value>) -> fmt::Result + 'static,
     ) -> impl SignalStringBuilder;
 }
 impl<T: ?Sized> HelperForNonSignal for Helper<'_, T> {
@@ -127,15 +127,111 @@ impl<T: ?Sized> HelperForNonSignal for Helper<'_, T> {
     fn signal_fmt(
         &self,
         b: impl SignalStringBuilder,
-        f: impl Fn(&mut String, &Self::Value) -> fmt::Result + 'static,
+        f: impl Fn(&mut String, FmtRef<Self::Value>) -> fmt::Result + 'static,
     ) -> impl SignalStringBuilder {
-        b.push_eager(|s| f(s, self.0).unwrap())
+        b.push_eager(|s| f(s, FmtRef(self.0)).unwrap())
+    }
+}
+
+pub struct FmtRef<'a, T: ?Sized>(&'a T);
+
+impl<'a, T: ?Sized + fmt::Display> fmt::Display for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Display::fmt(self.0, f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::Debug> fmt::Debug for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Debug::fmt(self.0, f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::Binary> fmt::Binary for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Binary::fmt(self.0, f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::Octal> fmt::Octal for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Octal::fmt(self.0, f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::LowerHex> fmt::LowerHex for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::LowerHex::fmt(self.0, f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::UpperHex> fmt::UpperHex for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::UpperHex::fmt(self.0, f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::Pointer> fmt::Pointer for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::Pointer::fmt(self.0, f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::LowerExp> fmt::LowerExp for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::LowerExp::fmt(self.0, f)
+    }
+}
+
+impl<'a, T: ?Sized + fmt::UpperExp> fmt::UpperExp for FmtRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::UpperExp::fmt(&self.0, f)
     }
 }
 
 pub struct DummyArg;
 
 impl fmt::Display for DummyArg {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+impl fmt::Debug for DummyArg {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+impl fmt::Binary for DummyArg {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+impl fmt::Octal for DummyArg {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+impl fmt::LowerHex for DummyArg {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+impl fmt::UpperHex for DummyArg {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+impl fmt::Pointer for DummyArg {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+impl fmt::LowerExp for DummyArg {
+    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unreachable!()
+    }
+}
+impl fmt::UpperExp for DummyArg {
     fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> fmt::Result {
         unreachable!()
     }

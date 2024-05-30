@@ -232,7 +232,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// Creates a new `Signal` whose references are transformed by the specified function.
     ///
     /// Using [`SignalBuilder::map`], you can create similar `Signal` more efficiently.
-    pub fn map<U>(&self, f: impl Fn(&T) -> &U + 'static) -> Signal<U> {
+    pub fn map<U: ?Sized>(&self, f: impl Fn(&T) -> &U + 'static) -> Signal<U> {
         Signal::from_borrow(self.clone(), move |this, sc, _| {
             StateRef::map(this.borrow(sc), &f, sc)
         })
