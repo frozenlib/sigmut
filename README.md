@@ -75,7 +75,7 @@ For more details, refer to functions and types with names that include `async`, 
 Some state management libraries use outdated caches during state calculations, which can lead to unexpected results. While these unexpected results are quickly recalculated and the unintended calculation outcomes are discarded, this can still cause issues, including potential panics.
 Therefore, the problem is not fully resolved simply because recalculation occurs.
 
-In `sigmut`, caches are managed by categorizing them into three types: "unchanged," "changed," and "unknown." By consistently and accurately checking the validity of these caches, `sigmut` avoids the issues associated with using outdated caches during state calculations.
+In `sigmut`, caches are managed by categorizing them into three types: "unchanged," "changed," and "maybe changed." By consistently and accurately checking the validity of these caches, `sigmut` avoids the issues associated with using outdated caches during state calculations.
 
 ### Capable of implementing more efficient reactive primitives
 
