@@ -4,188 +4,84 @@
 [![Docs.rs](https://docs.rs/sigmut/badge.svg)](https://docs.rs/sigmut/)
 [![Actions Status](https://github.com/frozenlib/sigmut/workflows/CI/badge.svg)](https://github.com/frozenlib/sigmut/actions)
 
-State management framework.
+`sigmut` is a state management framework designed to be used as a foundation for UI frameworks.
 
 > [!WARNING]
-> Warning: This library is still in the very early stages of development. APIs will change. Documentation is sparse.
+> Warning: This crate is still in the very early stages of development. APIs will change. Documentation is sparse.
 
-## Example
+## Features
 
-TODO
+- Signals-based API
+- Separation of "state changes" and "state calculations"
+- Easy-to-use single-threaded model
+- Support for asynchronous operations using `async`/`await`
+- Glitch-free (no unnecessary calculations based on outdated states)
+- Capable of implementing more efficient reactive primitives
 
-## Cheat sheet for [Rx] users
+### Signals-based API
 
-| Rx                   | sigmut                        |
-| -------------------- | ----------------------------- |
-| `Obsrevable<T>`      | `Signal<T>`                   |
-| `IObsrevable<T>`     | `Fn(&mut SignalContext) -> T` |
-| `IObserver<T>`       | `FnMut(&T)`                   |
-| `BehaviorSubject<T>` | `State<T>`                    |
+In `sigmut`, state management is conducted using the following reactive primitives:
 
-[rx]: https://reactivex.io/
+- `State<T>`: Similar to `Rc<RefCell<T>>`, but with added functionality to observe changes.
+- `Signal<T>`: Similar to `Rc<dyn Fn() -> &T>`, but with added functionality to observe changes in the result.
+- `Effect`: A function that is called again when there are changes to the dependent state.
 
-### `System.Reactive.Linq.Obsrevable` methods
+Dependencies between states are automatically tracked, and recalculations are automatically triggered when changes occur.
 
-| Rx                     | sigmut                       |
-| ---------------------- | ---------------------------- |
-| `Aggregate`            | `Obs::fold`                  |
-| `DistinctUntilChanged` | `Signal::dedup`              |
-| `Publish`              | `Obs::hot`                   |
-| `Return`               | `Signal::from_value`         |
-| `Select`               | `Signal::map`, `Signal::new` |
-| `SelectMany`           | `Signal::new`                |
-| `Scan`                 | `SignalBuilder::from_scan`   |
-| `Subscribe`            | `Signal::effect`             |
-| `Switch`               | `Signal::new`                |
+This mechanism is a recent trend and is also adopted by other state management libraries, such as the following:
 
-### `System.Reactive.Threading.Tasks.TaskObservableExtensions` methods
+- [SolidJS](https://www.solidjs.com/docs/latest/api#basic-reactivity)
+- [Preact Signals](https://preactjs.com/guide/v10/signals/)
+- [JavaScript Signals standard proposal](https://github.com/tc39/proposal-signals)
+- [Svelte runes](https://svelte-5-preview.vercel.app/docs/runes)
 
-| Rx             | sigmut                                     |
-| -------------- | ------------------------------------------ |
-| `ToTask`       | `to_stream`                                |
-| `ToObservable` | `Signal::from_async`,`Signal::from_stream` |
+### Separation of "state changes" and "state calculations"
 
-## Cheat sheet for [Flutter] users
+Many state management libraries simplify programs by separating state changes from state calculations.
 
-| Flutter           | sigmut         |
-| ----------------- | -------------- |
-| `ValueNotifier`   | `State`        |
-| `ValueListenable` | `Signal`       |
-| `ChangeNotifier`  | `SinkBindings` |
-| `Listenable`      | `BindSource`   |
+In [Elm](https://elm-lang.org/), the [Model-View-Update](https://guide.elm-lang.org/architecture/) architecture separates state changes (Update) from state calculations (View).
 
-[flutter]: https://flutter.dev/
+In [React](https://react.dev/), the rule to [`Components and Hooks must be pure`](https://react.dev/reference/rules#components-and-hooks-must-be-pure) prohibits state changes during state calculations. In React's [StrictMode](https://react.dev/reference/react/StrictMode#fixing-bugs-found-by-double-rendering-in-development), state calculations are called an extra time to ensure this rule is followed.
 
-## Cheat sheet for [Riverpod] users
+In [SolidJS](https://www.solidjs.com/), state changes made during state calculations are [deferred until the state calculation is complete](https://www.solidjs.com/docs/latest/api#createsignal).
 
-| Riverpod         | sigmut                                          |
-| ---------------- | ----------------------------------------------- |
-| `Provider`       | `Signal::new_dedup`                             |
-| `StateProvider`  | `State`                                         |
-| `FutureProvider` | `Signal::from_async`                            |
-| `StreamProvider` | `Signal::from_stream`, `Signal::from_stream_fn` |
-| `ref`            | `SignalContext`                                 |
+In `sigmut`, state changes and state calculations are separated using `SignalContext` and `ActionContext`.
 
-[riverpod]: https://riverpod.dev/
+- `ActionContext`: Used for state changes
+- `SignalContext`: Used for state calculations
 
-## Cheat sheet for [Preact Signals] users
+By requiring functions that perform state changes or state calculations to use the corresponding context, the distinction between state changes and state calculations is made clear, and the compiler can enforce this separation.
 
-| Preact Signals | sigmut         |
-| -------------- | -------------- |
-| `signal`       | `State::new`   |
-| `computed`     | `Singal::new`  |
-| `effect`       | `effect`       |
-| `batch`        | `spawn_action` |
+The "separation of state changes and state calculations" simplifies the program by treating state as immutable during state calculations, which is similar to Rust's ownership concept. Internally, `sigmut` uses `RefCell`, but this similarity helps avoid `BorrowError` during state calculations. If you are using many `Rc<RefCell<T>>`, switching to `sigmut` can result in a more robust program with fewer `BorrowError` occurrences.
 
-[preact signals]: https://preactjs.com/guide/v10/signals/
+### Easy-to-use single-threaded model
 
-## Cheet sheet for [SolidJS] users
+`sigmut` adopts a single-threaded model for the following reasons:
 
-| Preact Signals   | sigmut                   |
-| ---------------- | ------------------------ |
-| `creaetSignal`   | `State::new`             |
-| `createEffect`   | `effect`                 |
-| `createMemo`     | `Signal::new`            |
-| `createResource` | `Signal::from_async`     |
-| `batch`          | `spawn_action`           |
-| `untrack`        | `SignalContext::untrack` |
-| `Owner`          | `SignalContext`          |
-| `observable`     | `to_stream`              |
-| `from`           | `from_stream`            |
+- Simple and easy to handle
+- No risk of deadlocks
+- No need for synchronization, allowing for instant retrieval of the current value
+- Interoperability with `async/await`, enabling the benefits of multithreading
+- Capable of being glitch-free (no unnecessary calculations based on outdated states)
 
-[solidjs]: https://www.solidjs.com/docs/latest/api#basic-reactivity
+### Support for asynchronous operations using `async`/`await`
 
-## Cheat sheet for [Leptos] users
+`sigmut` integrates with `async/await`, allowing asynchronous operations to be treated as synchronous `Poll<T>` state. This enables interoperability with asynchronous runtimes like `tokio`.
 
-| Sycamore        | sigmut                   |
-| --------------- | ------------------------ |
-| `RwSignal`      | `State`                  |
-| `Signal`        | `Signal`                 |
-| `create_memo`   | `Signal::new_dedup`      |
-| `create_effect` | `effect`                 |
-| `batch`         | `spawn_action`           |
-| `untrack`       | `SignalContext::untrack` |
-| `Owner`         | `SignalContext`          |
+For more details, refer to functions and types with names that include `async`, `future`, or `stream`.
 
-[leptos]: https://leptos.dev/
+### Glitch-free (no unnecessary calculations based on outdated states)
 
-## Cheet sheet for [qwik] users
+Some state management libraries use outdated caches during state calculations, which can lead to unexpected results. While these unexpected results are quickly recalculated and the unintended calculation outcomes are discarded, this can still cause issues, including potential panics.
+Therefore, the problem is not fully resolved simply because recalculation occurs.
 
-| Preact Signals   | sigmut               |
-| ---------------- | -------------------- |
-| `useSignal`      | `State::new`         |
-| `useTask$()`     | `effect`             |
-| `useComputed$()` | `Signal::new`        |
-| `useResource$()` | `Signal::from_async` |
+In `sigmut`, caches are managed by categorizing them into three types: "unchanged," "changed," and "unknown." By consistently and accurately checking the validity of these caches, `sigmut` avoids the issues associated with using outdated caches during state calculations.
 
-[qwik]: https://qwik.builder.io/docs/components/state/
+### Capable of implementing more efficient reactive primitives
 
-## Cheat sheet for [Recoil] users
+`sigmut` includes a low-level module, `sigmut::core`, that handles only state change notifications. By using this module, you can implement more efficient reactive primitives under specific conditions.
 
-| Recoil Signals | sigmut        |
-| -------------- | ------------- |
-| `atom`         | `State::new`  |
-| `selector`     | `Signal::new` |
-
-[recoil]: https://recoiljs.org/
-
-## Cheat sheet for [Sycamore] users
-
-| Sycamore          | sigmut              |
-| ----------------- | ------------------- |
-| `Signal`          | `State`             |
-| `ReadSignal`      | `Signal`            |
-| `create_signal`   | `State::new`        |
-| `create_selector` | `Signal::new_dedup` |
-| `create_effect`   | `effect`            |
-| `create_memo`     | `Signal::new`       |
-
-[sycamore]: https://sycamore-rs.netlify.app/
-
-## Cheat sheet for [JavaScript Signals standard proposal] users
-
-| JavaScript Signals standard proposal | sigmut              |
-| ------------------------------------ | ------------------- |
-| `Signal`                             | `Signal`            |
-| `State`                              | `State`             |
-| `new Computed`                       | `Signal::new_dedup` |
-| `subtle`                             | `mod core`          |
-
-[JavaScript Signals standard proposal]: https://github.com/tc39/proposal-signals
-
-## Cheet sheet for [dioxus] users
-
-| dioxus       | sigmut        |
-| ------------ | ------------- |
-| `Signal`     | `State`       |
-| `Memo`       | `Singnal`     |
-| `use_signal` | `State::new`  |
-| `use_memo`   | `Signal::new` |
-| `use_effect` | `effect`      |
-
-[dioxus]: https://dioxuslabs.com/
-
-## Cheet sheet for [Svelte runes] users
-
-| Svelte runes   | sigmut         |
-| -------------- | -------------- |
-| `$state`       | `State::new`   |
-| `$derived`     | `Singnal::new` |
-| `$effect`      | `effect`       |
-| `$effect.root` | `Runtime::sc`  |
-
-[Svelte runes]: https://svelte-5-preview.vercel.app/docs/runes
-
-## Cheet sheet for [MobX] users
-
-| MobX         | sigmut         |
-| ------------ | -------------- |
-| `observable` | `State`        |
-| `action`     | `spawn_action` |
-| `reaction`   | `effect`       |
-| `computed`   | `Signal`       |
-
-[MobX]: https://mobx.js.org/api.html
+An implementation example of this is `sigmut::collections::SignalVec`. `SignalVec<T>` is similar to `Signal<Vec<T>>`, but it allows you to obtain the change history since the last access, enabling more efficient processing.
 
 ## License
 
