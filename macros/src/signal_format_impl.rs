@@ -255,10 +255,10 @@ impl VarKey {
     }
 }
 
-fn format_str_from_spec(spen: &str) -> String {
-    if spen.is_empty() {
+fn format_str_from_spec(spec: &str) -> String {
+    if spec.is_empty() {
         "{}".into()
     } else {
-        format!("{{:{spen}}}")
+        format!("{{:{spec}}}")
     }
 }
