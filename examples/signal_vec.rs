@@ -31,6 +31,6 @@ fn main() {
 
     rt.update(); // prints "0"
 
-    s.items_mut(rt.ac()).extend([1, 2]);
+    s.borrow_mut(rt.ac()).extend([1, 2]);
     rt.update(); // prints "3"
 }

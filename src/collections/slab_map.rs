@@ -327,7 +327,7 @@ impl<T: 'static> StateSlabMap<T> {
         self.0.bind(SLOT_ITEMS, sc);
         self.0.items(None)
     }
-    pub fn session(&self) -> SignalSlabMapReader<T> {
+    pub fn reader(&self) -> SignalSlabMapReader<T> {
         SignalSlabMapReader::new(self.0.clone())
     }
 }

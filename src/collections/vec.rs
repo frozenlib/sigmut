@@ -36,7 +36,7 @@ impl<T: 'static> SignalVec<T> {
         }
     }
 
-    pub fn items<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
+    pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
         match &self.0 {
             RawSignalVec::Rc(rc) => rc.items(rc.clone().into_any(), sc),
             RawSignalVec::Slice(slice) => Items::from_slice_items(slice),
@@ -559,7 +559,7 @@ impl<T> StateVec<T> {
         self.to_signal_vec().reader()
     }
 
-    pub fn items_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T> {
+    pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T> {
         let mut data = self.0.data.borrow_mut();
         let age = data.edit_start(&self.0.ref_count_ops);
         let data = ItemsMutData::Cell {
@@ -569,7 +569,7 @@ impl<T> StateVec<T> {
         };
         ItemsMut { data, age }
     }
-    pub fn items_mut_loose(&self, _ac: &mut ActionContext) -> ItemsMut<T> {
+    pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> ItemsMut<T> {
         let mut data = self.0.data.borrow_mut();
         let age = data.edit_start(&self.0.ref_count_ops);
         let data = ItemsMutData::Cell {
