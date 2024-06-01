@@ -370,6 +370,13 @@ impl<'a, T> IntoIterator for &'a ItemsMut<'_, T> {
         self.iter()
     }
 }
+impl<'a, T> Extend<T> for ItemsMut<'a, T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for value in iter {
+            self.push(value)
+        }
+    }
+}
 
 impl<T: Debug> Debug for ItemsMut<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

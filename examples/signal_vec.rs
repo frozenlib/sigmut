@@ -30,10 +30,7 @@ fn main() {
     .effect(|sum| println!("{sum}"));
 
     rt.update(); // prints "0"
-    {
-        let mut items = s.items_mut(rt.ac());
-        items.push(1);
-        items.push(2);
-    }
+
+    s.items_mut(rt.ac()).extend([1, 2]);
     rt.update(); // prints "3"
 }
