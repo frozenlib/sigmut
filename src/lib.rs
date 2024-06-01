@@ -10,6 +10,9 @@ mod stream;
 mod subscription;
 pub mod utils;
 
+#[cfg(doctest)]
+pub mod tests_readme;
+
 #[doc(inline)]
 pub use crate::core::{
     spawn_action, spawn_action_async, spawn_action_rc, ActionContext, AsyncActionContext,

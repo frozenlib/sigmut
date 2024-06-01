@@ -30,6 +30,30 @@ In `sigmut`, state management is conducted using the following reactive primitiv
 [`Signal<T>`]: https://docs.rs/sigmut/latest/sigmut/struct.Signal.html
 [`effect`]: https://docs.rs/sigmut/latest/sigmut/fn.effect.html
 
+```rust
+use sigmut::{Signal, State};
+
+let mut rt = sigmut::core::Runtime::new();
+
+let a = State::new(0);
+let b = State::new(1);
+let c = Signal::new({
+    let a = a.clone();
+    let b = b.clone();
+    move |sc| a.get(sc) + b.get(sc)
+});
+let _e = c.effect(|x| println!("{x}"));
+
+rt.update(); // prints "1"
+
+a.set(2, rt.ac());
+rt.update(); // prints "3"
+
+a.set(3, rt.ac());
+b.set(5, rt.ac());
+rt.update(); // prints "8"
+```
+
 Dependencies between states are automatically tracked, and recalculations are automatically triggered when changes occur.
 
 This mechanism is a recent trend and is also adopted by other state management libraries, such as the following:
