@@ -87,7 +87,7 @@ impl<T: ?Sized + 'static> RawSignal<T> {
     }
 }
 
-/// Shared references with dynamic lifetime, observable changes.
+/// Similar to `Rc<dyn Fn() -> &T>`, but with added functionality to observe changes in the result.
 ///
 /// Use the following methods to create an instance of `Signal`.
 ///

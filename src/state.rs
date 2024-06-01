@@ -18,11 +18,13 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
+/// Similar to `Rc<RefCell<T>>`, but with added functionality to observe changes.
 #[derive(Default)]
 #[derive_ex(Clone, bound())]
 pub struct State<T: 'static>(Rc<StateNode<T>>);
 
 impl<T: 'static> State<T> {
+    /// Create a new `State` with the given initial value.
     pub fn new(value: T) -> Self {
         Self(Rc::new(StateNode {
             sinks: RefCell::new(SinkBindings::new()),
@@ -30,10 +32,13 @@ impl<T: 'static> State<T> {
         }))
     }
 
+    /// Obtains a reference to the current value and adds a dependency on this `State` to the specified `SignalContext`.
     pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> StateRef<'a, T> {
         self.0.bind(sc);
         self.0.value.borrow().into()
     }
+
+    /// Gets the current value and adds a dependency on this `State` to the specified `SignalContext`.
     pub fn get(&self, sc: &mut SignalContext) -> T
     where
         T: Clone,
@@ -41,6 +46,12 @@ impl<T: 'static> State<T> {
         self.borrow(sc).clone()
     }
 
+    /// Mutably borrows the state.
+    ///
+    /// This method can only borrow one `State` at a time.
+    /// To borrow more than one State at a time, use [`borrow_mut_loose`](Self::borrow_mut_loose).
+    ///
+    /// When the deref_mut of the return value is called and the borrowing ends, notifications are sent to the dependencies.
     pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> StateRefMut<'a, T> {
         StateRefMut {
             value: self.0.value.borrow_mut(),
@@ -49,6 +60,11 @@ impl<T: 'static> State<T> {
             nc: Some(ac.nc()),
         }
     }
+
+    /// Mutably borrows the state, disregarding static lifetimes.
+    ///
+    /// This method can be used to borrow multiple states simultaneously.
+    /// Panic if you try to borrow or reference the same state while borrowing.
     pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> StateRefMut<T> {
         StateRefMut {
             value: self.0.value.borrow_mut(),
@@ -57,6 +73,13 @@ impl<T: 'static> State<T> {
             nc: None,
         }
     }
+
+    /// Mutably borrows the state and notify only if the value has changed.
+    ///
+    /// When borrowing ends and there has been a change in state, notifications are sent to the dependencies.
+    ///
+    /// This method can only borrow one `State` at a time.
+    /// To borrow more than one State at a time, use [`borrow_mut_dedup_loose`](Self::borrow_mut_dedup_loose).
     pub fn borrow_mut_dedup<'a>(&'a self, ac: &'a mut ActionContext) -> StateRefMutDedup<'a, T>
     where
         T: PartialEq + Clone,
@@ -71,6 +94,13 @@ impl<T: 'static> State<T> {
             nc: Some(ac.nc()),
         }
     }
+
+    /// Mutably borrows the state and notify only if the value has changed, disregarding static lifetimes.
+    ///
+    /// When borrowing ends and there has been a change in state, notifications are sent to the dependencies.
+    ///
+    /// This method can be used to borrow multiple states simultaneously.
+    /// Panic if you try to borrow or reference the same state while borrowing.
     pub fn borrow_mut_dedup_loose(&self, _ac: &mut ActionContext) -> StateRefMutDedup<T>
     where
         T: PartialEq + Clone,
@@ -86,10 +116,13 @@ impl<T: 'static> State<T> {
         }
     }
 
+    /// Sets the value of the state and notifies the dependencies.
     pub fn set(&self, value: T, ac: &mut ActionContext) {
         *self.0.value.borrow_mut() = value;
         self.0.notify_raw(ac.nc());
     }
+
+    /// Sets the value of the state and notifies the dependencies only if the current state is different from the specified value.
     pub fn set_dedup(&self, value: T, ac: &mut ActionContext)
     where
         T: PartialEq,
@@ -101,6 +134,7 @@ impl<T: 'static> State<T> {
         }
     }
 
+    /// Returns a `Signal` representing this state.
     pub fn to_signal(&self) -> Signal<T> {
         Signal::from_node(self.0.clone())
     }
