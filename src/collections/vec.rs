@@ -280,6 +280,12 @@ impl<'a, T: 'static> ItemsMut<'a, T> {
             index: (index0, index1),
         });
     }
+    pub fn swap_remove(&mut self, index: usize) {
+        assert!(index < self.len(), "index out of bounds");
+        let last = self.len() - 1;
+        self.swap(index, last);
+        self.remove(last);
+    }
     pub fn move_item(&mut self, old_index: usize, new_index: usize) {
         match old_index.cmp(&new_index) {
             Ordering::Less => self.data.items[old_index..=new_index].rotate_left(1),
