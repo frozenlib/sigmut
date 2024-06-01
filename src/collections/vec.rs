@@ -558,7 +558,9 @@ impl<T> StateVec<T> {
     pub fn reader(&self) -> SignalVecReader<T> {
         self.to_signal_vec().reader()
     }
-
+    pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
+        self.0.items(self.0.clone().into_any(), sc)
+    }
     pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T> {
         let mut data = self.0.data.borrow_mut();
         let age = data.edit_start(&self.0.ref_count_ops);
