@@ -8,6 +8,7 @@ use crate::{
     Subscription,
 };
 
+/// Call an asynchronous function each time a dependency changes.
 pub fn effect_async<Fut>(f: impl FnMut(AsyncSignalContext) -> Fut + 'static) -> Subscription
 where
     Fut: Future<Output = ()> + 'static,
@@ -15,6 +16,7 @@ where
     effect_async_with(f, TaskKind::default())
 }
 
+/// Call an asynchronous function each time a dependency changes with `TaskKind` specified.
 pub fn effect_async_with<Fut>(
     f: impl FnMut(AsyncSignalContext) -> Fut + 'static,
     kind: TaskKind,

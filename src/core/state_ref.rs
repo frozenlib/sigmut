@@ -15,6 +15,15 @@ use crate::{core::SignalContext, utils::into_owned};
 #[cfg(test)]
 mod tests;
 
+/// Abstracted reference.
+///
+/// Internally it has the following values and then you can get `&T`.
+///
+/// - `T`
+/// - `&T`
+/// - `RefCell<T>`
+/// - `(StateRef<U>, Fn(&U) -> &T)`
+/// - self-referential struct
 pub struct StateRef<'a, T: ?Sized>(Data<'a, T>);
 
 impl<'a, T: ?Sized> StateRef<'a, T> {

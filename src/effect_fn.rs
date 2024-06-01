@@ -8,9 +8,12 @@ use crate::{
     SignalContext, Subscription,
 };
 
+/// Call a function each time a dependency changes.
 pub fn effect(f: impl FnMut(&mut SignalContext) + 'static) -> Subscription {
     effect_with(f, TaskKind::default())
 }
+
+/// Call a function each time a dependency changes with `TaskKind` specified.
 pub fn effect_with(f: impl FnMut(&mut SignalContext) + 'static, kind: TaskKind) -> Subscription {
     let node = EffectNode::new(f, kind);
     node.schedule();

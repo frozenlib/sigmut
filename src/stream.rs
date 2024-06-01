@@ -11,6 +11,7 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
+/// Create a `Stream` from a signal function.
 pub fn stream_from<T: 'static>(
     f: impl FnMut(&mut SignalContext) -> T + 'static,
 ) -> impl Stream<Item = T> + Unpin + 'static {

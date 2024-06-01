@@ -157,6 +157,7 @@ impl Globals {
     }
 }
 
+/// Reactive runtime.
 #[derive_ex(Default)]
 #[default(Self::new())]
 pub struct Runtime {
@@ -204,6 +205,9 @@ impl Runtime {
         }
     }
 
+    /// Perform scheduled actions.
+    ///
+    /// Returns `true` if any action was performed.
     pub fn run_actions(&mut self) -> bool {
         let mut handled = false;
         let mut actions = take(&mut self.actions_buffer);
@@ -216,6 +220,12 @@ impl Runtime {
         self.actions_buffer = actions;
         handled
     }
+
+    /// Perform scheduled tasks.
+    ///
+    /// If `kind` is `None`, all tasks are executed.
+    ///
+    /// Returns `true` if any task was performed.
     pub fn run_tasks(&mut self, kind: Option<TaskKind>) -> bool {
         self.apply_notify();
         let mut tasks = take(&mut self.tasks_buffer);
@@ -253,6 +263,10 @@ impl Runtime {
         self.notifys_buffer = notifys;
         handled
     }
+
+    /// Perform scheduled discards.
+    ///
+    /// Returns `true` if any discard was performed.
     pub fn run_discards(&mut self) -> bool {
         let mut handled = false;
         loop {
@@ -269,6 +283,9 @@ impl Runtime {
         }
         handled
     }
+
+    /// Repeat until there are no more processes to do
+    /// [`run_actions`](Self::run_actions), [`run_tasks`](Self::run_tasks), or [`run_discards`](Self::run_discards).
     pub fn update(&mut self) {
         loop {
             if self.run_actions() {
@@ -284,6 +301,7 @@ impl Runtime {
         }
     }
 
+    /// Wait while there is no process to be executed by [`update`](Self::update).
     pub async fn wait_for_ready(&mut self) {
         poll_fn(|cx| Globals::with(|g| g.wait_for_ready(cx))).await
     }
@@ -928,6 +946,7 @@ impl AsyncActionContextSource {
     }
 }
 
+/// Context for asynchronous state change.
 pub struct AsyncActionContext(Rc<RefCell<*mut Runtime>>);
 
 impl AsyncActionContext {
@@ -999,6 +1018,7 @@ enum RawTask {
     },
 }
 
+/// kind of tasks performed by the reactive runtime.
 #[derive(Clone, Copy, Display, Debug, Ex)]
 #[derive_ex(PartialEq, Eq, Hash, Default)]
 #[display("{name}")]

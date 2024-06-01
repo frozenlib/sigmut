@@ -19,6 +19,7 @@ mod get;
 mod scan;
 mod stream_scan;
 
+/// A builder for creating a [`Signal`].
 pub struct SignalBuilder<B>(B);
 
 impl SignalBuilder<()> {

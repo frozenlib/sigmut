@@ -59,6 +59,7 @@ struct AsyncSignalContextData {
     sink: Weak<dyn BindSink>,
 }
 
+/// Context for asynchronous state retrieval and dependency tracking.
 pub struct AsyncSignalContext(Rc<AsyncSignalContextData>);
 
 impl AsyncSignalContext {

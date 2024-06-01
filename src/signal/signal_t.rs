@@ -271,6 +271,8 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// Normally, `Signal` discards the cache at the time [`Runtime::run_discards`](crate::core::Runtime::run_discards) is called if there are no subscribers.
     /// Signals created by this method do not discards the cache even if there are no subscribers.
+    ///
+    /// Using [SignalBuilder::keep], you can create similar Signal more efficiently.
     pub fn keep(&self) -> Signal<T> {
         keep::keep_node(self.clone())
     }

@@ -4,6 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
+/// Objects to continue to subscribe to while the instance is in existence.
 #[derive(Default)]
 #[must_use]
 pub struct Subscription(RawSubscription);
