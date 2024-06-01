@@ -272,6 +272,9 @@ impl<'a, T: 'static> ItemsMut<'a, T> {
         });
     }
     pub fn swap(&mut self, index0: usize, index1: usize) {
+        if index0 == index1 {
+            return;
+        }
         self.data.items.swap(index0, index1);
         self.data.changes.push(ChangeData::Swap {
             index: (index0, index1),
