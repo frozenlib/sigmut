@@ -22,9 +22,13 @@
 
 In `sigmut`, state management is conducted using the following reactive primitives:
 
-- `State<T>`: Similar to `Rc<RefCell<T>>`, but with added functionality to observe changes.
-- `Signal<T>`: Similar to `Rc<dyn Fn() -> &T>`, but with added functionality to observe changes in the result.
-- `Effect`: A function that is called again when there are changes to the dependent state.
+- [`State<T>`]: Similar to `Rc<RefCell<T>>`, but with added functionality to observe changes.
+- [`Signal<T>`]: Similar to `Rc<dyn Fn() -> &T>`, but with added functionality to observe changes in the result.
+- [`effect`]: A function that is called again when there are changes to the dependent state.
+
+[`State<T>`]: https://docs.rs/sigmut/latest/sigmut/struct.State.html
+[`Signal<T>`]: https://docs.rs/sigmut/latest/sigmut/struct.Signal.html
+[`effect`]: https://docs.rs/sigmut/latest/sigmut/fn.effect.html
 
 Dependencies between states are automatically tracked, and recalculations are automatically triggered when changes occur.
 
@@ -39,20 +43,35 @@ This mechanism is a recent trend and is also adopted by other state management l
 
 Many state management libraries simplify programs by separating state changes from state calculations.
 
-In [Elm](https://elm-lang.org/), the [Model-View-Update](https://guide.elm-lang.org/architecture/) architecture separates state changes (Update) from state calculations (View).
+In [Elm], the [Model-View-Update] architecture separates state changes (Update) from state calculations (View).
 
-In [React](https://react.dev/), the rule to [`Components and Hooks must be pure`](https://react.dev/reference/rules#components-and-hooks-must-be-pure) prohibits state changes during state calculations. In React's [StrictMode](https://react.dev/reference/react/StrictMode#fixing-bugs-found-by-double-rendering-in-development), state calculations are called an extra time to ensure this rule is followed.
+[Elm]: https://elm-lang.org/
+[Model-View-Update]: https://guide.elm-lang.org/architecture/
 
-In [SolidJS](https://www.solidjs.com/), state changes made during state calculations are [deferred until the state calculation is complete](https://www.solidjs.com/docs/latest/api#createsignal).
+In [React], the rule to [`Components and Hooks must be pure`] prohibits state changes during state calculations. In React's [StrictMode], state calculations are called an extra time to ensure this rule is followed.
 
-In `sigmut`, state changes and state calculations are separated using `SignalContext` and `ActionContext`.
+[React]: https://react.dev/
+[`Components and Hooks must be pure`]: https://react.dev/reference/rules#components-and-hooks-must-be-pure
+[StrictMode]: https://react.dev/reference/react/StrictMode#fixing-bugs-found-by-double-rendering-in-development
 
-- `ActionContext`: Used for state changes
-- `SignalContext`: Used for state calculations
+In [SolidJS], state changes made during state calculations are [deferred until the state calculation is complete](https://www.solidjs.com/docs/latest/api#createsignal).
+
+[SolidJS]: https://www.solidjs.com/
+
+In `sigmut`, state changes and state calculations are separated using [`SignalContext`] and [`ActionContext`].
+
+- [`ActionContext`]: Used for state changes
+- [`SignalContext`]: Used for state calculations
+
+[`ActionContext`]: https://docs.rs/sigmut/latest/sigmut/struct.ActionContext.html
+[`SignalContext`]: https://docs.rs/sigmut/latest/sigmut/struct.SignalContext.html
 
 By requiring functions that perform state changes or state calculations to use the corresponding context, the distinction between state changes and state calculations is made clear, and the compiler can enforce this separation.
 
-The "separation of state changes and state calculations" simplifies the program by treating state as immutable during state calculations, which is similar to Rust's ownership concept. Internally, `sigmut` uses `RefCell`, but this similarity helps avoid `BorrowError` during state calculations. If you are using many `Rc<RefCell<T>>`, switching to `sigmut` can result in a more robust program with fewer `BorrowError` occurrences.
+The "separation of state changes and state calculations" simplifies the program by treating state as immutable during state calculations, which is similar to Rust's ownership concept. Internally, `sigmut` uses [`RefCell`], but this similarity helps avoid [`BorrowError`] during state calculations. If you are using many `Rc<RefCell<T>>`, switching to `sigmut` can result in a more robust program with fewer [`BorrowError`] occurrences.
+
+[`RefCell`]: https://doc.rust-lang.org/std/cell/struct.RefCell.html
+[`BorrowError`]: https://doc.rust-lang.org/std/cell/struct.RefCell.html#method.borrow
 
 ### Easy-to-use single-threaded model
 
@@ -66,22 +85,33 @@ The "separation of state changes and state calculations" simplifies the program 
 
 ### Support for asynchronous operations using `async`/`await`
 
-`sigmut` integrates with `async/await`, allowing asynchronous operations to be treated as synchronous `Poll<T>` state. This enables interoperability with asynchronous runtimes like `tokio`.
+`sigmut` integrates with `async/await`, allowing asynchronous operations to be treated as synchronous [`Poll<T>`] state. This enables interoperability with asynchronous runtimes like [`tokio`].
 
-For more details, refer to functions and types with names that include `async`, `future`, or `stream`.
+[`Poll<T>`]: https://doc.rust-lang.org/std/task/enum.Poll.html
+[`tokio`]: https://tokio.rs/
+
+For more details, refer to functions and types with names that include [`async`], [`future`], or [`stream`].
+
+[`async`]: https://docs.rs/sigmut/latest/sigmut/struct.ActionContext.html?search=async
+[`future`]: https://docs.rs/sigmut/latest/sigmut/struct.ActionContext.html?search=future
+[`stream`]: https://docs.rs/sigmut/latest/sigmut/struct.ActionContext.html?search=stream
 
 ### Glitch-free (no unnecessary calculations based on outdated states)
 
 Some state management libraries use outdated caches during state calculations, which can lead to unexpected results. While these unexpected results are quickly recalculated and the unintended calculation outcomes are discarded, this can still cause issues, including potential panics.
 Therefore, the problem is not fully resolved simply because recalculation occurs.
 
-In `sigmut`, caches are managed by categorizing them into three types: "unchanged," "changed," and "maybe changed." By consistently and accurately checking the validity of these caches, `sigmut` avoids the issues associated with using outdated caches during state calculations.
+In `sigmut`, caches are managed by categorizing them into three types: `clean`, `dirty`, and `maybe dirty`. By consistently and accurately checking the validity of these caches, `sigmut` avoids the issues associated with using outdated caches during state calculations.
 
 ### Capable of implementing more efficient reactive primitives
 
-`sigmut` includes a low-level module, `sigmut::core`, that handles only state change notifications. By using this module, you can implement more efficient reactive primitives under specific conditions.
+`sigmut` includes a low-level module, [`sigmut::core`], that handles only state change notifications. By using this module, you can implement more efficient reactive primitives under specific conditions.
 
-An implementation example of this is `sigmut::collections::SignalVec`. `SignalVec<T>` is similar to `Signal<Vec<T>>`, but it allows you to obtain the change history since the last access, enabling more efficient processing.
+An implementation example of this is [`SignalVec<T>`]. [`SignalVec<T>`] is similar to [`Signal<Vec<T>>`], but it allows you to obtain the change history since the last access, enabling more efficient processing.
+
+[`sigmut::core`]: https://docs.rs/sigmut/latest/sigmut/core/index.html
+[`SignalVec<T>`]: https://docs.rs/sigmut/latest/sigmut/collections/vec/struct.SignalVec.html
+[`Signal<Vec<T>>`]: https://docs.rs/sigmut/latest/sigmut/struct.Signal.html
 
 ## License
 
