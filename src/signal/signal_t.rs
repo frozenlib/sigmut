@@ -20,6 +20,8 @@ use super::{builder::SignalBuilder, scan_async::build_scan_async};
 #[cfg(test)]
 mod tests;
 
+mod keep;
+
 pub trait SignalNode: 'static {
     type Value: ?Sized + 'static;
     fn borrow<'a, 's: 'a>(
@@ -263,6 +265,14 @@ impl<T: ?Sized + 'static> Signal<T> {
         })
         .map(|st| std::borrow::Borrow::borrow(st.as_ref().unwrap()))
         .build()
+    }
+
+    /// Create a `Signal` that keeps a cache even if the subscriber does not exist.
+    ///
+    /// Normally, `Signal` discards the cache at the time [`Runtime::run_discards`](crate::core::Runtime::run_discards) is called if there are no subscribers.
+    /// Signals created by this method do not discards the cache even if there are no subscribers.
+    pub fn keep(&self) -> Signal<T> {
+        keep::keep_node(self.clone())
     }
 
     /// Subscribe to the value of this signal.

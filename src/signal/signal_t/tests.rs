@@ -167,6 +167,24 @@ fn keep() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
+    let s = SignalBuilder::new(|_| ())
+        .on_discard(|_| call!("discard"))
+        .build()
+        .keep();
+    s.borrow(&mut rt.sc());
+    cr.verify(());
+    rt.update();
+    cr.verify(());
+    drop(s);
+    rt.update();
+    cr.verify("discard");
+}
+
+#[test]
+fn builder_keep() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
     let s = SignalBuilder::new(move |_| on_drop("drop")).keep().build();
     s.borrow(&mut rt.sc());
     cr.verify(());
