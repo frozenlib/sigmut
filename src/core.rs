@@ -642,6 +642,7 @@ pub fn schedule_notify(node: Weak<dyn BindSink>, slot: Slot) {
     let _ = Globals::try_with(|rg| rg.push_notify(node, slot));
 }
 
+/// Context for retrieving state and tracking dependencies.
 pub struct SignalContext<'s> {
     rt: &'s mut RawRuntime,
     bump: &'s Bump,
@@ -711,6 +712,7 @@ impl DiscardTask {
     }
 }
 
+/// Context for changing state.
 #[repr(transparent)]
 pub struct ActionContext(Runtime);
 
