@@ -625,6 +625,9 @@ impl<'s> UpdateContext<'s> {
         unsafe { transmute(sc) }
     }
 
+    /// Register a task to discard the cache.
+    ///
+    /// Registered tasks are called when [`Runtime::run_discards`] is called.
     pub fn schedule_discard(&mut self, discard: Rc<dyn Discard>, slot: Slot) {
         self.0.rt.discards.push(DiscardTask {
             node: discard,
@@ -632,13 +635,12 @@ impl<'s> UpdateContext<'s> {
         })
     }
 
-    pub fn sc_with<T>(&mut self, f: impl FnOnce(&mut SignalContext) -> T) -> T {
-        f(&mut SignalContext {
-            rt: self.0.rt,
-            bump: self.0.bump,
-            sink: None,
-        })
+    /// Call a function with a [`SignalContext`] that does not track dependencies.
+    pub fn sc_with<T>(&mut self, f: impl FnOnce(&mut SignalContext<'s>) -> T) -> T {
+        self.0.untrack(f)
     }
+
+    /// Borrow a [`RefCell`] that succeeds in borrowing if there are no cyclic dependencies.
     pub fn borrow<'a, T>(&self, cell: &'a RefCell<T>) -> Ref<'a, T> {
         match cell.try_borrow() {
             Ok(b) => b,
@@ -656,6 +658,9 @@ impl NotifyContext {
     }
 }
 
+/// Schedules state invalidation notifications.
+///
+/// If [`NotifyContext`] is available, this function should not be called and update notification should be done directly.
 pub fn schedule_notify(node: Weak<dyn BindSink>, slot: Slot) {
     let _ = Globals::try_with(|rg| rg.push_notify(node, slot));
 }
@@ -671,6 +676,8 @@ impl<'s> SignalContext<'s> {
     pub fn uc(&mut self) -> &mut UpdateContext<'s> {
         UpdateContext::new(self)
     }
+
+    /// Call a function with a [`SignalContext`] that does not track dependencies.
     pub fn untrack<T>(&mut self, f: impl FnOnce(&mut SignalContext<'s>) -> T) -> T {
         struct UntrackGuard<'s, 'a> {
             sc: &'a mut SignalContext<'s>,
