@@ -8,6 +8,9 @@ use crate::{
     Subscription,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Call an asynchronous function each time a dependency changes.
 pub fn effect_async<Fut>(f: impl FnMut(AsyncSignalContext) -> Fut + 'static) -> Subscription
 where

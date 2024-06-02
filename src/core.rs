@@ -65,7 +65,6 @@ impl Globals {
     }
     fn schedule_task(kind: TaskKind, task: Task) {
         Self::with(|g| {
-            g.assert_exists();
             g.tasks.push(kind, task);
             g.wake();
         })
@@ -102,6 +101,7 @@ impl Globals {
     }
 
     fn push_action(&mut self, action: Action) {
+        self.assert_exists();
         self.actions.push(action);
         self.wake();
     }
@@ -145,7 +145,6 @@ impl Globals {
 
     fn finish_runtime(&mut self) {
         self.is_runtime_exists = false;
-        take(&mut self.tasks);
     }
 
     fn wake(&mut self) {

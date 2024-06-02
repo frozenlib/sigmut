@@ -43,9 +43,3 @@ fn test_effect_with() {
     rt.run_tasks(Some(kind_1));
     cr.verify("10");
 }
-
-#[should_panic]
-#[test]
-fn panic_on_no_runtime() {
-    let _ = effect(|_| {});
-}

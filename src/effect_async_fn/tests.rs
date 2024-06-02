@@ -1,0 +1,95 @@
+use std::future::pending;
+
+use assert_call::{call, CallRecorder};
+
+use crate::{core::Runtime, effect_async, utils::test_helpers::call_on_drop, State};
+
+#[test]
+fn test_effect_async() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+    let s = State::new(10);
+
+    let e = effect_async({
+        let s = s.to_signal();
+        move |mut sc| {
+            let s = s.clone();
+            async move { call!("{}", sc.with(|sc| s.get(sc))) }
+        }
+    });
+    cr.verify(());
+
+    rt.update();
+    cr.verify("10");
+
+    rt.update();
+    cr.verify(()); // not called again because state did not change
+
+    s.set(20, rt.ac());
+    rt.update();
+    cr.verify("20"); // called again because state changed
+
+    s.set(30, rt.ac());
+    drop(e);
+    cr.verify(()); // not called again because effect was dropped
+}
+
+#[test]
+fn cancel_on_changed() {
+    let mut rt = Runtime::new();
+
+    let mut cr = CallRecorder::new();
+    let s = State::new(10);
+
+    let _e = effect_async({
+        let s = s.to_signal();
+        move |mut sc| {
+            let s = s.clone();
+            async move {
+                let value = sc.with(|sc| s.get(sc));
+                let _on_drop = call_on_drop(format!("drop_{value}"));
+                call!("{value}");
+                pending::<()>().await;
+            }
+        }
+    });
+    cr.verify(());
+
+    rt.update();
+    cr.verify("10");
+
+    rt.update();
+    cr.verify(()); // not called again because state did not change
+
+    s.set(20, rt.ac());
+    rt.update();
+    cr.verify(["drop_10", "20"]); // called again because state changed
+}
+
+#[test]
+fn cancel_on_drop() {
+    let mut rt = Runtime::new();
+
+    let mut cr = CallRecorder::new();
+    let s = State::new(10);
+
+    let e = effect_async({
+        let s = s.to_signal();
+        move |mut sc| {
+            let s = s.clone();
+            async move {
+                let value = sc.with(|sc| s.get(sc));
+                let _on_drop = call_on_drop(format!("drop_{value}"));
+                call!("{value}");
+                pending::<()>().await;
+            }
+        }
+    });
+    cr.verify(());
+
+    rt.update();
+    cr.verify("10");
+
+    drop(e);
+    cr.verify("drop_10");
+}
