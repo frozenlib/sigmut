@@ -283,7 +283,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// The function is called when [`Runtime::run_tasks`](crate::core::Runtime::run_tasks) is called with `None` or `Some(TaskKind::default())`.
     ///
-    /// When the `Subscription` returned by this function is dropped, the subscription is canceled.
+    /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
     pub fn effect(&self, mut f: impl FnMut(&T) + 'static) -> Subscription {
         let this = self.clone();
         effect(move |sc| f(&this.borrow(sc)))
@@ -295,7 +295,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// The function is called when [`Runtime::run_tasks`](crate::core::Runtime::run_tasks) is called with `None` or `Some(kind)`.
     ///
-    /// When the `Subscription` returned by this function is dropped, the subscription is canceled.
+    /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
     pub fn effect_with(&self, mut f: impl FnMut(&T) + 'static, kind: TaskKind) -> Subscription {
         let this = self.clone();
         effect_with(move |sc| f(&this.borrow(sc)), kind)

@@ -8,12 +8,25 @@ use crate::{
     SignalContext, Subscription,
 };
 
+#[cfg(test)]
+mod tests;
+
 /// Call a function each time a dependency changes.
+///
+/// The function is called when [`Runtime::run_tasks`](crate::core::Runtime::run_tasks) is called with `None` or `Some(TaskKind::default())`.
+/// However, if the dependency status has not changed since the previous call, it will not be called.
+///
+/// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
 pub fn effect(f: impl FnMut(&mut SignalContext) + 'static) -> Subscription {
     effect_with(f, TaskKind::default())
 }
 
-/// Call a function each time a dependency changes with `TaskKind` specified.
+/// Call a function each time a dependency changes with [`TaskKind`] specified.
+///
+/// The function is called when [`Runtime::run_tasks`](crate::core::Runtime::run_tasks) is called with `None` or `Some(kind)`.
+/// However, if the dependency status has not changed since the previous call, it will not be called.
+///
+/// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
 pub fn effect_with(f: impl FnMut(&mut SignalContext) + 'static, kind: TaskKind) -> Subscription {
     let node = EffectNode::new(f, kind);
     node.schedule();

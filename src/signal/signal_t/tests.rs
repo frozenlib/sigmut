@@ -1,19 +1,14 @@
-use std::{any::Any, cell::RefCell, rc::Rc, task::Poll};
+use std::{cell::RefCell, rc::Rc, task::Poll};
 
-use crate::{core::Runtime, effect, utils::sync::oneshot_broadcast, Signal, SignalBuilder, State};
+use crate::{
+    core::Runtime,
+    effect,
+    utils::{sync::oneshot_broadcast, test_helpers::call_on_drop},
+    Signal, SignalBuilder, State,
+};
 use assert_call::{call, CallRecorder};
 use futures::StreamExt;
 use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
-
-fn on_drop(s: &'static str) -> impl Any {
-    struct OnDrop(&'static str);
-    impl Drop for OnDrop {
-        fn drop(&mut self) {
-            call!("{}", self.0);
-        }
-    }
-    OnDrop(s)
-}
 
 #[test]
 fn new() {
@@ -126,7 +121,7 @@ fn new_discard() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
-    let s = Signal::new(move |_| on_drop("drop"));
+    let s = Signal::new(move |_| call_on_drop("drop"));
     s.borrow(&mut rt.sc());
     cr.verify(());
     rt.update();
@@ -185,7 +180,9 @@ fn builder_keep() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
-    let s = SignalBuilder::new(move |_| on_drop("drop")).keep().build();
+    let s = SignalBuilder::new(move |_| call_on_drop("drop"))
+        .keep()
+        .build();
     s.borrow(&mut rt.sc());
     cr.verify(());
     rt.update();
@@ -415,7 +412,7 @@ fn from_async_no_dependants() {
     let s = Signal::from_async(move |_| {
         let receiver = receiver.clone();
         async move {
-            let _x = on_drop("drop");
+            let _x = call_on_drop("drop");
             receiver.recv().await
         }
     });

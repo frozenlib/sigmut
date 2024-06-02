@@ -649,6 +649,7 @@ impl<'s> UpdateContext<'s> {
     }
 }
 
+/// Context for state invalidation notification
 #[repr(transparent)]
 pub struct NotifyContext(ActionContext);
 
@@ -1028,7 +1029,7 @@ enum RawTask {
 /// kind of tasks performed by the reactive runtime.
 #[derive(Clone, Copy, Display, Debug, Ex)]
 #[derive_ex(PartialEq, Eq, Hash, Default)]
-#[display("{name}")]
+#[display("{id}: {name}")]
 #[default(Self::new(0, "<default>"))]
 pub struct TaskKind {
     id: i8,

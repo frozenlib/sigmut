@@ -9,6 +9,9 @@ use std::{
 pub(crate) mod isize_map;
 pub mod sync;
 
+#[cfg(test)]
+pub mod test_helpers;
+
 #[derive(Default)]
 pub(crate) struct PhantomNotSend(PhantomData<*mut u8>);
 
