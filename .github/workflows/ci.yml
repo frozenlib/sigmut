@@ -27,8 +27,8 @@ jobs:
         run: cargo clippy --all-features --tests --lib -- -W clippy::all
         env:
           RUSTFLAGS: -D warnings
-      - name: Rustup toolchain install nightly
-        run: rustup toolchain install nightly --allow-downgrade --profile minimal
+      - run: rustup toolchain install nightly --allow-downgrade --profile minimal
+      - run: rustup component add --toolchain nightly-x86_64-unknown-linux-gnu miri
       - name: Run miri tests
         run: cargo +nightly miri test -- -Z unstable-options --exclude-should-panic
       - name: Set minimal versions
