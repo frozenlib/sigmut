@@ -19,14 +19,21 @@ mod tests;
 ///
 /// Internally it has the following values and then you can get `&T`.
 ///
-/// - `T`
-/// - `&T`
-/// - `RefCell<T>`
-/// - `(StateRef<U>, Fn(&U) -> &T)`
-/// - self-referential struct
-pub struct StateRef<'a, T: ?Sized>(Data<'a, T>);
+/// | Type                          | Created by                       |
+/// | ----------------------------- | -------------------------------- |
+/// | `T`                           | [`from_value`](Self::from_value) |
+/// | `&T`                          | [`From<&T>`]                     |
+/// | `RefCell<T>`                  | [`From<RefCell<T>>`]             |
+/// | `(StateRef<U>, Fn(&U) -> &T)` | [`map`](Self::map)               |
+/// | self-referential struct       | [`map_ref`](Self::map_ref)       |
+///
+/// To create a complex `StateRef`, use [`StateRefBuilder`](crate::core::StateRefBuilder).
+pub struct StateRef<'a, T: ?Sized + 'a>(Data<'a, T>);
 
 impl<'a, T: ?Sized> StateRef<'a, T> {
+    /// Create a `StateRef` from a value with `'static` lifetime.
+    ///
+    /// This method works more efficiently than [`from_value_non_static`](Self::from_value_non_static).
     pub fn from_value<'s: 'a>(value: T, sc: &SignalContext<'s>) -> Self
     where
         T: Sized + 'static,
@@ -37,6 +44,7 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
         })
     }
 
+    /// Create a `StateRef` from a value with non-`'static` lifetime.
     pub fn from_value_non_static<'s: 'a>(value: T, sc: &SignalContext<'s>) -> Self
     where
         T: Sized,
@@ -51,6 +59,11 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
         })
     }
 
+    /// Maps a `StateRef<T>` to a `StateRef<U>` using a function that returns a new `StateRef<U>`.
+    ///
+    /// If the `StateRef` returned by `f` references `T`, the resulting `StateRef` from `map_ref` will contain a self-reference.
+    ///
+    /// The third argument to `f` is unused but necessary to add the `'s0: 'a0` constraint.
     pub fn map_ref<'s: 'a, U: ?Sized>(
         this: Self,
         f: impl for<'a0, 's0> FnOnce(&'a0 T, &mut SignalContext<'s0>, &'a0 &'s0 ()) -> StateRef<'a0, U>,
@@ -76,6 +89,7 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
         }
     }
 
+    /// Maps a `StateRef<T>` to a `StateRef<U>` using a function that returns a reference `&U`.
     pub fn map<'s: 'a, U: ?Sized>(
         this: Self,
         f: impl FnOnce(&T) -> &U,
