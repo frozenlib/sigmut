@@ -188,15 +188,6 @@ trait DiscardFn<St> {
     fn call(&self, st: &mut St) -> bool;
 }
 
-struct DiscardFnNone;
-
-impl<St> DiscardFn<St> for DiscardFnNone {
-    type ScheduledCell = Cell<bool>;
-    fn call(&self, _: &mut St) -> bool {
-        false
-    }
-}
-
 struct DiscardFnKeep;
 
 impl<St> DiscardFn<St> for DiscardFnKeep {
