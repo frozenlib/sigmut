@@ -52,6 +52,10 @@
         "+nightly",
         "miri",
         "test",
+        "--",
+        "-Z",
+        "unstable-options",
+        "--exclude-should-panic",
       ],
       "problemMatcher": [
         "$rustc"
@@ -78,6 +82,30 @@
         "core",
         "--",
         "state_ref"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      },
+      // "options": {
+      //   "env": {
+      //     "MIRIFLAGS": "-Zmiri-backtrace=full",
+      //   }
+      // }
+    },
+    {
+      "type": "shell",
+      "label": "cargo miri test cyclic",
+      "command": "cargo",
+      "args": [
+        "+nightly",
+        "miri",
+        "test",
+        "--lib",
+        "ignal::signal_t::tests::cyclic",
       ],
       "problemMatcher": [
         "$rustc"
