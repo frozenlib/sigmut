@@ -438,7 +438,7 @@ dependencies = [
 
 [[package]]
 name = "sigmut"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "assert-call",
  "bumpalo",
@@ -456,7 +456,7 @@ dependencies = [
 
 [[package]]
 name = "sigmut-macros"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "proc-macro2",
  "quote",
