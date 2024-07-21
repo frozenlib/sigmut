@@ -253,6 +253,48 @@ fn nested() {
     c.verify([e_drop(30), e_drop(20), e_drop(10)]);
 }
 
+#[test]
+fn owned_borrow() {
+    let mut rt = Runtime::new();
+
+    struct X(i32);
+    impl X {
+        fn borrow<'a, 's: 'a>(&'a self, _sc: &mut SignalContext<'s>) -> StateRef<'a, i32> {
+            (&self.0).into()
+        }
+    }
+
+    let x = X(10);
+    let _r = StateRefBuilder::from_value(x, &mut rt.sc())
+        .map_ref(|x, sc, _| x.borrow(sc))
+        .build();
+}
+
+#[test]
+fn owned_borrow_2() {
+    let mut rt = Runtime::new();
+
+    struct X(Y);
+    impl X {
+        fn borrow<'a, 's: 'a>(&'a self, _sc: &mut SignalContext<'s>) -> StateRef<'a, Y> {
+            (&self.0).into()
+        }
+    }
+
+    struct Y(i32);
+    impl Y {
+        fn borrow<'a, 's: 'a>(&'a self, _sc: &mut SignalContext<'s>) -> StateRef<'a, i32> {
+            (&self.0).into()
+        }
+    }
+
+    let x = X(Y(10));
+    let _r = StateRefBuilder::from_value(x, &mut rt.sc())
+        .map_ref(|x, sc, _| x.borrow(sc))
+        .map_ref(|y, sc, _| y.borrow(sc))
+        .build();
+}
+
 trait StateRefFn {
     fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, sc: &mut SignalContext<'a>);
 }
