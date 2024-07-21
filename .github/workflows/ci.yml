@@ -11,10 +11,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Rustup update stable
-        run: rustup update stable
-      - name: Show cargo version
-        run: cargo --version
+      - run: rustup update stable
+      - run: cargo --version
       - name: Build
         run: cargo build --verbose
       - name: Build tests
@@ -28,7 +26,7 @@ jobs:
         env:
           RUSTFLAGS: -D warnings
       - run: rustup toolchain install nightly --allow-downgrade --profile minimal
-      - run: rustup component add --toolchain nightly-x86_64-unknown-linux-gnu miri
+      - run: rustup component add --toolchain nightly miri
       - name: Run miri tests
         run: cargo +nightly miri test -- -Z unstable-options --exclude-should-panic
       - name: Set minimal versions
