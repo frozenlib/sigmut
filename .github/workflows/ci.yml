@@ -29,6 +29,8 @@ jobs:
           RUSTFLAGS: -D warnings
       - name: Rustup toolchain install nightly
         run: rustup toolchain install nightly --allow-downgrade --profile minimal
+      - name: Run miri tests
+        run: cargo +nightly miri test -- -Z unstable-options --exclude-should-panic
       - name: Set minimal versions
         run: cargo +nightly update -Z direct-minimal-versions
       - name: Build tests (minimal versions)
