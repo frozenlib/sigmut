@@ -3,7 +3,7 @@ use std::cell::Ref;
 use crate::{SignalContext, StateRef};
 
 /// A builder for creating a [`StateRef`].
-pub struct StateRefBuilder<'a, 'b, 's, T: ?Sized> {
+pub struct StateRefBuilder<'a, 'b, 's: 'a, T: ?Sized + 'a> {
     r: StateRef<'a, T>,
     sc: &'b mut SignalContext<'s>,
 }
