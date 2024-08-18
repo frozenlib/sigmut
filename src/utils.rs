@@ -1,7 +1,6 @@
 use std::{
     any::Any,
     collections::VecDeque,
-    marker::PhantomData,
     mem::transmute,
     ops::{Bound, Range, RangeBounds},
 };
@@ -11,9 +10,6 @@ pub mod sync;
 
 #[cfg(test)]
 pub mod test_helpers;
-
-#[derive(Default)]
-pub(crate) struct PhantomNotSend(PhantomData<*mut u8>);
 
 pub(crate) fn downcast<T: 'static, S: 'static>(value: S) -> Result<T, S> {
     let mut value = Some(value);
