@@ -12,22 +12,26 @@ use crate::{
 mod tests;
 
 /// Call an asynchronous function each time a dependency changes.
-pub fn effect_async<Fut>(f: impl FnMut(AsyncSignalContext) -> Fut + 'static) -> Subscription
-where
-    Fut: Future<Output = ()> + 'static,
-{
+pub fn effect_async(f: impl async FnMut(&mut AsyncSignalContext) + 'static) -> Subscription {
     effect_async_with(f, TaskKind::default())
 }
 
 /// Call an asynchronous function each time a dependency changes with `TaskKind` specified.
-pub fn effect_async_with<Fut>(
-    f: impl FnMut(AsyncSignalContext) -> Fut + 'static,
+#[allow(clippy::await_holding_refcell_ref)]
+pub fn effect_async_with(
+    f: impl async FnMut(&mut AsyncSignalContext) + 'static,
     kind: TaskKind,
-) -> Subscription
-where
-    Fut: Future<Output = ()> + 'static,
-{
-    let this = EffectAsyncNode::new(f, kind);
+) -> Subscription {
+    let f = Rc::new(RefCell::new(f));
+    let this = EffectAsyncNode::new(
+        move |mut sc| {
+            let f = f.clone();
+            async move {
+                f.borrow_mut()(&mut sc).await;
+            }
+        },
+        kind,
+    );
     this.schedule();
     Subscription::from_rc(this)
 }

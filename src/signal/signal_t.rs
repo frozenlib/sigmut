@@ -191,14 +191,17 @@ impl<T: ?Sized + 'static> Signal<T> {
     }
 
     /// Create a `Signal` from an asynchronous function to get a value.
-    pub fn from_async<Fut>(f: impl Fn(AsyncSignalContext) -> Fut + 'static) -> Signal<Poll<T>>
+    pub fn from_async(f: impl async Fn(&mut AsyncSignalContext) -> T + 'static) -> Signal<Poll<T>>
     where
-        Fut: Future<Output = T> + 'static,
         T: Sized,
     {
+        let f = Rc::new(f);
         build_scan_async(
             Poll::Pending,
-            f,
+            move |mut sc| {
+                let f = f.clone();
+                async move { f(&mut sc).await }
+            },
             |st, poll| {
                 if st.is_pending() && poll.is_pending() {
                     false

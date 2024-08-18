@@ -12,10 +12,7 @@ fn test_effect_async() {
 
     let e = effect_async({
         let s = s.to_signal();
-        move |mut sc| {
-            let s = s.clone();
-            async move { call!("{}", sc.with(|sc| s.get(sc))) }
-        }
+        async move |sc| call!("{}", sc.with(|sc| s.get(sc)))
     });
     cr.verify(());
 
@@ -43,14 +40,11 @@ fn cancel_on_changed() {
 
     let _e = effect_async({
         let s = s.to_signal();
-        move |mut sc| {
-            let s = s.clone();
-            async move {
-                let value = sc.with(|sc| s.get(sc));
-                let _on_drop = call_on_drop(format!("drop_{value}"));
-                call!("{value}");
-                pending::<()>().await;
-            }
+        async move |sc| {
+            let value = sc.with(|sc| s.get(sc));
+            let _on_drop = call_on_drop(format!("drop_{value}"));
+            call!("{value}");
+            pending::<()>().await;
         }
     });
     cr.verify(());
@@ -75,14 +69,11 @@ fn cancel_on_drop() {
 
     let e = effect_async({
         let s = s.to_signal();
-        move |mut sc| {
-            let s = s.clone();
-            async move {
-                let value = sc.with(|sc| s.get(sc));
-                let _on_drop = call_on_drop(format!("drop_{value}"));
-                call!("{value}");
-                pending::<()>().await;
-            }
+        async move |sc| {
+            let value = sc.with(|sc| s.get(sc));
+            let _on_drop = call_on_drop(format!("drop_{value}"));
+            call!("{value}");
+            pending::<()>().await;
         }
     });
     cr.verify(());

@@ -759,11 +759,12 @@ pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
 }
 
 /// Spawns a new asynchronous action.
-pub fn spawn_action_async<Fut>(f: impl FnOnce(AsyncActionContext) -> Fut + 'static)
-where
-    Fut: Future<Output = ()> + 'static,
-{
-    spawn_action(|ac| AsyncAction::start(ac, f))
+pub fn spawn_action_async(f: impl async FnOnce(&mut AsyncActionContext) + 'static) {
+    spawn_action(|ac| {
+        AsyncAction::start(ac, |mut ac| async move {
+            f(&mut ac).await;
+        })
+    })
 }
 
 /// Spawns a new action without heap allocation.

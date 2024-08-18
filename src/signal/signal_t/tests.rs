@@ -362,10 +362,7 @@ async fn from_async() {
 
     let (sender, receiver) = oneshot_broadcast::<i32>();
 
-    let s = Signal::from_async(move |_| {
-        let receiver = receiver.clone();
-        async move { receiver.recv().await }
-    });
+    let s = Signal::from_async(async move |_| receiver.recv().await);
 
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
     rt.update();
@@ -382,10 +379,7 @@ fn from_async_effect() {
 
     let (sender, receiver) = oneshot_broadcast::<i32>();
 
-    let s = Signal::from_async(move |_| {
-        let receiver = receiver.clone();
-        async move { receiver.recv().await }
-    });
+    let s = Signal::from_async(async move |_| receiver.recv().await);
 
     let _e = effect({
         let s = s.clone();
@@ -409,12 +403,9 @@ fn from_async_no_dependants() {
 
     let (_sender, receiver) = oneshot_broadcast::<i32>();
 
-    let s = Signal::from_async(move |_| {
-        let receiver = receiver.clone();
-        async move {
-            let _x = call_on_drop("drop");
-            receiver.recv().await
-        }
+    let s = Signal::from_async(async move |_| {
+        let _x = call_on_drop("drop");
+        receiver.recv().await
     });
 
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
@@ -431,10 +422,7 @@ fn get_async() {
 
     let s = Signal::from_async({
         let s0 = s0.clone();
-        move |mut sc| {
-            let s0 = s0.clone();
-            async move { s0.to_signal().get_async(&mut sc).await }
-        }
+        async move |sc| s0.to_signal().get_async(sc).await
     });
 
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
