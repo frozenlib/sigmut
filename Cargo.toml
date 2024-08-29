@@ -21,14 +21,14 @@ sigmut-macros = { version = "0.0.2", path = "macros" }
 slabmap = "0.2.1"
 bumpalo = "3.16.0"
 derive-ex = "0.1.8"
-serde = "1.0.204"
+serde = "1.0.209"
 futures = "0.3.30"
 iter-n = "0.1.0"
-parse-display = "0.9.1"
+parse-display = "0.10.0"
 
 
 [dev-dependencies]
 assert-call = "0.1.1"
-rstest = "0.21.0"
+rstest = "0.22.0"
 rt-local = "0.1.4"
-trybuild = "1.0.97"
+trybuild = "1.0.99"
