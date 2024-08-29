@@ -5,7 +5,7 @@ use std::{
     cmp::{max, min},
     future::{poll_fn, Future},
     mem::{replace, swap, take, transmute},
-    ops::{BitOr, BitOrAssign},
+    ops::{AsyncFnOnce, BitOr, BitOrAssign},
     pin::Pin,
     ptr::null_mut,
     rc::{Rc, Weak},
@@ -759,7 +759,7 @@ pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
 }
 
 /// Spawns a new asynchronous action.
-pub fn spawn_action_async(f: impl async FnOnce(&mut AsyncActionContext) + 'static) {
+pub fn spawn_action_async(f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static) {
     spawn_action(|ac| {
         AsyncAction::start(ac, |mut ac| async move {
             f(&mut ac).await;

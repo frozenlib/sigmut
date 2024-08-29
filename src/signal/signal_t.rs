@@ -2,6 +2,7 @@ use std::{
     any::{type_name, Any},
     fmt::Debug,
     future::Future,
+    ops::AsyncFn,
     ptr,
     rc::Rc,
     task::Poll,
@@ -191,7 +192,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     }
 
     /// Create a `Signal` from an asynchronous function to get a value.
-    pub fn from_async(f: impl async Fn(&mut AsyncSignalContext) -> T + 'static) -> Signal<Poll<T>>
+    pub fn from_async(f: impl AsyncFn(&mut AsyncSignalContext) -> T + 'static) -> Signal<Poll<T>>
     where
         T: Sized,
     {

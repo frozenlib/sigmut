@@ -1,4 +1,4 @@
-use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
+use std::{cell::RefCell, future::Future, ops::AsyncFnMut, pin::Pin, rc::Rc};
 
 use crate::{
     core::{
@@ -12,14 +12,14 @@ use crate::{
 mod tests;
 
 /// Call an asynchronous function each time a dependency changes.
-pub fn effect_async(f: impl async FnMut(&mut AsyncSignalContext) + 'static) -> Subscription {
+pub fn effect_async(f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static) -> Subscription {
     effect_async_with(f, TaskKind::default())
 }
 
 /// Call an asynchronous function each time a dependency changes with `TaskKind` specified.
 #[allow(clippy::await_holding_refcell_ref)]
 pub fn effect_async_with(
-    f: impl async FnMut(&mut AsyncSignalContext) + 'static,
+    f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static,
     kind: TaskKind,
 ) -> Subscription {
     let f = Rc::new(RefCell::new(f));
