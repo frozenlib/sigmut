@@ -202,7 +202,7 @@ impl<'a, T: 'static> IntoIterator for &'a Items<'_, T> {
         self.iter()
     }
 }
-impl<'a, T: Debug + 'static> Debug for Items<'a, T> {
+impl<T: Debug + 'static> Debug for Items<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
     }
@@ -212,7 +212,7 @@ enum RawItems<'a, T: 'static> {
     Cell(Ref<'a, ItemsData<T>>),
     Slice(&'a [T]),
 }
-impl<'a, T: 'static> RawItems<'a, T> {
+impl<T: 'static> RawItems<'_, T> {
     fn get(&self, index: usize) -> Option<&T> {
         match self {
             RawItems::Cell(data) => data.get(index),
@@ -226,7 +226,7 @@ pub struct ItemsMut<'a, T: 'static> {
     age: usize,
 }
 
-impl<'a, T: 'static> ItemsMut<'a, T> {
+impl<T: 'static> ItemsMut<'_, T> {
     pub fn len(&self) -> usize {
         self.data.len()
     }
@@ -344,7 +344,7 @@ impl<'a, T: 'static> ItemsMut<'a, T> {
         self.data.is_dirty(self.age)
     }
 }
-impl<'a, T> Drop for ItemsMut<'a, T> {
+impl<T> Drop for ItemsMut<'_, T> {
     fn drop(&mut self) {
         if self.is_dirty() {
             if let ItemsMutData::Cell {
@@ -379,7 +379,7 @@ impl<'a, T> IntoIterator for &'a ItemsMut<'_, T> {
         self.iter()
     }
 }
-impl<'a, T> Extend<T> for ItemsMut<'a, T> {
+impl<T> Extend<T> for ItemsMut<'_, T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for value in iter {
             self.push(value)
@@ -401,7 +401,7 @@ enum ItemsMutData<'a, T: 'static> {
     },
     Direct(&'a mut ItemsData<T>),
 }
-impl<'a, T> Deref for ItemsMutData<'a, T> {
+impl<T> Deref for ItemsMutData<'_, T> {
     type Target = ItemsData<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -411,7 +411,7 @@ impl<'a, T> Deref for ItemsMutData<'a, T> {
         }
     }
 }
-impl<'a, T> DerefMut for ItemsMutData<'a, T> {
+impl<T> DerefMut for ItemsMutData<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             ItemsMutData::Cell { data, .. } => data,

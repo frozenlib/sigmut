@@ -173,7 +173,7 @@ impl<'a, T: ?Sized> From<Ref<'a, T>> for StateRef<'a, T> {
         })
     }
 }
-impl<'a, T: ?Sized + Debug> Debug for StateRef<'a, T> {
+impl<T: ?Sized + Debug> Debug for StateRef<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DynRefInBump")
             .field("value", &&**self)
@@ -214,7 +214,7 @@ impl<'a, T: ?Sized> Data<'a, T> {
         }
     }
 }
-impl<'a, T: ?Sized> Deref for Data<'a, T> {
+impl<T: ?Sized> Deref for Data<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -248,7 +248,7 @@ impl<'a, T: ?Sized> RawRef<'a, T> {
     }
 }
 
-impl<'a, T: ?Sized> std::ops::Deref for RawRef<'a, T> {
+impl<T: ?Sized> std::ops::Deref for RawRef<'_, T> {
     type Target = T;
     fn deref(&self) -> &T {
         match self {
@@ -430,7 +430,7 @@ impl<'a> AllocHandle<'a> {
 
 struct RawAllocHandle<'a>(NonNull<dyn DynAllocHandle + 'a>);
 
-impl<'a> Drop for RawAllocHandle<'a> {
+impl Drop for RawAllocHandle<'_> {
     fn drop(&mut self) {
         unsafe {
             drop_in_place(self.0.as_ptr());

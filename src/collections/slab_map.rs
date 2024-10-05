@@ -87,7 +87,7 @@ pub struct Items<'a, T> {
     age: Option<usize>,
 }
 
-impl<'a, T> Items<'a, T> {
+impl<T> Items<'_, T> {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -131,7 +131,7 @@ impl<'a, T> Items<'a, T> {
         }
     }
 }
-impl<'a, T> Index<usize> for Items<'a, T> {
+impl<T> Index<usize> for Items<'_, T> {
     type Output = T;
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("index out of bounds")

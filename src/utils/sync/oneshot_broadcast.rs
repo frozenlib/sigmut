@@ -68,7 +68,7 @@ impl<'a, T> WakerKeyGuard<'a, T> {
         }
     }
 }
-impl<'a, T> Drop for WakerKeyGuard<'a, T> {
+impl<T> Drop for WakerKeyGuard<'_, T> {
     fn drop(&mut self) {
         if let Some(key) = self.key {
             self.receiver.0.lock().unwrap().waker.remove(key);
