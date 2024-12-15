@@ -1,5 +1,3 @@
-#![feature(async_closure)]
-
 pub mod collections;
 pub mod core;
 mod effect_async_fn;
