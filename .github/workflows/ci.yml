@@ -28,7 +28,7 @@ jobs:
       - run: rustup toolchain install nightly --allow-downgrade --profile minimal
       - run: rustup component add --toolchain nightly miri
       - name: Run miri tests
-        run: cargo +nightly miri test -- -Z unstable-options --exclude-should-panic
+        run: cargo +nightly miri test --lib --bins --tests -- -Z unstable-options --exclude-should-panic
       - name: Set minimal versions
         run: cargo +nightly update -Z direct-minimal-versions
       - name: Build tests (minimal versions)
