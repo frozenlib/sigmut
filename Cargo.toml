@@ -19,17 +19,17 @@ description = "a state management framework designed to be used as a foundation 
 [dependencies]
 sigmut-macros = { version = "0.0.2", path = "macros" }
 slabmap = "0.2.1"
-bumpalo = "3.16.0"
+bumpalo = "3.18.1"
 derive-ex = "0.1.8"
-serde = "1.0.209"
-futures = "0.3.30"
+serde = "1.0.219"
+futures = "0.3.31"
 iter-n = "0.1.0"
 parse-display = "0.10.0"
 
 
 [dev-dependencies]
-assert-call = "0.1.1"
-rstest = "0.22.0"
+assert-call = "0.1.2"
+rstest = "0.25.0"
 rt-local = "0.1.4"
-trybuild = "1.0.99"
-serde_json = "1.0"
+trybuild = "1.0.105"
+serde_json = "1.0.140"
