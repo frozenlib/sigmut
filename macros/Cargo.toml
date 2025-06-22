@@ -15,7 +15,7 @@ description = "a state management framework designed to be used as a foundation 
 proc-macro = true
 
 [dependencies]
-syn = "2.0.76"
-quote = "1.0.37"
-proc-macro2 = "1.0.86"
-regex = "1.10.6"
+syn = "2.0.104"
+quote = "1.0.40"
+proc-macro2 = "1.0.95"
+regex = "1.11.1"
