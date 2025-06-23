@@ -701,10 +701,12 @@ impl<'s> SignalContext<'s> {
     }
 }
 
+/// A trait for types that can be notified of state changes.
 pub trait BindSink: 'static {
     fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext);
 }
 
+/// A trait for types that can hold a state and be monitored for changes.
 pub trait BindSource: 'static {
     fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool;
     fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext);
