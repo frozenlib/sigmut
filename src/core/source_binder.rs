@@ -39,10 +39,11 @@ impl SourceBinder {
         self.sources.clear(uc);
         self.dirty = Dirty::Dirty;
     }
+    /// Set the state to dirty and return true if the dependants need to be notified.
     pub fn on_notify(&mut self, slot: Slot, dirty: DirtyOrMaybeDirty) -> bool {
         let mut needs_notify = false;
         if slot == self.slot {
-            needs_notify = self.dirty.is_clean();
+            needs_notify = self.dirty.needs_notify();
             self.dirty |= dirty;
         }
         needs_notify

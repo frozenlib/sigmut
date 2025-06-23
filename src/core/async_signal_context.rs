@@ -183,7 +183,7 @@ impl AsyncSourceBinder {
                 self.is_wake = true;
             }
             SLOT_DEPS => {
-                needs_notify = self.dirty.is_clean();
+                needs_notify = self.dirty.needs_notify();
                 self.dirty |= dirty;
             }
             SLOT_POLL => {

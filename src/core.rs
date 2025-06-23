@@ -355,6 +355,15 @@ impl Dirty {
     pub fn is_clean(self) -> bool {
         self == Dirty::Clean
     }
+    /// Return true if the dependants need to be notified when the dirty state is changed from the current value to `Dirty` or `MaybeDirty`.
+    ///
+    /// Equivalent to [`is_clean`].
+    ///
+    /// When changing from `MaybeDirty` to `Dirty`,
+    /// notification is not necessary because the update is scheduled by the previous `MaybeDirty` notification.
+    pub fn needs_notify(self) -> bool {
+        self.is_clean()
+    }
 }
 
 impl BitOr for Dirty {
@@ -580,7 +589,7 @@ impl SinkBindings {
     pub fn notify(&mut self, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
         self.0.optimize();
         for binding in self.0.values_mut() {
-            if binding.dirty.is_clean() {
+            if binding.dirty.needs_notify() {
                 binding.notify(dirty, nc);
             }
             binding.dirty |= dirty;
