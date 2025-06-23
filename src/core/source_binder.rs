@@ -40,11 +40,11 @@ impl SourceBinder {
         self.dirty = Dirty::Dirty;
     }
     pub fn on_notify(&mut self, slot: Slot, dirty: DirtyOrMaybeDirty) -> bool {
-        let mut need_notify = false;
+        let mut needs_notify = false;
         if slot == self.slot {
-            need_notify = self.dirty.is_clean();
+            needs_notify = self.dirty.is_clean();
             self.dirty |= dirty;
         }
-        need_notify
+        needs_notify
     }
 }

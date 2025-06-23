@@ -176,14 +176,14 @@ impl AsyncSourceBinder {
     }
 
     pub fn on_notify(&mut self, slot: Slot, dirty: DirtyOrMaybeDirty) -> bool {
-        let mut need_notify = false;
+        let mut needs_notify = false;
         match slot {
             SLOT_WAKE => {
-                need_notify = !self.is_wake;
+                needs_notify = !self.is_wake;
                 self.is_wake = true;
             }
             SLOT_DEPS => {
-                need_notify = self.dirty.is_clean();
+                needs_notify = self.dirty.is_clean();
                 self.dirty |= dirty;
             }
             SLOT_POLL => {
@@ -193,6 +193,6 @@ impl AsyncSourceBinder {
             }
             _ => {}
         }
-        need_notify
+        needs_notify
     }
 }
