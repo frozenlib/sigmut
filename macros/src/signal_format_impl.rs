@@ -49,9 +49,9 @@ pub fn signal_format(input: TokenStream) -> Result<TokenStream> {
     let format_str = &input.format;
     Ok(quote! {
         {
-            fn _dummy_for_rust_anazlyer(#(#dummy_fn_args,)*) {
+            let _ = |#(#dummy_fn_args,)*| {
                 let _ = std::format!(#format_str #(,#dummy_args)*);
-            }
+            };
 
             #[allow(unused_imports)]
             use ::std::fmt::Write;
