@@ -352,6 +352,12 @@ impl Dirty {
             Dirty::Clean
         }
     }
+    pub fn is_dirty(self) -> bool {
+        self == Dirty::Dirty
+    }
+    pub fn is_maybe_dirty(self) -> bool {
+        self == Dirty::MaybeDirty
+    }
     pub fn is_clean(self) -> bool {
         self == Dirty::Clean
     }
@@ -402,6 +408,12 @@ impl DirtyOrMaybeDirty {
         } else {
             self
         }
+    }
+    pub fn is_dirty(self) -> bool {
+        self == DirtyOrMaybeDirty::Dirty
+    }
+    pub fn is_maybe_dirty(self) -> bool {
+        self == DirtyOrMaybeDirty::MaybeDirty
     }
 }
 
