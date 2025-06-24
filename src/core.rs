@@ -459,6 +459,9 @@ impl SourceBindings {
     pub fn new() -> Self {
         Self::default()
     }
+    /// Checks if any of the bound sources have been modified.
+    ///
+    /// Returns `true` if at least one source is dirty, `false` if all sources are clean.
     pub fn check(&self, uc: &mut UpdateContext) -> bool {
         for source in &self.0 {
             if source.check(uc) {
@@ -729,6 +732,9 @@ pub trait BindSink: 'static {
 
 /// A trait for types that can hold a state and be monitored for changes.
 pub trait BindSource: 'static {
+    /// Checks if this source has been modified since the last check.
+    ///
+    /// Returns `true` if the source is dirty (has changes), `false` if clean (no changes).
     fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool;
     fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext);
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext);
