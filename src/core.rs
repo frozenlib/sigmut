@@ -363,7 +363,7 @@ impl Dirty {
     }
     /// Return true if the dependants need to be notified when the dirty state is changed from the current value to `Dirty` or `MaybeDirty`.
     ///
-    /// Equivalent to [`is_clean`].
+    /// Equivalent to [`is_clean`](Self::is_clean).
     ///
     /// When changing from `MaybeDirty` to `Dirty`,
     /// notification is not necessary because the update is scheduled by the previous `MaybeDirty` notification.
