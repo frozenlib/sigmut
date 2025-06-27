@@ -448,6 +448,6 @@ fn _lifetime_covariant() {
 }
 
 fn bbox<T: ?Sized + Debug>(value: StateRef<T>) {
-    black_box(format!("{:?}", value));
+    black_box(format!("{value:?}"));
     black_box(&*value);
 }

@@ -476,10 +476,10 @@ fn cyclic() {
     s.get(&mut rt.sc());
 }
 
-#[test] 
+#[test]
 fn debug_signal() {
     let s = Signal::from_value(42);
-    let debug_str = format!("{:?}", s);
+    let debug_str = format!("{s:?}");
     assert!(debug_str.contains("42"));
 }
 
@@ -488,7 +488,7 @@ fn signal_ptr_eq() {
     let s1 = Signal::from_value(10);
     let s2 = s1.clone();
     let s3 = Signal::from_value(10);
-    
+
     assert!(Signal::ptr_eq(&s1, &s2));
     assert!(!Signal::ptr_eq(&s1, &s3));
 }

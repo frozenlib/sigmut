@@ -142,7 +142,7 @@ fn value_pointer() {
     let mut rt = Runtime::new();
     let p: *const i32 = &1;
     let s = signal_format!("{:p}", p);
-    assert_eq!(s.get(&mut rt.sc()), format!("{:p}", p));
+    assert_eq!(s.get(&mut rt.sc()), format!("{p:p}"));
 }
 
 #[test]

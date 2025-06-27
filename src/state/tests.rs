@@ -100,7 +100,7 @@ fn borrow_mut_loose() {
         *b2 = 40;
     }
     rt.update();
-    
+
     assert_eq!(s1.get(&mut rt.sc()), 30);
     assert_eq!(s2.get(&mut rt.sc()), 40);
 }
@@ -146,7 +146,7 @@ fn borrow_mut_dedup_loose() {
         *b2 = 40;
     }
     rt.update();
-    
+
     assert_eq!(s1.get(&mut rt.sc()), 30);
     assert_eq!(s2.get(&mut rt.sc()), 40);
 }
@@ -154,11 +154,11 @@ fn borrow_mut_dedup_loose() {
 #[test]
 fn debug_implementation() {
     let s = State::new(42);
-    let debug_str = format!("{:?}", s);
+    let debug_str = format!("{s:?}");
     assert_eq!(debug_str, "42");
-    
+
     let s = State::new("hello");
-    let debug_str = format!("{:?}", s);
+    let debug_str = format!("{s:?}");
     assert_eq!(debug_str, "\"hello\"");
 }
 
@@ -168,7 +168,7 @@ fn serialize_deserialize() {
     let s = State::new(42);
     let serialized = serde_json::to_string(&s).unwrap();
     assert_eq!(serialized, "42");
-    
+
     let deserialized: State<i32> = serde_json::from_str(&serialized).unwrap();
     let mut rt = Runtime::new();
     assert_eq!(deserialized.get(&mut rt.sc()), 42);
