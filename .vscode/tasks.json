@@ -220,7 +220,8 @@
     {
       "type": "shell",
       "label": "cargo fix & fmt",
-      "command": "cargo fix --all && cargo clippy --fix --allow-dirty --all && cargo fmt --all",
+      "command": "cargo fix --all-features --all-targets --allow-dirty && cargo clippy --fix --allow-dirty --all-features --all-targets && cargo fmt",
+      "args": [],
       "problemMatcher": [
         "$rustc"
       ],
