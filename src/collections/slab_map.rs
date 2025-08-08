@@ -51,9 +51,9 @@ impl<T: 'static> SignalSlabMap<T> {
 
 trait DynSignalSlabMap<T> {
     fn to_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<T>;
-    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<T>;
-    fn ref_counts(&self) -> RefMut<RefCountOps>;
+    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T>;
+    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T>;
+    fn ref_counts(&self) -> RefMut<'_, RefCountOps>;
 }
 
 pub struct SignalSlabMapReader<T> {
@@ -97,10 +97,10 @@ impl<T> Items<'_, T> {
     pub fn get(&self, key: usize) -> Option<&T> {
         self.items.get(key)
     }
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter(self.items.items.iter())
     }
-    pub fn changes(&self) -> impl Iterator<Item = SlabMapChange<T>> {
+    pub fn changes(&self) -> impl Iterator<Item = SlabMapChange<'_, T>> {
         use iter_n::iter2::*;
         if let Some(age) = self.age {
             self.items
@@ -344,10 +344,10 @@ impl<T: 'static> RawStateSlabMap<T> {
     fn bind(self: &Rc<Self>, slot: Slot, sc: &mut SignalContext) {
         self.sinks.borrow_mut().bind(self.clone(), slot, sc);
     }
-    fn item(&self, key: usize) -> Ref<T> {
+    fn item(&self, key: usize) -> Ref<'_, T> {
         Ref::map(self.items.borrow(), |r| r.get(key).expect("key not found"))
     }
-    fn items(&self, age: Option<usize>) -> Items<T> {
+    fn items(&self, age: Option<usize>) -> Items<'_, T> {
         let items = self.items.borrow();
         Items { items, age }
     }
@@ -358,17 +358,17 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
         self
     }
 
-    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<T> {
+    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
         Self::rc_this(this).bind(key_to_slot(key), sc);
         self.item(key)
     }
 
-    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<T> {
+    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T> {
         Self::rc_this(this).bind(SLOT_ITEMS, sc);
         self.items(age)
     }
 
-    fn ref_counts(&self) -> RefMut<RefCountOps> {
+    fn ref_counts(&self) -> RefMut<'_, RefCountOps> {
         self.ref_counts.borrow_mut()
     }
 }
@@ -509,21 +509,21 @@ where
         self
     }
 
-    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<T> {
+    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
         let this = Self::rc_this(this);
         this.update(sc.uc());
         self.sinks.borrow_mut().bind(this, key_to_slot(key), sc);
         Ref::map(self.data.borrow(), |data| &data.items[key])
     }
 
-    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<T> {
+    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T> {
         let this = Self::rc_this(this);
         this.update(sc.uc());
         self.sinks.borrow_mut().bind(this, SLOT_ITEMS, sc);
         let data = Ref::map(self.data.borrow(), |data| &data.items);
         Items { items: data, age }
     }
-    fn ref_counts(&self) -> RefMut<RefCountOps> {
+    fn ref_counts(&self) -> RefMut<'_, RefCountOps> {
         self.ref_counts.borrow_mut()
     }
 }

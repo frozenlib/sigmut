@@ -57,7 +57,7 @@ impl<T: 'static> SignalVecNode<T> for Vec<T> {
     fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
-    fn items(&self, _this: Rc<dyn Any>, _oc: &mut SignalContext) -> Items<T> {
+    fn items(&self, _this: Rc<dyn Any>, _oc: &mut SignalContext) -> Items<'_, T> {
         Items::from_slice_items(self)
     }
     fn read(
@@ -65,7 +65,7 @@ impl<T: 'static> SignalVecNode<T> for Vec<T> {
         _this: Rc<dyn Any>,
         age: &mut Option<usize>,
         _oc: &mut SignalContext,
-    ) -> Items<T> {
+    ) -> Items<'_, T> {
         Items::from_slice_read(self, age)
     }
 
@@ -80,8 +80,13 @@ impl<T> From<&'static [T]> for SignalVec<T> {
 
 trait SignalVecNode<T> {
     fn into_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<T>;
-    fn read(&self, this: Rc<dyn Any>, age: &mut Option<usize>, sc: &mut SignalContext) -> Items<T>;
+    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T>;
+    fn read(
+        &self,
+        this: Rc<dyn Any>,
+        age: &mut Option<usize>,
+        sc: &mut SignalContext,
+    ) -> Items<'_, T>;
     fn drop_reader(&self, age: usize);
 }
 
@@ -165,7 +170,7 @@ impl<'a, T: 'static> Items<'a, T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.items.get(index)
     }
-    pub fn changes(&self) -> impl Iterator<Item = VecChange<T>> + '_ {
+    pub fn changes(&self) -> impl Iterator<Item = VecChange<'_, T>> + '_ {
         use iter_n::iter3::*;
         if let Some(age) = self.age_since {
             match &self.items {
@@ -179,7 +184,7 @@ impl<'a, T: 'static> Items<'a, T> {
                 .into_iter2()
         }
     }
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter::new(match &self.items {
             RawItems::Cell(data) => IterSource::Cell(data),
             RawItems::Slice(slice) => IterSource::Slice(slice),
@@ -337,7 +342,7 @@ impl<T: 'static> ItemsMut<'_, T> {
         self.drain(..);
     }
 
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         Iter::new(IterSource::Cell(&self.data))
     }
     fn is_dirty(&self) -> bool {
@@ -571,7 +576,7 @@ impl<T> StateVec<T> {
         };
         ItemsMut { data, age }
     }
-    pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> ItemsMut<T> {
+    pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> ItemsMut<'_, T> {
         let mut data = self.0.data.borrow_mut();
         let age = data.edit_start(&self.0.ref_count_ops);
         let data = ItemsMutData::Cell {
@@ -670,12 +675,17 @@ impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
         self
     }
 
-    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<T> {
+    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
         Self::to_this(this).watch(sc);
         Items::from_data_items(self.data.borrow())
     }
 
-    fn read(&self, this: Rc<dyn Any>, age: &mut Option<usize>, sc: &mut SignalContext) -> Items<T> {
+    fn read(
+        &self,
+        this: Rc<dyn Any>,
+        age: &mut Option<usize>,
+        sc: &mut SignalContext,
+    ) -> Items<'_, T> {
         let this = Self::to_this(this);
         this.watch(sc);
         let data = self.data.borrow();
@@ -761,7 +771,7 @@ impl<T: 'static> ItemsData<T> {
     fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         Some(&mut self.values[*self.items.get(index)?])
     }
-    fn changes(&self, age: usize) -> impl Iterator<Item = VecChange<T>> + '_ {
+    fn changes(&self, age: usize) -> impl Iterator<Item = VecChange<'_, T>> + '_ {
         self.changes
             .items(age)
             .map(|x| x.to_signal_vec_change(&self.values))
@@ -783,7 +793,7 @@ impl<T: 'static> ItemsData<T> {
         IndexNewToOld::new(&new_to_old).apply_to(&mut self.items);
         self.changes.push(ChangeData::Sort { new_to_old });
     }
-    fn iter(&self) -> Iter<T> {
+    fn iter(&self) -> Iter<'_, T> {
         Iter::new(IterSource::Cell(self))
     }
 
@@ -856,13 +866,18 @@ where
         self
     }
 
-    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<T> {
+    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
         let this = Self::to_this(this);
         this.watch(sc);
         Items::from_data_items(Ref::map(self.data.borrow(), |data| &data.data))
     }
 
-    fn read(&self, this: Rc<dyn Any>, age: &mut Option<usize>, sc: &mut SignalContext) -> Items<T> {
+    fn read(
+        &self,
+        this: Rc<dyn Any>,
+        age: &mut Option<usize>,
+        sc: &mut SignalContext,
+    ) -> Items<'_, T> {
         let this = Self::to_this(this);
         this.watch(sc);
         Items::from_data_read(Ref::map(self.data.borrow(), |data| &data.data), age)

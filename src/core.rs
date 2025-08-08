@@ -188,15 +188,15 @@ impl Runtime {
     fn nc(&mut self) -> &mut NotifyContext {
         self.ac().nc()
     }
-    fn uc(&mut self) -> UpdateContext {
+    fn uc(&mut self) -> UpdateContext<'_> {
         UpdateContext(self.sc_raw())
     }
-    pub fn sc(&mut self) -> SignalContext {
+    pub fn sc(&mut self) -> SignalContext<'_> {
         self.apply_notify();
         let sc = self.sc_raw();
         sc
     }
-    fn sc_raw(&mut self) -> SignalContext {
+    fn sc_raw(&mut self) -> SignalContext<'_> {
         SignalContext {
             rt: &mut self.rt,
             bump: &self.bump,
@@ -777,7 +777,7 @@ impl ActionContext {
     pub fn nc(&mut self) -> &mut NotifyContext {
         NotifyContext::new(self)
     }
-    pub fn sc(&mut self) -> SignalContext {
+    pub fn sc(&mut self) -> SignalContext<'_> {
         self.0.sc()
     }
 }
@@ -945,7 +945,7 @@ impl RawWake {
             key,
         })
     }
-    fn requests(&self) -> MutexGuard<RawWakeRequests> {
+    fn requests(&self) -> MutexGuard<'_, RawWakeRequests> {
         self.requests.0.lock().unwrap()
     }
 }

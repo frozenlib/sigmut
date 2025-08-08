@@ -297,7 +297,7 @@ impl<T, const N: usize> Embedded<'_, T, N> {
     }
 }
 impl<T: ?Sized, const N: usize> Embedded<'_, T, N> {
-    pub unsafe fn into_boxed(mut self, b: &Bump) -> MaybeBox<T> {
+    pub unsafe fn into_boxed(mut self, b: &Bump) -> MaybeBox<'_, T> {
         self.methods.take().unwrap().buf_into_box(&mut self.buf, b)
     }
     pub unsafe fn into_owned(mut self) -> <T as ToOwned>::Owned

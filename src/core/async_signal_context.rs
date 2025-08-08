@@ -31,7 +31,7 @@ impl SignalContextPtr {
             sink: sc.sink.as_mut().map(|x| *x as *mut _),
         }
     }
-    unsafe fn sc(&self) -> SignalContext {
+    unsafe fn sc(&self) -> SignalContext<'_> {
         SignalContext {
             rt: &mut *self.rt,
             bump: &*self.bump,
@@ -39,7 +39,7 @@ impl SignalContextPtr {
         }
     }
 }
-unsafe fn sc(p: &mut Option<SignalContextPtr>) -> SignalContext {
+unsafe fn sc(p: &mut Option<SignalContextPtr>) -> SignalContext<'_> {
     if let Some(p) = p {
         unsafe { p.sc() }
     } else {

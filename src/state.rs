@@ -65,7 +65,7 @@ impl<T: 'static> State<T> {
     ///
     /// This method can be used to borrow multiple states simultaneously.
     /// Panic if you try to borrow or reference the same state while borrowing.
-    pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> StateRefMut<T> {
+    pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> StateRefMut<'_, T> {
         StateRefMut {
             value: self.0.value.borrow_mut(),
             is_dirty: false,
@@ -101,7 +101,7 @@ impl<T: 'static> State<T> {
     ///
     /// This method can be used to borrow multiple states simultaneously.
     /// Panic if you try to borrow or reference the same state while borrowing.
-    pub fn borrow_mut_dedup_loose(&self, _ac: &mut ActionContext) -> StateRefMutDedup<T>
+    pub fn borrow_mut_dedup_loose(&self, _ac: &mut ActionContext) -> StateRefMutDedup<'_, T>
     where
         T: PartialEq + Clone,
     {
