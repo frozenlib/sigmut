@@ -184,7 +184,7 @@ impl AsyncSourceBinder {
             }
             SLOT_DEPS => {
                 needs_notify = self.dirty.needs_notify();
-                self.dirty |= level;
+                self.dirty.apply_notify(level);
             }
             SLOT_POLL => {
                 if let Some(waker) = self.sc.0.s.borrow_mut().poll_waker.take() {

@@ -370,6 +370,10 @@ impl Dirty {
     pub fn needs_notify(self) -> bool {
         self.is_clean()
     }
+
+    pub fn apply_notify(&mut self, level: NotifyLevel) {
+        *self = max(*self, level.into());
+    }
 }
 
 impl BitOr for Dirty {
@@ -380,18 +384,6 @@ impl BitOr for Dirty {
 }
 impl BitOrAssign for Dirty {
     fn bitor_assign(&mut self, rhs: Self) {
-        *self = *self | rhs;
-    }
-}
-
-impl BitOr<NotifyLevel> for Dirty {
-    type Output = Self;
-    fn bitor(self, rhs: NotifyLevel) -> Self {
-        max(self, rhs.into())
-    }
-}
-impl BitOrAssign<NotifyLevel> for Dirty {
-    fn bitor_assign(&mut self, rhs: NotifyLevel) {
         *self = *self | rhs;
     }
 }
@@ -607,7 +599,7 @@ impl SinkBindings {
             if binding.dirty.needs_notify() {
                 binding.notify(level, nc);
             }
-            binding.dirty |= level;
+            binding.dirty.apply_notify(level);
         }
     }
     pub fn update(&mut self, is_dirty: bool, _uc: &mut UpdateContext) {

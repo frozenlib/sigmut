@@ -44,7 +44,7 @@ impl SourceBinder {
         let mut needs_notify = false;
         if slot == self.slot {
             needs_notify = self.dirty.needs_notify();
-            self.dirty |= level;
+            self.dirty.apply_notify(level);
         }
         needs_notify
     }
