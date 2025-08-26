@@ -1,5 +1,5 @@
 use crate::{
-    core::{BindSink, DirtyOrMaybeDirty, NotifyContext, Slot, SourceBinder, Task, UpdateContext},
+    core::{BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, Task, UpdateContext},
     SignalContext,
 };
 use futures::Stream;
@@ -81,9 +81,9 @@ where
     F: FnMut(&mut SignalContext) -> T + 'static,
     T: 'static,
 {
-    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, _nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, slot: Slot, notify_kind: NotifyLevel, _nc: &mut NotifyContext) {
         let mut d = self.0.borrow_mut();
-        if d.sb.on_notify(slot, dirty) {
+        if d.sb.on_notify(slot, notify_kind) {
             self.schedule(&mut d);
         }
     }

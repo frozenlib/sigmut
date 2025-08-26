@@ -5,8 +5,8 @@ use std::{
 
 use crate::{
     core::{
-        BindKey, BindSink, BindSource, DirtyOrMaybeDirty, Discard, NotifyContext, SinkBindings,
-        Slot, SourceBinder, UpdateContext,
+        BindKey, BindSink, BindSource, Discard, NotifyContext, NotifyLevel, SinkBindings, Slot,
+        SourceBinder, UpdateContext,
     },
     Signal, SignalContext, StateRef,
 };
@@ -192,11 +192,11 @@ where
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
-    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
-        if self.data.borrow_mut().sb.on_notify(slot, dirty) {
+    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, nc: &mut NotifyContext) {
+        if self.data.borrow_mut().sb.on_notify(slot, level) {
             self.sinks
                 .borrow_mut()
-                .notify(dirty.with_filter(Scan::FILTER), nc)
+                .notify(level.with_filter(Scan::FILTER), nc)
         }
     }
 }

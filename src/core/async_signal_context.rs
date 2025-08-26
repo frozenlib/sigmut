@@ -9,7 +9,7 @@ use std::{
 use bumpalo::Bump;
 
 use super::{
-    waker_from_sink, BindSink, Dirty, DirtyOrMaybeDirty, RawRuntime, SignalContext, Sink, Slot,
+    waker_from_sink, BindSink, Dirty, NotifyLevel, RawRuntime, SignalContext, Sink, Slot,
     SourceBindings, UpdateContext,
 };
 
@@ -175,7 +175,7 @@ impl AsyncSourceBinder {
         self.dirty = Dirty::Dirty;
     }
 
-    pub fn on_notify(&mut self, slot: Slot, dirty: DirtyOrMaybeDirty) -> bool {
+    pub fn on_notify(&mut self, slot: Slot, level: NotifyLevel) -> bool {
         let mut needs_notify = false;
         match slot {
             SLOT_WAKE => {
@@ -184,7 +184,7 @@ impl AsyncSourceBinder {
             }
             SLOT_DEPS => {
                 needs_notify = self.dirty.needs_notify();
-                self.dirty |= dirty;
+                self.dirty |= level;
             }
             SLOT_POLL => {
                 if let Some(waker) = self.sc.0.s.borrow_mut().poll_waker.take() {

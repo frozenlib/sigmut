@@ -384,44 +384,44 @@ impl BitOrAssign for Dirty {
     }
 }
 
-impl BitOr<DirtyOrMaybeDirty> for Dirty {
+impl BitOr<NotifyLevel> for Dirty {
     type Output = Self;
-    fn bitor(self, rhs: DirtyOrMaybeDirty) -> Self {
+    fn bitor(self, rhs: NotifyLevel) -> Self {
         max(self, rhs.into())
     }
 }
-impl BitOrAssign<DirtyOrMaybeDirty> for Dirty {
-    fn bitor_assign(&mut self, rhs: DirtyOrMaybeDirty) {
+impl BitOrAssign<NotifyLevel> for Dirty {
+    fn bitor_assign(&mut self, rhs: NotifyLevel) {
         *self = *self | rhs;
     }
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum DirtyOrMaybeDirty {
+pub enum NotifyLevel {
     Dirty,
     MaybeDirty,
 }
-impl DirtyOrMaybeDirty {
+impl NotifyLevel {
     pub fn with_filter(self, filter: bool) -> Self {
         if filter {
-            DirtyOrMaybeDirty::MaybeDirty
+            NotifyLevel::MaybeDirty
         } else {
             self
         }
     }
     pub fn is_dirty(self) -> bool {
-        self == DirtyOrMaybeDirty::Dirty
+        self == NotifyLevel::Dirty
     }
     pub fn is_maybe_dirty(self) -> bool {
-        self == DirtyOrMaybeDirty::MaybeDirty
+        self == NotifyLevel::MaybeDirty
     }
 }
 
-impl From<DirtyOrMaybeDirty> for Dirty {
-    fn from(value: DirtyOrMaybeDirty) -> Self {
+impl From<NotifyLevel> for Dirty {
+    fn from(value: NotifyLevel) -> Self {
         match value {
-            DirtyOrMaybeDirty::Dirty => Dirty::Dirty,
-            DirtyOrMaybeDirty::MaybeDirty => Dirty::MaybeDirty,
+            NotifyLevel::Dirty => Dirty::Dirty,
+            NotifyLevel::MaybeDirty => Dirty::MaybeDirty,
         }
     }
 }
@@ -526,9 +526,9 @@ struct SinkBinding {
 }
 
 impl SinkBinding {
-    fn notify(&self, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
+    fn notify(&self, level: NotifyLevel, nc: &mut NotifyContext) {
         if let Some(node) = self.sink.upgrade() {
-            node.notify(self.slot, dirty, nc)
+            node.notify(self.slot, level, nc)
         }
     }
 }
@@ -601,13 +601,13 @@ impl SinkBindings {
         self.0.remove(key.0);
     }
 
-    pub fn notify(&mut self, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
+    pub fn notify(&mut self, level: NotifyLevel, nc: &mut NotifyContext) {
         self.0.optimize();
         for binding in self.0.values_mut() {
             if binding.dirty.needs_notify() {
-                binding.notify(dirty, nc);
+                binding.notify(level, nc);
             }
-            binding.dirty |= dirty;
+            binding.dirty |= level;
         }
     }
     pub fn update(&mut self, is_dirty: bool, _uc: &mut UpdateContext) {
@@ -727,7 +727,7 @@ impl<'s> SignalContext<'s> {
 
 /// A trait for types that can be notified of state changes.
 pub trait BindSink: 'static {
-    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext);
+    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, nc: &mut NotifyContext);
 }
 
 /// A trait for types that can hold a state and be monitored for changes.
@@ -748,7 +748,7 @@ struct NotifyTask {
 impl NotifyTask {
     fn call_notify(&self, nc: &mut NotifyContext) {
         if let Some(sink) = self.sink.upgrade() {
-            sink.notify(self.slot, DirtyOrMaybeDirty::Dirty, nc)
+            sink.notify(self.slot, NotifyLevel::Dirty, nc)
         }
     }
 }

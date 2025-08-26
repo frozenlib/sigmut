@@ -1,7 +1,7 @@
 use std::{cell::RefCell, fmt, rc::Rc};
 
 use crate::{
-    core::{BindSink, DirtyOrMaybeDirty, NotifyContext, Slot, SourceBinder, UpdateContext},
+    core::{BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, UpdateContext},
     Signal, SignalContext, StateRef,
 };
 
@@ -56,7 +56,7 @@ impl<T: ?Sized + 'static> SignalNode for KeepNode<T> {
 }
 
 impl<T: ?Sized + 'static> BindSink for KeepNode<T> {
-    fn notify(self: Rc<Self>, slot: Slot, dirty: DirtyOrMaybeDirty, _nc: &mut NotifyContext) {
-        self.binder.borrow_mut().on_notify(slot, dirty);
+    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, _nc: &mut NotifyContext) {
+        self.binder.borrow_mut().on_notify(slot, level);
     }
 }

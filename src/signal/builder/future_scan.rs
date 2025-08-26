@@ -9,8 +9,8 @@ use futures::Future;
 
 use crate::{
     core::{
-        waker_from_sink, BindKey, BindSink, BindSource, DirtyOrMaybeDirty, NotifyContext,
-        SinkBindings, Slot, UpdateContext,
+        waker_from_sink, BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings,
+        Slot, UpdateContext,
     },
     Signal, SignalContext, StateRef,
 };
@@ -208,7 +208,7 @@ where
     Scan: ScanFn<St, I> + 'static,
     Map: MapFn<St> + 'static,
 {
-    fn notify(self: Rc<Self>, _slot: Slot, dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, _slot: Slot, level: NotifyLevel, nc: &mut NotifyContext) {
         let mut d = self.data.borrow_mut();
         let Some(t) = d.task.as_mut() else {
             return;
@@ -219,7 +219,7 @@ where
         t.is_wake = true;
         self.sinks
             .borrow_mut()
-            .notify(dirty.with_filter(Scan::FILTER), nc)
+            .notify(level.with_filter(Scan::FILTER), nc)
     }
 }
 impl<St, I, Scan, Map> BindSource for FutureScanNode<St, I, Scan, Map>

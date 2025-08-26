@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
-        schedule_notify, BindKey, BindSink, BindSource, DirtyOrMaybeDirty, NotifyContext,
-        SinkBindings, Slot, UpdateContext,
+        schedule_notify, BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings,
+        Slot, UpdateContext,
     },
     signal::{SignalNode, ToSignal},
     ActionContext, Signal, SignalContext, StateRef,
@@ -189,7 +189,7 @@ impl<T: 'static> StateNode<T> {
         self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
     }
     fn notify_raw(&self, nc: &mut NotifyContext) {
-        self.sinks.borrow_mut().notify(DirtyOrMaybeDirty::Dirty, nc)
+        self.sinks.borrow_mut().notify(NotifyLevel::Dirty, nc)
     }
     fn schedule_notify(self: &Rc<Self>, nc: &mut Option<&mut NotifyContext>) {
         if let Some(nc) = nc {
@@ -215,7 +215,7 @@ impl<T: 'static> BindSource for StateNode<T> {
     }
 }
 impl<T: 'static> BindSink for StateNode<T> {
-    fn notify(self: Rc<Self>, _slot: Slot, _dirty: DirtyOrMaybeDirty, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, _slot: Slot, _notify_kind: NotifyLevel, nc: &mut NotifyContext) {
         self.notify_raw(nc);
     }
 }
