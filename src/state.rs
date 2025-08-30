@@ -53,25 +53,15 @@ impl<T: 'static> State<T> {
     ///
     /// When the deref_mut of the return value is called and the borrowing ends, notifications are sent to the dependencies.
     pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> StateRefMut<'a, T> {
-        StateRefMut {
-            value: self.0.value.borrow_mut(),
-            is_dirty: false,
-            node: &self.0,
-            nc: Some(ac.nc()),
-        }
+        StateRefMut::new(self, Some(ac.nc()))
     }
 
     /// Mutably borrows the state, disregarding static lifetimes.
     ///
     /// This method can be used to borrow multiple states simultaneously.
     /// Panic if you try to borrow or reference the same state while borrowing.
-    pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> StateRefMut<'_, T> {
-        StateRefMut {
-            value: self.0.value.borrow_mut(),
-            is_dirty: false,
-            node: &self.0,
-            nc: None,
-        }
+    pub fn borrow_mut_loose(&self, #[allow(unused)] ac: &ActionContext) -> StateRefMut<'_, T> {
+        StateRefMut::new(self, None)
     }
 
     /// Mutably borrows the state and notify only if the value has changed.
@@ -80,19 +70,11 @@ impl<T: 'static> State<T> {
     ///
     /// This method can only borrow one `State` at a time.
     /// To borrow more than one State at a time, use [`borrow_mut_dedup_loose`](Self::borrow_mut_dedup_loose).
-    pub fn borrow_mut_dedup<'a>(&'a self, ac: &'a mut ActionContext) -> StateRefMutDedup<'a, T>
+    pub fn borrow_mut_dedup<'a>(&'a self, ac: &'a mut ActionContext) -> StateRefMut<'a, T>
     where
         T: PartialEq + Clone,
     {
-        let value = self.0.value.borrow_mut();
-        let old = value.clone();
-        StateRefMutDedup {
-            value,
-            is_dirty: false,
-            node: &self.0,
-            old,
-            nc: Some(ac.nc()),
-        }
+        StateRefMut::dedup(self.borrow_mut(ac))
     }
 
     /// Mutably borrows the state and notify only if the value has changed, disregarding static lifetimes.
@@ -101,19 +83,11 @@ impl<T: 'static> State<T> {
     ///
     /// This method can be used to borrow multiple states simultaneously.
     /// Panic if you try to borrow or reference the same state while borrowing.
-    pub fn borrow_mut_dedup_loose(&self, _ac: &mut ActionContext) -> StateRefMutDedup<'_, T>
+    pub fn borrow_mut_dedup_loose(&self, ac: &ActionContext) -> StateRefMut<'_, T>
     where
         T: PartialEq + Clone,
     {
-        let value = self.0.value.borrow_mut();
-        let old = value.clone();
-        StateRefMutDedup {
-            value,
-            is_dirty: false,
-            node: &self.0,
-            old,
-            nc: None,
-        }
+        StateRefMut::dedup(self.borrow_mut_loose(ac))
     }
 
     /// Sets the value of the state and notifies the dependencies.
@@ -242,11 +216,77 @@ impl<T: 'static> SignalNode for StateNode<T> {
     }
 }
 
+enum StateRefMutDirty<T> {
+    Unused,
+    DedupUnused {
+        clone: fn(&T) -> T,
+        ne: fn(&T, &T) -> bool,
+    },
+    DedupUsed {
+        old: T,
+        ne: fn(&T, &T) -> bool,
+    },
+    Dirty,
+}
+impl<T> StateRefMutDirty<T> {
+    fn set_dedup(&mut self)
+    where
+        T: Clone + PartialEq,
+    {
+        if matches!(self, StateRefMutDirty::Unused) {
+            *self = Self::DedupUnused {
+                clone: T::clone,
+                ne: T::ne,
+            };
+        }
+    }
+    fn set_used(&mut self, value: &T) {
+        match *self {
+            StateRefMutDirty::Unused => *self = StateRefMutDirty::Dirty,
+            StateRefMutDirty::DedupUnused { clone, ne, .. } => {
+                *self = StateRefMutDirty::DedupUsed {
+                    old: clone(value),
+                    ne,
+                }
+            }
+            StateRefMutDirty::DedupUsed { .. } | StateRefMutDirty::Dirty => {}
+        }
+    }
+    fn check_dirty(&self, value: &T) -> bool {
+        match self {
+            StateRefMutDirty::Unused | StateRefMutDirty::DedupUnused { .. } => false,
+            StateRefMutDirty::DedupUsed { ne, old } => (ne)(old, value),
+            StateRefMutDirty::Dirty => true,
+        }
+    }
+}
+
 pub struct StateRefMut<'a, T: 'static> {
     value: RefMut<'a, T>,
-    is_dirty: bool,
+    dirty: StateRefMutDirty<T>,
     node: &'a Rc<StateNode<T>>,
     nc: Option<&'a mut NotifyContext>,
+}
+impl<'a, T: 'static> StateRefMut<'a, T> {
+    fn new(st: &'a State<T>, nc: Option<&'a mut NotifyContext>) -> Self {
+        Self {
+            value: st.0.value.borrow_mut(),
+            dirty: StateRefMutDirty::Unused,
+            node: &st.0,
+            nc,
+        }
+    }
+    pub fn dedup(mut this: Self) -> Self
+    where
+        T: PartialEq + Clone,
+    {
+        this.dirty.set_dedup();
+        this
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.dirty.check_dirty(&self.value)
+    }
 }
 impl<T> std::ops::Deref for StateRefMut<'_, T> {
     type Target = T;
@@ -256,40 +296,13 @@ impl<T> std::ops::Deref for StateRefMut<'_, T> {
 }
 impl<T> std::ops::DerefMut for StateRefMut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.is_dirty = true;
+        self.dirty.set_used(&self.value);
         &mut self.value
     }
 }
 impl<T> Drop for StateRefMut<'_, T> {
     fn drop(&mut self) {
-        if self.is_dirty {
-            self.node.schedule_notify(&mut self.nc);
-        }
-    }
-}
-
-pub struct StateRefMutDedup<'a, T: PartialEq + 'static> {
-    value: RefMut<'a, T>,
-    is_dirty: bool,
-    node: &'a Rc<StateNode<T>>,
-    old: T,
-    nc: Option<&'a mut NotifyContext>,
-}
-impl<T: PartialEq> std::ops::Deref for StateRefMutDedup<'_, T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.value
-    }
-}
-impl<T: PartialEq> std::ops::DerefMut for StateRefMutDedup<'_, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.is_dirty = true;
-        &mut self.value
-    }
-}
-impl<T: PartialEq> Drop for StateRefMutDedup<'_, T> {
-    fn drop(&mut self) {
-        if self.is_dirty && self.old != *self.value {
+        if self.is_dirty() {
             self.node.schedule_notify(&mut self.nc);
         }
     }
