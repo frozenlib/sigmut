@@ -270,7 +270,8 @@ impl<T, const N: usize> Embedded<'_, T, N> {
     const fn is_supported() -> bool {
         let layout_elem = Layout::new::<BufElement>();
         let layout_t = Layout::new::<MaybeUninit<T>>();
-        layout_t.size() <= layout_elem.size() * N && layout_elem.size() % layout_t.align() == 0
+        layout_t.size() <= layout_elem.size() * N
+            && layout_elem.size().is_multiple_of(layout_t.align())
     }
     pub fn new(value: T) -> Result<Self, T> {
         if !Self::is_supported() {
