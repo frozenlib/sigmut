@@ -5,8 +5,9 @@ error[E0277]: `T` doesn't implement `std::fmt::Display`
   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^ `T` cannot be formatted with the default formatter
   |
   = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+  = note: required for `FmtRef<'_, T>` to implement `std::fmt::Display`
   = note: this error originates in the macro `$crate::format_args` which comes from the expansion of the macro `signal_format` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: consider restricting type parameter `T`
+help: consider restricting type parameter `T` with trait `Display`
   |
 4 |     fn f<T: std::fmt::Display>(value: T) {
   |           +++++++++++++++++++
