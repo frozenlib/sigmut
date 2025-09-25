@@ -12,6 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup update stable
+      - run: rustup component add clippy
       - run: cargo --version
       - name: Build
         run: cargo build --verbose
