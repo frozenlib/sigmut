@@ -54,12 +54,12 @@ impl<T> From<Rc<Vec<T>>> for SignalVec<T> {
     }
 }
 impl<T: 'static> SignalVecNode<T> for Vec<T> {
-    fn items(&self, _this: Rc<dyn Any>, _oc: &mut SignalContext) -> Items<'_, T> {
+    fn items(&self, _rc_self: Rc<dyn Any>, _oc: &mut SignalContext) -> Items<'_, T> {
         Items::from_slice_items(self)
     }
     fn read(
         &self,
-        _this: Rc<dyn Any>,
+        _rc_self: Rc<dyn Any>,
         age: &mut Option<usize>,
         _oc: &mut SignalContext,
     ) -> Items<'_, T> {
@@ -76,10 +76,10 @@ impl<T> From<&'static [T]> for SignalVec<T> {
 }
 
 trait SignalVecNode<T>: Any {
-    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T>;
+    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T>;
     fn read(
         &self,
-        this: Rc<dyn Any>,
+        rc_self: Rc<dyn Any>,
         age: &mut Option<usize>,
         sc: &mut SignalContext,
     ) -> Items<'_, T>;
@@ -664,18 +664,18 @@ impl<T: 'static> RawStateVec<T> {
     }
 }
 impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
-    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
-        Self::to_this(this).watch(sc);
+    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
+        Self::to_this(rc_self).watch(sc);
         Items::from_data_items(self.data.borrow())
     }
 
     fn read(
         &self,
-        this: Rc<dyn Any>,
+        rc_self: Rc<dyn Any>,
         age: &mut Option<usize>,
         sc: &mut SignalContext,
     ) -> Items<'_, T> {
-        let this = Self::to_this(this);
+        let this = Self::to_this(rc_self);
         this.watch(sc);
         let data = self.data.borrow();
         let mut r = self.ref_count_ops.borrow_mut();
@@ -851,19 +851,19 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
-        let this = Self::to_this(this);
+    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
+        let this = Self::to_this(rc_self);
         this.watch(sc);
         Items::from_data_items(Ref::map(self.data.borrow(), |data| &data.data))
     }
 
     fn read(
         &self,
-        this: Rc<dyn Any>,
+        rc_self: Rc<dyn Any>,
         age: &mut Option<usize>,
         sc: &mut SignalContext,
     ) -> Items<'_, T> {
-        let this = Self::to_this(this);
+        let this = Self::to_this(rc_self);
         this.watch(sc);
         Items::from_data_read(Ref::map(self.data.borrow(), |data| &data.data), age)
     }

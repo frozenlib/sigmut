@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     cell::{RefCell, RefMut},
     rc::Rc,
 };
@@ -197,12 +198,12 @@ impl<T: 'static> BindSink for StateNode<T> {
 impl<T: 'static> SignalNode for StateNode<T> {
     type Value = T;
     fn borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a Self,
+        &'a self,
+        rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
-        self.bind(sc);
-        inner.value.borrow().into()
+        rc_self.downcast::<Self>().unwrap().bind(sc);
+        self.value.borrow().into()
     }
 
     fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result

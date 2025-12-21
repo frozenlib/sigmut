@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     cell::{Ref, RefCell},
     rc::Rc,
 };
@@ -148,13 +149,14 @@ where
     type Value = M::Output;
 
     fn borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a Self,
+        &'a self,
+        rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
-        self.watch(sc);
+        let this = rc_self.downcast::<Self>().unwrap();
+        this.watch(sc);
         self.map
-            .apply(Ref::map(inner.data.borrow(), |x| &x.state).into(), sc)
+            .apply(Ref::map(self.data.borrow(), |x| &x.state).into(), sc)
     }
 
     fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result

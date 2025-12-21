@@ -1,4 +1,5 @@
 use std::{
+    any::Any,
     cell::{Cell, RefCell},
     future::Future,
     pin::Pin,
@@ -116,14 +117,15 @@ where
     type Value = T;
 
     fn borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a Self,
+        &'a self,
+        rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
-        self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
-        self.update(sc.uc());
+        let this = rc_self.clone().downcast::<Self>().unwrap();
+        self.sinks.borrow_mut().bind(this.clone(), Slot(0), sc);
+        this.update(sc.uc());
         StateRef::map(
-            inner.data.borrow().into(),
+            self.data.borrow().into(),
             |data| (self.map)(&data.state),
             sc,
         )

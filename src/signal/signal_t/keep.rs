@@ -1,4 +1,4 @@
-use std::{cell::RefCell, fmt, rc::Rc};
+use std::{any::Any, cell::RefCell, fmt, rc::Rc};
 
 use crate::{
     core::{BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, UpdateContext},
@@ -39,12 +39,12 @@ impl<T: ?Sized + 'static> SignalNode for KeepNode<T> {
     type Value = T;
 
     fn borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a Self,
+        &'a self,
+        rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
-        self.update(sc.uc());
-        inner.signal.borrow(sc)
+        rc_self.downcast::<Self>().unwrap().update(sc.uc());
+        self.signal.borrow(sc)
     }
 
     fn fmt_debug(&self, f: &mut fmt::Formatter) -> fmt::Result

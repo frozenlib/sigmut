@@ -26,8 +26,8 @@ mod keep;
 pub trait SignalNode: 'static {
     type Value: ?Sized + 'static;
     fn borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a Self,
+        &'a self,
+        rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value>;
 
@@ -36,40 +36,34 @@ pub trait SignalNode: 'static {
         Self::Value: Debug;
 }
 
-trait DynSignalNode {
+trait DynSignalNode: Any {
     type Value: ?Sized + 'static;
     fn dyn_borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a dyn Any,
+        &'a self,
+        rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value>;
 
     fn dyn_fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
     where
         Self::Value: Debug;
-
-    fn as_any(&self) -> &dyn Any;
 }
 
-impl<S: SignalNode + 'static> DynSignalNode for S {
+impl<S: SignalNode> DynSignalNode for S {
     type Value = S::Value;
 
     fn dyn_borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a dyn Any,
+        &'a self,
+        rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
-        self.borrow(inner.downcast_ref().unwrap(), sc)
+        self.borrow(rc_self, sc)
     }
     fn dyn_fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
     where
         Self::Value: Debug,
     {
         self.fmt_debug(f)
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
     }
 }
 
@@ -221,7 +215,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> StateRef<'a, T> {
         match &self.0 {
             RawSignal::StaticRef(value) => StateRef::from(*value),
-            RawSignal::Node(node) => node.clone().dyn_borrow(node.as_any(), sc),
+            RawSignal::Node(node) => node.dyn_borrow(node.clone(), sc),
         }
     }
 
@@ -370,11 +364,11 @@ where
     type Value = T;
 
     fn borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a Self,
+        &'a self,
+        _rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
-        StateRef::map((&inner.value).into(), &inner.map, sc)
+        StateRef::map((&self.value).into(), &self.map, sc)
     }
 
     fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
@@ -398,11 +392,11 @@ where
     type Value = O;
 
     fn borrow<'a, 's: 'a>(
-        self: Rc<Self>,
-        inner: &'a Self,
+        &'a self,
+        _rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
-        (inner.borrow)(&inner.this, sc, &&())
+        (self.borrow)(&self.this, sc, &&())
     }
 
     fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result

@@ -51,8 +51,8 @@ impl<T: 'static> SignalSlabMap<T> {
 
 trait DynSignalSlabMap<T> {
     fn to_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T>;
-    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T>;
+    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T>;
+    fn items(&self, rc_self: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T>;
     fn ref_counts(&self) -> RefMut<'_, RefCountOps>;
 }
 
@@ -358,13 +358,13 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
         self
     }
 
-    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
-        Self::rc_this(this).bind(key_to_slot(key), sc);
+    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
+        Self::rc_this(rc_self).bind(key_to_slot(key), sc);
         self.item(key)
     }
 
-    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T> {
-        Self::rc_this(this).bind(SLOT_ITEMS, sc);
+    fn items(&self, rc_self: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T> {
+        Self::rc_this(rc_self).bind(SLOT_ITEMS, sc);
         self.items(age)
     }
 
@@ -509,15 +509,15 @@ where
         self
     }
 
-    fn item(&self, this: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
-        let this = Self::rc_this(this);
+    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
+        let this = Self::rc_this(rc_self);
         this.update(sc.uc());
         self.sinks.borrow_mut().bind(this, key_to_slot(key), sc);
         Ref::map(self.data.borrow(), |data| &data.items[key])
     }
 
-    fn items(&self, this: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T> {
-        let this = Self::rc_this(this);
+    fn items(&self, rc_self: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T> {
+        let this = Self::rc_this(rc_self);
         this.update(sc.uc());
         self.sinks.borrow_mut().bind(this, SLOT_ITEMS, sc);
         let data = Ref::map(self.data.borrow(), |data| &data.items);
