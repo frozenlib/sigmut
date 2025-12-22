@@ -4,26 +4,26 @@
 
 | Rx                   | sigmut                        |
 | -------------------- | ----------------------------- |
-| `Obsrevable<T>`      | `Signal<T>`                   |
-| `IObsrevable<T>`     | `Fn(&mut SignalContext) -> T` |
+| `Observable<T>`      | `Signal<T>`                   |
+| `IObservable<T>`     | `Fn(&mut SignalContext) -> T` |
 | `IObserver<T>`       | `FnMut(&T)`                   |
 | `BehaviorSubject<T>` | `State<T>`                    |
 
 [rx]: https://reactivex.io/
 
-### `System.Reactive.Linq.Obsrevable` methods
+### `System.Reactive.Linq.Observable` methods
 
-| Rx                     | sigmut                       |
-| ---------------------- | ---------------------------- |
-| `Aggregate`            | `Obs::fold`                  |
-| `DistinctUntilChanged` | `Signal::dedup`              |
-| `Publish`              | `Obs::hot`                   |
-| `Return`               | `Signal::from_value`         |
-| `Select`               | `Signal::map`, `Signal::new` |
-| `SelectMany`           | `Signal::new`                |
-| `Scan`                 | `SignalBuilder::from_scan`   |
-| `Subscribe`            | `Signal::effect`             |
-| `Switch`               | `Signal::new`                |
+| Rx                     | sigmut                              |
+| ---------------------- | ----------------------------------- |
+| `Aggregate`            | N/A (signals do not complete)       |
+| `DistinctUntilChanged` | `Signal::dedup`                     |
+| `Publish`              | N/A (signals are hot by design)     |
+| `Return`               | `Signal::from_value`                |
+| `Select`               | `SignalBuilder::map`, `Signal::new` |
+| `SelectMany`           | `Signal::new`                       |
+| `Scan`                 | `SignalBuilder::from_scan`          |
+| `Subscribe`            | `Signal::effect`                    |
+| `Switch`               | `Signal::new`                       |
 
 ### `System.Reactive.Threading.Tasks.TaskObservableExtensions` methods
 
@@ -50,7 +50,7 @@
 | `Provider`       | `Signal::new_dedup`                             |
 | `StateProvider`  | `State`                                         |
 | `FutureProvider` | `Signal::from_async`                            |
-| `StreamProvider` | `Signal::from_stream`, `Signal::from_stream_fn` |
+| `StreamProvider` | `Signal::from_stream`                           |
 | `ref`            | `SignalContext`                                 |
 
 [riverpod]: https://riverpod.dev/
@@ -60,17 +60,17 @@
 | Preact Signals | sigmut         |
 | -------------- | -------------- |
 | `signal`       | `State::new`   |
-| `computed`     | `Singal::new`  |
+| `computed`     | `Signal::new`  |
 | `effect`       | `effect`       |
 | `batch`        | `spawn_action` |
 
 [preact signals]: https://preactjs.com/guide/v10/signals/
 
-## Cheet sheet for [SolidJS] users
+## Cheat sheet for [SolidJS] users
 
-| Preact Signals   | sigmut                   |
+| SolidJS          | sigmut                   |
 | ---------------- | ------------------------ |
-| `creaetSignal`   | `State::new`             |
+| `createSignal`   | `State::new`             |
 | `createEffect`   | `effect`                 |
 | `createMemo`     | `Signal::new`            |
 | `createResource` | `Signal::from_async`     |
@@ -78,13 +78,13 @@
 | `untrack`        | `SignalContext::untrack` |
 | `Owner`          | `SignalContext`          |
 | `observable`     | `to_stream`              |
-| `from`           | `from_stream`            |
+| `from`           | `Signal::from_stream`    |
 
 [solidjs]: https://www.solidjs.com/docs/latest/api#basic-reactivity
 
 ## Cheat sheet for [Leptos] users
 
-| Sycamore        | sigmut                   |
+| Leptos          | sigmut                   |
 | --------------- | ------------------------ |
 | `RwSignal`      | `State`                  |
 | `Signal`        | `Signal`                 |
@@ -96,9 +96,9 @@
 
 [leptos]: https://leptos.dev/
 
-## Cheet sheet for [qwik] users
+## Cheat sheet for [Qwik] users
 
-| Preact Signals   | sigmut               |
+| Qwik             | sigmut               |
 | ---------------- | -------------------- |
 | `useSignal`      | `State::new`         |
 | `useTask$()`     | `effect`             |
@@ -109,7 +109,7 @@
 
 ## Cheat sheet for [Recoil] users
 
-| Recoil Signals | sigmut        |
+| Recoil         | sigmut        |
 | -------------- | ------------- |
 | `atom`         | `State::new`  |
 | `selector`     | `Signal::new` |
@@ -140,30 +140,30 @@
 
 [JavaScript Signals standard proposal]: https://github.com/tc39/proposal-signals
 
-## Cheet sheet for [dioxus] users
+## Cheat sheet for [dioxus] users
 
 | dioxus       | sigmut        |
 | ------------ | ------------- |
 | `Signal`     | `State`       |
-| `Memo`       | `Singnal`     |
+| `Memo`       | `Signal`      |
 | `use_signal` | `State::new`  |
 | `use_memo`   | `Signal::new` |
 | `use_effect` | `effect`      |
 
 [dioxus]: https://dioxuslabs.com/
 
-## Cheet sheet for [Svelte runes] users
+## Cheat sheet for [Svelte runes] users
 
 | Svelte runes   | sigmut         |
 | -------------- | -------------- |
 | `$state`       | `State::new`   |
-| `$derived`     | `Singnal::new` |
+| `$derived`     | `Signal::new`  |
 | `$effect`      | `effect`       |
 | `$effect.root` | `Runtime::sc`  |
 
 [Svelte runes]: https://svelte-5-preview.vercel.app/docs/runes
 
-## Cheet sheet for [MobX] users
+## Cheat sheet for [MobX] users
 
 | MobX         | sigmut         |
 | ------------ | -------------- |
