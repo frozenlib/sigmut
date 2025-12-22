@@ -38,7 +38,7 @@ impl<T: 'static> SignalVec<T> {
 
     pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
         match &self.0 {
-            RawSignalVec::Rc(rc) => rc.items(rc.clone().into_any(), sc),
+            RawSignalVec::Rc(rc) => rc.items(rc.clone(), sc),
             RawSignalVec::Slice(slice) => Items::from_slice_items(slice),
         }
     }
@@ -54,9 +54,6 @@ impl<T> From<Rc<Vec<T>>> for SignalVec<T> {
     }
 }
 impl<T: 'static> SignalVecNode<T> for Vec<T> {
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
     fn items(&self, _this: Rc<dyn Any>, _oc: &mut SignalContext) -> Items<'_, T> {
         Items::from_slice_items(self)
     }
@@ -78,8 +75,7 @@ impl<T> From<&'static [T]> for SignalVec<T> {
     }
 }
 
-trait SignalVecNode<T> {
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any>;
+trait SignalVecNode<T>: Any {
     fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T>;
     fn read(
         &self,
@@ -104,7 +100,7 @@ pub struct SignalVecReader<T: 'static> {
 impl<T: 'static> SignalVecReader<T> {
     pub fn read<'a, 's: 'a>(&'a mut self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
         match &self.source {
-            RawSignalVec::Rc(vec) => vec.read(vec.clone().into_any(), &mut self.age, sc),
+            RawSignalVec::Rc(vec) => vec.read(vec.clone(), &mut self.age, sc),
             RawSignalVec::Slice(slice) => Items::from_slice_read(slice, &mut self.age),
         }
     }
@@ -564,7 +560,7 @@ impl<T> StateVec<T> {
         self.to_signal_vec().reader()
     }
     pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
-        self.0.items(self.0.clone().into_any(), sc)
+        self.0.items(self.0.clone(), sc)
     }
     pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T> {
         let mut data = self.0.data.borrow_mut();
@@ -668,10 +664,6 @@ impl<T: 'static> RawStateVec<T> {
     }
 }
 impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-
     fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
         Self::to_this(this).watch(sc);
         Items::from_data_items(self.data.borrow())
@@ -859,10 +851,6 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn into_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-
     fn items(&self, this: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
         let this = Self::to_this(this);
         this.watch(sc);
