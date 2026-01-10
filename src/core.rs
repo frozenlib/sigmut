@@ -28,7 +28,6 @@ mod state_ref_builder;
 
 pub use async_signal_context::*;
 pub use dirty::*;
-use smallvec::SmallVec;
 pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
