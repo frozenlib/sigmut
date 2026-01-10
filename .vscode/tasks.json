@@ -233,10 +233,10 @@
       "args": [
         "+nightly",
         "bench",
-        "-p=sigmut-bench",
-        "--features=benchmark",
-        "--target-dir=./target/bench",
       ],
+      "options": {
+        "cwd": "${workspaceFolder}/bench"
+      },
       "problemMatcher": [
         "$rustc"
       ],
