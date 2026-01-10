@@ -52,7 +52,12 @@ impl<T: 'static> SignalSlabMap<T> {
 trait DynSignalSlabMap<T> {
     fn to_any(self: Rc<Self>) -> Rc<dyn Any>;
     fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T>;
-    fn items(&self, rc_self: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T>;
+    fn items(
+        &self,
+        rc_self: Rc<dyn Any>,
+        age: Option<usize>,
+        sc: &mut SignalContext,
+    ) -> Items<'_, T>;
     fn ref_counts(&self) -> RefMut<'_, RefCountOps>;
 }
 
@@ -363,7 +368,12 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
         self.item(key)
     }
 
-    fn items(&self, rc_self: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T> {
+    fn items(
+        &self,
+        rc_self: Rc<dyn Any>,
+        age: Option<usize>,
+        sc: &mut SignalContext,
+    ) -> Items<'_, T> {
         Self::rc_this(rc_self).bind(SLOT_ITEMS, sc);
         self.items(age)
     }
@@ -516,7 +526,12 @@ where
         Ref::map(self.data.borrow(), |data| &data.items[key])
     }
 
-    fn items(&self, rc_self: Rc<dyn Any>, age: Option<usize>, sc: &mut SignalContext) -> Items<'_, T> {
+    fn items(
+        &self,
+        rc_self: Rc<dyn Any>,
+        age: Option<usize>,
+        sc: &mut SignalContext,
+    ) -> Items<'_, T> {
         let this = Self::rc_this(rc_self);
         this.update(sc.uc());
         self.sinks.borrow_mut().bind(this, SLOT_ITEMS, sc);
