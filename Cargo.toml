@@ -1,5 +1,5 @@
 [workspace]
-members = ["macros"]
+members = ["bench", "macros"]
 
 [package]
 name = "sigmut"

@@ -451,6 +451,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sigmut-bench"
+version = "0.1.0"
+dependencies = [
+ "sigmut",
+]
+
+[[package]]
 name = "sigmut-macros"
 version = "0.0.2"
 dependencies = [

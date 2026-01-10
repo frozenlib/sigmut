@@ -231,11 +231,12 @@
       "label": "cargo bench",
       "command": "cargo",
       "args": [
-        "bench"
+        "+nightly",
+        "bench",
+        "-p=sigmut-bench",
+        "--features=benchmark",
+        "--target-dir=./target/bench",
       ],
-      "options": {
-        "cwd": "${workspaceFolder}/benchmarks"
-      },
       "problemMatcher": [
         "$rustc"
       ],
