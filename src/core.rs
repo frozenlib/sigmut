@@ -28,6 +28,7 @@ mod state_ref_builder;
 
 pub use async_signal_context::*;
 pub use dirty::*;
+use smallvec::SmallVec;
 pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
@@ -41,7 +42,7 @@ thread_local! {
 struct Globals {
     is_runtime_exists: bool,
     runtime: Option<Box<RawRuntime>>,
-    unbinds: Vec<Vec<SourceBinding>>,
+    unbinds: Vec<SourceBindingsData>,
     actions: Vec<Action>,
     notifys: Vec<NotifyTask>,
     need_wake: bool,
@@ -94,7 +95,10 @@ impl Globals {
         !actions.is_empty()
     }
 
-    fn swap_vec<T>(f: impl FnOnce(&mut Self) -> &mut Vec<T>, values: &mut Vec<T>) -> bool {
+    fn swap_source_bindings(
+        f: impl FnOnce(&mut Self) -> &mut Vec<SourceBindingsData>,
+        values: &mut Vec<SourceBindingsData>,
+    ) -> bool {
         Self::with(|g| swap(f(g), values));
         !values.is_empty()
     }
@@ -291,7 +295,7 @@ struct RawRuntime {
     notifys_buffer: Vec<NotifyTask>,
     actions_buffer: Vec<Action>,
     tasks_buffer: Vec<Task>,
-    unbinds_buffer: Vec<Vec<SourceBinding>>,
+    unbinds_buffer: Vec<SourceBindingsData>,
 }
 impl RawRuntime {
     pub fn ac(&mut self) -> &mut ActionContext {
@@ -351,7 +355,7 @@ impl RawRuntime {
     fn apply_unbind(&mut self) -> bool {
         let mut handled = false;
         let mut unbinds = take(&mut self.unbinds_buffer);
-        while Globals::swap_vec(|g| &mut g.unbinds, &mut unbinds) {
+        while Globals::swap_source_bindings(|g| &mut g.unbinds, &mut unbinds) {
             for unbind in unbinds.drain(..) {
                 for sb in unbind {
                     sb.unbind(&mut self.uc());
@@ -501,8 +505,10 @@ impl SourceBinding {
     }
 }
 
+type SourceBindingsData = Vec<SourceBinding>;
+
 #[derive(Default)]
-pub struct SourceBindings(Vec<SourceBinding>);
+pub struct SourceBindings(SourceBindingsData);
 
 impl SourceBindings {
     pub fn new() -> Self {
