@@ -16,7 +16,7 @@ use std::{
 };
 
 use bumpalo::Bump;
-use derive_ex::{derive_ex, Ex};
+use derive_ex::Ex;
 use parse_display::Display;
 use slabmap::SlabMap;
 
@@ -38,6 +38,7 @@ thread_local! {
 
 struct Globals {
     is_runtime_exists: bool,
+    runtime: Option<Box<RawRuntime>>,
     unbinds: Vec<Vec<SourceBinding>>,
     actions: Vec<Action>,
     notifys: Vec<NotifyTask>,
@@ -49,6 +50,7 @@ impl Globals {
     fn new() -> Self {
         Self {
             is_runtime_exists: false,
+            runtime: None,
             unbinds: Vec::new(),
             actions: Vec::new(),
             notifys: Vec::new(),
@@ -157,15 +159,12 @@ impl Globals {
 }
 
 /// Reactive runtime.
+#[derive(Ex)]
 #[derive_ex(Default)]
 #[default(Self::new())]
 pub struct Runtime {
-    rt: RawRuntime,
-    bump: Bump,
-    notifys_buffer: Vec<NotifyTask>,
-    actions_buffer: Vec<Action>,
-    tasks_buffer: Vec<Task>,
-    unbinds_buffer: Vec<Vec<SourceBinding>>,
+    is_owned: bool,
+    raw: Option<Box<RawRuntime>>,
 }
 impl Runtime {
     pub fn new() -> Self {
@@ -173,15 +172,126 @@ impl Runtime {
             panic!("Only one `Runtime` can exist in the same thread at the same time.");
         };
         Self {
-            rt: RawRuntime::new(),
-            bump: Bump::new(),
-            notifys_buffer: Vec::new(),
-            actions_buffer: Vec::new(),
-            tasks_buffer: Vec::new(),
-            unbinds_buffer: Vec::new(),
+            is_owned: true,
+            raw: Some(Box::new(RawRuntime {
+                rt: RuntimeData::new(),
+                bump: Bump::new(),
+                notifys_buffer: Vec::new(),
+                actions_buffer: Vec::new(),
+                tasks_buffer: Vec::new(),
+                unbinds_buffer: Vec::new(),
+            })),
         }
     }
 
+    fn as_raw(&mut self) -> &mut RawRuntime {
+        self.raw
+            .as_mut()
+            .expect("Runtime is unavailable. `Runtime::wait_for_ready` may have leaked.")
+    }
+
+    pub fn ac(&mut self) -> &mut ActionContext {
+        self.as_raw().ac()
+    }
+
+    pub fn sc(&mut self) -> SignalContext<'_> {
+        self.as_raw().sc()
+    }
+
+    /// Perform scheduled actions.
+    ///
+    /// Returns `true` if any action was performed.
+    pub fn run_actions(&mut self) -> bool {
+        self.as_raw().run_actions()
+    }
+
+    /// Perform scheduled tasks.
+    ///
+    /// If `kind` is `None`, all tasks are executed.
+    ///
+    /// Returns `true` if any task was performed.
+    pub fn run_tasks(&mut self, kind: Option<TaskKind>) -> bool {
+        self.as_raw().run_tasks(kind)
+    }
+
+    /// Perform scheduled discards.
+    ///
+    /// Returns `true` if any discard was performed.
+    pub fn run_discards(&mut self) -> bool {
+        self.as_raw().run_discards()
+    }
+
+    /// Repeat until there are no more processes to do
+    /// [`run_actions`](Self::run_actions), [`run_tasks`](Self::run_tasks), or [`run_discards`](Self::run_discards).
+    pub fn update(&mut self) {
+        self.as_raw().update()
+    }
+
+    /// Lends the runtime's ownership to the current thread, making [`Runtime::call`] available during that time.
+    pub fn lend(&mut self) -> RuntimeLend<'_> {
+        Globals::with(|g| {
+            g.runtime = self.raw.take();
+        });
+        RuntimeLend(self)
+    }
+
+    /// Calls a function with the runtime as an argument.
+    ///
+    /// # Panics
+    ///
+    /// Panics if not called within [`Runtime::lend`] or if [`Runtime::call`] is reentered.
+    pub fn call<T>(f: impl FnOnce(&mut Runtime) -> T) -> T {
+        let raw = Globals::with(|g| {
+            assert!(g.is_runtime_exists, "Runtime does not exist");
+            let Some(raw) = g.runtime.take() else {
+                panic!("Runtime is not available. Ensure you are within a `Runtime::lend` call.");
+            };
+            raw
+        });
+        f(&mut Self {
+            is_owned: false,
+            raw: Some(raw),
+        })
+    }
+}
+impl Drop for Runtime {
+    fn drop(&mut self) {
+        if self.is_owned {
+            self.as_raw().cancel_async_actions();
+            Globals::with(|g| g.finish_runtime());
+        } else {
+            Globals::with(|g| {
+                assert!(g.runtime.is_none());
+                g.runtime = self.raw.take();
+            });
+        }
+    }
+}
+pub struct RuntimeLend<'a>(&'a mut Runtime);
+
+impl RuntimeLend<'_> {
+    /// Wait while there is no process to be executed by [`Runtime::update`].
+    pub async fn wait_for_ready(&mut self) {
+        poll_fn(|cx| Globals::with(|g| g.wait_for_ready(cx))).await
+    }
+}
+
+impl Drop for RuntimeLend<'_> {
+    fn drop(&mut self) {
+        Globals::with(|g| {
+            self.0.raw = g.runtime.take();
+        });
+    }
+}
+struct RawRuntime {
+    rt: RuntimeData,
+    bump: Bump,
+    notifys_buffer: Vec<NotifyTask>,
+    actions_buffer: Vec<Action>,
+    tasks_buffer: Vec<Task>,
+    unbinds_buffer: Vec<Vec<SourceBinding>>,
+}
+impl RawRuntime {
     pub fn ac(&mut self) -> &mut ActionContext {
         ActionContext::new(self)
     }
@@ -300,11 +410,6 @@ impl Runtime {
         }
     }
 
-    /// Wait while there is no process to be executed by [`update`](Self::update).
-    pub async fn wait_for_ready(&mut self) {
-        poll_fn(|cx| Globals::with(|g| g.wait_for_ready(cx))).await
-    }
-
     fn cancel_async_actions(&mut self) {
         let mut acts = Vec::new();
         while !self.rt.async_actions.is_empty() {
@@ -317,19 +422,19 @@ impl Runtime {
     }
 }
 
-impl Drop for Runtime {
+impl Drop for RawRuntime {
     fn drop(&mut self) {
         self.cancel_async_actions();
         Globals::with(|g| g.finish_runtime());
     }
 }
 
-struct RawRuntime {
+struct RuntimeData {
     discards: Vec<DiscardTask>,
     async_actions: SlabMap<Rc<AsyncAction>>,
 }
 
-impl RawRuntime {
+impl RuntimeData {
     pub fn new() -> Self {
         Self {
             discards: Vec::new(),
@@ -683,7 +788,7 @@ pub fn schedule_notify(node: Weak<dyn BindSink>, slot: Slot) {
 
 /// Context for retrieving state and tracking dependencies.
 pub struct SignalContext<'s> {
-    rt: &'s mut RawRuntime,
+    rt: &'s mut RuntimeData,
     bump: &'s Bump,
     sink: Option<&'s mut Sink>,
 }
@@ -760,10 +865,10 @@ impl DiscardTask {
 
 /// Context for changing state.
 #[repr(transparent)]
-pub struct ActionContext(Runtime);
+pub struct ActionContext(RawRuntime);
 
 impl ActionContext {
-    fn new(rt: &mut Runtime) -> &mut Self {
+    fn new(rt: &mut RawRuntime) -> &mut Self {
         unsafe { transmute(rt) }
     }
     pub fn nc(&mut self) -> &mut NotifyContext {
@@ -955,14 +1060,14 @@ impl Drop for RawWake {
     }
 }
 
-struct AsyncActionContextSource(Rc<RefCell<*mut Runtime>>);
+struct AsyncActionContextSource(Rc<RefCell<*mut RawRuntime>>);
 
 impl AsyncActionContextSource {
     fn new() -> Self {
         Self(Rc::new(RefCell::new(null_mut())))
     }
     fn call<T>(&self, ac: &mut ActionContext, f: impl FnOnce() -> T) -> T {
-        let p: *mut Runtime = &mut ac.0;
+        let p: *mut RawRuntime = &mut ac.0;
         assert!(self.0.borrow().is_null());
         *self.0.borrow_mut() = p;
         let ret = f();
@@ -976,7 +1081,7 @@ impl AsyncActionContextSource {
 }
 
 /// Context for asynchronous state change.
-pub struct AsyncActionContext(Rc<RefCell<*mut Runtime>>);
+pub struct AsyncActionContext(Rc<RefCell<*mut RawRuntime>>);
 
 impl AsyncActionContext {
     pub fn call<T>(&self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
@@ -1120,3 +1225,6 @@ impl Tasks {
 pub struct CyclicError {}
 
 impl std::error::Error for CyclicError {}
+
+#[cfg(test)]
+mod tests;

@@ -9,7 +9,7 @@ use std::{
 use bumpalo::Bump;
 
 use super::{
-    waker_from_sink, BindSink, Dirty, NotifyLevel, RawRuntime, SignalContext, Sink, Slot,
+    waker_from_sink, BindSink, Dirty, NotifyLevel, RuntimeData, SignalContext, Sink, Slot,
     SourceBindings, UpdateContext,
 };
 
@@ -19,7 +19,7 @@ const SLOT_POLL: Slot = Slot(2);
 
 #[derive(Debug, Eq, PartialEq, Copy, Clone)]
 struct SignalContextPtr {
-    rt: *mut RawRuntime,
+    rt: *mut RuntimeData,
     bump: *const Bump,
     sink: Option<*mut Sink>,
 }
