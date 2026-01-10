@@ -198,7 +198,9 @@ impl Runtime {
     pub fn ac(&mut self) -> &mut ActionContext {
         self.as_raw().ac()
     }
-
+    pub fn uc(&mut self) -> UpdateContext<'_> {
+        self.as_raw().uc()
+    }
     pub fn sc(&mut self) -> SignalContext<'_> {
         self.as_raw().sc()
     }
@@ -304,11 +306,14 @@ impl RawRuntime {
         self.ac().nc()
     }
     fn uc(&mut self) -> UpdateContext<'_> {
+        self.apply_notify();
+        self.uc_raw()
+    }
+    fn uc_raw(&mut self) -> UpdateContext<'_> {
         UpdateContext(self.sc_raw())
     }
-    pub fn sc(&mut self) -> SignalContext<'_> {
+    fn sc(&mut self) -> SignalContext<'_> {
         self.apply_notify();
-
         self.sc_raw()
     }
     fn sc_raw(&mut self) -> SignalContext<'_> {
@@ -318,11 +323,7 @@ impl RawRuntime {
             sink: None,
         }
     }
-
-    /// Perform scheduled actions.
-    ///
-    /// Returns `true` if any action was performed.
-    pub fn run_actions(&mut self) -> bool {
+    fn run_actions(&mut self) -> bool {
         let mut handled = false;
         let mut actions = take(&mut self.actions_buffer);
         while Globals::get_actions(&mut actions) {
@@ -335,18 +336,13 @@ impl RawRuntime {
         handled
     }
 
-    /// Perform scheduled tasks.
-    ///
-    /// If `kind` is `None`, all tasks are executed.
-    ///
-    /// Returns `true` if any task was performed.
-    pub fn run_tasks(&mut self, kind: Option<TaskKind>) -> bool {
+    fn run_tasks(&mut self, kind: Option<TaskKind>) -> bool {
         self.apply_notify();
         let mut tasks = take(&mut self.tasks_buffer);
         Globals::get_tasks(kind, &mut tasks);
         let handled = !tasks.is_empty();
         for task in tasks.drain(..) {
-            task.run(&mut self.uc());
+            task.run(&mut self.uc_raw());
         }
         self.tasks_buffer = tasks;
         handled
@@ -357,7 +353,7 @@ impl RawRuntime {
         while Globals::swap_source_bindings(|g| &mut g.unbinds, &mut unbinds) {
             for unbind in unbinds.drain(..) {
                 for sb in unbind {
-                    sb.unbind(&mut self.uc());
+                    sb.unbind(&mut self.uc_raw());
                 }
                 handled = true;
             }
@@ -378,14 +374,11 @@ impl RawRuntime {
         handled
     }
 
-    /// Perform scheduled discards.
-    ///
-    /// Returns `true` if any discard was performed.
-    pub fn run_discards(&mut self) -> bool {
+    fn run_discards(&mut self) -> bool {
         let mut handled = false;
         loop {
             if let Some(task) = self.rt.discards.pop() {
-                task.call_discard(&mut self.uc());
+                task.call_discard(&mut self.uc_raw());
                 handled = true;
                 continue;
             }
@@ -398,9 +391,7 @@ impl RawRuntime {
         handled
     }
 
-    /// Repeat until there are no more processes to do
-    /// [`run_actions`](Self::run_actions), [`run_tasks`](Self::run_tasks), or [`run_discards`](Self::run_discards).
-    pub fn update(&mut self) {
+    fn update(&mut self) {
         loop {
             if self.run_actions() {
                 continue;
