@@ -1,6 +1,6 @@
-use assert_call::{call, CallRecorder};
+use assert_call::{CallRecorder, call};
 
-use crate::{core::Runtime, effect, effect_with, Signal, State, TaskKind};
+use crate::{Signal, State, TaskKind, core::Runtime, effect, effect_with};
 
 #[test]
 fn test_effect() {

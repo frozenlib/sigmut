@@ -4,14 +4,14 @@ use std::{
     hint::black_box,
 };
 
-use assert_call::{call, Call, CallRecorder};
+use assert_call::{Call, CallRecorder, call};
 use derive_ex::derive_ex;
 use parse_display::Display;
 use rstest::rstest;
 
 use crate::{
-    core::{Runtime, StateRefBuilder},
     SignalContext, StateRef,
+    core::{Runtime, StateRefBuilder},
 };
 
 #[derive(Display, Clone, Copy, Eq, PartialEq)]

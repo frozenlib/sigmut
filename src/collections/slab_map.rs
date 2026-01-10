@@ -9,12 +9,12 @@ use derive_ex::derive_ex;
 use slabmap::SlabMap;
 
 use crate::{
+    ActionContext, SignalContext,
     core::{
         BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot,
         SourceBinder, UpdateContext,
     },
     utils::{Changes, RefCountOps},
-    ActionContext, SignalContext,
 };
 
 const SLOT_ITEMS: Slot = Slot(usize::MAX);
@@ -420,10 +420,10 @@ impl SinkBindingsSet {
     }
 
     fn bind(&mut self, this: Rc<dyn BindSource>, slot: Slot, sc: &mut SignalContext) {
-        if let Some(key) = slot_to_key(slot) {
-            if self.items.len() < key {
-                self.items.resize_with(key + 1, SinkBindings::new);
-            }
+        if let Some(key) = slot_to_key(slot)
+            && self.items.len() < key
+        {
+            self.items.resize_with(key + 1, SinkBindings::new);
         }
         if let Some(s) = self.get_mut(slot) {
             s.bind(this, slot, sc);

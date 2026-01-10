@@ -3,7 +3,7 @@ use std::{
     any::Any,
     cell::{Ref, RefCell},
     cmp::{max, min},
-    future::{poll_fn, Future},
+    future::{Future, poll_fn},
     mem::{replace, swap, take, transmute},
     ops::AsyncFnOnce,
     pin::Pin,
@@ -305,8 +305,8 @@ impl RawRuntime {
     }
     pub fn sc(&mut self) -> SignalContext<'_> {
         self.apply_notify();
-        let sc = self.sc_raw();
-        sc
+
+        self.sc_raw()
     }
     fn sc_raw(&mut self) -> SignalContext<'_> {
         SignalContext {
@@ -594,12 +594,12 @@ impl SinkBindings {
             return;
         };
         let sources_index = sink.sources_len;
-        if let Some(source_old) = sink.sources.0.get(sources_index) {
-            if source_old.is_same(&this, this_slot) {
-                sink.sources_len += 1;
-                self.0[source_old.key.0].dirty = Dirty::Clean;
-                return;
-            }
+        if let Some(source_old) = sink.sources.0.get(sources_index)
+            && source_old.is_same(&this, this_slot)
+        {
+            sink.sources_len += 1;
+            self.0[source_old.key.0].dirty = Dirty::Clean;
+            return;
         }
         let key = BindKey(self.0.insert(SinkBinding {
             sink: sink.sink.clone(),

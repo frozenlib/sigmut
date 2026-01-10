@@ -8,12 +8,12 @@ use derive_ex::derive_ex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    ActionContext, Signal, SignalContext, StateRef,
     core::{
-        schedule_notify, BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings,
-        Slot, UpdateContext,
+        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot,
+        UpdateContext, schedule_notify,
     },
     signal::{SignalNode, ToSignal},
-    ActionContext, Signal, SignalContext, StateRef,
 };
 
 #[cfg(test)]

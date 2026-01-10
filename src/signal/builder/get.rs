@@ -48,10 +48,10 @@ where
     fn into_scan_build(self) -> impl ScanBuild<State = Option<Self::Output>> {
         SignalBuilder::from_scan_filter(None, move |st, sc| {
             let value = (self.0)(sc);
-            if let Some(old) = st {
-                if old == &value {
-                    return false;
-                }
+            if let Some(old) = st
+                && old == &value
+            {
+                return false;
             }
             *st = Some(value);
             true
@@ -71,7 +71,7 @@ where
     where
         Self::State: PartialEq,
     {
-        GetBuilder(GetFnGetDedup(self.0 .0))
+        GetBuilder(GetFnGetDedup(self.0.0))
     }
 }
 impl<Get> DedupBuild for GetBuilder<Get>
@@ -126,11 +126,11 @@ where
     fn map_raw<T: ?Sized + 'static>(
         self,
         f: impl for<'a, 's> Fn(
-                StateRef<'a, Self::State>,
-                &mut SignalContext<'s>,
-                &'a &'s (),
-            ) -> StateRef<'a, T>
-            + 'static,
+            StateRef<'a, Self::State>,
+            &mut SignalContext<'s>,
+            &'a &'s (),
+        ) -> StateRef<'a, T>
+        + 'static,
     ) -> impl Build<State = T> {
         self.0.into_build().map_raw(f)
     }

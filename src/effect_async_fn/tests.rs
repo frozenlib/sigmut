@@ -1,8 +1,8 @@
 use std::future::pending;
 
-use assert_call::{call, CallRecorder};
+use assert_call::{CallRecorder, call};
 
-use crate::{core::Runtime, effect_async, utils::test_helpers::call_on_drop, State};
+use crate::{State, core::Runtime, effect_async, utils::test_helpers::call_on_drop};
 
 #[test]
 fn test_effect_async() {

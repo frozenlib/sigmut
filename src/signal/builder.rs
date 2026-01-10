@@ -5,7 +5,7 @@ use std::{
 
 use futures::Stream;
 
-use crate::{core::SinkBindings, Signal, SignalContext, StateRef, StateRefBuilder};
+use crate::{Signal, SignalContext, StateRef, StateRefBuilder, core::SinkBindings};
 
 use self::{
     future_scan::future_scan_builder, get::get_builder, scan::scan_builder,
@@ -126,11 +126,11 @@ impl<B: Build> SignalBuilder<B> {
     fn map_raw<T: ?Sized + 'static>(
         self,
         f: impl for<'a, 's> Fn(
-                StateRef<'a, B::State>,
-                &mut SignalContext<'s>,
-                &'a &'s (),
-            ) -> StateRef<'a, T>
-            + 'static,
+            StateRef<'a, B::State>,
+            &mut SignalContext<'s>,
+            &'a &'s (),
+        ) -> StateRef<'a, T>
+        + 'static,
     ) -> SignalBuilder<impl Build<State = T>> {
         SignalBuilder(self.0.map_raw(f))
     }
@@ -153,7 +153,7 @@ where
     Self::State: Sized,
 {
     fn on_discard_value(self, f: impl Fn(Self::State) + 'static)
-        -> impl Build<State = Self::State>;
+    -> impl Build<State = Self::State>;
 }
 pub trait ScanBuild: Build {
     fn on_discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State>;
@@ -170,11 +170,11 @@ pub trait Build: Sized {
     fn map_raw<T: ?Sized + 'static>(
         self,
         f: impl for<'a, 's> Fn(
-                StateRef<'a, Self::State>,
-                &mut SignalContext<'s>,
-                &'a &'s (),
-            ) -> StateRef<'a, T>
-            + 'static,
+            StateRef<'a, Self::State>,
+            &mut SignalContext<'s>,
+            &'a &'s (),
+        ) -> StateRef<'a, T>
+        + 'static,
     ) -> impl Build<State = T>;
 
     fn build(self) -> Signal<Self::State>;

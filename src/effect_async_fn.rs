@@ -1,11 +1,11 @@
 use std::{cell::RefCell, future::Future, ops::AsyncFnMut, pin::Pin, rc::Rc};
 
 use crate::{
+    Subscription,
     core::{
         AsyncSignalContext, AsyncSourceBinder, BindSink, NotifyContext, NotifyLevel, Slot, Task,
         TaskKind, UpdateContext,
     },
-    Subscription,
 };
 
 #[cfg(test)]
@@ -73,10 +73,10 @@ where
             d.fut.set(None);
             d.fut.set(Some(d.asb.init(&mut d.get_fut, uc)));
         }
-        if let Some(fut) = d.fut.as_mut().as_pin_mut() {
-            if d.asb.poll(fut, uc).is_ready() {
-                d.fut.set(None);
-            }
+        if let Some(fut) = d.fut.as_mut().as_pin_mut()
+            && d.asb.poll(fut, uc).is_ready()
+        {
+            d.fut.set(None);
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
-    core::{BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, Task, UpdateContext},
     SignalContext,
+    core::{BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, Task, UpdateContext},
 };
 use futures::Stream;
 use std::{
@@ -62,7 +62,7 @@ where
     type Item = T;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut d = self.0 .0.borrow_mut();
+        let mut d = self.0.0.borrow_mut();
         match take(&mut d.value) {
             ValueState::None | ValueState::Pending(_) => {
                 d.value = ValueState::Pending(cx.waker().clone());

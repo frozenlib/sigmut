@@ -5,11 +5,11 @@ use std::{
 };
 
 use crate::{
+    Signal, SignalContext, StateRef,
     core::{
         BindKey, BindSink, BindSource, Discard, NotifyContext, NotifyLevel, SinkBindings, Slot,
         SourceBinder, UpdateContext,
     },
-    Signal, SignalContext, StateRef,
 };
 
 use super::{
@@ -94,11 +94,11 @@ where
     fn map_raw<T: ?Sized + 'static>(
         self,
         f: impl for<'a, 's> Fn(
-                StateRef<'a, Self::State>,
-                &mut SignalContext<'s>,
-                &'a &'s (),
-            ) -> StateRef<'a, T>
-            + 'static,
+            StateRef<'a, Self::State>,
+            &mut SignalContext<'s>,
+            &'a &'s (),
+        ) -> StateRef<'a, T>
+        + 'static,
     ) -> impl Build<State = T> {
         ScanBuilder {
             initial_state: self.initial_state,

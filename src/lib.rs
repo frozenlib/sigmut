@@ -15,8 +15,8 @@ pub mod tests_readme;
 
 #[doc(inline)]
 pub use crate::core::{
-    spawn_action, spawn_action_async, spawn_action_rc, ActionContext, AsyncActionContext,
-    AsyncSignalContext, SignalContext, StateRef, StateRefBuilder, TaskKind,
+    ActionContext, AsyncActionContext, AsyncSignalContext, SignalContext, StateRef,
+    StateRefBuilder, TaskKind, spawn_action, spawn_action_async, spawn_action_rc,
 };
 
 #[doc(inline)]

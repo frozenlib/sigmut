@@ -1,10 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::{
+    SignalContext, Subscription,
     core::{
         BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, Task, TaskKind, UpdateContext,
     },
-    SignalContext, Subscription,
 };
 
 #[cfg(test)]

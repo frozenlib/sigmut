@@ -1,6 +1,6 @@
-use assert_call::{call, CallRecorder};
+use assert_call::{CallRecorder, call};
 
-use crate::{core::Runtime, effect, State};
+use crate::{State, core::Runtime, effect};
 
 #[test]
 fn new() {

@@ -9,11 +9,11 @@ use std::{
 use futures::Stream;
 
 use crate::{
-    core::{
-        waker_from_sink, BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings,
-        Slot, UpdateContext,
-    },
     Signal, SignalContext, StateRef,
+    core::{
+        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot,
+        UpdateContext, waker_from_sink,
+    },
 };
 
 use super::{Build, MapFn, MapFnNone, MapFnRaw, SignalNode};
@@ -53,11 +53,11 @@ where
     fn map_raw<T: ?Sized + 'static>(
         self,
         f: impl for<'a, 's> Fn(
-                StateRef<'a, Self::State>,
-                &mut SignalContext<'s>,
-                &'a &'s (),
-            ) -> StateRef<'a, T>
-            + 'static,
+            StateRef<'a, Self::State>,
+            &mut SignalContext<'s>,
+            &'a &'s (),
+        ) -> StateRef<'a, T>
+        + 'static,
     ) -> impl Build<State = T> {
         StreamScanBuilder {
             initial_state: self.initial_state,

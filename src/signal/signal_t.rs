@@ -1,5 +1,5 @@
 use std::{
-    any::{type_name, Any},
+    any::{Any, type_name},
     fmt::Debug,
     future::Future,
     ops::AsyncFn,
@@ -8,12 +8,12 @@ use std::{
     task::Poll,
 };
 
-use derive_ex::{derive_ex, Ex};
+use derive_ex::{Ex, derive_ex};
 use futures::Stream;
 
 use crate::{
-    core::AsyncSignalContext, effect, effect_with, stream_from, SignalContext, StateRef,
-    Subscription, TaskKind,
+    SignalContext, StateRef, Subscription, TaskKind, core::AsyncSignalContext, effect, effect_with,
+    stream_from,
 };
 
 use super::{builder::SignalBuilder, scan_async::build_scan_async};
@@ -147,7 +147,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     pub fn from_borrow<U>(
         this: U,
         borrow: impl for<'s, 'a> Fn(&'a U, &mut SignalContext<'s>, &'a &'s ()) -> StateRef<'a, T>
-            + 'static,
+        + 'static,
     ) -> Self
     where
         U: 'static,

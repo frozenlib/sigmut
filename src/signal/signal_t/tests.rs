@@ -1,12 +1,12 @@
 use std::{cell::RefCell, rc::Rc, task::Poll};
 
 use crate::{
+    Signal, SignalBuilder, State,
     core::Runtime,
     effect,
     utils::{sync::oneshot_broadcast, test_helpers::call_on_drop},
-    Signal, SignalBuilder, State,
 };
-use assert_call::{call, CallRecorder};
+use assert_call::{CallRecorder, call};
 use futures::StreamExt;
 use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
 

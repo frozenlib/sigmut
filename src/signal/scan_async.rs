@@ -8,11 +8,11 @@ use std::{
 };
 
 use crate::{
+    Signal, SignalContext, StateRef,
     core::{
         AsyncSignalContext, AsyncSourceBinder, BindKey, BindSink, BindSource, Discard,
         NotifyContext, NotifyLevel, SinkBindings, Slot, UpdateContext,
     },
-    Signal, SignalContext, StateRef,
 };
 
 use super::SignalNode;

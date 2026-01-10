@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::{core::Runtime, signal::ToSignal, signal_format, State};
+use crate::{State, core::Runtime, signal::ToSignal, signal_format};
 
 #[allow(unused)]
 use crate::signal_format_dump;

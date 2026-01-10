@@ -5,7 +5,7 @@ use std::{
     marker::PhantomData,
     mem::MaybeUninit,
     ops::Deref,
-    ptr::{drop_in_place, NonNull},
+    ptr::{NonNull, drop_in_place},
 };
 
 use bumpalo::Bump;
@@ -203,14 +203,16 @@ impl<'a, T: ?Sized> Data<'a, T> {
             } => {
                 let value = match value {
                     Value::Ref(value) => match value {
-                        RawRef::Ref(value) => MaybeBox::new(value, AllocHandle::none()),
-                        RawRef::RefCell(value) => MaybeBox::alloc(value, b).map(|x| &**x),
+                        RawRef::Ref(value) => unsafe { MaybeBox::new(value, AllocHandle::none()) },
+                        RawRef::RefCell(value) => unsafe {
+                            MaybeBox::alloc(value, b).map(|x| &**x)
+                        },
                     },
-                    Value::Embedded(value) => value.into_boxed(b),
+                    Value::Embedded(value) => unsafe { value.into_boxed(b) },
                 };
                 (is_static, value.with_owner(owner, b))
             }
-            Data::ValueStatic(value) => (true, value.into_boxed(b)),
+            Data::ValueStatic(value) => (true, unsafe { value.into_boxed(b) }),
         }
     }
 }
@@ -290,8 +292,8 @@ impl<T, const N: usize> Embedded<'_, T, N> {
         }
     }
     unsafe fn buf_into_inner(buf: &mut Buf<N>) -> T {
-        if let ([], [slot, ..], _) = buf.align_to_mut::<MaybeUninit<T>>() {
-            slot.assume_init_read()
+        if let ([], [slot, ..], _) = unsafe { buf.align_to_mut::<MaybeUninit<T>>() } {
+            unsafe { slot.assume_init_read() }
         } else {
             unreachable!()
         }
@@ -299,14 +301,14 @@ impl<T, const N: usize> Embedded<'_, T, N> {
 }
 impl<T: ?Sized, const N: usize> Embedded<'_, T, N> {
     pub unsafe fn into_boxed(mut self, b: &Bump) -> MaybeBox<'_, T> {
-        self.methods.take().unwrap().buf_into_box(&mut self.buf, b)
+        unsafe { self.methods.take().unwrap().buf_into_box(&mut self.buf, b) }
     }
     pub unsafe fn into_owned(mut self) -> <T as ToOwned>::Owned
     where
         T: ToOwned + 'static,
         T::Owned: 'static,
     {
-        self.methods.take().unwrap().buf_into_owned(&mut self.buf)
+        unsafe { self.methods.take().unwrap().buf_into_owned(&mut self.buf) }
     }
 }
 impl<T: ?Sized, const N: usize> std::ops::Deref for Embedded<'_, T, N> {
@@ -355,7 +357,7 @@ impl<T, const N: usize> EmbeddedMethods<T, N> for EmbeddedMethodsImpl<T, N> {
         }
     }
     unsafe fn buf_into_box<'b>(&self, buf: &mut Buf<N>, b: &'b Bump) -> MaybeBox<'b, T> {
-        MaybeBox::alloc(Embedded::buf_into_inner(buf), b)
+        MaybeBox::alloc(unsafe { Embedded::buf_into_inner(buf) }, b)
     }
 
     unsafe fn buf_into_owned(&self, buf: &mut Buf<N>) -> <T as ToOwned>::Owned
@@ -363,7 +365,7 @@ impl<T, const N: usize> EmbeddedMethods<T, N> for EmbeddedMethodsImpl<T, N> {
         T: ToOwned + 'static,
         T::Owned: 'static,
     {
-        into_owned::<T>(Embedded::buf_into_inner(buf))
+        into_owned::<T>(unsafe { Embedded::buf_into_inner(buf) })
     }
 }
 

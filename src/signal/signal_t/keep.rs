@@ -1,8 +1,8 @@
 use std::{any::Any, cell::RefCell, fmt, rc::Rc};
 
 use crate::{
-    core::{BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, UpdateContext},
     Signal, SignalContext, StateRef,
+    core::{BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, UpdateContext},
 };
 
 use super::SignalNode;

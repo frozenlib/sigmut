@@ -1,6 +1,6 @@
 use std::{
     cell::RefCell,
-    future::{poll_fn, Future},
+    future::{Future, poll_fn},
     pin::Pin,
     rc::{Rc, Weak},
     task::{Context, Poll, Waker},
@@ -9,8 +9,8 @@ use std::{
 use bumpalo::Bump;
 
 use super::{
-    waker_from_sink, BindSink, Dirty, NotifyLevel, RuntimeData, SignalContext, Sink, Slot,
-    SourceBindings, UpdateContext,
+    BindSink, Dirty, NotifyLevel, RuntimeData, SignalContext, Sink, Slot, SourceBindings,
+    UpdateContext, waker_from_sink,
 };
 
 const SLOT_WAKE: Slot = Slot(0);
@@ -33,9 +33,9 @@ impl SignalContextPtr {
     }
     unsafe fn sc(&self) -> SignalContext<'_> {
         SignalContext {
-            rt: &mut *self.rt,
-            bump: &*self.bump,
-            sink: self.sink.map(|x| &mut *x),
+            rt: unsafe { &mut *self.rt },
+            bump: unsafe { &*self.bump },
+            sink: self.sink.map(|x| unsafe { &mut *x }),
         }
     }
 }

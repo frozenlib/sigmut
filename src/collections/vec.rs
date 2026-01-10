@@ -8,17 +8,17 @@ use std::{
     rc::Rc,
 };
 
-use derive_ex::{derive_ex, Ex};
+use derive_ex::{Ex, derive_ex};
 use serde::{Deserialize, Serialize};
 use slabmap::SlabMap;
 
 use crate::{
-    core::{
-        schedule_notify, BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings,
-        Slot, SourceBinder, UpdateContext,
-    },
-    utils::{is_sorted, to_range, Changes, IndexNewToOld, RefCountOps},
     ActionContext, SignalContext,
+    core::{
+        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot,
+        SourceBinder, UpdateContext, schedule_notify,
+    },
+    utils::{Changes, IndexNewToOld, RefCountOps, is_sorted, to_range},
 };
 
 #[derive(Ex)]
@@ -347,15 +347,14 @@ impl<T: 'static> ItemsMut<'_, T> {
 }
 impl<T> Drop for ItemsMut<'_, T> {
     fn drop(&mut self) {
-        if self.is_dirty() {
-            if let ItemsMutData::Cell {
+        if self.is_dirty()
+            && let ItemsMutData::Cell {
                 node: Some(node),
                 nc,
                 ..
             } = &mut self.data
-            {
-                node.schedule_notify(nc);
-            }
+        {
+            node.schedule_notify(nc);
         }
     }
 }

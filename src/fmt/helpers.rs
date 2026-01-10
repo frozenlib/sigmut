@@ -1,6 +1,6 @@
 use core::fmt;
 
-use crate::{signal::ToSignal, Signal, SignalBuilder, SignalContext};
+use crate::{Signal, SignalBuilder, SignalContext, signal::ToSignal};
 
 pub use sigmut_macros::signal_format_dump_raw;
 pub use sigmut_macros::signal_format_raw;

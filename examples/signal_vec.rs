@@ -1,6 +1,6 @@
 use sigmut::{
-    collections::vec::{StateVec, VecChange},
     SignalBuilder,
+    collections::vec::{StateVec, VecChange},
 };
 
 fn main() {

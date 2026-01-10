@@ -13,11 +13,7 @@ pub enum Dirty {
 }
 impl Dirty {
     pub fn from_is_dirty(is_dirty: bool) -> Self {
-        if is_dirty {
-            Dirty::Dirty
-        } else {
-            Dirty::Clean
-        }
+        if is_dirty { Dirty::Dirty } else { Dirty::Clean }
     }
     pub fn is_dirty(self) -> bool {
         self == Dirty::Dirty
