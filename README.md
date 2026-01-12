@@ -65,7 +65,7 @@ This mechanism is a recent trend and is also adopted by other state management l
 
 ### Separation of "state changes" and "state calculations"
 
-Many state management libraries simplify programs by separating state changes from state calculations.
+Many state management libraries simplify logic by separating state changes from state calculations.
 
 In [Elm], the [Model-View-Update] architecture separates state changes (Update) from state calculations (View).
 
@@ -78,7 +78,7 @@ In [React], the rule to [`Components and Hooks must be pure`] prohibits state ch
 [`Components and Hooks must be pure`]: https://react.dev/reference/rules#components-and-hooks-must-be-pure
 [StrictMode]: https://react.dev/reference/react/StrictMode#fixing-bugs-found-by-double-rendering-in-development
 
-In [SolidJS], updates are batched so that dependent computations run after state updates finish — either explicitly via [`batch(fn)`](https://docs.solidjs.com/reference/reactive-utilities/batch), or implicitly by the framework — ensuring that state changes and state-derived computations remain separated across the system.
+In [SolidJS], updates are batched so that dependent computations run after state updates finish - either explicitly via [`batch(fn)`](https://docs.solidjs.com/reference/reactive-utilities/batch), or implicitly by the framework - ensuring that state changes and state-derived computations remain separated across the system.
 
 [SolidJS]: https://www.solidjs.com/
 
@@ -92,7 +92,7 @@ In `sigmut`, state changes and state calculations are separated using [`SignalCo
 
 By requiring functions that perform state changes or state calculations to use the corresponding context, the distinction between state changes and state calculations is made clear, and the compiler can enforce this separation.
 
-The "separation of state changes and state calculations" simplifies the program by treating state as immutable during state calculations, which is similar to Rust's ownership concept. Internally, `sigmut` uses [`RefCell`], but this similarity helps avoid [`BorrowError`] during state calculations. If you are using many `Rc<RefCell<T>>`, switching to `sigmut` can result in a more robust program with fewer [`BorrowError`] occurrences.
+The "separation of state changes and state calculations" simplifies the logic by treating state as immutable during state calculations, which is similar to Rust's ownership concept. Internally, `sigmut` uses [`RefCell`], but this similarity helps avoid [`BorrowError`] during state calculations. If you are using many `Rc<RefCell<T>>`, switching to `sigmut` can result in a more robust codebase with fewer [`BorrowError`] occurrences.
 
 [`RefCell`]: https://doc.rust-lang.org/std/cell/struct.RefCell.html
 [`BorrowError`]: https://doc.rust-lang.org/std/cell/struct.RefCell.html#method.borrow
