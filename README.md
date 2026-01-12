@@ -58,7 +58,7 @@ Dependencies between states are automatically tracked, and recalculations are au
 
 This mechanism is a recent trend and is also adopted by other state management libraries, such as the following:
 
-- [SolidJS](https://www.solidjs.com/docs/latest/api#basic-reactivity)
+- [SolidJS](https://docs.solidjs.com/advanced-concepts/fine-grained-reactivity)
 - [Preact Signals](https://preactjs.com/guide/v10/signals/)
 - [JavaScript Signals standard proposal](https://github.com/tc39/proposal-signals)
 - [Svelte runes](https://svelte-5-preview.vercel.app/docs/runes)
@@ -78,7 +78,7 @@ In [React], the rule to [`Components and Hooks must be pure`] prohibits state ch
 [`Components and Hooks must be pure`]: https://react.dev/reference/rules#components-and-hooks-must-be-pure
 [StrictMode]: https://react.dev/reference/react/StrictMode#fixing-bugs-found-by-double-rendering-in-development
 
-In [SolidJS], state changes made during state calculations are [deferred until the state calculation is complete](https://www.solidjs.com/docs/latest/api#createsignal).
+In [SolidJS], updates are batched so that dependent computations run after state updates finish — either explicitly via [`batch(fn)`]([solid_batch](https://docs.solidjs.com/reference/reactive-utilities/batch)), or implicitly by the framework — ensuring that state changes and state-derived computations remain separated across the system.
 
 [SolidJS]: https://www.solidjs.com/
 
