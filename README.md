@@ -78,7 +78,7 @@ In [React], the rule to [`Components and Hooks must be pure`] prohibits state ch
 [`Components and Hooks must be pure`]: https://react.dev/reference/rules#components-and-hooks-must-be-pure
 [StrictMode]: https://react.dev/reference/react/StrictMode#fixing-bugs-found-by-double-rendering-in-development
 
-In [SolidJS], updates are batched so that dependent computations run after state updates finish — either explicitly via [`batch(fn)`]([solid_batch](https://docs.solidjs.com/reference/reactive-utilities/batch)), or implicitly by the framework — ensuring that state changes and state-derived computations remain separated across the system.
+In [SolidJS], updates are batched so that dependent computations run after state updates finish — either explicitly via [`batch(fn)`](https://docs.solidjs.com/reference/reactive-utilities/batch), or implicitly by the framework — ensuring that state changes and state-derived computations remain separated across the system.
 
 [SolidJS]: https://www.solidjs.com/
 
