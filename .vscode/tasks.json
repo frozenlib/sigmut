@@ -40,9 +40,6 @@
         "kind": "build",
         "isDefault": true
       },
-      "dependsOn": [
-        "rustdoc-include"
-      ],
     },
     {
       "type": "shell",
@@ -196,9 +193,6 @@
       "problemMatcher": [
         "$rustc"
       ],
-      "dependsOn": [
-        "rustdoc-include"
-      ],
     },
     {
       "type": "shell",
@@ -274,37 +268,6 @@
           "TRYBUILD": "overwrite",
         }
       }
-    },
-    {
-      "type": "shell",
-      "label": "rustdoc-include",
-      "command": "rustdoc-include",
-      "args": [
-        "--root",
-        "${workspaceFolder}"
-      ],
-      "problemMatcher": [
-        {
-          "owner": "rustdoc-include",
-          "fileLocation": [
-            "relative",
-            "${workspaceFolder}"
-          ],
-          "pattern": [
-            {
-              "regexp": "^(error): (.*)$",
-              "severity": 1,
-              "message": 2,
-            },
-            {
-              "regexp": "^--> (.*):(\\d+)\\s*$",
-              "file": 1,
-              "line": 2,
-              "loop": true,
-            },
-          ]
-        },
-      ],
     },
   ],
 }

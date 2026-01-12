@@ -11,7 +11,8 @@ mod subscription;
 pub mod utils;
 
 #[cfg(doctest)]
-pub mod tests_readme;
+#[doc = include_str!("../README.md")]
+pub mod tests_readme {}
 
 #[doc(inline)]
 pub use crate::core::{
