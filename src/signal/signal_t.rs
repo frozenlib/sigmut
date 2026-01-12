@@ -407,6 +407,9 @@ where
     }
 }
 
+/// Converts a value to a `Signal`.
+///
+/// This trait is primarily used to specify values assigned to placeholders in [`signal_format!`](crate::signal_format).
 pub trait ToSignal {
     type Value: ?Sized + 'static;
     fn to_signal(&self) -> Signal<Self::Value>;
