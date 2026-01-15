@@ -2,7 +2,6 @@ use core::panic;
 use std::{
     any::Any,
     cell::{Ref, RefCell},
-    cmp::{max, min},
     collections::HashSet,
     future::{Future, poll_fn},
     mem::{replace, swap, take, transmute},
@@ -33,7 +32,7 @@ pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
-use crate::utils::isize_map::ISizeMap;
+use crate::utils::buckets::Buckets;
 
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
@@ -1224,57 +1223,6 @@ impl ActionKind {
     pub fn assert_registered(&self) {
         if !self.is_registered() {
             panic!("`ActionKind` {} is not registered.", self);
-        }
-    }
-}
-
-#[derive(Ex)]
-#[derive_ex(Default)]
-#[default(Self::new())]
-struct Buckets<T> {
-    buckets: ISizeMap<Vec<T>>,
-    start: isize,
-    last: isize,
-}
-impl<T> Buckets<T> {
-    fn new() -> Self {
-        Self {
-            buckets: ISizeMap::new(),
-            start: isize::MAX,
-            last: isize::MIN,
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.start == isize::MAX
-    }
-    fn set_empty(&mut self) {
-        self.start = isize::MAX;
-        self.last = isize::MIN;
-    }
-    fn push(&mut self, id: i8, item: T) {
-        let index = id as isize;
-        self.buckets[index].push(item);
-        self.start = min(self.start, index);
-        self.last = max(self.last, index);
-    }
-    fn drain(&mut self, id: Option<i8>, to: &mut Vec<T>) {
-        if let Some(id) = id {
-            let index = id as isize;
-            if let Some(bucket) = self.buckets.get_mut(index) {
-                to.append(bucket)
-            }
-            if self.start == index {
-                self.start += 1;
-            }
-            if self.start > self.last {
-                self.set_empty();
-            }
-        } else {
-            for index in self.start..=self.last {
-                to.append(&mut self.buckets[index])
-            }
-            self.set_empty();
         }
     }
 }
