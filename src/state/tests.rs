@@ -32,17 +32,17 @@ fn set_effect() {
         call!("{}", s0.get(sc));
     });
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify("10");
 
     s.set(20, rt.ac());
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify("20");
 
     s.set(30, rt.ac());
     s.set(40, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("40");
 }
 
@@ -57,19 +57,19 @@ fn set_dedup_effect() {
     });
 
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify("10");
 
     s.set(10, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("10");
 
     s.set_dedup(10, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify(());
 
     s.set_dedup(20, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("20");
 }
 
@@ -83,7 +83,7 @@ fn borrow_mut() {
         let mut borrowed = s.borrow_mut(rt.ac());
         *borrowed = 20;
     }
-    rt.update();
+    rt.flush();
     assert_eq!(s.get(&mut rt.sc()), 20);
 }
 
@@ -99,7 +99,7 @@ fn borrow_mut_loose() {
         *b1 = 30;
         *b2 = 40;
     }
-    rt.update();
+    rt.flush();
 
     assert_eq!(s1.get(&mut rt.sc()), 30);
     assert_eq!(s2.get(&mut rt.sc()), 40);
@@ -115,21 +115,21 @@ fn borrow_mut_dedup() {
         call!("{}", s0.get(sc));
     });
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify("10");
 
     {
         let mut borrowed = s.borrow_mut_dedup(rt.ac());
         *borrowed = 10;
     }
-    rt.update();
+    rt.flush();
     cr.verify(());
 
     {
         let mut borrowed = s.borrow_mut_dedup(rt.ac());
         *borrowed = 20;
     }
-    rt.update();
+    rt.flush();
     cr.verify("20");
 }
 
@@ -145,7 +145,7 @@ fn borrow_mut_dedup_loose() {
         *b1 = 30;
         *b2 = 40;
     }
-    rt.update();
+    rt.flush();
 
     assert_eq!(s1.get(&mut rt.sc()), 30);
     assert_eq!(s2.get(&mut rt.sc()), 40);

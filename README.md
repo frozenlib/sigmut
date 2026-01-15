@@ -44,14 +44,14 @@ let c = Signal::new({
 });
 let _e = c.effect(|x| println!("{x}"));
 
-rt.update(); // prints "1"
+rt.flush(); // prints "1"
 
 a.set(2, rt.ac());
-rt.update(); // prints "3"
+rt.flush(); // prints "3"
 
 a.set(3, rt.ac());
 b.set(5, rt.ac());
-rt.update(); // prints "8"
+rt.flush(); // prints "8"
 ```
 
 Dependencies between states are automatically tracked, and recalculations are automatically triggered when changes occur.

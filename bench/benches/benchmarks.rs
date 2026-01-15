@@ -25,7 +25,7 @@ fn one_to_one(b: &mut test::Bencher) {
             for s in &ss {
                 s.set(n, ac);
             }
-            rt.update();
+            rt.flush();
         }
     });
 }
@@ -46,7 +46,7 @@ fn one_to_many(b: &mut test::Bencher) {
         for n in 0..5 {
             let ac = rt.ac();
             s.set(n, ac);
-            rt.update();
+            rt.flush();
         }
     });
 }
@@ -72,7 +72,7 @@ fn many_to_one(b: &mut test::Bencher) {
     b.iter(|| {
         for n in 0..5 {
             ss[n].set(n + 1, rt.ac());
-            rt.update();
+            rt.flush();
         }
     });
 }
@@ -101,7 +101,7 @@ fn many_to_many(b: &mut test::Bencher) {
     b.iter(|| {
         for n in 0..5 {
             ss[n].set(n + 1, rt.ac());
-            rt.update();
+            rt.flush();
         }
     });
 }

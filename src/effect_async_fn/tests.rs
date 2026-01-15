@@ -16,14 +16,14 @@ fn test_effect_async() {
     });
     cr.verify(());
 
-    rt.update();
+    rt.flush();
     cr.verify("10");
 
-    rt.update();
+    rt.flush();
     cr.verify(()); // not called again because state did not change
 
     s.set(20, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("20"); // called again because state changed
 
     s.set(30, rt.ac());
@@ -49,14 +49,14 @@ fn cancel_on_changed() {
     });
     cr.verify(());
 
-    rt.update();
+    rt.flush();
     cr.verify("10");
 
-    rt.update();
+    rt.flush();
     cr.verify(()); // not called again because state did not change
 
     s.set(20, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify(["drop_10", "20"]); // called again because state changed
 }
 
@@ -78,7 +78,7 @@ fn cancel_on_drop() {
     });
     cr.verify(());
 
-    rt.update();
+    rt.flush();
     cr.verify("10");
 
     drop(e);

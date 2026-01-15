@@ -99,20 +99,20 @@ fn new_effect() {
     });
     let _e = s.effect(|x| call!("{x}"));
 
-    rt.update();
+    rt.flush();
     cr.verify("15");
 
     a.set(10, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("20");
 
     b.set(20, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("30");
 
     a.set(15, rt.ac());
     b.set(25, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("40");
 }
 
@@ -124,7 +124,7 @@ fn new_discard() {
     let s = Signal::new(move |_| call_on_drop("drop"));
     s.borrow(&mut rt.sc());
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify("drop");
 }
 
@@ -138,7 +138,7 @@ fn on_discard_on_no_dependants() {
         .build();
     s.get(&mut rt.sc());
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify("discard");
 }
 #[test]
@@ -153,7 +153,7 @@ fn on_discard_on_drop() {
     cr.verify(());
     drop(s);
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify("discard");
 }
 
@@ -168,10 +168,10 @@ fn keep() {
         .keep();
     s.borrow(&mut rt.sc());
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify(());
     drop(s);
-    rt.update();
+    rt.flush();
     cr.verify("discard");
 }
 
@@ -185,7 +185,7 @@ fn builder_keep() {
         .build();
     s.borrow(&mut rt.sc());
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify(());
     drop(s);
     cr.verify("drop");
@@ -203,15 +203,15 @@ fn new_no_dedup() {
         move |sc| st.get(sc)
     });
     let _e = s.effect(|x| call!("{x}"));
-    rt.update();
+    rt.flush();
     cr.verify("5");
 
     st.set(5, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("5");
 
     st.set(10, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("10");
 }
 
@@ -227,15 +227,15 @@ fn new_dedup() {
         move |sc| st.get(sc)
     });
     let _e = s.effect(|x| call!("{x}"));
-    rt.update();
+    rt.flush();
     cr.verify("5");
 
     st.set(5, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify(());
 
     st.set(10, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("10");
 }
 
@@ -276,11 +276,11 @@ fn from_borrow() {
     let s = Signal::from_borrow(st.clone(), |st, sc, _| st.borrow(sc));
 
     let _e = s.effect(|x| call!("{x}"));
-    rt.update();
+    rt.flush();
     cr.verify("5");
 
     st.set(10, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("10");
 }
 
@@ -300,10 +300,10 @@ async fn from_future() {
     let s = Signal::from_future(async move { receiver.recv().await });
 
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
-    rt.update();
+    rt.flush();
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
     sender.send(20);
-    rt.update();
+    rt.flush();
     assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
 }
 
@@ -333,16 +333,16 @@ async fn from_stream() {
 
     s0.set(20, rt.ac());
     wait_for_idle().await;
-    rt.update();
+    rt.flush();
     wait_for_idle().await;
-    rt.update();
+    rt.flush();
     assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Ready(20));
 
     s0.set(20, rt.ac());
     wait_for_idle().await;
-    rt.update();
+    rt.flush();
     wait_for_idle().await;
-    rt.update();
+    rt.flush();
     assert_eq!(s1.get(&mut rt.sc()), Poll::<i32>::Ready(20));
 }
 
@@ -365,10 +365,10 @@ async fn from_async() {
     let s = Signal::from_async(async move |_| receiver.recv().await);
 
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
-    rt.update();
+    rt.flush();
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
     sender.send(20);
-    rt.update();
+    rt.flush();
     assert_eq!(s.get(&mut rt.sc()), Poll::Ready(20));
 }
 
@@ -388,11 +388,11 @@ fn from_async_effect() {
         }
     });
 
-    rt.update();
+    rt.flush();
     cr.verify(format!("{:?}", Poll::<i32>::Pending));
 
     sender.send(20);
-    rt.update();
+    rt.flush();
     cr.verify(format!("{:?}", Poll::<i32>::Ready(20)));
 }
 
@@ -410,7 +410,7 @@ fn from_async_no_dependants() {
 
     assert_eq!(s.get(&mut rt.sc()), Poll::Pending);
     cr.verify(());
-    rt.update();
+    rt.flush();
     cr.verify("drop");
 }
 
@@ -450,13 +450,13 @@ async fn to_stream() {
     );
     wait_for_idle().await;
 
-    rt.update();
+    rt.flush();
     wait_for_idle().await;
 
     cr.verify("5");
 
     s.set(10, rt.ac());
-    rt.update();
+    rt.flush();
     wait_for_idle().await;
     cr.verify("10");
 }

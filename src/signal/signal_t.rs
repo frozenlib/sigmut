@@ -267,7 +267,7 @@ impl<T: ?Sized + 'static> Signal<T> {
 
     /// Create a `Signal` that keeps a cache even if the subscriber does not exist.
     ///
-    /// Normally, `Signal` discards the cache at the time [`Runtime::run_discards`](crate::core::Runtime::run_discards) is called if there are no subscribers.
+    /// Normally, `Signal` discards the cache at the time [`Runtime::dispatch_discards`](crate::core::Runtime::dispatch_discards) is called if there are no subscribers.
     /// Signals created by this method do not discards the cache even if there are no subscribers.
     ///
     /// Using [SignalBuilder::keep], you can create similar Signal more efficiently.
@@ -279,7 +279,8 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// First, call the function with the current value, then call the function each time the value changes.
     ///
-    /// The function is called when [`Runtime::run_tasks`](crate::core::Runtime::run_tasks) is called with `None` or `Some(TaskKind::default())`.
+    /// The function is called when [`Runtime::dispatch_tasks`](crate::core::Runtime::dispatch_tasks) is called with `TaskKind::default()`,
+    /// or when [`Runtime::dispatch_all_tasks`](crate::core::Runtime::dispatch_all_tasks) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
     pub fn effect(&self, mut f: impl FnMut(&T) + 'static) -> Subscription {
@@ -291,7 +292,8 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// First, call the function with the current value, then call the function each time the value changes.
     ///
-    /// The function is called when [`Runtime::run_tasks`](crate::core::Runtime::run_tasks) is called with `None` or `Some(kind)`.
+    /// The function is called when [`Runtime::dispatch_tasks`](crate::core::Runtime::dispatch_tasks) is called with `kind`,
+    /// or when [`Runtime::dispatch_all_tasks`](crate::core::Runtime::dispatch_all_tasks) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
     pub fn effect_with(&self, mut f: impl FnMut(&T) + 'static, kind: TaskKind) -> Subscription {

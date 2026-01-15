@@ -12,7 +12,8 @@ mod tests;
 
 /// Call a function each time a dependency changes.
 ///
-/// The function is called when [`Runtime::run_tasks`](crate::core::Runtime::run_tasks) is called with `None` or `Some(TaskKind::default())`.
+/// The function is called when [`Runtime::dispatch_tasks`](crate::core::Runtime::dispatch_tasks) is called with `TaskKind::default()`,
+/// or when [`Runtime::dispatch_all_tasks`](crate::core::Runtime::dispatch_all_tasks) is called.
 /// However, if the dependency status has not changed since the previous call, it will not be called.
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
@@ -22,7 +23,8 @@ pub fn effect(f: impl FnMut(&mut SignalContext) + 'static) -> Subscription {
 
 /// Call a function each time a dependency changes with [`TaskKind`] specified.
 ///
-/// The function is called when [`Runtime::run_tasks`](crate::core::Runtime::run_tasks) is called with `None` or `Some(kind)`.
+/// The function is called when [`Runtime::dispatch_tasks`](crate::core::Runtime::dispatch_tasks) is called with `kind`,
+/// or when [`Runtime::dispatch_all_tasks`](crate::core::Runtime::dispatch_all_tasks) is called.
 /// However, if the dependency status has not changed since the previous call, it will not be called.
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.

@@ -12,14 +12,14 @@ fn test_effect() {
     let e = effect(move |sc| call!("{}", s0.get(sc)));
     cr.verify(());
 
-    rt.update();
+    rt.flush();
     cr.verify("10");
 
-    rt.update();
+    rt.flush();
     cr.verify(()); // not called again because state did not change
 
     s.set(20, rt.ac());
-    rt.update();
+    rt.flush();
     cr.verify("20"); // called again because state changed
 
     s.set(30, rt.ac());
@@ -37,9 +37,9 @@ fn test_effect_with() {
 
     let s = Signal::from_value(10);
     let _e = effect_with(move |sc| call!("{}", s.get(sc)), kind_1);
-    rt.run_tasks(kind_2);
+    rt.dispatch_tasks(kind_2);
     cr.verify(());
 
-    rt.run_tasks(kind_1);
+    rt.dispatch_tasks(kind_1);
     cr.verify("10");
 }

@@ -212,44 +212,47 @@ impl Runtime {
         self.as_raw().sc()
     }
 
-    /// Perform scheduled actions for the specified kind.
+    /// Dispatch scheduled actions for the specified kind.
     ///
-    /// Returns `true` if any action was performed.
-    pub fn run_actions(&mut self, kind: ActionKind) -> bool {
-        self.as_raw().run_actions_with(Some(kind))
+    /// Returns `true` if any action was dispatched.
+    pub fn dispatch_actions(&mut self, kind: ActionKind) -> bool {
+        self.as_raw().dispatch_actions_with(Some(kind))
     }
 
-    /// Perform scheduled actions for all kinds.
+    /// Dispatch scheduled actions for all kinds.
     ///
-    /// Returns `true` if any action was performed.
-    pub fn run_action_all(&mut self) -> bool {
-        self.as_raw().run_actions_with(None)
+    /// Returns `true` if any action was dispatched.
+    pub fn dispatch_all_actions(&mut self) -> bool {
+        self.as_raw().dispatch_actions_with(None)
     }
 
-    /// Perform scheduled tasks for the specified kind.
+    /// Dispatch scheduled tasks for the specified kind.
     ///
-    /// Returns `true` if any task was performed.
-    pub fn run_tasks(&mut self, kind: TaskKind) -> bool {
-        self.as_raw().run_tasks_with(Some(kind))
-    }
-    /// Perform scheduled tasks for all kinds.
-    ///
-    /// Returns `true` if any task was performed.
-    pub fn run_tasks_all(&mut self) -> bool {
-        self.as_raw().run_tasks_with(None)
+    /// Returns `true` if any task was dispatched.
+    pub fn dispatch_tasks(&mut self, kind: TaskKind) -> bool {
+        self.as_raw().dispatch_tasks_with(Some(kind))
     }
 
-    /// Perform scheduled discards.
+    /// Dispatch scheduled tasks for all kinds.
     ///
-    /// Returns `true` if any discard was performed.
-    pub fn run_discards(&mut self) -> bool {
-        self.as_raw().run_discards()
+    /// Returns `true` if any task was dispatched.
+    pub fn dispatch_all_tasks(&mut self) -> bool {
+        self.as_raw().dispatch_tasks_with(None)
     }
 
-    /// Repeat until there are no more processes to do
-    /// [`run_actions`](Self::run_actions), [`run_tasks`](Self::run_tasks), or [`run_discards`](Self::run_discards).
-    pub fn update(&mut self) {
-        self.as_raw().update()
+    /// Dispatch scheduled discards.
+    ///
+    /// Returns `true` if any discard was dispatched.
+    pub fn dispatch_discards(&mut self) -> bool {
+        self.as_raw().dispatch_discards()
+    }
+
+    /// Flush all pending operations.
+    ///
+    /// Repeats [`dispatch_all_actions`](Self::dispatch_all_actions), [`dispatch_all_tasks`](Self::dispatch_all_tasks),
+    /// and [`dispatch_discards`](Self::dispatch_discards) until there are no more pending operations.
+    pub fn flush(&mut self) {
+        self.as_raw().flush()
     }
 
     /// Lends the runtime's ownership to the current thread, making [`Runtime::call`] available during that time.
@@ -295,7 +298,7 @@ impl Drop for Runtime {
 pub struct RuntimeLend<'a>(&'a mut Runtime);
 
 impl RuntimeLend<'_> {
-    /// Wait while there is no process to be executed by [`Runtime::update`].
+    /// Wait while there is no process to be executed by [`Runtime::flush`].
     pub async fn wait_for_ready(&mut self) {
         poll_fn(|cx| Globals::with(|g| g.wait_for_ready(cx))).await
     }
@@ -341,7 +344,7 @@ impl RawRuntime {
             sink: None,
         }
     }
-    fn run_actions_with(&mut self, kind: Option<ActionKind>) -> bool {
+    fn dispatch_actions_with(&mut self, kind: Option<ActionKind>) -> bool {
         let mut handled = false;
         let mut actions = take(&mut self.actions_buffer);
         while Globals::get_actions(kind, &mut actions) {
@@ -354,7 +357,7 @@ impl RawRuntime {
         handled
     }
 
-    fn run_tasks_with(&mut self, kind: Option<TaskKind>) -> bool {
+    fn dispatch_tasks_with(&mut self, kind: Option<TaskKind>) -> bool {
         self.apply_notify();
         let mut tasks = take(&mut self.tasks_buffer);
         Globals::get_tasks(kind, &mut tasks);
@@ -392,7 +395,7 @@ impl RawRuntime {
         handled
     }
 
-    fn run_discards(&mut self) -> bool {
+    fn dispatch_discards(&mut self) -> bool {
         let mut handled = false;
         loop {
             if let Some(task) = self.rt.discards.pop() {
@@ -409,15 +412,15 @@ impl RawRuntime {
         handled
     }
 
-    fn update(&mut self) {
+    fn flush(&mut self) {
         loop {
-            if self.run_actions_with(None) {
+            if self.dispatch_actions_with(None) {
                 continue;
             }
-            if self.run_tasks_with(None) {
+            if self.dispatch_tasks_with(None) {
                 continue;
             }
-            if self.run_discards() {
+            if self.dispatch_discards() {
                 continue;
             }
             break;
@@ -713,7 +716,7 @@ impl<'s> UpdateContext<'s> {
 
     /// Register a task to discard the cache.
     ///
-    /// Registered tasks are called when [`Runtime::run_discards`] is called.
+    /// Registered tasks are called when [`Runtime::dispatch_discards`] is called.
     pub fn schedule_discard(&mut self, discard: Task) {
         self.0.rt.discards.push(discard)
     }

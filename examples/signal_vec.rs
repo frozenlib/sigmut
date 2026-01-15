@@ -29,8 +29,8 @@ fn main() {
     .build()
     .effect(|sum| println!("{sum}"));
 
-    rt.update(); // prints "0"
+    rt.flush(); // prints "0"
 
     s.borrow_mut(rt.ac()).extend([1, 2]);
-    rt.update(); // prints "3"
+    rt.flush(); // prints "3"
 }
