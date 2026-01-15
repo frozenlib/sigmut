@@ -70,22 +70,6 @@ fn action_kind_registration_cleared_after_runtime_drop() {
 }
 
 #[test]
-#[should_panic(expected = "`TaskKind` 3: test is not registered.")]
-fn task_kind_assert_registered_panic() {
-    let _rt = Runtime::new();
-    const KIND: TaskKind = TaskKind::new(3, "test");
-    KIND.assert_registered();
-}
-
-#[test]
-#[should_panic(expected = "`ActionKind` 3: test is not registered.")]
-fn action_kind_assert_registered_panic() {
-    let _rt = Runtime::new();
-    const KIND: ActionKind = ActionKind::new(3, "test");
-    KIND.assert_registered();
-}
-
-#[test]
 #[should_panic(expected = "`TaskKind` 4: test is not registered.")]
 fn schedule_task_with_unregistered_kind_panic() {
     let _rt = Runtime::new();

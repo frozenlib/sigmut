@@ -1196,11 +1196,6 @@ impl TaskKind {
     pub fn is_registered(&self) -> bool {
         Globals::with(|g| g.is_task_kind_registered(*self))
     }
-    pub fn assert_registered(&self) {
-        if !self.is_registered() {
-            panic!("`TaskKind` {} is not registered.", self);
-        }
-    }
 }
 
 /// Kind of actions performed by the reactive runtime.
@@ -1219,11 +1214,6 @@ impl ActionKind {
     }
     pub fn is_registered(&self) -> bool {
         Globals::with(|g| g.is_action_kind_registered(*self))
-    }
-    pub fn assert_registered(&self) {
-        if !self.is_registered() {
-            panic!("`ActionKind` {} is not registered.", self);
-        }
     }
 }
 
