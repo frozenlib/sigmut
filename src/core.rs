@@ -46,7 +46,7 @@ struct Globals {
     notifys: Vec<NotifyTask>,
     need_wake: bool,
     wakes: WakeTable,
-    tasks: Tasks,
+    tasks: Buckets<Task>,
 }
 impl Globals {
     fn new() -> Self {
@@ -58,7 +58,7 @@ impl Globals {
             notifys: Vec::new(),
             need_wake: false,
             wakes: WakeTable::default(),
-            tasks: Tasks::new(),
+            tasks: Buckets::new(),
         }
     }
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
@@ -795,7 +795,6 @@ impl NotifyTask {
     }
 }
 
-
 /// Context for changing state.
 #[repr(transparent)]
 pub struct ActionContext(RawRuntime);
@@ -1104,15 +1103,15 @@ impl TaskKind {
 #[derive(Ex)]
 #[derive_ex(Default)]
 #[default(Self::new())]
-struct Tasks {
-    tasks: ISizeMap<Vec<Task>>,
+struct Buckets<T> {
+    buckets: ISizeMap<Vec<T>>,
     start: isize,
     last: isize,
 }
-impl Tasks {
+impl<T> Buckets<T> {
     fn new() -> Self {
         Self {
-            tasks: ISizeMap::new(),
+            buckets: ISizeMap::new(),
             start: isize::MAX,
             last: isize::MIN,
         }
@@ -1125,17 +1124,17 @@ impl Tasks {
         self.start = isize::MAX;
         self.last = isize::MIN;
     }
-    fn push(&mut self, kind: TaskKind, task: Task) {
+    fn push(&mut self, kind: TaskKind, item: T) {
         let index = kind.id as isize;
-        self.tasks[index].push(task);
+        self.buckets[index].push(item);
         self.start = min(self.start, index);
         self.last = max(self.last, index);
     }
-    fn drain(&mut self, kind: Option<TaskKind>, to: &mut Vec<Task>) {
+    fn drain(&mut self, kind: Option<TaskKind>, to: &mut Vec<T>) {
         if let Some(kind) = kind {
             let index = kind.id as isize;
-            if let Some(tasks) = self.tasks.get_mut(index) {
-                to.append(tasks)
+            if let Some(bucket) = self.buckets.get_mut(index) {
+                to.append(bucket)
             }
             if self.start == index {
                 self.start += 1;
@@ -1145,7 +1144,7 @@ impl Tasks {
             }
         } else {
             for index in self.start..=self.last {
-                to.append(&mut self.tasks[index])
+                to.append(&mut self.buckets[index])
             }
             self.set_empty();
         }
