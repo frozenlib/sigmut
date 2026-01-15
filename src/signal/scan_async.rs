@@ -10,8 +10,8 @@ use std::{
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        AsyncSignalContext, AsyncSourceBinder, BindKey, BindSink, BindSource, Discard,
-        NotifyContext, NotifyLevel, SinkBindings, Slot, UpdateContext,
+        AsyncSignalContext, AsyncSourceBinder, BindKey, BindSink, BindSource, NotifyContext,
+        NotifyLevel, SinkBindings, Slot, Task, UpdateContext,
     },
 };
 
@@ -101,7 +101,17 @@ where
     }
     fn try_schedule_discard(self: &Rc<Self>, uc: &mut UpdateContext) {
         if self.sinks.borrow().is_empty() && !self.discard_scheduled.replace(true) {
-            uc.schedule_discard(self.clone(), Slot(0));
+            let task = Task::from_rc_fn(self.clone(), |this, uc| this.discard(uc));
+            uc.schedule_discard(task);
+        }
+    }
+
+    fn discard(self: &Rc<Self>, uc: &mut UpdateContext) {
+        self.discard_scheduled.set(false);
+        if self.sinks.borrow().is_empty() {
+            let mut d = self.data.borrow_mut();
+            d.fut.set(None);
+            d.asb.clear(uc);
         }
     }
 }
@@ -176,25 +186,6 @@ where
         let mut d = self.data.borrow_mut();
         if d.asb.on_notify(slot, level) {
             self.sinks.borrow_mut().notify(NotifyLevel::MaybeDirty, nc)
-        }
-    }
-}
-
-impl<St, T, GetFut, Fut, Scan, Map> Discard for ScanAsyncNode<St, GetFut, Fut, Scan, Map>
-where
-    St: 'static,
-    T: ?Sized + 'static,
-    GetFut: Fn(AsyncSignalContext) -> Fut + 'static,
-    Fut: Future + 'static,
-    Scan: FnMut(&mut St, Poll<Fut::Output>) -> bool + 'static,
-    Map: Fn(&St) -> &T + 'static,
-{
-    fn discard(self: Rc<Self>, _slot: Slot, uc: &mut UpdateContext) {
-        self.discard_scheduled.set(false);
-        if self.sinks.borrow().is_empty() {
-            let mut d = self.data.borrow_mut();
-            d.fut.set(None);
-            d.asb.clear(uc);
         }
     }
 }

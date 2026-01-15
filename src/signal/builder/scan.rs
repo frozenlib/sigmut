@@ -7,8 +7,8 @@ use std::{
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        BindKey, BindSink, BindSource, Discard, NotifyContext, NotifyLevel, SinkBindings, Slot,
-        SourceBinder, UpdateContext,
+        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot, SourceBinder,
+        Task, UpdateContext,
     },
 };
 
@@ -229,18 +229,12 @@ where
     }
     fn try_schedule_discard(self: &Rc<Self>, uc: &mut UpdateContext) {
         if self.discard_scheduled.try_schedule(&self.sinks) {
-            uc.schedule_discard(self.clone(), Slot(0))
+            let task = Task::from_rc_fn(self.clone(), |this, uc| this.discard(uc));
+            uc.schedule_discard(task);
         }
     }
-}
-impl<St, Scan, D, M> Discard for ScanNode<St, Scan, D, M>
-where
-    St: 'static,
-    Scan: ScanFn<St> + 'static,
-    D: DiscardFn<St> + 'static,
-    M: MapFn<St> + 'static,
-{
-    fn discard(self: Rc<Self>, _slot: Slot, uc: &mut UpdateContext) {
+
+    fn discard(self: &Rc<Self>, uc: &mut UpdateContext) {
         self.discard_scheduled.reset_schedule();
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();

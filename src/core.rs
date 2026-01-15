@@ -378,7 +378,7 @@ impl RawRuntime {
         let mut handled = false;
         loop {
             if let Some(task) = self.rt.discards.pop() {
-                task.call_discard(&mut self.uc_raw());
+                task.run(&mut self.uc_raw());
                 handled = true;
                 continue;
             }
@@ -426,7 +426,7 @@ impl Drop for RawRuntime {
 }
 
 struct RuntimeData {
-    discards: Vec<DiscardTask>,
+    discards: Vec<Task>,
     async_actions: SlabMap<Rc<AsyncAction>>,
 }
 
@@ -696,11 +696,8 @@ impl<'s> UpdateContext<'s> {
     /// Register a task to discard the cache.
     ///
     /// Registered tasks are called when [`Runtime::run_discards`] is called.
-    pub fn schedule_discard(&mut self, discard: Rc<dyn Discard>, slot: Slot) {
-        self.0.rt.discards.push(DiscardTask {
-            node: discard,
-            slot,
-        })
+    pub fn schedule_discard(&mut self, discard: Task) {
+        self.0.rt.discards.push(discard)
     }
 
     /// Call a function with a [`SignalContext`] that does not track dependencies.
@@ -798,18 +795,6 @@ impl NotifyTask {
     }
 }
 
-pub trait Discard {
-    fn discard(self: Rc<Self>, slot: Slot, uc: &mut UpdateContext);
-}
-struct DiscardTask {
-    node: Rc<dyn Discard>,
-    slot: Slot,
-}
-impl DiscardTask {
-    fn call_discard(self, uc: &mut UpdateContext) {
-        self.node.discard(self.slot, uc)
-    }
-}
 
 /// Context for changing state.
 #[repr(transparent)]
