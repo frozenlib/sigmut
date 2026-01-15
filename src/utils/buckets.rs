@@ -28,19 +28,17 @@ impl<T> Buckets<T> {
         self.start = isize::MAX;
         self.last = isize::MIN;
     }
-    pub fn push(&mut self, id: i8, item: T) {
-        let index = id as isize;
-        self.buckets[index].push(item);
-        self.start = min(self.start, index);
-        self.last = max(self.last, index);
+    pub fn push(&mut self, id: isize, item: T) {
+        self.buckets[id].push(item);
+        self.start = min(self.start, id);
+        self.last = max(self.last, id);
     }
-    pub fn drain(&mut self, id: Option<i8>, to: &mut Vec<T>) {
+    pub fn drain(&mut self, id: Option<isize>, to: &mut Vec<T>) {
         if let Some(id) = id {
-            let index = id as isize;
-            if let Some(bucket) = self.buckets.get_mut(index) {
+            if let Some(bucket) = self.buckets.get_mut(id) {
                 to.append(bucket)
             }
-            if self.start == index {
+            if self.start == id {
                 self.start += 1;
             }
             if self.start > self.last {

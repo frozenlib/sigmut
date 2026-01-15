@@ -77,7 +77,7 @@ impl Globals {
             if !g.is_task_kind_registered(kind) {
                 panic!("`TaskKind` {} is not registered.", kind);
             }
-            g.tasks.push(kind.id, task);
+            g.tasks.push(kind.id as isize, task);
             g.wake();
         })
     }
@@ -88,7 +88,7 @@ impl Globals {
             if !g.is_action_kind_registered(kind) {
                 panic!("`ActionKind` {} is not registered.", kind);
             }
-            g.actions.push(kind.id, action);
+            g.actions.push(kind.id as isize, action);
             g.wake();
         })
     }
@@ -102,14 +102,14 @@ impl Globals {
 
     fn get_tasks(kind: Option<TaskKind>, tasks: &mut Vec<Task>) {
         Self::with(|g| {
-            g.tasks.drain(kind.map(|k| k.id), tasks);
+            g.tasks.drain(kind.map(|k| k.id as isize), tasks);
         })
     }
     fn get_actions(kind: Option<ActionKind>, actions: &mut Vec<Action>) -> bool {
         Self::with(|g| {
             g.apply_wake();
             let was_empty = g.actions.is_empty();
-            g.actions.drain(kind.map(|k| k.id), actions);
+            g.actions.drain(kind.map(|k| k.id as isize), actions);
             !was_empty
         })
     }
@@ -139,7 +139,7 @@ impl Globals {
                     }
                     WakeTask::AsyncAction(action) => self
                         .actions
-                        .push(ActionKind::default().id, action.to_action()),
+                        .push(ActionKind::default().id as isize, action.to_action()),
                 }
             }
         }
