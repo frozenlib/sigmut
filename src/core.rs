@@ -42,7 +42,7 @@ struct Globals {
     is_runtime_exists: bool,
     runtime: Option<Box<RawRuntime>>,
     unbinds: Vec<SourceBindingsData>,
-    actions: Vec<Action>,
+    actions: Buckets<Action>,
     notifys: Vec<NotifyTask>,
     need_wake: bool,
     wakes: WakeTable,
@@ -54,7 +54,7 @@ impl Globals {
             is_runtime_exists: false,
             runtime: None,
             unbinds: Vec::new(),
-            actions: Vec::new(),
+            actions: Buckets::new(),
             notifys: Vec::new(),
             need_wake: false,
             wakes: WakeTable::default(),
@@ -69,7 +69,16 @@ impl Globals {
     }
     fn schedule_task(kind: TaskKind, task: Task) {
         Self::with(|g| {
-            g.tasks.push(kind, task);
+            g.assert_exists();
+            g.tasks.push(kind.id, task);
+            g.wake();
+        })
+    }
+
+    fn schedule_action(kind: ActionKind, action: Action) {
+        Self::with(|g| {
+            g.assert_exists();
+            g.actions.push(kind.id, action);
             g.wake();
         })
     }
@@ -83,15 +92,16 @@ impl Globals {
 
     fn get_tasks(kind: Option<TaskKind>, tasks: &mut Vec<Task>) {
         Self::with(|g| {
-            g.tasks.drain(kind, tasks);
+            g.tasks.drain(kind.map(|k| k.id), tasks);
         })
     }
-    fn get_actions(actions: &mut Vec<Action>) -> bool {
+    fn get_actions(kind: Option<ActionKind>, actions: &mut Vec<Action>) -> bool {
         Self::with(|g| {
             g.apply_wake();
-            swap(actions, &mut g.actions);
-        });
-        !actions.is_empty()
+            let was_empty = g.actions.is_empty();
+            g.actions.drain(kind.map(|k| k.id), actions);
+            !was_empty
+        })
     }
 
     fn swap_source_bindings(
@@ -101,17 +111,7 @@ impl Globals {
         Self::with(|g| swap(f(g), values));
         !values.is_empty()
     }
-    fn assert_exists(&self) {
-        if !self.is_runtime_exists {
-            panic!("`Runtime` is not created.");
-        }
-    }
 
-    fn push_action(&mut self, action: Action) {
-        self.assert_exists();
-        self.actions.push(action);
-        self.wake();
-    }
     fn push_notify(&mut self, sink: Weak<dyn BindSink>, slot: Slot) {
         self.notifys.push(NotifyTask { sink, slot });
         self.wake();
@@ -127,7 +127,9 @@ impl Globals {
                     WakeTask::Notify(task) => {
                         self.notifys.push(task.clone());
                     }
-                    WakeTask::AsyncAction(action) => self.actions.push(action.to_action()),
+                    WakeTask::AsyncAction(action) => self
+                        .actions
+                        .push(ActionKind::default().id, action.to_action()),
                 }
             }
         }
@@ -160,6 +162,11 @@ impl Globals {
         }
         self.need_wake = false;
         self.wakes.requests.0.lock().unwrap().wake();
+    }
+    fn assert_exists(&self) {
+        if !self.is_runtime_exists {
+            panic!("`Runtime` is not created.");
+        }
     }
 }
 
@@ -207,9 +214,11 @@ impl Runtime {
 
     /// Perform scheduled actions.
     ///
+    /// If `kind` is `None`, all actions are executed.
+    ///
     /// Returns `true` if any action was performed.
-    pub fn run_actions(&mut self) -> bool {
-        self.as_raw().run_actions()
+    pub fn run_actions(&mut self, kind: Option<ActionKind>) -> bool {
+        self.as_raw().run_actions(kind)
     }
 
     /// Perform scheduled tasks.
@@ -323,10 +332,10 @@ impl RawRuntime {
             sink: None,
         }
     }
-    fn run_actions(&mut self) -> bool {
+    fn run_actions(&mut self, kind: Option<ActionKind>) -> bool {
         let mut handled = false;
         let mut actions = take(&mut self.actions_buffer);
-        while Globals::get_actions(&mut actions) {
+        while Globals::get_actions(kind, &mut actions) {
             for action in actions.drain(..) {
                 action.call(self.ac());
                 handled = true;
@@ -393,7 +402,7 @@ impl RawRuntime {
 
     fn update(&mut self) {
         loop {
-            if self.run_actions() {
+            if self.run_actions(None) {
                 continue;
             }
             if self.run_tasks(None) {
@@ -813,7 +822,7 @@ impl ActionContext {
 
 /// Spawns a new action.
 pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
-    Action::Box(Box::new(f)).schedule()
+    Action::new(f).schedule()
 }
 
 /// Spawns a new asynchronous action.
@@ -836,8 +845,11 @@ pub fn spawn_action_rc<T: Any>(
     Action::from_rc(this, f).schedule()
 }
 
+/// Represents an action to be executed by the runtime.
+pub struct Action(RawAction);
+
 #[allow(clippy::type_complexity)]
-enum Action {
+enum RawAction {
     Box(Box<dyn FnOnce(&mut ActionContext)>),
     Rc {
         this: Rc<dyn Any>,
@@ -846,20 +858,37 @@ enum Action {
 }
 
 impl Action {
-    fn from_rc<T: Any>(this: Rc<T>, f: impl Fn(Rc<T>, &mut ActionContext) + 'static) -> Self {
-        Action::Rc {
+    /// Creates a new action from a boxed closure.
+    pub fn new(f: impl FnOnce(&mut ActionContext) + 'static) -> Self {
+        Action(RawAction::Box(Box::new(f)))
+    }
+
+    /// Creates a new action from an Rc without heap allocation.
+    pub fn from_rc<T: Any>(
+        this: Rc<T>,
+        f: impl Fn(Rc<T>, &mut ActionContext) + Copy + 'static,
+    ) -> Self {
+        Action(RawAction::Rc {
             this,
             f: Box::new(move |this, ac| f(this.downcast().unwrap(), ac)),
-        }
+        })
     }
+
+    /// Schedules this action with a specific kind.
+    pub fn schedule_with(self, kind: ActionKind) {
+        Globals::schedule_action(kind, self)
+    }
+
+    /// Schedules this action with default kind.
+    pub fn schedule(self) {
+        self.schedule_with(ActionKind::default())
+    }
+
     fn call(self, ac: &mut ActionContext) {
-        match self {
-            Action::Box(f) => f(ac),
-            Action::Rc { this, f } => f(this, ac),
+        match self.0 {
+            RawAction::Box(f) => f(ac),
+            RawAction::Rc { this, f } => f(this, ac),
         }
-    }
-    fn schedule(self) {
-        let _ = Globals::try_with(|g| g.push_action(self));
     }
 }
 struct AsyncAction {
@@ -1100,6 +1129,22 @@ impl TaskKind {
     }
 }
 
+/// Kind of actions performed by the reactive runtime.
+#[derive(Clone, Copy, Display, Debug, Ex)]
+#[derive_ex(PartialEq, Eq, Hash, Default)]
+#[display("{id}: {name}")]
+#[default(Self::new(0, "<default>"))]
+pub struct ActionKind {
+    id: i8,
+    #[eq(ignore)]
+    name: &'static str,
+}
+impl ActionKind {
+    pub const fn new(id: i8, name: &'static str) -> Self {
+        Self { id, name }
+    }
+}
+
 #[derive(Ex)]
 #[derive_ex(Default)]
 #[default(Self::new())]
@@ -1124,15 +1169,15 @@ impl<T> Buckets<T> {
         self.start = isize::MAX;
         self.last = isize::MIN;
     }
-    fn push(&mut self, kind: TaskKind, item: T) {
-        let index = kind.id as isize;
+    fn push(&mut self, id: i8, item: T) {
+        let index = id as isize;
         self.buckets[index].push(item);
         self.start = min(self.start, index);
         self.last = max(self.last, index);
     }
-    fn drain(&mut self, kind: Option<TaskKind>, to: &mut Vec<T>) {
-        if let Some(kind) = kind {
-            let index = kind.id as isize;
+    fn drain(&mut self, id: Option<i8>, to: &mut Vec<T>) {
+        if let Some(id) = id {
+            let index = id as isize;
             if let Some(bucket) = self.buckets.get_mut(index) {
                 to.append(bucket)
             }
