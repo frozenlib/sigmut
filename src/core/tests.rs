@@ -1,4 +1,5 @@
 use super::*;
+use std::{cell::Cell, rc::Rc};
 
 #[test]
 fn task_kind_default_is_registered() {
@@ -98,6 +99,16 @@ fn schedule_action_with_unregistered_kind_panic() {
     let _rt = Runtime::new();
     const KIND: ActionKind = ActionKind::new(4, "test");
     Action::new(|_| {}).schedule_with(KIND);
+}
+
+#[test]
+fn action_from_weak_fn_runs_when_alive() {
+    let mut rt = Runtime::new();
+    let flag = Rc::new(Cell::new(false));
+    let weak = Rc::downgrade(&flag);
+    Action::from_weak_fn(weak, |flag, _| flag.set(true)).schedule();
+    rt.dispatch_all_actions();
+    assert!(flag.get());
 }
 
 #[test]

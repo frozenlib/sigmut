@@ -889,7 +889,7 @@ pub fn spawn_action_rc<T: Any>(
     this: Rc<T>,
     f: impl Fn(Rc<T>, &mut ActionContext) + Copy + 'static,
 ) {
-    Action::from_rc(this, f).schedule()
+    Action::from_rc_fn(this, f).schedule()
 }
 
 /// Represents an action to be executed by the runtime.
@@ -902,6 +902,10 @@ enum RawAction {
         this: Rc<dyn Any>,
         f: Box<dyn Fn(Rc<dyn Any>, &mut ActionContext)>,
     },
+    Weak {
+        this: Weak<dyn Any>,
+        f: Box<dyn Fn(Weak<dyn Any>, &mut ActionContext)>,
+    },
 }
 
 impl Action {
@@ -911,13 +915,28 @@ impl Action {
     }
 
     /// Creates a new action from an Rc without heap allocation.
-    pub fn from_rc<T: Any>(
+    pub fn from_rc_fn<T: Any>(
         this: Rc<T>,
         f: impl Fn(Rc<T>, &mut ActionContext) + Copy + 'static,
     ) -> Self {
         Action(RawAction::Rc {
             this,
             f: Box::new(move |this, ac| f(this.downcast().unwrap(), ac)),
+        })
+    }
+
+    /// Creates a new action from a weak reference.
+    pub fn from_weak_fn<T: Any>(
+        this: Weak<T>,
+        f: impl Fn(Rc<T>, &mut ActionContext) + Copy + 'static,
+    ) -> Self {
+        Action(RawAction::Weak {
+            this,
+            f: Box::new(move |this, ac| {
+                if let Some(this) = this.upgrade() {
+                    f(this.downcast().unwrap(), ac)
+                }
+            }),
         })
     }
 
@@ -935,6 +954,7 @@ impl Action {
         match self.0 {
             RawAction::Box(f) => f(ac),
             RawAction::Rc { this, f } => f(this, ac),
+            RawAction::Weak { this, f } => f(this, ac),
         }
     }
 }
@@ -988,7 +1008,7 @@ impl AsyncAction {
         });
     }
     fn to_action(self: &Rc<Self>) -> Action {
-        Action::from_rc(self.clone(), Self::next)
+        Action::from_rc_fn(self.clone(), Self::next)
     }
 }
 
