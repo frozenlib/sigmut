@@ -34,6 +34,8 @@ fn test_effect_with() {
 
     let kind_1 = TaskKind::new(1, "1");
     let kind_2 = TaskKind::new(2, "2");
+    Runtime::register_task_kind(kind_1);
+    Runtime::register_task_kind(kind_2);
 
     let s = Signal::from_value(10);
     let _e = effect_with(move |sc| call!("{}", s.get(sc)), kind_1);

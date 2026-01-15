@@ -3,6 +3,7 @@ use std::{
     any::Any,
     cell::{Ref, RefCell},
     cmp::{max, min},
+    collections::HashSet,
     future::{Future, poll_fn},
     mem::{replace, swap, take, transmute},
     ops::AsyncFnOnce,
@@ -47,6 +48,8 @@ struct Globals {
     need_wake: bool,
     wakes: WakeTable,
     tasks: Buckets<Task>,
+    registered_task_kinds: HashSet<i8>,
+    registered_action_kinds: HashSet<i8>,
 }
 impl Globals {
     fn new() -> Self {
@@ -59,6 +62,8 @@ impl Globals {
             need_wake: false,
             wakes: WakeTable::default(),
             tasks: Buckets::new(),
+            registered_task_kinds: HashSet::new(),
+            registered_action_kinds: HashSet::new(),
         }
     }
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
@@ -70,6 +75,9 @@ impl Globals {
     fn schedule_task(kind: TaskKind, task: Task) {
         Self::with(|g| {
             g.assert_exists();
+            if !g.is_task_kind_registered(kind) {
+                panic!("`TaskKind` {} is not registered.", kind);
+            }
             g.tasks.push(kind.id, task);
             g.wake();
         })
@@ -78,6 +86,9 @@ impl Globals {
     fn schedule_action(kind: ActionKind, action: Action) {
         Self::with(|g| {
             g.assert_exists();
+            if !g.is_action_kind_registered(kind) {
+                panic!("`ActionKind` {} is not registered.", kind);
+            }
             g.actions.push(kind.id, action);
             g.wake();
         })
@@ -154,6 +165,8 @@ impl Globals {
 
     fn finish_runtime(&mut self) {
         self.is_runtime_exists = false;
+        self.registered_task_kinds.clear();
+        self.registered_action_kinds.clear();
     }
 
     fn wake(&mut self) {
@@ -167,6 +180,21 @@ impl Globals {
         if !self.is_runtime_exists {
             panic!("`Runtime` is not created.");
         }
+    }
+
+    fn register_task_kind(&mut self, kind: TaskKind) {
+        self.assert_exists();
+        self.registered_task_kinds.insert(kind.id);
+    }
+    fn register_action_kind(&mut self, kind: ActionKind) {
+        self.assert_exists();
+        self.registered_action_kinds.insert(kind.id);
+    }
+    fn is_task_kind_registered(&self, kind: TaskKind) -> bool {
+        kind.id == 0 || self.registered_task_kinds.contains(&kind.id)
+    }
+    fn is_action_kind_registered(&self, kind: ActionKind) -> bool {
+        kind.id == 0 || self.registered_action_kinds.contains(&kind.id)
     }
 }
 
@@ -200,6 +228,13 @@ impl Runtime {
         self.raw
             .as_mut()
             .expect("Runtime is unavailable. `Runtime::wait_for_ready` may have leaked.")
+    }
+
+    pub fn register_action_kind(kind: ActionKind) {
+        Globals::with(|g| g.register_action_kind(kind))
+    }
+    pub fn register_task_kind(kind: TaskKind) {
+        Globals::with(|g| g.register_task_kind(kind))
     }
 
     pub fn ac(&mut self) -> &mut ActionContext {
@@ -1139,6 +1174,14 @@ impl TaskKind {
     pub const fn new(id: i8, name: &'static str) -> Self {
         Self { id, name }
     }
+    pub fn is_registered(&self) -> bool {
+        Globals::with(|g| g.is_task_kind_registered(*self))
+    }
+    pub fn assert_registered(&self) {
+        if !self.is_registered() {
+            panic!("`TaskKind` {} is not registered.", self);
+        }
+    }
 }
 
 /// Kind of actions performed by the reactive runtime.
@@ -1154,6 +1197,14 @@ pub struct ActionKind {
 impl ActionKind {
     pub const fn new(id: i8, name: &'static str) -> Self {
         Self { id, name }
+    }
+    pub fn is_registered(&self) -> bool {
+        Globals::with(|g| g.is_action_kind_registered(*self))
+    }
+    pub fn assert_registered(&self) {
+        if !self.is_registered() {
+            panic!("`ActionKind` {} is not registered.", self);
+        }
     }
 }
 
