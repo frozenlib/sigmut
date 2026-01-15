@@ -28,6 +28,13 @@ impl<T: Default> ISizeMap<T> {
     pub fn end_index(&self) -> isize {
         self.start + self.values.len() as isize
     }
+    pub fn get(&self, index: isize) -> Option<&T> {
+        if self.start <= index && (index - self.start) < self.values.len() as isize {
+            Some(&self.values[(index - self.start) as usize])
+        } else {
+            None
+        }
+    }
     pub fn get_mut(&mut self, index: isize) -> Option<&mut T> {
         if self.start <= index && (index - self.start) < self.values.len() as isize {
             Some(&mut self.values[(index - self.start) as usize])
