@@ -37,9 +37,9 @@ fn test_effect_with() {
 
     let s = Signal::from_value(10);
     let _e = effect_with(move |sc| call!("{}", s.get(sc)), kind_1);
-    rt.run_tasks(Some(kind_2));
+    rt.run_tasks(kind_2);
     cr.verify(());
 
-    rt.run_tasks(Some(kind_1));
+    rt.run_tasks(kind_1);
     cr.verify("10");
 }

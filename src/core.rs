@@ -212,22 +212,31 @@ impl Runtime {
         self.as_raw().sc()
     }
 
-    /// Perform scheduled actions.
-    ///
-    /// If `kind` is `None`, all actions are executed.
+    /// Perform scheduled actions for the specified kind.
     ///
     /// Returns `true` if any action was performed.
-    pub fn run_actions(&mut self, kind: Option<ActionKind>) -> bool {
-        self.as_raw().run_actions(kind)
+    pub fn run_actions(&mut self, kind: ActionKind) -> bool {
+        self.as_raw().run_actions_with(Some(kind))
     }
 
-    /// Perform scheduled tasks.
+    /// Perform scheduled actions for all kinds.
     ///
-    /// If `kind` is `None`, all tasks are executed.
+    /// Returns `true` if any action was performed.
+    pub fn run_action_all(&mut self) -> bool {
+        self.as_raw().run_actions_with(None)
+    }
+
+    /// Perform scheduled tasks for the specified kind.
     ///
     /// Returns `true` if any task was performed.
-    pub fn run_tasks(&mut self, kind: Option<TaskKind>) -> bool {
-        self.as_raw().run_tasks(kind)
+    pub fn run_tasks(&mut self, kind: TaskKind) -> bool {
+        self.as_raw().run_tasks_with(Some(kind))
+    }
+    /// Perform scheduled tasks for all kinds.
+    ///
+    /// Returns `true` if any task was performed.
+    pub fn run_tasks_all(&mut self) -> bool {
+        self.as_raw().run_tasks_with(None)
     }
 
     /// Perform scheduled discards.
@@ -332,7 +341,7 @@ impl RawRuntime {
             sink: None,
         }
     }
-    fn run_actions(&mut self, kind: Option<ActionKind>) -> bool {
+    fn run_actions_with(&mut self, kind: Option<ActionKind>) -> bool {
         let mut handled = false;
         let mut actions = take(&mut self.actions_buffer);
         while Globals::get_actions(kind, &mut actions) {
@@ -345,7 +354,7 @@ impl RawRuntime {
         handled
     }
 
-    fn run_tasks(&mut self, kind: Option<TaskKind>) -> bool {
+    fn run_tasks_with(&mut self, kind: Option<TaskKind>) -> bool {
         self.apply_notify();
         let mut tasks = take(&mut self.tasks_buffer);
         Globals::get_tasks(kind, &mut tasks);
@@ -402,10 +411,10 @@ impl RawRuntime {
 
     fn update(&mut self) {
         loop {
-            if self.run_actions(None) {
+            if self.run_actions_with(None) {
                 continue;
             }
-            if self.run_tasks(None) {
+            if self.run_tasks_with(None) {
                 continue;
             }
             if self.run_discards() {
