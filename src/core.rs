@@ -2,7 +2,6 @@ use core::panic;
 use std::{
     any::Any,
     cell::{Ref, RefCell},
-    collections::HashSet,
     future::{Future, poll_fn},
     mem::{replace, swap, take, transmute},
     ops::AsyncFnOnce,
@@ -33,6 +32,7 @@ pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
 use crate::utils::buckets::Buckets;
+use crate::utils::isize_map::ISizeMap;
 
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
@@ -47,8 +47,8 @@ struct Globals {
     need_wake: bool,
     wakes: WakeTable,
     tasks: Buckets<Task>,
-    registered_task_kinds: HashSet<i8>,
-    registered_action_kinds: HashSet<i8>,
+    registered_task_kinds: ISizeMap<bool>,
+    registered_action_kinds: ISizeMap<bool>,
 }
 impl Globals {
     fn new() -> Self {
@@ -61,8 +61,8 @@ impl Globals {
             need_wake: false,
             wakes: WakeTable::default(),
             tasks: Buckets::new(),
-            registered_task_kinds: HashSet::new(),
-            registered_action_kinds: HashSet::new(),
+            registered_task_kinds: ISizeMap::new(),
+            registered_action_kinds: ISizeMap::new(),
         }
     }
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
@@ -164,8 +164,8 @@ impl Globals {
 
     fn finish_runtime(&mut self) {
         self.is_runtime_exists = false;
-        self.registered_task_kinds.clear();
-        self.registered_action_kinds.clear();
+        self.registered_task_kinds = ISizeMap::new();
+        self.registered_action_kinds = ISizeMap::new();
     }
 
     fn wake(&mut self) {
@@ -183,17 +183,17 @@ impl Globals {
 
     fn register_task_kind(&mut self, kind: TaskKind) {
         self.assert_exists();
-        self.registered_task_kinds.insert(kind.id);
+        self.registered_task_kinds[kind.id as isize] = true;
     }
     fn register_action_kind(&mut self, kind: ActionKind) {
         self.assert_exists();
-        self.registered_action_kinds.insert(kind.id);
+        self.registered_action_kinds[kind.id as isize] = true;
     }
     fn is_task_kind_registered(&self, kind: TaskKind) -> bool {
-        kind.id == 0 || self.registered_task_kinds.contains(&kind.id)
+        kind.id == 0 || self.registered_task_kinds[kind.id as isize]
     }
     fn is_action_kind_registered(&self, kind: ActionKind) -> bool {
-        kind.id == 0 || self.registered_action_kinds.contains(&kind.id)
+        kind.id == 0 || self.registered_action_kinds[kind.id as isize]
     }
 }
 
