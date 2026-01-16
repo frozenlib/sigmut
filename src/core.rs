@@ -920,6 +920,9 @@ impl Action {
     }
 
     /// Creates a new action from an Rc without heap allocation.
+    ///
+    /// `f` should be of a zero-sized type.
+    /// If `f` is not a zero-sized type, heap allocation will occur.
     pub fn from_rc_fn<T: Any>(
         this: Rc<T>,
         f: impl Fn(Rc<T>, &mut ActionContext) + Copy + 'static,
@@ -931,6 +934,9 @@ impl Action {
     }
 
     /// Creates a new action from a weak reference.
+    ///
+    /// `f` should be of a zero-sized type.
+    /// If `f` is not a zero-sized type, heap allocation will occur.
     pub fn from_weak_fn<T: Any>(
         this: Weak<T>,
         f: impl Fn(Rc<T>, &mut ActionContext) + Copy + 'static,
@@ -1133,6 +1139,11 @@ impl Task {
     pub fn new(f: impl FnOnce(&mut UpdateContext) + 'static) -> Self {
         Task(RawTask::Box(Box::new(f)))
     }
+
+    /// Creates a new task from an Rc without heap allocation.
+    ///
+    /// `f` should be of a zero-sized type.
+    /// If `f` is not a zero-sized type, heap allocation will occur.
     pub fn from_rc_fn<T: Any>(
         this: Rc<T>,
         f: impl Fn(Rc<T>, &mut UpdateContext) + Copy + 'static,
@@ -1142,6 +1153,11 @@ impl Task {
             f: Box::new(move |this, uc| f(this.downcast().unwrap(), uc)),
         })
     }
+
+    /// Creates a new task from a weak reference.
+    ///
+    /// `f` should be of a zero-sized type.
+    /// If `f` is not a zero-sized type, heap allocation will occur.
     pub fn from_weak_fn<T: Any>(
         this: Weak<T>,
         f: impl Fn(Rc<T>, &mut UpdateContext) + Copy + 'static,
