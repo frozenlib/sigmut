@@ -583,6 +583,14 @@ impl SourceBindings {
         *dirty == Dirty::Dirty
     }
 
+    /// Computes state and records dependencies on self.
+    ///
+    /// # Arguments
+    ///
+    /// * `sink` - The notification target when a dependency is updated and `update` needs to be called again.
+    /// * `slot` - The notification slot.
+    /// * `reset` - If `true`, clears existing dependencies. Set to `false` when building state incrementally across multiple `update` calls to preserve previous dependencies.
+    /// * `f` - The function that computes the state.
     pub fn update<T>(
         &mut self,
         sink: Weak<dyn BindSink>,
@@ -611,6 +619,15 @@ impl SourceBindings {
         }
         ret
     }
+
+    /// Clears all dependencies immediately.
+    ///
+    /// Dropping self also clears dependencies, but since `UpdateContext` (required for editing dependencies) is not available during drop,
+    /// the clearing is deferred until `UpdateContext` becomes available.
+    ///
+    /// Therefore, to guarantee that no further notifications will occur, use this method to clear dependencies immediately.
+    ///
+    /// `UpdateContext` is required for editing dependencies to prevent `BorrowMutError` in the `RefCell` that records dependencies.
     pub fn clear(&mut self, uc: &mut UpdateContext) {
         for b in self.0.drain(..) {
             b.unbind(uc)
