@@ -32,7 +32,6 @@ pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
 use crate::utils::buckets::Buckets;
-use crate::utils::isize_map::ISizeMap;
 
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
@@ -47,22 +46,22 @@ struct Globals {
     need_wake: bool,
     wakes: WakeTable,
     tasks: Buckets<Task>,
-    registered_task_kinds: ISizeMap<bool>,
-    registered_action_kinds: ISizeMap<bool>,
 }
 impl Globals {
     fn new() -> Self {
+        let mut tasks = Buckets::new();
+        let mut actions = Buckets::new();
+        tasks.register_bucket(0);
+        actions.register_bucket(0);
         Self {
             is_runtime_exists: false,
             runtime: None,
             unbinds: Vec::new(),
-            actions: Buckets::new(),
+            actions,
             notifys: Vec::new(),
             need_wake: false,
             wakes: WakeTable::default(),
-            tasks: Buckets::new(),
-            registered_task_kinds: ISizeMap::new(),
-            registered_action_kinds: ISizeMap::new(),
+            tasks,
         }
     }
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
@@ -73,22 +72,18 @@ impl Globals {
     }
     fn schedule_task(kind: TaskKind, task: Task) {
         Self::with(|g| {
-            g.assert_exists();
-            if !g.is_task_kind_registered(kind) {
+            if !g.tasks.try_push(kind.id as isize, task) {
                 panic!("`TaskKind` {} is not registered.", kind);
             }
-            g.tasks.push(kind.id as isize, task);
             g.wake();
         })
     }
 
     fn schedule_action(kind: ActionKind, action: Action) {
         Self::with(|g| {
-            g.assert_exists();
-            if !g.is_action_kind_registered(kind) {
+            if !g.actions.try_push(kind.id as isize, action) {
                 panic!("`ActionKind` {} is not registered.", kind);
             }
-            g.actions.push(kind.id as isize, action);
             g.wake();
         })
     }
@@ -137,9 +132,12 @@ impl Globals {
                     WakeTask::Notify(task) => {
                         self.notifys.push(task.clone());
                     }
-                    WakeTask::AsyncAction(action) => self
-                        .actions
-                        .push(ActionKind::default().id as isize, action.to_action()),
+                    WakeTask::AsyncAction(action) => {
+                        let pushed = self
+                            .actions
+                            .try_push(ActionKind::default().id as isize, action.to_action());
+                        debug_assert!(pushed);
+                    }
                 }
             }
         }
@@ -164,8 +162,10 @@ impl Globals {
 
     fn finish_runtime(&mut self) {
         self.is_runtime_exists = false;
-        self.registered_task_kinds = ISizeMap::new();
-        self.registered_action_kinds = ISizeMap::new();
+        self.tasks = Buckets::new();
+        self.actions = Buckets::new();
+        self.tasks.register_bucket(0);
+        self.actions.register_bucket(0);
     }
 
     fn wake(&mut self) {
@@ -183,17 +183,17 @@ impl Globals {
 
     fn register_task_kind(&mut self, kind: TaskKind) {
         self.assert_exists();
-        self.registered_task_kinds[kind.id as isize] = true;
+        self.tasks.register_bucket(kind.id as isize);
     }
     fn register_action_kind(&mut self, kind: ActionKind) {
         self.assert_exists();
-        self.registered_action_kinds[kind.id as isize] = true;
+        self.actions.register_bucket(kind.id as isize);
     }
     fn is_task_kind_registered(&self, kind: TaskKind) -> bool {
-        kind.id == 0 || self.registered_task_kinds[kind.id as isize]
+        self.tasks.contains_bucket(kind.id as isize)
     }
     fn is_action_kind_registered(&self, kind: ActionKind) -> bool {
-        kind.id == 0 || self.registered_action_kinds[kind.id as isize]
+        self.actions.contains_bucket(kind.id as isize)
     }
 }
 

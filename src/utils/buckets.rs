@@ -8,7 +8,7 @@ use super::isize_map::ISizeMap;
 #[derive_ex(Default)]
 #[default(Self::new())]
 pub struct Buckets<T> {
-    buckets: ISizeMap<Vec<T>>,
+    buckets: ISizeMap<Option<Vec<T>>>,
     start: isize,
     last: isize,
 }
@@ -28,14 +28,28 @@ impl<T> Buckets<T> {
         self.start = isize::MAX;
         self.last = isize::MIN;
     }
-    pub fn push(&mut self, id: isize, item: T) {
-        self.buckets[id].push(item);
-        self.start = min(self.start, id);
-        self.last = max(self.last, id);
+    pub fn contains_bucket(&self, id: isize) -> bool {
+        matches!(self.buckets.get(id), Some(Some(_)))
+    }
+    pub fn register_bucket(&mut self, id: isize) {
+        if self.buckets[id].is_none() {
+            self.buckets[id] = Some(Vec::new());
+        }
+    }
+    #[must_use]
+    pub fn try_push(&mut self, id: isize, item: T) -> bool {
+        if let Some(Some(bucket)) = self.buckets.get_mut(id) {
+            bucket.push(item);
+            self.start = min(self.start, id);
+            self.last = max(self.last, id);
+            true
+        } else {
+            false
+        }
     }
     pub fn drain(&mut self, id: Option<isize>, to: &mut Vec<T>) {
         if let Some(id) = id {
-            if let Some(bucket) = self.buckets.get_mut(id) {
+            if let Some(Some(bucket)) = self.buckets.get_mut(id) {
                 to.append(bucket)
             }
             if self.start == id {
@@ -46,7 +60,9 @@ impl<T> Buckets<T> {
             }
         } else {
             for index in self.start..=self.last {
-                to.append(&mut self.buckets[index])
+                if let Some(bucket) = &mut self.buckets[index] {
+                    to.append(bucket)
+                }
             }
             self.set_empty();
         }
