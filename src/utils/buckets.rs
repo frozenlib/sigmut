@@ -32,8 +32,9 @@ impl<T> Buckets<T> {
         matches!(self.buckets.get(id), Some(Some(_)))
     }
     pub fn register_bucket(&mut self, id: isize) {
-        if self.buckets[id].is_none() {
-            self.buckets[id] = Some(Vec::new());
+        let b = &mut self.buckets[id];
+        if b.is_none() {
+            *b = Some(Vec::new());
         }
     }
     #[must_use]
@@ -59,8 +60,8 @@ impl<T> Buckets<T> {
                 self.set_empty();
             }
         } else {
-            for index in self.start..=self.last {
-                if let Some(bucket) = &mut self.buckets[index] {
+            for id in self.start..=self.last {
+                if let Some(Some(bucket)) = &mut self.buckets.get_mut(id) {
                     to.append(bucket)
                 }
             }
