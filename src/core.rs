@@ -886,17 +886,6 @@ pub fn spawn_action_async(f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static
     })
 }
 
-/// Spawns a new action without heap allocation.
-///
-/// `f` should be of a zero-sized type.
-/// If `f` is not a zero-sized type, heap allocation will occur.
-pub fn spawn_action_rc<T: Any>(
-    this: Rc<T>,
-    f: impl Fn(Rc<T>, &mut ActionContext) + Copy + 'static,
-) {
-    Action::from_rc_fn(this, f).schedule()
-}
-
 /// Represents an action to be executed by the runtime.
 pub struct Action(RawAction);
 
