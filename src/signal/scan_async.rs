@@ -10,8 +10,8 @@ use std::{
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        AsyncSignalContext, AsyncSourceBinder, BindKey, BindSink, BindSource, NotifyContext,
-        NotifyLevel, SinkBindings, Slot, Task, UpdateContext,
+        AsyncSignalContext, AsyncSourceBinder, BindKey, BindSink, BindSource, DirtyLevel,
+        NotifyContext, SinkBindings, Slot, Task, UpdateContext,
     },
 };
 
@@ -182,10 +182,10 @@ where
     Scan: FnMut(&mut St, Poll<Fut::Output>) -> bool + 'static,
     Map: Fn(&St) -> &T + 'static,
 {
-    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         let mut d = self.data.borrow_mut();
         if d.asb.on_notify(slot, level) {
-            self.sinks.borrow_mut().notify(NotifyLevel::MaybeDirty, nc)
+            self.sinks.borrow_mut().notify(DirtyLevel::MaybeDirty, nc)
         }
     }
 }

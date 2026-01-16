@@ -11,7 +11,7 @@ use futures::Stream;
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot,
         UpdateContext, waker_from_sink,
     },
 };
@@ -191,7 +191,7 @@ where
     Scan: FnMut(&mut St, Option<I>) -> bool + 'static,
     Map: MapFn<St> + 'static,
 {
-    fn notify(self: Rc<Self>, _slot: Slot, _level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, _slot: Slot, _level: DirtyLevel, nc: &mut NotifyContext) {
         let mut d = self.data.borrow_mut();
         let Some(t) = d.task.as_mut() else {
             return;
@@ -200,7 +200,7 @@ where
             return;
         }
         t.is_wake = true;
-        self.sinks.borrow_mut().notify(NotifyLevel::MaybeDirty, nc)
+        self.sinks.borrow_mut().notify(DirtyLevel::MaybeDirty, nc)
     }
 }
 impl<St, I, Scan, Map> BindSource for StreamScanNode<St, I, Scan, Map>

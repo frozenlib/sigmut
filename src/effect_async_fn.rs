@@ -3,7 +3,7 @@ use std::{cell::RefCell, future::Future, ops::AsyncFnMut, pin::Pin, rc::Rc};
 use crate::{
     Subscription,
     core::{
-        AsyncSignalContext, AsyncSourceBinder, BindSink, NotifyContext, NotifyLevel, Slot, Task,
+        AsyncSignalContext, AsyncSourceBinder, BindSink, DirtyLevel, NotifyContext, Slot, Task,
         TaskKind, UpdateContext,
     },
 };
@@ -85,7 +85,7 @@ where
     F: FnMut(AsyncSignalContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
-    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, _nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, _nc: &mut NotifyContext) {
         if self.data.borrow_mut().asb.on_notify(slot, level) {
             self.schedule();
         }

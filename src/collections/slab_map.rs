@@ -11,8 +11,8 @@ use slabmap::SlabMap;
 use crate::{
     ActionContext, SignalContext,
     core::{
-        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot,
-        SourceBinder, UpdateContext,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot, SourceBinder,
+        UpdateContext,
     },
     utils::{Changes, RefCountOps},
 };
@@ -202,7 +202,7 @@ impl<T> ItemsMut<T> {
         age: usize,
         nc: &mut NotifyContext,
     ) {
-        self.edit_end(age, sinks, |sink| sink.notify(NotifyLevel::Dirty, nc))
+        self.edit_end(age, sinks, |sink| sink.notify(DirtyLevel::Dirty, nc))
     }
 
     pub fn get(&self, key: usize) -> Option<&T> {
@@ -412,7 +412,7 @@ impl SinkBindingsSet {
         }
         self.any.update(is_dirty, uc);
     }
-    fn notify_all(&mut self, level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify_all(&mut self, level: DirtyLevel, nc: &mut NotifyContext) {
         for s in &mut self.items {
             s.notify(level, nc);
         }
@@ -565,11 +565,11 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         if self.data.borrow_mut().sb.on_notify(slot, level) {
             self.sinks
                 .borrow_mut()
-                .notify_all(NotifyLevel::MaybeDirty, nc);
+                .notify_all(DirtyLevel::MaybeDirty, nc);
         }
     }
 }

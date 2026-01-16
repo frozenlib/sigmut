@@ -3,7 +3,7 @@ use std::{
     ops::{BitOr, BitOrAssign},
 };
 
-use crate::core::NotifyLevel;
+use crate::core::DirtyLevel;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Dirty {
@@ -34,7 +34,7 @@ impl Dirty {
         self.is_clean()
     }
 
-    pub fn apply_notify(&mut self, level: NotifyLevel) {
+    pub fn apply_notify(&mut self, level: DirtyLevel) {
         *self = max(*self, level.into());
     }
 }

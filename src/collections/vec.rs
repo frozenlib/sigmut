@@ -15,8 +15,8 @@ use slabmap::SlabMap;
 use crate::{
     ActionContext, SignalContext,
     core::{
-        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot,
-        SourceBinder, UpdateContext, schedule_notify,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot, SourceBinder,
+        UpdateContext, schedule_notify,
     },
     utils::{Changes, IndexNewToOld, RefCountOps, is_sorted, to_range},
 };
@@ -583,7 +583,7 @@ impl<T> StateVec<T> {
     }
     fn schedule_notify(&self, nc: &mut Option<&mut NotifyContext>) {
         if let Some(nc) = nc {
-            self.0.sinks.borrow_mut().notify(NotifyLevel::Dirty, nc)
+            self.0.sinks.borrow_mut().notify(DirtyLevel::Dirty, nc)
         } else {
             let node = Rc::downgrade(&self.0);
             schedule_notify(node, Slot(0))
@@ -791,7 +791,7 @@ impl<T: 'static> ItemsData<T> {
 }
 
 impl<T: 'static> BindSink for RawStateVec<T> {
-    fn notify(self: Rc<Self>, _slot: Slot, level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, _slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         self.sinks.borrow_mut().notify(level, nc)
     }
 }
@@ -876,7 +876,7 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         if self.data.borrow_mut().sb.on_notify(slot, level) {
             self.sinks.borrow_mut().notify(level, nc)
         }

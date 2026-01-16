@@ -11,7 +11,7 @@ use futures::Future;
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot,
         UpdateContext, waker_from_sink,
     },
 };
@@ -210,7 +210,7 @@ where
     Scan: ScanFn<St, I> + 'static,
     Map: MapFn<St> + 'static,
 {
-    fn notify(self: Rc<Self>, _slot: Slot, level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, _slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         let mut d = self.data.borrow_mut();
         let Some(t) = d.task.as_mut() else {
             return;

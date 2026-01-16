@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use crate::{
     SignalContext, Subscription,
     core::{
-        BindSink, NotifyContext, NotifyLevel, Slot, SourceBinder, Task, TaskKind, UpdateContext,
+        BindSink, DirtyLevel, NotifyContext, Slot, SourceBinder, Task, TaskKind, UpdateContext,
     },
 };
 
@@ -72,7 +72,7 @@ impl<F> BindSink for EffectNode<F>
 where
     F: FnMut(&mut SignalContext) + 'static,
 {
-    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, _nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, _nc: &mut NotifyContext) {
         if self.data.borrow_mut().sb.on_notify(slot, level) {
             self.schedule();
         }

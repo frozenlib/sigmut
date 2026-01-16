@@ -7,7 +7,7 @@ use std::{
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        BindKey, BindSink, BindSource, NotifyContext, NotifyLevel, SinkBindings, Slot, SourceBinder,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot, SourceBinder,
         Task, UpdateContext,
     },
 };
@@ -194,7 +194,7 @@ where
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
-    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         if self.data.borrow_mut().sb.on_notify(slot, level) {
             self.sinks
                 .borrow_mut()

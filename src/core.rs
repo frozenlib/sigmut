@@ -495,31 +495,27 @@ impl RuntimeData {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum NotifyLevel {
+pub enum DirtyLevel {
     Dirty,
     MaybeDirty,
 }
-impl NotifyLevel {
+impl DirtyLevel {
     pub fn with_filter(self, filter: bool) -> Self {
-        if filter {
-            NotifyLevel::MaybeDirty
-        } else {
-            self
-        }
+        if filter { DirtyLevel::MaybeDirty } else { self }
     }
     pub fn is_dirty(self) -> bool {
-        self == NotifyLevel::Dirty
+        self == DirtyLevel::Dirty
     }
     pub fn is_maybe_dirty(self) -> bool {
-        self == NotifyLevel::MaybeDirty
+        self == DirtyLevel::MaybeDirty
     }
 }
 
-impl From<NotifyLevel> for Dirty {
-    fn from(value: NotifyLevel) -> Self {
+impl From<DirtyLevel> for Dirty {
+    fn from(value: DirtyLevel) -> Self {
         match value {
-            NotifyLevel::Dirty => Dirty::Dirty,
-            NotifyLevel::MaybeDirty => Dirty::MaybeDirty,
+            DirtyLevel::Dirty => Dirty::Dirty,
+            DirtyLevel::MaybeDirty => Dirty::MaybeDirty,
         }
     }
 }
@@ -626,7 +622,7 @@ struct SinkBinding {
 }
 
 impl SinkBinding {
-    fn notify(&self, level: NotifyLevel, nc: &mut NotifyContext) {
+    fn notify(&self, level: DirtyLevel, nc: &mut NotifyContext) {
         if let Some(node) = self.sink.upgrade() {
             node.notify(self.slot, level, nc)
         }
@@ -701,7 +697,7 @@ impl SinkBindings {
         self.0.remove(key.0);
     }
 
-    pub fn notify(&mut self, level: NotifyLevel, nc: &mut NotifyContext) {
+    pub fn notify(&mut self, level: DirtyLevel, nc: &mut NotifyContext) {
         self.0.optimize();
         for binding in self.0.values_mut() {
             if binding.dirty.needs_notify() {
@@ -824,7 +820,7 @@ impl<'s> SignalContext<'s> {
 
 /// A trait for types that can be notified of state changes.
 pub trait BindSink: 'static {
-    fn notify(self: Rc<Self>, slot: Slot, level: NotifyLevel, nc: &mut NotifyContext);
+    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext);
 }
 
 /// A trait for types that can hold a state and be monitored for changes.
@@ -845,7 +841,7 @@ struct NotifyTask {
 impl NotifyTask {
     fn call_notify(&self, nc: &mut NotifyContext) {
         if let Some(sink) = self.sink.upgrade() {
-            sink.notify(self.slot, NotifyLevel::Dirty, nc)
+            sink.notify(self.slot, DirtyLevel::Dirty, nc)
         }
     }
 }
