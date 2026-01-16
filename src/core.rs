@@ -135,7 +135,7 @@ impl Globals {
                     WakeTask::AsyncAction(action) => {
                         let pushed = self
                             .actions
-                            .try_push(ActionKind::default().id as isize, action.to_action());
+                            .try_push(action.kind.id as isize, action.to_action());
                         debug_assert!(pushed);
                     }
                 }
@@ -894,10 +894,23 @@ pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
     Action::new(f).schedule()
 }
 
+/// Spawns a new action with a specific kind.
+pub fn spawn_action_with(kind: ActionKind, f: impl FnOnce(&mut ActionContext) + 'static) {
+    Action::new(f).schedule_with(kind)
+}
+
 /// Spawns a new asynchronous action.
 pub fn spawn_action_async(f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static) {
-    spawn_action(|ac| {
-        AsyncAction::start(ac, |mut ac| async move {
+    spawn_action_async_with(ActionKind::default(), f)
+}
+
+/// Spawns a new asynchronous action with a specific kind.
+pub fn spawn_action_async_with(
+    kind: ActionKind,
+    f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static,
+) {
+    spawn_action_with(kind, move |ac| {
+        AsyncAction::start(kind, ac, |mut ac| async move {
             f(&mut ac).await;
         })
     })
@@ -976,18 +989,23 @@ impl Action {
     }
 }
 struct AsyncAction {
+    kind: ActionKind,
     aac_source: AsyncActionContextSource,
     data: RefCell<Option<AsyncActionData>>,
 }
 impl AsyncAction {
-    fn start<Fut>(ac: &mut ActionContext, f: impl FnOnce(AsyncActionContext) -> Fut + 'static)
-    where
+    fn start<Fut>(
+        kind: ActionKind,
+        ac: &mut ActionContext,
+        f: impl FnOnce(AsyncActionContext) -> Fut + 'static,
+    ) where
         Fut: Future<Output = ()> + 'static,
     {
         let aac_source = AsyncActionContextSource::new();
         let aac = aac_source.context();
         let future = aac_source.call(ac, || f(aac));
         let action = Rc::new(Self {
+            kind,
             aac_source,
             data: RefCell::new(None),
         });
