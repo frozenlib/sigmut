@@ -500,8 +500,18 @@ pub enum DirtyLevel {
     MaybeDirty,
 }
 impl DirtyLevel {
-    pub fn with_filter(self, filter: bool) -> Self {
-        if filter { DirtyLevel::MaybeDirty } else { self }
+    /// Returns the `DirtyLevel` accounting for state change checks that may
+    /// prevent marking sinks as dirty when unchanged.
+    ///
+    /// * `is_check` - Whether state change checking is enabled.
+    ///
+    /// Returns `MaybeDirty` if `is_check` is true, otherwise returns `self`.
+    pub fn maybe_if(self, is_check: bool) -> Self {
+        if is_check {
+            DirtyLevel::MaybeDirty
+        } else {
+            self
+        }
     }
     pub fn is_dirty(self) -> bool {
         self == DirtyLevel::Dirty

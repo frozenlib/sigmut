@@ -221,7 +221,7 @@ where
         t.is_wake = true;
         self.sinks
             .borrow_mut()
-            .notify(level.with_filter(Scan::FILTER), nc)
+            .notify(level.maybe_if(Scan::FILTER), nc)
     }
 }
 impl<St, I, Scan, Map> BindSource for FutureScanNode<St, I, Scan, Map>

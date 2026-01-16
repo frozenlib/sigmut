@@ -198,7 +198,7 @@ where
         if self.data.borrow_mut().sb.on_notify(slot, level) {
             self.sinks
                 .borrow_mut()
-                .notify(level.with_filter(Scan::FILTER), nc)
+                .notify(level.maybe_if(Scan::FILTER), nc)
         }
     }
 }
