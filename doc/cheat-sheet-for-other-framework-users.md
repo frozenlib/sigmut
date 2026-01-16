@@ -173,3 +173,13 @@
 | `computed`   | `Signal`       |
 
 [MobX]: https://mobx.js.org/api.html
+
+## Cheat sheet for [alien-signals] users
+
+| alien-signals | sigmut        |
+| ------------- | ------------- |
+| `signal`      | `State::new`  |
+| `computed`    | `Signal::new` |
+| `effect`      | `effect`      |
+
+[alien-signals]: https://github.com/stackblitz/alien-signals
