@@ -1245,12 +1245,5 @@ impl ActionKind {
     }
 }
 
-#[non_exhaustive]
-#[derive(Display, Debug)]
-#[display("detect cyclic dependency")]
-pub struct CyclicError {}
-
-impl std::error::Error for CyclicError {}
-
 #[cfg(test)]
 mod tests;
