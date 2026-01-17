@@ -763,6 +763,7 @@ impl Sink {
     }
 }
 
+/// Context required to read state in operations that do not modify state.
 #[repr(transparent)]
 pub struct ReactionContext<'s>(SignalContext<'s>);
 
@@ -873,7 +874,7 @@ impl NotifyReaction {
     }
 }
 
-/// Context for changing state.
+/// Context required for operations that modify state.
 #[repr(transparent)]
 pub struct ActionContext(RawRuntime);
 
@@ -916,7 +917,7 @@ pub fn spawn_action_async_with(
     })
 }
 
-/// Represents an action to be executed by the runtime.
+/// Operations that modify state.
 pub struct Action(RawAction);
 
 #[allow(clippy::type_complexity)]
@@ -1157,6 +1158,7 @@ impl AsyncActionContext {
     }
 }
 
+/// Operations that do not modify state.
 pub struct Reaction(RawReaction);
 
 impl Reaction {
@@ -1265,6 +1267,3 @@ impl ActionKind {
 
 #[cfg(test)]
 mod tests;
-
-
-
