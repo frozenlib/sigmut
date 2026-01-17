@@ -50,3 +50,6 @@ impl BitOrAssign for Dirty {
         *self = *self | rhs;
     }
 }
+
+#[cfg(test)]
+mod tests;

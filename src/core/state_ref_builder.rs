@@ -74,3 +74,6 @@ impl<'a, 'b, 's: 'a, T: ?Sized> StateRefBuilder<'a, 'b, 's, T> {
         self.r
     }
 }
+
+#[cfg(test)]
+mod tests;

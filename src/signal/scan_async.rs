@@ -11,7 +11,7 @@ use crate::{
     Signal, SignalContext, StateRef,
     core::{
         AsyncSignalContext, AsyncSourceBinder, BindKey, BindSink, BindSource, DirtyLevel,
-        NotifyContext, SinkBindings, Slot, Reaction, ReactionContext,
+        NotifyContext, Reaction, ReactionContext, SinkBindings, Slot,
     },
 };
 
@@ -189,6 +189,3 @@ where
         }
     }
 }
-
-
-

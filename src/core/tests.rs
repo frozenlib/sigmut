@@ -116,4 +116,3 @@ fn runtime_call_outside_lend() {
     let _rt = Runtime::new();
     Runtime::call(|_rt| {});
 }
-

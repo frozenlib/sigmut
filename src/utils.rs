@@ -33,7 +33,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct IndexNewToOld([usize]);
 impl IndexNewToOld {
@@ -190,3 +190,6 @@ pub(crate) fn to_range(range: impl RangeBounds<usize>, len: usize) -> Range<usiz
     assert!(end <= len);
     start..end
 }
+
+#[cfg(test)]
+mod tests;

@@ -2,7 +2,7 @@ use std::rc::Weak;
 
 use crate::SignalContext;
 
-use super::{BindSink, Dirty, DirtyLevel, Slot, SourceBindings, ReactionContext};
+use super::{BindSink, Dirty, DirtyLevel, ReactionContext, Slot, SourceBindings};
 
 pub struct SourceBinder {
     sources: SourceBindings,
@@ -49,5 +49,3 @@ impl SourceBinder {
         needs_notify
     }
 }
-
-

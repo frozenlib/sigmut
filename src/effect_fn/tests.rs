@@ -1,6 +1,6 @@
 use assert_call::{CallRecorder, call};
 
-use crate::{Signal, State, ReactionKind, core::Runtime, effect, effect_with};
+use crate::{ReactionKind, Signal, State, core::Runtime, effect, effect_with};
 
 #[test]
 fn test_effect() {
@@ -45,4 +45,3 @@ fn test_effect_with() {
     rt.dispatch_reactions(kind_1);
     cr.verify("10");
 }
-

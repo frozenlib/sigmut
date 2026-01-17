@@ -15,8 +15,8 @@ use slabmap::SlabMap;
 use crate::{
     ActionContext, SignalContext,
     core::{
-        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot, SourceBinder,
-        ReactionContext, schedule_notify,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, ReactionContext, SinkBindings,
+        Slot, SourceBinder, schedule_notify,
     },
     utils::{Changes, IndexNewToOld, RefCountOps, is_sorted, to_range},
 };
@@ -457,7 +457,7 @@ impl<'a, T: 'static> IterSource<'a, T> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[derive_ex(Clone, Copy, bound())]
 pub enum VecChange<'a, T: ?Sized> {
     Insert {
@@ -907,4 +907,5 @@ struct ScanData<T, F> {
     f: F,
 }
 
-
+#[cfg(test)]
+mod tests;

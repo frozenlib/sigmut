@@ -84,3 +84,6 @@ enum RawSubscription {
         unsubscribe: Box<dyn Fn(Weak<dyn Any>)>,
     },
 }
+
+#[cfg(test)]
+mod tests;

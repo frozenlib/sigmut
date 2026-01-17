@@ -12,8 +12,8 @@ use derive_ex::{Ex, derive_ex};
 use futures::Stream;
 
 use crate::{
-    SignalContext, StateRef, Subscription, ReactionKind, core::AsyncSignalContext, effect, effect_with,
-    stream_from,
+    ReactionKind, SignalContext, StateRef, Subscription, core::AsyncSignalContext, effect,
+    effect_with, stream_from,
 };
 
 use super::{builder::SignalBuilder, scan_async::build_scan_async};
@@ -425,5 +425,3 @@ where
         (*self).to_signal()
     }
 }
-
-

@@ -7,8 +7,8 @@ use std::{
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot, SourceBinder,
-        Reaction, ReactionContext,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, Reaction, ReactionContext,
+        SinkBindings, Slot, SourceBinder,
     },
 };
 
@@ -244,5 +244,3 @@ where
         }
     }
 }
-
-

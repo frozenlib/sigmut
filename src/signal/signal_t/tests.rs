@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc, task::Poll};
 
 use crate::{
-    Signal, SignalBuilder, State, StateRef, ReactionKind,
+    ReactionKind, Signal, SignalBuilder, State, StateRef,
     core::Runtime,
     effect,
     utils::{sync::oneshot_broadcast, test_helpers::call_on_drop},
@@ -702,13 +702,10 @@ async fn future_scan_with_map() {
     let mut rt = Runtime::new();
 
     let (sender, receiver) = oneshot_broadcast::<i32>();
-    let signal = SignalBuilder::from_future_scan(
-        0,
-        async move { receiver.recv().await },
-        |st, v| *st = v,
-    )
-    .map_value(|x| x * 2)
-    .build();
+    let signal =
+        SignalBuilder::from_future_scan(0, async move { receiver.recv().await }, |st, v| *st = v)
+            .map_value(|x| x * 2)
+            .build();
 
     assert_eq!(signal.get(&mut rt.sc()), 0);
 
@@ -719,25 +716,19 @@ async fn future_scan_with_map() {
 
 #[test]
 fn debug_future_scan_signal() {
-    let signal =
-        SignalBuilder::from_future_scan(0, async { 42 }, |st, v| *st = v).build();
+    let signal = SignalBuilder::from_future_scan(0, async { 42 }, |st, v| *st = v).build();
     let debug_str = format!("{signal:?}");
     assert!(debug_str.contains("future_scan"));
 }
 
 #[test]
 fn debug_stream_scan_signal() {
-    let signal = SignalBuilder::from_stream_scan_filter(
-        0,
-        futures::stream::once(async { 42 }),
-        |st, v| {
+    let signal =
+        SignalBuilder::from_stream_scan_filter(0, futures::stream::once(async { 42 }), |st, v| {
             *st = v.unwrap_or(0);
             true
-        },
-    )
-    .build();
+        })
+        .build();
     let debug_str = format!("{signal:?}");
     assert!(debug_str.contains("stream_scan"));
 }
-
-

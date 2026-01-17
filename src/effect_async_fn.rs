@@ -3,8 +3,8 @@ use std::{cell::RefCell, future::Future, ops::AsyncFnMut, pin::Pin, rc::Rc};
 use crate::{
     Subscription,
     core::{
-        AsyncSignalContext, AsyncSourceBinder, BindSink, DirtyLevel, NotifyContext, Slot, Reaction,
-        ReactionKind, ReactionContext,
+        AsyncSignalContext, AsyncSourceBinder, BindSink, DirtyLevel, NotifyContext, Reaction,
+        ReactionContext, ReactionKind, Slot,
     },
 };
 
@@ -62,7 +62,8 @@ where
         })
     }
     fn schedule(self: &Rc<Self>) {
-        Reaction::from_weak_fn(Rc::downgrade(self), |this, rc| this.call(rc)).schedule_with(self.kind)
+        Reaction::from_weak_fn(Rc::downgrade(self), |this, rc| this.call(rc))
+            .schedule_with(self.kind)
     }
     fn call(self: &Rc<Self>, rc: &mut ReactionContext) {
         let d = &mut *self.data.borrow_mut();
@@ -91,5 +92,3 @@ where
         }
     }
 }
-
-

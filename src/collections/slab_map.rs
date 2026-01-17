@@ -11,8 +11,8 @@ use slabmap::SlabMap;
 use crate::{
     ActionContext, SignalContext,
     core::{
-        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot, SourceBinder,
-        ReactionContext,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, ReactionContext, SinkBindings,
+        Slot, SourceBinder,
     },
     utils::{Changes, RefCountOps},
 };
@@ -277,7 +277,7 @@ impl<T> Item<T> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SlabMapChange<'a, T> {
     Insert { key: usize, new_value: &'a T },
     Remove { key: usize, old_value: &'a T },
@@ -580,4 +580,5 @@ struct ScanData<T, F> {
     f: F,
 }
 
-
+#[cfg(test)]
+mod tests;

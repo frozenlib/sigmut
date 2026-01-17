@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     ActionContext, Signal, SignalContext, StateRef,
     core::{
-        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot,
-        ReactionContext, schedule_notify,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, ReactionContext, SinkBindings,
+        Slot, schedule_notify,
     },
     signal::{SignalNode, ToSignal},
 };
@@ -308,5 +308,3 @@ impl<T> Drop for StateRefMut<'_, T> {
         }
     }
 }
-
-

@@ -3,7 +3,8 @@ use std::{cell::RefCell, rc::Rc};
 use crate::{
     SignalContext, Subscription,
     core::{
-        BindSink, DirtyLevel, NotifyContext, Slot, SourceBinder, Reaction, ReactionKind, ReactionContext,
+        BindSink, DirtyLevel, NotifyContext, Reaction, ReactionContext, ReactionKind, Slot,
+        SourceBinder,
     },
 };
 
@@ -30,7 +31,10 @@ pub fn effect(f: impl FnMut(&mut SignalContext) + 'static) -> Subscription {
 /// However, if the dependency status has not changed since the previous call, it will not be called.
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
-pub fn effect_with(f: impl FnMut(&mut SignalContext) + 'static, kind: ReactionKind) -> Subscription {
+pub fn effect_with(
+    f: impl FnMut(&mut SignalContext) + 'static,
+    kind: ReactionKind,
+) -> Subscription {
     let node = EffectNode::new(f, kind);
     node.schedule();
     Subscription::from_rc(node)
@@ -80,5 +84,3 @@ where
         }
     }
 }
-
-

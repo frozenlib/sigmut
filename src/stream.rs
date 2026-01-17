@@ -1,6 +1,6 @@
 use crate::{
     SignalContext,
-    core::{BindSink, DirtyLevel, NotifyContext, Slot, SourceBinder, Reaction, ReactionContext},
+    core::{BindSink, DirtyLevel, NotifyContext, Reaction, ReactionContext, Slot, SourceBinder},
 };
 use futures::Stream;
 use std::{
@@ -112,6 +112,3 @@ where
         }
     }
 }
-
-
-

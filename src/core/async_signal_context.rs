@@ -9,8 +9,8 @@ use std::{
 use bumpalo::Bump;
 
 use super::{
-    BindSink, Dirty, DirtyLevel, RuntimeData, SignalContext, Sink, Slot, SourceBindings,
-    ReactionContext, waker_from_sink,
+    BindSink, Dirty, DirtyLevel, ReactionContext, RuntimeData, SignalContext, Sink, Slot,
+    SourceBindings, waker_from_sink,
 };
 
 const SLOT_WAKE: Slot = Slot(0);
@@ -196,6 +196,3 @@ impl AsyncSourceBinder {
         needs_notify
     }
 }
-
-
-

@@ -11,8 +11,8 @@ use futures::Future;
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot,
-        ReactionContext, waker_from_sink,
+        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, ReactionContext, SinkBindings,
+        Slot, waker_from_sink,
     },
 };
 
@@ -244,6 +244,3 @@ where
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }
-
-
-
