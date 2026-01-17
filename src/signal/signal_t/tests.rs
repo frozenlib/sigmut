@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc, task::Poll};
 
 use crate::{
-    Signal, SignalBuilder, State,
+    Signal, SignalBuilder, State, StateRef, TaskKind,
     core::Runtime,
     effect,
     utils::{sync::oneshot_broadcast, test_helpers::call_on_drop},
@@ -491,4 +491,251 @@ fn signal_ptr_eq() {
 
     assert!(Signal::ptr_eq(&s1, &s2));
     assert!(!Signal::ptr_eq(&s1, &s3));
+}
+
+#[test]
+fn ptr_eq_static_ref() {
+    static VALUE_A: i32 = 42;
+    static VALUE_B: i32 = 42;
+    let s1 = Signal::from_static_ref(&VALUE_A);
+    let s2 = Signal::from_static_ref(&VALUE_A);
+    let s3 = Signal::from_static_ref(&VALUE_B);
+    let s4 = Signal::from_value(42);
+
+    assert!(Signal::ptr_eq(&s1, &s2));
+    assert!(!Signal::ptr_eq(&s1, &s3));
+    assert!(!Signal::ptr_eq(&s1, &s4));
+}
+
+#[test]
+fn dedup_method() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let st = State::new(5);
+    let signal = st.to_signal().dedup();
+
+    let _sub = signal.effect(|x| call!("{x}"));
+
+    rt.flush();
+    cr.verify("5");
+
+    st.set(5, rt.ac());
+    rt.flush();
+    cr.verify(());
+
+    st.set(10, rt.ac());
+    rt.flush();
+    cr.verify("10");
+}
+
+#[test]
+fn effect_with_custom_kind() {
+    const CUSTOM_KIND: TaskKind = TaskKind::new(1, "custom");
+    let mut rt = Runtime::new();
+    Runtime::register_task_kind(CUSTOM_KIND);
+    let mut cr = CallRecorder::new();
+
+    let st = State::new(0);
+    let signal = st.to_signal();
+
+    let _sub = signal.effect_with(|x| call!("{x}"), CUSTOM_KIND);
+
+    rt.dispatch_tasks(TaskKind::default());
+    cr.verify(());
+
+    rt.dispatch_tasks(CUSTOM_KIND);
+    cr.verify("0");
+
+    st.set(10, rt.ac());
+    rt.dispatch_tasks(TaskKind::default());
+    cr.verify(());
+
+    rt.dispatch_tasks(CUSTOM_KIND);
+    cr.verify("10");
+}
+
+#[test]
+async fn to_stream_map() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let s = State::new(5);
+    let _task = spawn_local(
+        s.to_signal()
+            .to_stream_map(|x| x * 2)
+            .for_each(|x| async move { call!("{x}") }),
+    );
+    wait_for_idle().await;
+
+    rt.flush();
+    wait_for_idle().await;
+
+    cr.verify("10");
+
+    s.set(10, rt.ac());
+    rt.flush();
+    wait_for_idle().await;
+    cr.verify("20");
+}
+
+#[test]
+fn debug_static_ref_signal() {
+    static VALUE: i32 = 42;
+    let signal = Signal::from_static_ref(&VALUE);
+    let debug_str = format!("{signal:?}");
+    assert_eq!(debug_str, "42");
+}
+
+#[test]
+fn debug_from_borrow_signal() {
+    let signal = Signal::from_borrow(42i32, |x, _, _| StateRef::from(x));
+    let debug_str = format!("{signal:?}");
+    assert!(debug_str.contains("borrow"));
+}
+
+#[test]
+async fn from_future_scan_filter_reject() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let (sender, receiver) = oneshot_broadcast::<i32>();
+
+    let signal = SignalBuilder::from_future_scan_filter(
+        0,
+        async move { receiver.recv().await },
+        |st, value| {
+            if value > 10 {
+                *st = value;
+                true
+            } else {
+                false
+            }
+        },
+    )
+    .build();
+
+    let _sub = signal.effect(|x| call!("{x}"));
+
+    rt.flush();
+    cr.verify("0");
+
+    sender.send(5);
+    rt.flush();
+    cr.verify(());
+}
+
+#[test]
+async fn from_future_scan_filter_accept() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let (sender, receiver) = oneshot_broadcast::<i32>();
+    let signal = SignalBuilder::from_future_scan_filter(
+        0,
+        async move { receiver.recv().await },
+        |st, value| {
+            *st = value;
+            true
+        },
+    )
+    .build();
+
+    let _sub = signal.effect(|x| call!("{x}"));
+    rt.flush();
+    cr.verify("0");
+
+    sender.send(42);
+    rt.flush();
+    cr.verify("42");
+}
+
+#[test]
+fn on_discard_value() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let signal = SignalBuilder::new(|_| 42)
+        .dedup()
+        .on_discard_value(|v| call!("discard:{v}"))
+        .build();
+
+    signal.get(&mut rt.sc());
+    cr.verify(());
+
+    rt.flush();
+    cr.verify("discard:42");
+}
+
+#[test]
+fn builder_map_value() {
+    let mut rt = Runtime::new();
+
+    let signal = SignalBuilder::new(|_| 21).map_value(|x| x * 2).build();
+
+    assert_eq!(signal.get(&mut rt.sc()), 42);
+}
+
+#[test]
+fn builder_flat_map() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+
+    let inner = State::new(42);
+    let inner_signal = inner.to_signal();
+
+    let outer = SignalBuilder::new(move |_| inner_signal.clone())
+        .flat_map(|s| s)
+        .build();
+
+    let _sub = outer.effect(|x| call!("{x}"));
+    rt.flush();
+    cr.verify("42");
+
+    inner.set(100, rt.ac());
+    rt.flush();
+    cr.verify("100");
+}
+
+#[test]
+async fn future_scan_with_map() {
+    let mut rt = Runtime::new();
+
+    let (sender, receiver) = oneshot_broadcast::<i32>();
+    let signal = SignalBuilder::from_future_scan(
+        0,
+        async move { receiver.recv().await },
+        |st, v| *st = v,
+    )
+    .map_value(|x| x * 2)
+    .build();
+
+    assert_eq!(signal.get(&mut rt.sc()), 0);
+
+    sender.send(21);
+    rt.flush();
+    assert_eq!(signal.get(&mut rt.sc()), 42);
+}
+
+#[test]
+fn debug_future_scan_signal() {
+    let signal =
+        SignalBuilder::from_future_scan(0, async { 42 }, |st, v| *st = v).build();
+    let debug_str = format!("{signal:?}");
+    assert!(debug_str.contains("future_scan"));
+}
+
+#[test]
+fn debug_stream_scan_signal() {
+    let signal = SignalBuilder::from_stream_scan_filter(
+        0,
+        futures::stream::once(async { 42 }),
+        |st, v| {
+            *st = v.unwrap_or(0);
+            true
+        },
+    )
+    .build();
+    let debug_str = format!("{signal:?}");
+    assert!(debug_str.contains("stream_scan"));
 }

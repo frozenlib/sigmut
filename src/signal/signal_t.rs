@@ -75,7 +75,7 @@ enum RawSignal<T: ?Sized + 'static> {
 impl<T: ?Sized + 'static> RawSignal<T> {
     fn ptr_eq(this: &Self, other: &Self) -> bool {
         match (this, other) {
-            (Self::StaticRef(a), Self::StaticRef(b)) => ptr::eq(a, b),
+            (Self::StaticRef(a), Self::StaticRef(b)) => ptr::eq(*a, *b),
             (Self::Node(a), Self::Node(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
