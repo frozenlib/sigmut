@@ -192,9 +192,9 @@ impl<T> ItemsMut<T> {
         &mut self,
         age: usize,
         sinks: &mut SinkBindingsSet,
-        uc: &mut ReactionContext,
+        rc: &mut ReactionContext,
     ) {
-        self.edit_end(age, sinks, |sink| sink.update(true, uc))
+        self.edit_end(age, sinks, |sink| sink.update(true, rc))
     }
     fn edit_end_and_notify(
         &mut self,
@@ -384,11 +384,11 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
 }
 
 impl<T: 'static> BindSource for RawStateSlabMap<T> {
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
-        self.sinks.borrow_mut().is_dirty(slot, key, uc)
+    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+        self.sinks.borrow_mut().is_dirty(slot, key, rc)
     }
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) {
-        self.sinks.borrow_mut().unbind(slot, key, uc);
+    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+        self.sinks.borrow_mut().unbind(slot, key, rc);
     }
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
@@ -406,11 +406,11 @@ impl SinkBindingsSet {
             any: SinkBindings::new(),
         }
     }
-    fn update_all(&mut self, is_dirty: bool, uc: &mut ReactionContext) {
+    fn update_all(&mut self, is_dirty: bool, rc: &mut ReactionContext) {
         for s in &mut self.items {
-            s.update(is_dirty, uc);
+            s.update(is_dirty, rc);
         }
-        self.any.update(is_dirty, uc);
+        self.any.update(is_dirty, rc);
     }
     fn notify_all(&mut self, level: DirtyLevel, nc: &mut NotifyContext) {
         for s in &mut self.items {
@@ -429,9 +429,9 @@ impl SinkBindingsSet {
             s.bind(this, slot, sc);
         }
     }
-    fn unbind(&mut self, slot: Slot, key: BindKey, uc: &mut ReactionContext) {
+    fn unbind(&mut self, slot: Slot, key: BindKey, rc: &mut ReactionContext) {
         if let Some(s) = self.get_mut(slot) {
-            s.unbind(key, uc);
+            s.unbind(key, rc);
         }
     }
     fn rebind(
@@ -446,9 +446,9 @@ impl SinkBindingsSet {
         }
     }
 
-    fn is_dirty(&self, slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
+    fn is_dirty(&self, slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
         if let Some(s) = self.get(slot) {
-            s.is_dirty(key, uc)
+            s.is_dirty(key, rc)
         } else {
             true
         }
@@ -492,18 +492,18 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, uc: &mut ReactionContext) {
-        if uc.borrow(&self.data).sb.is_clean() {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+        if rc.borrow(&self.data).sb.is_clean() {
             return;
         }
         let d = &mut *self.data.borrow_mut();
-        if d.sb.check(uc) {
+        if d.sb.check(rc) {
             let age = d.items.edit_start(&self.ref_counts);
-            d.sb.update(|sc| (d.f)(&mut d.items, sc), uc);
+            d.sb.update(|sc| (d.f)(&mut d.items, sc), rc);
             d.items
-                .edit_end_and_update(age, &mut self.sinks.borrow_mut(), uc);
+                .edit_end_and_update(age, &mut self.sinks.borrow_mut(), rc);
         }
-        self.sinks.borrow_mut().update_all(false, uc);
+        self.sinks.borrow_mut().update_all(false, rc);
     }
     fn rc_this(this: Rc<dyn Any>) -> Rc<Self> {
         Rc::downcast(this).unwrap()
@@ -521,7 +521,7 @@ where
 
     fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
         let this = Self::rc_this(rc_self);
-        this.update(sc.uc());
+        this.update(sc.rc());
         self.sinks.borrow_mut().bind(this, key_to_slot(key), sc);
         Ref::map(self.data.borrow(), |data| &data.items[key])
     }
@@ -533,7 +533,7 @@ where
         sc: &mut SignalContext,
     ) -> Items<'_, T> {
         let this = Self::rc_this(rc_self);
-        this.update(sc.uc());
+        this.update(sc.rc());
         self.sinks.borrow_mut().bind(this, SLOT_ITEMS, sc);
         let data = Ref::map(self.data.borrow(), |data| &data.items);
         Items { items: data, age }
@@ -547,13 +547,13 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
-        self.update(uc);
-        self.sinks.borrow().is_dirty(slot, key, uc)
+    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+        self.update(rc);
+        self.sinks.borrow().is_dirty(slot, key, rc)
     }
 
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) {
-        self.sinks.borrow_mut().unbind(slot, key, uc)
+    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+        self.sinks.borrow_mut().unbind(slot, key, rc)
     }
 
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
@@ -579,4 +579,5 @@ struct ScanData<T, F> {
     items: ItemsMut<T>,
     f: F,
 }
+
 

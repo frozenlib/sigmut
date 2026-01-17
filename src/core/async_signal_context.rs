@@ -81,7 +81,7 @@ impl AsyncSignalContext {
             let mut sc = unsafe { sc(&mut s.sc) };
 
             let sink = self.0.sink.clone();
-            let ret = s.poll_bindings.update(sink, SLOT_POLL, true, &f, sc.uc());
+            let ret = s.poll_bindings.update(sink, SLOT_POLL, true, &f, sc.rc());
             if ret.is_ready() {
                 sc.extend(&mut s.poll_bindings);
                 s.poll_waker.take();
@@ -137,25 +137,25 @@ impl AsyncSourceBinder {
     pub fn is_clean(&self) -> bool {
         self.dirty.is_clean() && !self.is_wake
     }
-    pub fn check(&mut self, uc: &mut ReactionContext) -> bool {
-        self.sources.check_with(&mut self.dirty, uc)
+    pub fn check(&mut self, rc: &mut ReactionContext) -> bool {
+        self.sources.check_with(&mut self.dirty, rc)
     }
     pub fn init<T>(
         &mut self,
         f: impl FnOnce(AsyncSignalContext) -> T,
-        uc: &mut ReactionContext,
+        rc: &mut ReactionContext,
     ) -> T {
         self.dirty = Dirty::Clean;
         self.is_wake = true;
         let asc = self.sc.sc();
         let sink = self.sc.0.sink.clone();
         self.sources
-            .update(sink, SLOT_DEPS, true, |sc| self.sc.with(sc, || f(asc)), uc)
+            .update(sink, SLOT_DEPS, true, |sc| self.sc.with(sc, || f(asc)), rc)
     }
     pub fn poll<T>(
         &mut self,
         fut: Pin<&mut impl Future<Output = T>>,
-        uc: &mut ReactionContext,
+        rc: &mut ReactionContext,
     ) -> Poll<T> {
         self.is_wake = false;
         let sink = self.sc.0.sink.clone();
@@ -167,11 +167,11 @@ impl AsyncSourceBinder {
                 self.sc
                     .with(sc, || fut.poll(&mut Context::from_waker(&self.waker)))
             },
-            uc,
+            rc,
         )
     }
-    pub fn clear(&mut self, uc: &mut ReactionContext) {
-        self.sources.clear(uc);
+    pub fn clear(&mut self, rc: &mut ReactionContext) {
+        self.sources.clear(rc);
         self.dirty = Dirty::Dirty;
     }
 
@@ -196,5 +196,6 @@ impl AsyncSourceBinder {
         needs_notify
     }
 }
+
 
 

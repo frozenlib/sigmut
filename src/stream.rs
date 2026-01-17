@@ -101,16 +101,17 @@ where
         }
     }
 
-    fn update(self: Rc<Self>, uc: &mut ReactionContext) {
+    fn update(self: Rc<Self>, rc: &mut ReactionContext) {
         let d = &mut *self.0.borrow_mut();
         d.is_scheduled = false;
-        if d.sb.check(uc) {
-            let value = d.sb.update(|sc| (d.f)(sc), uc);
+        if d.sb.check(rc) {
+            let value = d.sb.update(|sc| (d.f)(sc), rc);
             if let ValueState::Pending(waker) = replace(&mut d.value, ValueState::Ready(value)) {
                 waker.wake();
             }
         }
     }
 }
+
 
 

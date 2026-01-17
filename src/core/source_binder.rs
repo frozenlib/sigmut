@@ -23,20 +23,20 @@ impl SourceBinder {
         self.dirty.is_clean()
     }
 
-    pub fn check(&mut self, uc: &mut ReactionContext) -> bool {
-        self.sources.check_with(&mut self.dirty, uc)
+    pub fn check(&mut self, rc: &mut ReactionContext) -> bool {
+        self.sources.check_with(&mut self.dirty, rc)
     }
     pub fn update<T>(
         &mut self,
         f: impl FnOnce(&mut SignalContext) -> T,
-        uc: &mut ReactionContext,
+        rc: &mut ReactionContext,
     ) -> T {
         self.dirty = Dirty::Clean;
         self.sources
-            .update(self.sink.clone(), self.slot, true, f, uc)
+            .update(self.sink.clone(), self.slot, true, f, rc)
     }
-    pub fn clear(&mut self, uc: &mut ReactionContext) {
-        self.sources.clear(uc);
+    pub fn clear(&mut self, rc: &mut ReactionContext) {
+        self.sources.clear(rc);
         self.dirty = Dirty::Dirty;
     }
     /// Set the state to dirty and return true if the dependants need to be notified.
@@ -49,4 +49,5 @@ impl SourceBinder {
         needs_notify
     }
 }
+
 

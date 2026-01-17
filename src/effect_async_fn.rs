@@ -62,19 +62,19 @@ where
         })
     }
     fn schedule(self: &Rc<Self>) {
-        Reaction::from_weak_fn(Rc::downgrade(self), |this, uc| this.call(uc)).schedule_with(self.kind)
+        Reaction::from_weak_fn(Rc::downgrade(self), |this, rc| this.call(rc)).schedule_with(self.kind)
     }
-    fn call(self: &Rc<Self>, uc: &mut ReactionContext) {
+    fn call(self: &Rc<Self>, rc: &mut ReactionContext) {
         let d = &mut *self.data.borrow_mut();
         if d.asb.is_clean() {
             return;
         }
-        if d.asb.check(uc) {
+        if d.asb.check(rc) {
             d.fut.set(None);
-            d.fut.set(Some(d.asb.init(&mut d.get_fut, uc)));
+            d.fut.set(Some(d.asb.init(&mut d.get_fut, rc)));
         }
         if let Some(fut) = d.fut.as_mut().as_pin_mut()
-            && d.asb.poll(fut, uc).is_ready()
+            && d.asb.poll(fut, rc).is_ready()
         {
             d.fut.set(None);
         }
@@ -91,4 +91,5 @@ where
         }
     }
 }
+
 

@@ -158,8 +158,8 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, uc: &mut ReactionContext) {
-        if !uc.borrow(&self.data).is_wake() {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+        if !rc.borrow(&self.data).is_wake() {
             return;
         }
         let d = &mut *self.data.borrow_mut();
@@ -173,7 +173,7 @@ where
             t.is_wake = false;
             false
         };
-        self.sinks.borrow_mut().update(is_dirty, uc);
+        self.sinks.borrow_mut().update(is_dirty, rc);
     }
 }
 impl<St, I, Scan, Map> SignalNode for FutureScanNode<St, I, Scan, Map>
@@ -190,7 +190,7 @@ where
         sc: &mut SignalContext<'s>,
     ) -> StateRef<'a, Self::Value> {
         let this = rc_self.clone().downcast::<Self>().unwrap();
-        this.update(sc.uc());
+        this.update(sc.rc());
         self.sinks.borrow_mut().bind(this, Slot(0), sc);
         self.map
             .apply(Ref::map(self.data.borrow(), |data| &data.state).into(), sc)
@@ -231,18 +231,19 @@ where
     Scan: ScanFn<St, I> + 'static,
     Map: MapFn<St> + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
-        self.update(uc);
-        self.sinks.borrow().is_dirty(key, uc)
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+        self.update(rc);
+        self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
-        self.sinks.borrow_mut().unbind(key, uc);
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+        self.sinks.borrow_mut().unbind(key, rc);
     }
 
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }
+
 
 

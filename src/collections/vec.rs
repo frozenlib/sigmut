@@ -697,8 +697,8 @@ impl<T> BindSource for RawStateVec<T> {
     fn check(self: Rc<Self>, _slot: Slot, _key: BindKey, _uc: &mut ReactionContext) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
-        self.sinks.borrow_mut().unbind(key, uc);
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+        self.sinks.borrow_mut().unbind(key, rc);
     }
 
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
@@ -822,27 +822,27 @@ where
     }
 
     fn watch(self: &Rc<Self>, sc: &mut SignalContext) {
-        self.update(sc.uc());
+        self.update(sc.rc());
         let this = self.clone();
         self.sinks.borrow_mut().bind(this, Slot(0), sc);
     }
 
-    fn update(self: &Rc<Self>, uc: &mut ReactionContext) {
-        if uc.borrow(&self.data).sb.is_clean() {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+        if rc.borrow(&self.data).sb.is_clean() {
             return;
         }
         let d = &mut *self.data.borrow_mut();
         let mut is_dirty = false;
-        if d.sb.check(uc) {
+        if d.sb.check(rc) {
             let age = d.data.edit_start(&self.ref_counts);
             let mut items = ItemsMut {
                 data: ItemsMutData::Direct(&mut d.data),
                 age,
             };
-            d.sb.update(|sc| (d.f)(&mut items, sc), uc);
+            d.sb.update(|sc| (d.f)(&mut items, sc), rc);
             is_dirty = items.is_dirty();
         }
-        self.sinks.borrow_mut().update(is_dirty, uc);
+        self.sinks.borrow_mut().update(is_dirty, rc);
     }
 }
 impl<T, F> SignalVecNode<T> for Scan<T, F>
@@ -887,13 +887,13 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
-        self.update(uc);
-        self.sinks.borrow().is_dirty(key, uc)
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+        self.update(rc);
+        self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
-        self.sinks.borrow_mut().unbind(key, uc);
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+        self.sinks.borrow_mut().unbind(key, rc);
     }
 
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
@@ -906,4 +906,5 @@ struct ScanData<T, F> {
     sb: SourceBinder,
     f: F,
 }
+
 

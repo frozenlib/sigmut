@@ -62,10 +62,10 @@ where
     fn schedule(self: &Rc<Self>) {
         Reaction::from_weak_fn(Rc::downgrade(self), Self::call).schedule_with(self.kind)
     }
-    fn call(self: Rc<Self>, uc: &mut ReactionContext) {
+    fn call(self: Rc<Self>, rc: &mut ReactionContext) {
         let d = &mut *self.data.borrow_mut();
-        if d.sb.check(uc) {
-            d.sb.update(&mut d.f, uc);
+        if d.sb.check(rc) {
+            d.sb.update(&mut d.f, rc);
         }
     }
 }
@@ -80,4 +80,5 @@ where
         }
     }
 }
+
 

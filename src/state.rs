@@ -177,12 +177,12 @@ impl<T: 'static> StateNode<T> {
 }
 
 impl<T: 'static> BindSource for StateNode<T> {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
-        self.sinks.borrow().is_dirty(key, uc)
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+        self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
-        self.sinks.borrow_mut().unbind(key, uc);
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+        self.sinks.borrow_mut().unbind(key, rc);
     }
 
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
@@ -308,4 +308,5 @@ impl<T> Drop for StateRefMut<'_, T> {
         }
     }
 }
+
 

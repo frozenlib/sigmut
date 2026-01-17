@@ -74,44 +74,44 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, uc: &mut ReactionContext) {
-        if uc.borrow(&self.data).asb.is_clean() {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+        if rc.borrow(&self.data).asb.is_clean() {
             return;
         }
-        self.try_schedule_discard(uc);
+        self.try_schedule_discard(rc);
         let d = &mut *self.data.borrow_mut();
         let mut is_dirty = false;
-        if d.asb.check(uc) {
+        if d.asb.check(rc) {
             d.fut.set(None);
-            d.fut.set(Some(d.asb.init(&self.get_fut, uc)));
+            d.fut.set(Some(d.asb.init(&self.get_fut, rc)));
             is_dirty = true;
         }
         let Some(fut) = d.fut.as_mut().as_pin_mut() else {
             return;
         };
-        let value = d.asb.poll(fut, uc);
+        let value = d.asb.poll(fut, rc);
         if value.is_ready() {
             d.fut.set(None);
             is_dirty = true;
         }
         if is_dirty {
             let is_dirty = (d.scan)(&mut d.state, value);
-            self.sinks.borrow_mut().update(is_dirty, uc);
+            self.sinks.borrow_mut().update(is_dirty, rc);
         }
     }
-    fn try_schedule_discard(self: &Rc<Self>, uc: &mut ReactionContext) {
+    fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext) {
         if self.sinks.borrow().is_empty() && !self.discard_scheduled.replace(true) {
-            let reaction = Reaction::from_rc_fn(self.clone(), |this, uc| this.discard(uc));
-            uc.schedule_discard(reaction);
+            let reaction = Reaction::from_rc_fn(self.clone(), |this, rc| this.discard(rc));
+            rc.schedule_discard(reaction);
         }
     }
 
-    fn discard(self: &Rc<Self>, uc: &mut ReactionContext) {
+    fn discard(self: &Rc<Self>, rc: &mut ReactionContext) {
         self.discard_scheduled.set(false);
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();
             d.fut.set(None);
-            d.asb.clear(uc);
+            d.asb.clear(rc);
         }
     }
 }
@@ -133,7 +133,7 @@ where
     ) -> StateRef<'a, Self::Value> {
         let this = rc_self.clone().downcast::<Self>().unwrap();
         self.sinks.borrow_mut().bind(this.clone(), Slot(0), sc);
-        this.update(sc.uc());
+        this.update(sc.rc());
         StateRef::map(
             self.data.borrow().into(),
             |data| (self.map)(&data.state),
@@ -157,19 +157,19 @@ where
     Scan: FnMut(&mut St, Poll<Fut::Output>) -> bool + 'static,
     Map: Fn(&St) -> &T + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
-        self.update(uc);
-        self.sinks.borrow().is_dirty(key, uc)
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+        self.update(rc);
+        self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
-        self.sinks.borrow_mut().unbind(key, uc);
-        self.try_schedule_discard(uc);
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+        self.sinks.borrow_mut().unbind(key, rc);
+        self.try_schedule_discard(rc);
     }
 
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
-        self.try_schedule_discard(sc.uc());
+        self.try_schedule_discard(sc.rc());
     }
 }
 
@@ -189,5 +189,6 @@ where
         }
     }
 }
+
 
 
