@@ -11,7 +11,7 @@ use crate::{
     ActionContext, Signal, SignalContext, StateRef,
     core::{
         BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot,
-        UpdateContext, schedule_notify,
+        ReactionContext, schedule_notify,
     },
     signal::{SignalNode, ToSignal},
 };
@@ -177,11 +177,11 @@ impl<T: 'static> StateNode<T> {
 }
 
 impl<T: 'static> BindSource for StateNode<T> {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
         self.sinks.borrow().is_dirty(key, uc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
         self.sinks.borrow_mut().unbind(key, uc);
     }
 
@@ -308,3 +308,4 @@ impl<T> Drop for StateRefMut<'_, T> {
         }
     }
 }
+

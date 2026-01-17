@@ -12,7 +12,7 @@ use derive_ex::{Ex, derive_ex};
 use futures::Stream;
 
 use crate::{
-    SignalContext, StateRef, Subscription, TaskKind, core::AsyncSignalContext, effect, effect_with,
+    SignalContext, StateRef, Subscription, ReactionKind, core::AsyncSignalContext, effect, effect_with,
     stream_from,
 };
 
@@ -279,8 +279,8 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// First, call the function with the current value, then call the function each time the value changes.
     ///
-    /// The function is called when [`Runtime::dispatch_tasks`](crate::core::Runtime::dispatch_tasks) is called with `TaskKind::default()`,
-    /// or when [`Runtime::dispatch_all_tasks`](crate::core::Runtime::dispatch_all_tasks) is called.
+    /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions) is called with `ReactionKind::default()`,
+    /// or when [`Runtime::dispatch_all_reactions`](crate::core::Runtime::dispatch_all_reactions) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
     pub fn effect(&self, mut f: impl FnMut(&T) + 'static) -> Subscription {
@@ -288,15 +288,15 @@ impl<T: ?Sized + 'static> Signal<T> {
         effect(move |sc| f(&this.borrow(sc)))
     }
 
-    /// Subscribe to the value of this signal with specifying [`TaskKind`].
+    /// Subscribe to the value of this signal with specifying [`ReactionKind`].
     ///
     /// First, call the function with the current value, then call the function each time the value changes.
     ///
-    /// The function is called when [`Runtime::dispatch_tasks`](crate::core::Runtime::dispatch_tasks) is called with `kind`,
-    /// or when [`Runtime::dispatch_all_tasks`](crate::core::Runtime::dispatch_all_tasks) is called.
+    /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions) is called with `kind`,
+    /// or when [`Runtime::dispatch_all_reactions`](crate::core::Runtime::dispatch_all_reactions) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
-    pub fn effect_with(&self, mut f: impl FnMut(&T) + 'static, kind: TaskKind) -> Subscription {
+    pub fn effect_with(&self, mut f: impl FnMut(&T) + 'static, kind: ReactionKind) -> Subscription {
         let this = self.clone();
         effect_with(move |sc| f(&this.borrow(sc)), kind)
     }
@@ -425,3 +425,5 @@ where
         (*self).to_signal()
     }
 }
+
+

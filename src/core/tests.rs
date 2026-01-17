@@ -2,9 +2,9 @@ use super::*;
 use std::{cell::Cell, rc::Rc};
 
 #[test]
-fn task_kind_default_is_registered() {
+fn reaction_kind_default_is_registered() {
     let _rt = Runtime::new();
-    assert!(TaskKind::default().is_registered());
+    assert!(ReactionKind::default().is_registered());
 }
 
 #[test]
@@ -14,9 +14,9 @@ fn action_kind_default_is_registered() {
 }
 
 #[test]
-fn task_kind_is_not_registered_before_register() {
+fn reaction_kind_is_not_registered_before_register() {
     let _rt = Runtime::new();
-    const KIND: TaskKind = TaskKind::new(10, "test");
+    const KIND: ReactionKind = ReactionKind::new(10, "test");
     assert!(!KIND.is_registered());
 }
 
@@ -28,11 +28,11 @@ fn action_kind_is_not_registered_before_register() {
 }
 
 #[test]
-fn task_kind_is_registered_after_register() {
+fn reaction_kind_is_registered_after_register() {
     let _rt = Runtime::new();
-    const KIND: TaskKind = TaskKind::new(1, "test");
+    const KIND: ReactionKind = ReactionKind::new(1, "test");
     assert!(!KIND.is_registered());
-    Runtime::register_task_kind(KIND);
+    Runtime::register_reaction_kind(KIND);
     assert!(KIND.is_registered());
 }
 
@@ -46,11 +46,11 @@ fn action_kind_is_registered_after_register() {
 }
 
 #[test]
-fn task_kind_registration_cleared_after_runtime_drop() {
-    const KIND: TaskKind = TaskKind::new(2, "test");
+fn reaction_kind_registration_cleared_after_runtime_drop() {
+    const KIND: ReactionKind = ReactionKind::new(2, "test");
     {
         let _rt = Runtime::new();
-        Runtime::register_task_kind(KIND);
+        Runtime::register_reaction_kind(KIND);
         assert!(KIND.is_registered());
     }
     let _rt = Runtime::new();
@@ -70,11 +70,11 @@ fn action_kind_registration_cleared_after_runtime_drop() {
 }
 
 #[test]
-#[should_panic(expected = "`TaskKind` 4: test is not registered.")]
-fn schedule_task_with_unregistered_kind_panic() {
+#[should_panic(expected = "`ReactionKind` 4: test is not registered.")]
+fn schedule_reaction_with_unregistered_kind_panic() {
     let _rt = Runtime::new();
-    const KIND: TaskKind = TaskKind::new(4, "test");
-    Task::new(|_| {}).schedule_with(KIND);
+    const KIND: ReactionKind = ReactionKind::new(4, "test");
+    Reaction::new(|_| {}).schedule_with(KIND);
 }
 
 #[test]
@@ -116,3 +116,4 @@ fn runtime_call_outside_lend() {
     let _rt = Runtime::new();
     Runtime::call(|_rt| {});
 }
+

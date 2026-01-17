@@ -1,6 +1,6 @@
 use assert_call::{CallRecorder, call};
 
-use crate::{Signal, State, TaskKind, core::Runtime, effect, effect_with};
+use crate::{Signal, State, ReactionKind, core::Runtime, effect, effect_with};
 
 #[test]
 fn test_effect() {
@@ -32,16 +32,17 @@ fn test_effect_with() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
-    let kind_1 = TaskKind::new(1, "1");
-    let kind_2 = TaskKind::new(2, "2");
-    Runtime::register_task_kind(kind_1);
-    Runtime::register_task_kind(kind_2);
+    let kind_1 = ReactionKind::new(1, "1");
+    let kind_2 = ReactionKind::new(2, "2");
+    Runtime::register_reaction_kind(kind_1);
+    Runtime::register_reaction_kind(kind_2);
 
     let s = Signal::from_value(10);
     let _e = effect_with(move |sc| call!("{}", s.get(sc)), kind_1);
-    rt.dispatch_tasks(kind_2);
+    rt.dispatch_reactions(kind_2);
     cr.verify(());
 
-    rt.dispatch_tasks(kind_1);
+    rt.dispatch_reactions(kind_1);
     cr.verify("10");
 }
+

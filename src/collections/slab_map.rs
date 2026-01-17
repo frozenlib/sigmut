@@ -12,7 +12,7 @@ use crate::{
     ActionContext, SignalContext,
     core::{
         BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot, SourceBinder,
-        UpdateContext,
+        ReactionContext,
     },
     utils::{Changes, RefCountOps},
 };
@@ -192,7 +192,7 @@ impl<T> ItemsMut<T> {
         &mut self,
         age: usize,
         sinks: &mut SinkBindingsSet,
-        uc: &mut UpdateContext,
+        uc: &mut ReactionContext,
     ) {
         self.edit_end(age, sinks, |sink| sink.update(true, uc))
     }
@@ -384,10 +384,10 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
 }
 
 impl<T: 'static> BindSource for RawStateSlabMap<T> {
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool {
+    fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
         self.sinks.borrow_mut().is_dirty(slot, key, uc)
     }
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) {
         self.sinks.borrow_mut().unbind(slot, key, uc);
     }
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
@@ -406,7 +406,7 @@ impl SinkBindingsSet {
             any: SinkBindings::new(),
         }
     }
-    fn update_all(&mut self, is_dirty: bool, uc: &mut UpdateContext) {
+    fn update_all(&mut self, is_dirty: bool, uc: &mut ReactionContext) {
         for s in &mut self.items {
             s.update(is_dirty, uc);
         }
@@ -429,7 +429,7 @@ impl SinkBindingsSet {
             s.bind(this, slot, sc);
         }
     }
-    fn unbind(&mut self, slot: Slot, key: BindKey, uc: &mut UpdateContext) {
+    fn unbind(&mut self, slot: Slot, key: BindKey, uc: &mut ReactionContext) {
         if let Some(s) = self.get_mut(slot) {
             s.unbind(key, uc);
         }
@@ -446,7 +446,7 @@ impl SinkBindingsSet {
         }
     }
 
-    fn is_dirty(&self, slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool {
+    fn is_dirty(&self, slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
         if let Some(s) = self.get(slot) {
             s.is_dirty(key, uc)
         } else {
@@ -492,7 +492,7 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
+    fn update(self: &Rc<Self>, uc: &mut ReactionContext) {
         if uc.borrow(&self.data).sb.is_clean() {
             return;
         }
@@ -547,12 +547,12 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool {
+    fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
         self.update(uc);
         self.sinks.borrow().is_dirty(slot, key, uc)
     }
 
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) {
         self.sinks.borrow_mut().unbind(slot, key, uc)
     }
 
@@ -579,3 +579,4 @@ struct ScanData<T, F> {
     items: ItemsMut<T>,
     f: F,
 }
+

@@ -12,7 +12,7 @@ use crate::{
     Signal, SignalContext, StateRef,
     core::{
         BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot,
-        UpdateContext, waker_from_sink,
+        ReactionContext, waker_from_sink,
     },
 };
 
@@ -77,7 +77,7 @@ where
     }
 }
 
-struct StreamScanNodeTask<I, Scan> {
+struct StreamScanNodeReaction<I, Scan> {
     stream: Pin<Box<dyn Stream<Item = I>>>,
     is_wake: bool,
     scan: Scan,
@@ -86,13 +86,13 @@ struct StreamScanNodeTask<I, Scan> {
 
 struct StreamScanNodeData<St, I, Scan> {
     state: St,
-    task: Option<StreamScanNodeTask<I, Scan>>,
+    reaction: Option<StreamScanNodeReaction<I, Scan>>,
 }
 
 impl<St, I, Scan> StreamScanNodeData<St, I, Scan> {
     fn is_wake(&self) -> bool {
-        if let Some(task) = &self.task {
-            task.is_wake
+        if let Some(reaction) = &self.reaction {
+            reaction.is_wake
         } else {
             false
         }
@@ -122,7 +122,7 @@ where
             sinks: RefCell::new(SinkBindings::new()),
             data: RefCell::new(StreamScanNodeData {
                 state: initial_state,
-                task: Some(StreamScanNodeTask {
+                reaction: Some(StreamScanNodeReaction {
                     stream,
                     is_wake: true,
                     scan,
@@ -133,12 +133,12 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
+    fn update(self: &Rc<Self>, uc: &mut ReactionContext) {
         if !uc.borrow(&self.data).is_wake() {
             return;
         }
         let d = &mut *self.data.borrow_mut();
-        let t = d.task.as_mut().unwrap();
+        let t = d.reaction.as_mut().unwrap();
         let mut is_dirty = false;
         if let Poll::Ready(item) = t
             .stream
@@ -148,10 +148,10 @@ where
             let is_end = item.is_none();
             is_dirty = (t.scan)(&mut d.state, item);
             if is_end {
-                d.task.take();
+                d.reaction.take();
             }
         }
-        if let Some(t) = d.task.as_mut() {
+        if let Some(t) = d.reaction.as_mut() {
             t.is_wake = false;
         }
         self.sinks.borrow_mut().update(is_dirty, uc);
@@ -193,7 +193,7 @@ where
 {
     fn notify(self: Rc<Self>, _slot: Slot, _level: DirtyLevel, nc: &mut NotifyContext) {
         let mut d = self.data.borrow_mut();
-        let Some(t) = d.task.as_mut() else {
+        let Some(t) = d.reaction.as_mut() else {
             return;
         };
         if t.is_wake {
@@ -210,12 +210,12 @@ where
     Scan: FnMut(&mut St, Option<I>) -> bool + 'static,
     Map: MapFn<St> + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
         self.update(uc);
         self.sinks.borrow().is_dirty(key, uc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
         self.sinks.borrow_mut().unbind(key, uc);
     }
 
@@ -223,3 +223,5 @@ where
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }
+
+

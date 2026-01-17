@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc, task::Poll};
 
 use crate::{
-    Signal, SignalBuilder, State, StateRef, TaskKind,
+    Signal, SignalBuilder, State, StateRef, ReactionKind,
     core::Runtime,
     effect,
     utils::{sync::oneshot_broadcast, test_helpers::call_on_drop},
@@ -443,7 +443,7 @@ async fn to_stream() {
     let mut cr = CallRecorder::new();
 
     let s = State::new(5);
-    let _task = spawn_local(
+    let _reaction = spawn_local(
         s.to_signal()
             .to_stream()
             .for_each(|x| async move { call!("{x}") }),
@@ -531,9 +531,9 @@ fn dedup_method() {
 
 #[test]
 fn effect_with_custom_kind() {
-    const CUSTOM_KIND: TaskKind = TaskKind::new(1, "custom");
+    const CUSTOM_KIND: ReactionKind = ReactionKind::new(1, "custom");
     let mut rt = Runtime::new();
-    Runtime::register_task_kind(CUSTOM_KIND);
+    Runtime::register_reaction_kind(CUSTOM_KIND);
     let mut cr = CallRecorder::new();
 
     let st = State::new(0);
@@ -541,17 +541,17 @@ fn effect_with_custom_kind() {
 
     let _sub = signal.effect_with(|x| call!("{x}"), CUSTOM_KIND);
 
-    rt.dispatch_tasks(TaskKind::default());
+    rt.dispatch_reactions(ReactionKind::default());
     cr.verify(());
 
-    rt.dispatch_tasks(CUSTOM_KIND);
+    rt.dispatch_reactions(CUSTOM_KIND);
     cr.verify("0");
 
     st.set(10, rt.ac());
-    rt.dispatch_tasks(TaskKind::default());
+    rt.dispatch_reactions(ReactionKind::default());
     cr.verify(());
 
-    rt.dispatch_tasks(CUSTOM_KIND);
+    rt.dispatch_reactions(CUSTOM_KIND);
     cr.verify("10");
 }
 
@@ -561,7 +561,7 @@ async fn to_stream_map() {
     let mut cr = CallRecorder::new();
 
     let s = State::new(5);
-    let _task = spawn_local(
+    let _reaction = spawn_local(
         s.to_signal()
             .to_stream_map(|x| x * 2)
             .for_each(|x| async move { call!("{x}") }),
@@ -739,3 +739,5 @@ fn debug_stream_scan_signal() {
     let debug_str = format!("{signal:?}");
     assert!(debug_str.contains("stream_scan"));
 }
+
+

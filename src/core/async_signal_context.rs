@@ -10,7 +10,7 @@ use bumpalo::Bump;
 
 use super::{
     BindSink, Dirty, DirtyLevel, RuntimeData, SignalContext, Sink, Slot, SourceBindings,
-    UpdateContext, waker_from_sink,
+    ReactionContext, waker_from_sink,
 };
 
 const SLOT_WAKE: Slot = Slot(0);
@@ -137,13 +137,13 @@ impl AsyncSourceBinder {
     pub fn is_clean(&self) -> bool {
         self.dirty.is_clean() && !self.is_wake
     }
-    pub fn check(&mut self, uc: &mut UpdateContext) -> bool {
+    pub fn check(&mut self, uc: &mut ReactionContext) -> bool {
         self.sources.check_with(&mut self.dirty, uc)
     }
     pub fn init<T>(
         &mut self,
         f: impl FnOnce(AsyncSignalContext) -> T,
-        uc: &mut UpdateContext,
+        uc: &mut ReactionContext,
     ) -> T {
         self.dirty = Dirty::Clean;
         self.is_wake = true;
@@ -155,7 +155,7 @@ impl AsyncSourceBinder {
     pub fn poll<T>(
         &mut self,
         fut: Pin<&mut impl Future<Output = T>>,
-        uc: &mut UpdateContext,
+        uc: &mut ReactionContext,
     ) -> Poll<T> {
         self.is_wake = false;
         let sink = self.sc.0.sink.clone();
@@ -170,7 +170,7 @@ impl AsyncSourceBinder {
             uc,
         )
     }
-    pub fn clear(&mut self, uc: &mut UpdateContext) {
+    pub fn clear(&mut self, uc: &mut ReactionContext) {
         self.sources.clear(uc);
         self.dirty = Dirty::Dirty;
     }
@@ -196,3 +196,5 @@ impl AsyncSourceBinder {
         needs_notify
     }
 }
+
+

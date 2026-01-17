@@ -16,7 +16,7 @@ use crate::{
     ActionContext, SignalContext,
     core::{
         BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, SinkBindings, Slot, SourceBinder,
-        UpdateContext, schedule_notify,
+        ReactionContext, schedule_notify,
     },
     utils::{Changes, IndexNewToOld, RefCountOps, is_sorted, to_range},
 };
@@ -694,10 +694,10 @@ impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
 }
 
 impl<T> BindSource for RawStateVec<T> {
-    fn check(self: Rc<Self>, _slot: Slot, _key: BindKey, _uc: &mut UpdateContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, _key: BindKey, _uc: &mut ReactionContext) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
         self.sinks.borrow_mut().unbind(key, uc);
     }
 
@@ -827,7 +827,7 @@ where
         self.sinks.borrow_mut().bind(this, Slot(0), sc);
     }
 
-    fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
+    fn update(self: &Rc<Self>, uc: &mut ReactionContext) {
         if uc.borrow(&self.data).sb.is_clean() {
             return;
         }
@@ -887,12 +887,12 @@ where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
         self.update(uc);
         self.sinks.borrow().is_dirty(key, uc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
         self.sinks.borrow_mut().unbind(key, uc);
     }
 
@@ -906,3 +906,4 @@ struct ScanData<T, F> {
     sb: SourceBinder,
     f: F,
 }
+

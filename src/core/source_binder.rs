@@ -2,7 +2,7 @@ use std::rc::Weak;
 
 use crate::SignalContext;
 
-use super::{BindSink, Dirty, DirtyLevel, Slot, SourceBindings, UpdateContext};
+use super::{BindSink, Dirty, DirtyLevel, Slot, SourceBindings, ReactionContext};
 
 pub struct SourceBinder {
     sources: SourceBindings,
@@ -23,19 +23,19 @@ impl SourceBinder {
         self.dirty.is_clean()
     }
 
-    pub fn check(&mut self, uc: &mut UpdateContext) -> bool {
+    pub fn check(&mut self, uc: &mut ReactionContext) -> bool {
         self.sources.check_with(&mut self.dirty, uc)
     }
     pub fn update<T>(
         &mut self,
         f: impl FnOnce(&mut SignalContext) -> T,
-        uc: &mut UpdateContext,
+        uc: &mut ReactionContext,
     ) -> T {
         self.dirty = Dirty::Clean;
         self.sources
             .update(self.sink.clone(), self.slot, true, f, uc)
     }
-    pub fn clear(&mut self, uc: &mut UpdateContext) {
+    pub fn clear(&mut self, uc: &mut ReactionContext) {
         self.sources.clear(uc);
         self.dirty = Dirty::Dirty;
     }
@@ -49,3 +49,4 @@ impl SourceBinder {
         needs_notify
     }
 }
+

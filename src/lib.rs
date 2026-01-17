@@ -17,7 +17,7 @@ pub mod tests_readme {}
 #[doc(inline)]
 pub use crate::core::{
     Action, ActionContext, ActionKind, AsyncActionContext, AsyncSignalContext, SignalContext,
-    StateRef, StateRefBuilder, Task, TaskKind, spawn_action, spawn_action_async,
+    StateRef, StateRefBuilder, Reaction, ReactionKind, spawn_action, spawn_action_async,
     spawn_action_async_with, spawn_action_with,
 };
 
@@ -31,3 +31,4 @@ pub use crate::effect_async_fn::*;
 pub use crate::effect_fn::*;
 pub use crate::stream::*;
 pub use crate::subscription::*;
+

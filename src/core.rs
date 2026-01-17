@@ -42,16 +42,16 @@ struct Globals {
     runtime: Option<Box<RawRuntime>>,
     unbinds: Vec<SourceBindingsData>,
     actions: Buckets<Action>,
-    notifys: Vec<NotifyTask>,
+    notifys: Vec<NotifyReaction>,
     need_wake: bool,
     wakes: WakeTable,
-    tasks: Buckets<Task>,
+    reactions: Buckets<Reaction>,
 }
 impl Globals {
     fn new() -> Self {
-        let mut tasks = Buckets::new();
+        let mut reactions = Buckets::new();
         let mut actions = Buckets::new();
-        tasks.register_bucket(0);
+        reactions.register_bucket(0);
         actions.register_bucket(0);
         Self {
             is_runtime_exists: false,
@@ -61,7 +61,7 @@ impl Globals {
             notifys: Vec::new(),
             need_wake: false,
             wakes: WakeTable::default(),
-            tasks,
+            reactions,
         }
     }
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
@@ -70,10 +70,10 @@ impl Globals {
     fn try_with<T>(f: impl FnOnce(&mut Self) -> T) -> Result<T, AccessError> {
         GLOBALS.try_with(|g| f(&mut g.borrow_mut()))
     }
-    fn schedule_task(kind: TaskKind, task: Task) {
+    fn schedule_reaction(kind: ReactionKind, reaction: Reaction) {
         Self::with(|g| {
-            if !g.tasks.try_push(kind.id as isize, task) {
-                panic!("`TaskKind` {} is not registered.", kind);
+            if !g.reactions.try_push(kind.id as isize, reaction) {
+                panic!("`ReactionKind` {} is not registered.", kind);
             }
             g.wake();
         })
@@ -87,7 +87,7 @@ impl Globals {
             g.wake();
         })
     }
-    fn get_notifys(notifys: &mut Vec<NotifyTask>) -> bool {
+    fn get_notifys(notifys: &mut Vec<NotifyReaction>) -> bool {
         Self::with(|g| {
             g.apply_wake();
             swap(notifys, &mut g.notifys);
@@ -95,9 +95,9 @@ impl Globals {
         !notifys.is_empty()
     }
 
-    fn get_tasks(kind: Option<TaskKind>, tasks: &mut Vec<Task>) {
+    fn get_reactions(kind: Option<ReactionKind>, reactions: &mut Vec<Reaction>) {
         Self::with(|g| {
-            g.tasks.drain(kind.map(|k| k.id as isize), tasks);
+            g.reactions.drain(kind.map(|k| k.id as isize), reactions);
         })
     }
     fn get_actions(kind: Option<ActionKind>, actions: &mut Vec<Action>) -> bool {
@@ -118,21 +118,21 @@ impl Globals {
     }
 
     fn push_notify(&mut self, sink: Weak<dyn BindSink>, slot: Slot) {
-        self.notifys.push(NotifyTask { sink, slot });
+        self.notifys.push(NotifyReaction { sink, slot });
         self.wake();
     }
     fn apply_wake(&mut self) {
         let mut requests = self.wakes.requests.0.lock().unwrap();
         for key in requests.drops.drain(..) {
-            self.wakes.tasks.remove(key);
+            self.wakes.reactions.remove(key);
         }
         for key in requests.wakes.drain(..) {
-            if let Some(task) = self.wakes.tasks.get(key) {
-                match task {
-                    WakeTask::Notify(task) => {
-                        self.notifys.push(task.clone());
+            if let Some(reaction) = self.wakes.reactions.get(key) {
+                match reaction {
+                    WakeReaction::Notify(reaction) => {
+                        self.notifys.push(reaction.clone());
                     }
-                    WakeTask::AsyncAction(action) => {
+                    WakeReaction::AsyncAction(action) => {
                         let pushed = self
                             .actions
                             .try_push(action.kind.id as isize, action.to_action());
@@ -146,7 +146,7 @@ impl Globals {
         self.need_wake = false;
         if !self.notifys.is_empty()
             || !self.actions.is_empty()
-            || !self.tasks.is_empty()
+            || !self.reactions.is_empty()
             || !self.unbinds.is_empty()
         {
             return Poll::Ready(());
@@ -162,9 +162,9 @@ impl Globals {
 
     fn finish_runtime(&mut self) {
         self.is_runtime_exists = false;
-        self.tasks = Buckets::new();
+        self.reactions = Buckets::new();
         self.actions = Buckets::new();
-        self.tasks.register_bucket(0);
+        self.reactions.register_bucket(0);
         self.actions.register_bucket(0);
     }
 
@@ -181,16 +181,16 @@ impl Globals {
         }
     }
 
-    fn register_task_kind(&mut self, kind: TaskKind) {
+    fn register_reaction_kind(&mut self, kind: ReactionKind) {
         self.assert_exists();
-        self.tasks.register_bucket(kind.id as isize);
+        self.reactions.register_bucket(kind.id as isize);
     }
     fn register_action_kind(&mut self, kind: ActionKind) {
         self.assert_exists();
         self.actions.register_bucket(kind.id as isize);
     }
-    fn is_task_kind_registered(&self, kind: TaskKind) -> bool {
-        self.tasks.contains_bucket(kind.id as isize)
+    fn is_reaction_kind_registered(&self, kind: ReactionKind) -> bool {
+        self.reactions.contains_bucket(kind.id as isize)
     }
     fn is_action_kind_registered(&self, kind: ActionKind) -> bool {
         self.actions.contains_bucket(kind.id as isize)
@@ -217,7 +217,7 @@ impl Runtime {
                 bump: Bump::new(),
                 notifys_buffer: Vec::new(),
                 actions_buffer: Vec::new(),
-                tasks_buffer: Vec::new(),
+                reactions_buffer: Vec::new(),
                 unbinds_buffer: Vec::new(),
             })),
         }
@@ -232,14 +232,14 @@ impl Runtime {
     pub fn register_action_kind(kind: ActionKind) {
         Globals::with(|g| g.register_action_kind(kind))
     }
-    pub fn register_task_kind(kind: TaskKind) {
-        Globals::with(|g| g.register_task_kind(kind))
+    pub fn register_reaction_kind(kind: ReactionKind) {
+        Globals::with(|g| g.register_reaction_kind(kind))
     }
 
     pub fn ac(&mut self) -> &mut ActionContext {
         self.as_raw().ac()
     }
-    pub fn uc(&mut self) -> UpdateContext<'_> {
+    pub fn uc(&mut self) -> ReactionContext<'_> {
         self.as_raw().uc()
     }
     pub fn sc(&mut self) -> SignalContext<'_> {
@@ -260,18 +260,18 @@ impl Runtime {
         self.as_raw().dispatch_actions_with(None)
     }
 
-    /// Dispatch scheduled tasks for the specified kind.
+    /// Dispatch scheduled reactions for the specified kind.
     ///
-    /// Returns `true` if any task was dispatched.
-    pub fn dispatch_tasks(&mut self, kind: TaskKind) -> bool {
-        self.as_raw().dispatch_tasks_with(Some(kind))
+    /// Returns `true` if any reaction was dispatched.
+    pub fn dispatch_reactions(&mut self, kind: ReactionKind) -> bool {
+        self.as_raw().dispatch_reactions_with(Some(kind))
     }
 
-    /// Dispatch scheduled tasks for all kinds.
+    /// Dispatch scheduled reactions for all kinds.
     ///
-    /// Returns `true` if any task was dispatched.
-    pub fn dispatch_all_tasks(&mut self) -> bool {
-        self.as_raw().dispatch_tasks_with(None)
+    /// Returns `true` if any reaction was dispatched.
+    pub fn dispatch_all_reactions(&mut self) -> bool {
+        self.as_raw().dispatch_reactions_with(None)
     }
 
     /// Dispatch scheduled discards.
@@ -283,7 +283,7 @@ impl Runtime {
 
     /// Flush all pending operations.
     ///
-    /// Repeats [`dispatch_all_actions`](Self::dispatch_all_actions), [`dispatch_all_tasks`](Self::dispatch_all_tasks),
+    /// Repeats [`dispatch_all_actions`](Self::dispatch_all_actions), [`dispatch_all_reactions`](Self::dispatch_all_reactions),
     /// and [`dispatch_discards`](Self::dispatch_discards) until there are no more pending operations.
     pub fn flush(&mut self) {
         self.as_raw().flush()
@@ -348,9 +348,9 @@ impl Drop for RuntimeLend<'_> {
 struct RawRuntime {
     rt: RuntimeData,
     bump: Bump,
-    notifys_buffer: Vec<NotifyTask>,
+    notifys_buffer: Vec<NotifyReaction>,
     actions_buffer: Vec<Action>,
-    tasks_buffer: Vec<Task>,
+    reactions_buffer: Vec<Reaction>,
     unbinds_buffer: Vec<SourceBindingsData>,
 }
 impl RawRuntime {
@@ -360,12 +360,12 @@ impl RawRuntime {
     fn nc(&mut self) -> &mut NotifyContext {
         self.ac().nc()
     }
-    fn uc(&mut self) -> UpdateContext<'_> {
+    fn uc(&mut self) -> ReactionContext<'_> {
         self.apply_notify();
         self.uc_raw()
     }
-    fn uc_raw(&mut self) -> UpdateContext<'_> {
-        UpdateContext(self.sc_raw())
+    fn uc_raw(&mut self) -> ReactionContext<'_> {
+        ReactionContext(self.sc_raw())
     }
     fn sc(&mut self) -> SignalContext<'_> {
         self.apply_notify();
@@ -391,15 +391,15 @@ impl RawRuntime {
         handled
     }
 
-    fn dispatch_tasks_with(&mut self, kind: Option<TaskKind>) -> bool {
+    fn dispatch_reactions_with(&mut self, kind: Option<ReactionKind>) -> bool {
         self.apply_notify();
-        let mut tasks = take(&mut self.tasks_buffer);
-        Globals::get_tasks(kind, &mut tasks);
-        let handled = !tasks.is_empty();
-        for task in tasks.drain(..) {
-            task.run(&mut self.uc_raw());
+        let mut reactions = take(&mut self.reactions_buffer);
+        Globals::get_reactions(kind, &mut reactions);
+        let handled = !reactions.is_empty();
+        for reaction in reactions.drain(..) {
+            reaction.run(&mut self.uc_raw());
         }
-        self.tasks_buffer = tasks;
+        self.reactions_buffer = reactions;
         handled
     }
     fn apply_unbind(&mut self) -> bool {
@@ -432,8 +432,8 @@ impl RawRuntime {
     fn dispatch_discards(&mut self) -> bool {
         let mut handled = false;
         loop {
-            if let Some(task) = self.rt.discards.pop() {
-                task.run(&mut self.uc_raw());
+            if let Some(reaction) = self.rt.discards.pop() {
+                reaction.run(&mut self.uc_raw());
                 handled = true;
                 continue;
             }
@@ -451,7 +451,7 @@ impl RawRuntime {
             if self.dispatch_actions_with(None) {
                 continue;
             }
-            if self.dispatch_tasks_with(None) {
+            if self.dispatch_reactions_with(None) {
                 continue;
             }
             if self.dispatch_discards() {
@@ -481,7 +481,7 @@ impl Drop for RawRuntime {
 }
 
 struct RuntimeData {
-    discards: Vec<Task>,
+    discards: Vec<Reaction>,
     async_actions: SlabMap<Rc<AsyncAction>>,
 }
 
@@ -545,10 +545,10 @@ impl SourceBinding {
     fn is_same(&self, node: &Rc<dyn BindSource>, slot: Slot) -> bool {
         Rc::ptr_eq(&self.source, node) && self.slot == slot
     }
-    fn check(&self, uc: &mut UpdateContext) -> bool {
+    fn check(&self, uc: &mut ReactionContext) -> bool {
         self.source.clone().check(self.slot, self.key, uc)
     }
-    fn unbind(self, uc: &mut UpdateContext) {
+    fn unbind(self, uc: &mut ReactionContext) {
         self.source.unbind(self.slot, self.key, uc);
     }
     fn rebind(self, sc: &mut SignalContext) {
@@ -568,7 +568,7 @@ impl SourceBindings {
     /// Checks if any of the bound sources have been modified.
     ///
     /// Returns `true` if at least one source is dirty, `false` if all sources are clean.
-    pub fn check(&self, uc: &mut UpdateContext) -> bool {
+    pub fn check(&self, uc: &mut ReactionContext) -> bool {
         for source in &self.0 {
             if source.check(uc) {
                 return true;
@@ -576,7 +576,7 @@ impl SourceBindings {
         }
         false
     }
-    fn check_with(&mut self, dirty: &mut Dirty, uc: &mut UpdateContext) -> bool {
+    fn check_with(&mut self, dirty: &mut Dirty, uc: &mut ReactionContext) -> bool {
         if *dirty == Dirty::MaybeDirty {
             *dirty = Dirty::from_is_dirty(self.check(uc));
         }
@@ -597,7 +597,7 @@ impl SourceBindings {
         slot: Slot,
         reset: bool,
         f: impl FnOnce(&mut SignalContext) -> T,
-        uc: &mut UpdateContext,
+        uc: &mut ReactionContext,
     ) -> T {
         let sources_len = if reset { 0 } else { self.0.len() };
         let mut sink = Sink {
@@ -622,13 +622,13 @@ impl SourceBindings {
 
     /// Clears all dependencies immediately.
     ///
-    /// Dropping self also clears dependencies, but since `UpdateContext` (required for editing dependencies) is not available during drop,
-    /// the clearing is deferred until `UpdateContext` becomes available.
+    /// Dropping self also clears dependencies, but since `ReactionContext` (required for editing dependencies) is not available during drop,
+    /// the clearing is deferred until `ReactionContext` becomes available.
     ///
     /// Therefore, to guarantee that no further notifications will occur, use this method to clear dependencies immediately.
     ///
-    /// `UpdateContext` is required for editing dependencies to prevent `BorrowMutError` in the `RefCell` that records dependencies.
-    pub fn clear(&mut self, uc: &mut UpdateContext) {
+    /// `ReactionContext` is required for editing dependencies to prevent `BorrowMutError` in the `RefCell` that records dependencies.
+    pub fn clear(&mut self, uc: &mut ReactionContext) {
         for b in self.0.drain(..) {
             b.unbind(uc)
         }
@@ -712,7 +712,7 @@ impl SinkBindings {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-    pub fn is_dirty(&self, key: BindKey, _uc: &mut UpdateContext) -> bool {
+    pub fn is_dirty(&self, key: BindKey, _uc: &mut ReactionContext) -> bool {
         match self.0[key.0].dirty {
             Dirty::Clean => false,
             Dirty::MaybeDirty => panic!("`is_dirty` called before `update()`"),
@@ -720,7 +720,7 @@ impl SinkBindings {
         }
     }
     /// Unbinds the dependency identified by the given `key`.
-    pub fn unbind(&mut self, key: BindKey, _uc: &mut UpdateContext) {
+    pub fn unbind(&mut self, key: BindKey, _uc: &mut ReactionContext) {
         self.0.remove(key.0);
     }
 
@@ -733,7 +733,7 @@ impl SinkBindings {
             binding.dirty.apply_notify(level);
         }
     }
-    pub fn update(&mut self, is_dirty: bool, _uc: &mut UpdateContext) {
+    pub fn update(&mut self, is_dirty: bool, _uc: &mut ReactionContext) {
         self.0.optimize();
         for binding in self.0.values_mut() {
             if binding.dirty == Dirty::MaybeDirty {
@@ -764,17 +764,17 @@ impl Sink {
 }
 
 #[repr(transparent)]
-pub struct UpdateContext<'s>(SignalContext<'s>);
+pub struct ReactionContext<'s>(SignalContext<'s>);
 
-impl<'s> UpdateContext<'s> {
+impl<'s> ReactionContext<'s> {
     fn new<'a>(sc: &'a mut SignalContext<'s>) -> &'a mut Self {
         unsafe { transmute(sc) }
     }
 
-    /// Register a task to discard the cache.
+    /// Register a Reaction to discard the cache.
     ///
-    /// Registered tasks are called when [`Runtime::dispatch_discards`] is called.
-    pub fn schedule_discard(&mut self, discard: Task) {
+    /// Registered reactions are called when [`Runtime::dispatch_discards`] is called.
+    pub fn schedule_discard(&mut self, discard: Reaction) {
         self.0.rt.discards.push(discard)
     }
 
@@ -817,8 +817,8 @@ pub struct SignalContext<'s> {
 }
 
 impl<'s> SignalContext<'s> {
-    pub fn uc(&mut self) -> &mut UpdateContext<'s> {
-        UpdateContext::new(self)
+    pub fn uc(&mut self) -> &mut ReactionContext<'s> {
+        ReactionContext::new(self)
     }
 
     /// Call a function with a [`SignalContext`] that does not track dependencies.
@@ -855,17 +855,17 @@ pub trait BindSource: 'static {
     /// Checks if this source has been modified since the last check.
     ///
     /// Returns `true` if the source is dirty (has changes), `false` if clean (no changes).
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool;
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut UpdateContext);
+    fn check(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool;
+    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, uc: &mut ReactionContext);
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext);
 }
 
 #[derive(Clone)]
-struct NotifyTask {
+struct NotifyReaction {
     sink: Weak<dyn BindSink>,
     slot: Slot,
 }
-impl NotifyTask {
+impl NotifyReaction {
     fn call_notify(&self, nc: &mut NotifyContext) {
         if let Some(sink) = self.sink.upgrade() {
             sink.notify(self.slot, DirtyLevel::Dirty, nc)
@@ -1012,7 +1012,7 @@ impl AsyncAction {
         let id = ac.0.rt.async_actions.insert(action.clone());
         *action.data.borrow_mut() = Some(AsyncActionData {
             id,
-            waker: WakeTask::AsyncAction(action.clone()).into_waker(),
+            waker: WakeReaction::AsyncAction(action.clone()).into_waker(),
             future: Box::pin(future),
         });
         action.next(ac);
@@ -1055,26 +1055,26 @@ struct AsyncActionData {
 
 #[derive(Default)]
 struct WakeTable {
-    tasks: SlabMap<WakeTask>,
+    reactions: SlabMap<WakeReaction>,
     requests: WakeRequests,
 }
 
 impl WakeTable {
-    fn insert(&mut self, task: WakeTask) -> Arc<RawWake> {
-        RawWake::new(&self.requests, self.tasks.insert(task))
+    fn insert(&mut self, reaction: WakeReaction) -> Arc<RawWake> {
+        RawWake::new(&self.requests, self.reactions.insert(reaction))
     }
 }
-enum WakeTask {
-    Notify(NotifyTask),
+enum WakeReaction {
+    Notify(NotifyReaction),
     AsyncAction(Rc<AsyncAction>),
 }
-impl WakeTask {
+impl WakeReaction {
     fn into_waker(self) -> Waker {
         Globals::with(|sc| sc.wakes.insert(self)).into()
     }
 }
 pub fn waker_from_sink(sink: Weak<impl BindSink>, slot: Slot) -> Waker {
-    WakeTask::Notify(NotifyTask { sink, slot }).into_waker()
+    WakeReaction::Notify(NotifyReaction { sink, slot }).into_waker()
 }
 
 #[derive(Clone, Default)]
@@ -1157,36 +1157,36 @@ impl AsyncActionContext {
     }
 }
 
-pub struct Task(RawTask);
+pub struct Reaction(RawReaction);
 
-impl Task {
-    pub fn new(f: impl FnOnce(&mut UpdateContext) + 'static) -> Self {
-        Task(RawTask::Box(Box::new(f)))
+impl Reaction {
+    pub fn new(f: impl FnOnce(&mut ReactionContext) + 'static) -> Self {
+        Reaction(RawReaction::Box(Box::new(f)))
     }
 
-    /// Creates a new task from an Rc without heap allocation.
+    /// Creates a new Reaction from an Rc without heap allocation.
     ///
     /// `f` should be of a zero-sized type.
     /// If `f` is not a zero-sized type, heap allocation will occur.
     pub fn from_rc_fn<T: Any>(
         this: Rc<T>,
-        f: impl Fn(Rc<T>, &mut UpdateContext) + Copy + 'static,
+        f: impl Fn(Rc<T>, &mut ReactionContext) + Copy + 'static,
     ) -> Self {
-        Task(RawTask::Rc {
+        Reaction(RawReaction::Rc {
             this,
             f: Box::new(move |this, uc| f(this.downcast().unwrap(), uc)),
         })
     }
 
-    /// Creates a new task from a weak reference.
+    /// Creates a new Reaction from a weak reference.
     ///
     /// `f` should be of a zero-sized type.
     /// If `f` is not a zero-sized type, heap allocation will occur.
     pub fn from_weak_fn<T: Any>(
         this: Weak<T>,
-        f: impl Fn(Rc<T>, &mut UpdateContext) + Copy + 'static,
+        f: impl Fn(Rc<T>, &mut ReactionContext) + Copy + 'static,
     ) -> Self {
-        Task(RawTask::Weak {
+        Reaction(RawReaction::Weak {
             this,
             f: Box::new(move |this, uc| {
                 if let Some(this) = this.upgrade() {
@@ -1196,51 +1196,51 @@ impl Task {
         })
     }
 
-    pub fn schedule_with(self, kind: TaskKind) {
-        Globals::schedule_task(kind, self)
+    pub fn schedule_with(self, kind: ReactionKind) {
+        Globals::schedule_reaction(kind, self)
     }
     pub fn schedule(self) {
-        self.schedule_with(TaskKind::default());
+        self.schedule_with(ReactionKind::default());
     }
-    fn run(self, uc: &mut UpdateContext) {
+    fn run(self, uc: &mut ReactionContext) {
         match self.0 {
-            RawTask::Box(f) => f(uc),
-            RawTask::Rc { this, f } => f(this, uc),
-            RawTask::Weak { this, f } => f(this, uc),
+            RawReaction::Box(f) => f(uc),
+            RawReaction::Rc { this, f } => f(this, uc),
+            RawReaction::Weak { this, f } => f(this, uc),
         }
     }
 }
 
-enum RawTask {
-    Box(Box<dyn FnOnce(&mut UpdateContext)>),
+enum RawReaction {
+    Box(Box<dyn FnOnce(&mut ReactionContext)>),
     Rc {
         this: Rc<dyn Any>,
         #[allow(clippy::type_complexity)]
-        f: Box<dyn Fn(Rc<dyn Any>, &mut UpdateContext)>,
+        f: Box<dyn Fn(Rc<dyn Any>, &mut ReactionContext)>,
     },
     Weak {
         this: Weak<dyn Any>,
         #[allow(clippy::type_complexity)]
-        f: Box<dyn Fn(Weak<dyn Any>, &mut UpdateContext)>,
+        f: Box<dyn Fn(Weak<dyn Any>, &mut ReactionContext)>,
     },
 }
 
-/// kind of tasks performed by the reactive runtime.
+/// kind of reactions performed by the reactive runtime.
 #[derive(Clone, Copy, Display, Debug, Ex)]
 #[derive_ex(PartialEq, Eq, Hash, Default)]
 #[display("{id}: {name}")]
 #[default(Self::new(0, "<default>"))]
-pub struct TaskKind {
+pub struct ReactionKind {
     id: i8,
     #[eq(ignore)]
     name: &'static str,
 }
-impl TaskKind {
+impl ReactionKind {
     pub const fn new(id: i8, name: &'static str) -> Self {
         Self { id, name }
     }
     pub fn is_registered(&self) -> bool {
-        Globals::with(|g| g.is_task_kind_registered(*self))
+        Globals::with(|g| g.is_reaction_kind_registered(*self))
     }
 }
 
@@ -1265,3 +1265,5 @@ impl ActionKind {
 
 #[cfg(test)]
 mod tests;
+
+

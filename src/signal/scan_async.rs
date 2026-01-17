@@ -11,7 +11,7 @@ use crate::{
     Signal, SignalContext, StateRef,
     core::{
         AsyncSignalContext, AsyncSourceBinder, BindKey, BindSink, BindSource, DirtyLevel,
-        NotifyContext, SinkBindings, Slot, Task, UpdateContext,
+        NotifyContext, SinkBindings, Slot, Reaction, ReactionContext,
     },
 };
 
@@ -74,7 +74,7 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, uc: &mut UpdateContext) {
+    fn update(self: &Rc<Self>, uc: &mut ReactionContext) {
         if uc.borrow(&self.data).asb.is_clean() {
             return;
         }
@@ -99,14 +99,14 @@ where
             self.sinks.borrow_mut().update(is_dirty, uc);
         }
     }
-    fn try_schedule_discard(self: &Rc<Self>, uc: &mut UpdateContext) {
+    fn try_schedule_discard(self: &Rc<Self>, uc: &mut ReactionContext) {
         if self.sinks.borrow().is_empty() && !self.discard_scheduled.replace(true) {
-            let task = Task::from_rc_fn(self.clone(), |this, uc| this.discard(uc));
-            uc.schedule_discard(task);
+            let reaction = Reaction::from_rc_fn(self.clone(), |this, uc| this.discard(uc));
+            uc.schedule_discard(reaction);
         }
     }
 
-    fn discard(self: &Rc<Self>, uc: &mut UpdateContext) {
+    fn discard(self: &Rc<Self>, uc: &mut ReactionContext) {
         self.discard_scheduled.set(false);
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();
@@ -157,12 +157,12 @@ where
     Scan: FnMut(&mut St, Poll<Fut::Output>) -> bool + 'static,
     Map: Fn(&St) -> &T + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) -> bool {
         self.update(uc);
         self.sinks.borrow().is_dirty(key, uc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut UpdateContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, uc: &mut ReactionContext) {
         self.sinks.borrow_mut().unbind(key, uc);
         self.try_schedule_discard(uc);
     }
@@ -189,3 +189,5 @@ where
         }
     }
 }
+
+

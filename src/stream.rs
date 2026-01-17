@@ -1,6 +1,6 @@
 use crate::{
     SignalContext,
-    core::{BindSink, DirtyLevel, NotifyContext, Slot, SourceBinder, Task, UpdateContext},
+    core::{BindSink, DirtyLevel, NotifyContext, Slot, SourceBinder, Reaction, ReactionContext},
 };
 use futures::Stream;
 use std::{
@@ -97,11 +97,11 @@ where
     fn schedule(self: &Rc<Self>, d: &mut Data<F, T>) {
         if !d.is_scheduled {
             d.is_scheduled = true;
-            Task::from_weak_fn(Rc::downgrade(self), Node::update).schedule();
+            Reaction::from_weak_fn(Rc::downgrade(self), Node::update).schedule();
         }
     }
 
-    fn update(self: Rc<Self>, uc: &mut UpdateContext) {
+    fn update(self: Rc<Self>, uc: &mut ReactionContext) {
         let d = &mut *self.0.borrow_mut();
         d.is_scheduled = false;
         if d.sb.check(uc) {
@@ -112,3 +112,5 @@ where
         }
     }
 }
+
+

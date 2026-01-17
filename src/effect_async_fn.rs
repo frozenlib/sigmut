@@ -3,8 +3,8 @@ use std::{cell::RefCell, future::Future, ops::AsyncFnMut, pin::Pin, rc::Rc};
 use crate::{
     Subscription,
     core::{
-        AsyncSignalContext, AsyncSourceBinder, BindSink, DirtyLevel, NotifyContext, Slot, Task,
-        TaskKind, UpdateContext,
+        AsyncSignalContext, AsyncSourceBinder, BindSink, DirtyLevel, NotifyContext, Slot, Reaction,
+        ReactionKind, ReactionContext,
     },
 };
 
@@ -13,14 +13,14 @@ mod tests;
 
 /// Call an asynchronous function each time a dependency changes.
 pub fn effect_async(f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static) -> Subscription {
-    effect_async_with(f, TaskKind::default())
+    effect_async_with(f, ReactionKind::default())
 }
 
-/// Call an asynchronous function each time a dependency changes with `TaskKind` specified.
+/// Call an asynchronous function each time a dependency changes with `ReactionKind` specified.
 #[allow(clippy::await_holding_refcell_ref)]
 pub fn effect_async_with(
     f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static,
-    kind: TaskKind,
+    kind: ReactionKind,
 ) -> Subscription {
     let f = Rc::new(RefCell::new(f));
     let this = EffectAsyncNode::new(
@@ -44,14 +44,14 @@ struct EffectAsyncData<GetFut, Fut> {
 
 struct EffectAsyncNode<GetFut, Fut> {
     data: RefCell<EffectAsyncData<GetFut, Fut>>,
-    kind: TaskKind,
+    kind: ReactionKind,
 }
 impl<GetFut, Fut> EffectAsyncNode<GetFut, Fut>
 where
     GetFut: FnMut(AsyncSignalContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
-    fn new(f: GetFut, kind: TaskKind) -> Rc<Self> {
+    fn new(f: GetFut, kind: ReactionKind) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
             data: RefCell::new(EffectAsyncData {
                 get_fut: f,
@@ -62,9 +62,9 @@ where
         })
     }
     fn schedule(self: &Rc<Self>) {
-        Task::from_weak_fn(Rc::downgrade(self), |this, uc| this.call(uc)).schedule_with(self.kind)
+        Reaction::from_weak_fn(Rc::downgrade(self), |this, uc| this.call(uc)).schedule_with(self.kind)
     }
-    fn call(self: &Rc<Self>, uc: &mut UpdateContext) {
+    fn call(self: &Rc<Self>, uc: &mut ReactionContext) {
         let d = &mut *self.data.borrow_mut();
         if d.asb.is_clean() {
             return;
@@ -91,3 +91,4 @@ where
         }
     }
 }
+
