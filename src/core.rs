@@ -494,10 +494,10 @@ impl RuntimeData {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Debug)]
 pub enum DirtyLevel {
-    Dirty,
     MaybeDirty,
+    Dirty,
 }
 impl DirtyLevel {
     /// Returns the `DirtyLevel` accounting for state change checks that may
