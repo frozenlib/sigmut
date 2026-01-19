@@ -885,6 +885,9 @@ impl ActionContext {
     pub fn nc(&mut self) -> &mut NotifyContext {
         NotifyContext::new(self)
     }
+    pub fn rc(&mut self) -> ReactionContext<'_> {
+        self.0.rc()
+    }
     pub fn sc(&mut self) -> SignalContext<'_> {
         self.0.sc()
     }
