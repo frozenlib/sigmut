@@ -12,12 +12,25 @@ pub mod sync;
 #[cfg(test)]
 pub mod test_helpers;
 
-pub(crate) fn downcast<T: 'static, S: 'static>(value: S) -> Result<T, S> {
+pub fn downcast<T: 'static, S: 'static>(value: S) -> Result<T, S> {
     let mut value = Some(value);
     if let Some(value) = <dyn Any>::downcast_mut::<Option<T>>(&mut value) {
         Ok(value.take().unwrap())
     } else {
         Err(value.unwrap())
+    }
+}
+
+#[test]
+fn test_downcast() {
+    assert_eq!(downcast::<u32, _>(10u32), Ok(10u32));
+    assert_eq!(downcast::<u16, _>(10u32), Err(10u32));
+}
+
+pub fn downcast_or<T: Any, S: Any>(value: S, f: impl FnOnce(S) -> T) -> T {
+    match downcast(value) {
+        Ok(b) => b,
+        Err(v) => f(v),
     }
 }
 
