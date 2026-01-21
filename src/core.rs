@@ -31,7 +31,7 @@ pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
-use crate::utils::buckets::Buckets;
+use crate::utils::{buckets::Buckets, downcast_or};
 
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
@@ -944,7 +944,7 @@ enum RawAction {
 impl Action {
     /// Creates a new action from a boxed closure.
     pub fn new(f: impl FnOnce(&mut ActionContext) + 'static) -> Self {
-        Action(RawAction::Box(Box::new(f)))
+        Action(RawAction::Box(downcast_or(f, |f| Box::new(f))))
     }
 
     /// Creates a new action from an Rc without heap allocation.
@@ -1171,7 +1171,7 @@ pub struct Reaction(RawReaction);
 
 impl Reaction {
     pub fn new(f: impl FnOnce(&mut ReactionContext<'_, '_>) + 'static) -> Self {
-        Reaction(RawReaction::Box(Box::new(f)))
+        Reaction(RawReaction::Box(downcast_or(f, |f| Box::new(f))))
     }
 
     /// Creates a new Reaction from an Rc without heap allocation.
