@@ -4,7 +4,7 @@ use std::{
     rc::{Rc, Weak},
 };
 
-use crate::utils::downcast;
+use crate::utils::downcast_or;
 
 /// Objects to continue to subscribe to while the instance is in existence.
 #[derive(Default)]
@@ -18,10 +18,7 @@ impl Subscription {
     }
     /// Creates a `Subscription` with a function that is called upon unsubscription.
     pub fn from_fn(f: impl FnOnce() + 'static) -> Self {
-        Subscription(RawSubscription::Fn(match downcast(f) {
-            Ok(f) => f,
-            Err(f) => Box::new(f),
-        }))
+        Subscription(RawSubscription::Fn(downcast_or(f, |f| Box::new(f))))
     }
     /// Creates a `Subscription` with an `Rc` that will be dropped upon unsubscription.
     pub fn from_rc(rc: Rc<dyn Any>) -> Self {
