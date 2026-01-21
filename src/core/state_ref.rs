@@ -34,7 +34,7 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
     /// Create a `StateRef` from a value with `'static` lifetime.
     ///
     /// This method works more efficiently than [`from_value_non_static`](Self::from_value_non_static).
-    pub fn from_value<'s: 'a>(value: T, sc: &SignalContext<'s>) -> Self
+    pub fn from_value<'r: 'a>(value: T, sc: &SignalContext<'r>) -> Self
     where
         T: Sized + 'static,
     {
@@ -45,7 +45,7 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
     }
 
     /// Create a `StateRef` from a value with non-`'static` lifetime.
-    pub fn from_value_non_static<'s: 'a>(value: T, sc: &SignalContext<'s>) -> Self
+    pub fn from_value_non_static<'r: 'a>(value: T, sc: &SignalContext<'r>) -> Self
     where
         T: Sized,
     {
@@ -63,11 +63,11 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
     ///
     /// If the `StateRef` returned by `f` references `T`, the resulting `StateRef` from `map_ref` will contain a self-reference.
     ///
-    /// The third argument to `f` is unused but necessary to add the `'s0: 'a0` constraint.
-    pub fn map_ref<'s: 'a, U: ?Sized>(
+    /// The third argument to `f` is unused but necessary to add the `'r0: 'a0` constraint.
+    pub fn map_ref<'r: 'a, U: ?Sized>(
         this: Self,
-        f: impl for<'a0, 's0> FnOnce(&'a0 T, &mut SignalContext<'s0>, &'a0 &'s0 ()) -> StateRef<'a0, U>,
-        sc: &mut SignalContext<'s>,
+        f: impl for<'a0, 'r0> FnOnce(&'a0 T, &mut SignalContext<'r0>, &'a0 &'r0 ()) -> StateRef<'a0, U>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, U> {
         unsafe {
             let (is_static, p) = this.0.pin(sc.bump);
@@ -90,10 +90,10 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
     }
 
     /// Maps a `StateRef<T>` to a `StateRef<U>` using a function that returns a reference `&U`.
-    pub fn map<'s: 'a, U: ?Sized>(
+    pub fn map<'r: 'a, U: ?Sized>(
         this: Self,
         f: impl FnOnce(&T) -> &U,
-        sc: &SignalContext<'s>,
+        sc: &SignalContext<'r>,
     ) -> StateRef<'a, U> {
         StateRef(match this.0 {
             Data::ValueAndOwner {

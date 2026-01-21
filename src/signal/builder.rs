@@ -125,10 +125,10 @@ impl<B: Build> SignalBuilder<B> {
 
     fn map_raw<T: ?Sized + 'static>(
         self,
-        f: impl for<'a, 's> Fn(
+        f: impl for<'a, 'r> Fn(
             StateRef<'a, B::State>,
-            &mut SignalContext<'s>,
-            &'a &'s (),
+            &mut SignalContext<'r>,
+            &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,
     ) -> SignalBuilder<impl Build<State = T>> {
@@ -169,10 +169,10 @@ pub trait Build: Sized {
     }
     fn map_raw<T: ?Sized + 'static>(
         self,
-        f: impl for<'a, 's> Fn(
+        f: impl for<'a, 'r> Fn(
             StateRef<'a, Self::State>,
-            &mut SignalContext<'s>,
-            &'a &'s (),
+            &mut SignalContext<'r>,
+            &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,
     ) -> impl Build<State = T>;
@@ -209,10 +209,10 @@ impl<St, F: Fn(&mut St)> DiscardFn<St> for DiscardFnVoid<F> {
 
 trait MapFn<Input: ?Sized> {
     type Output: ?Sized;
-    fn apply<'a, 's: 'a>(
+    fn apply<'a, 'r: 'a>(
         &self,
         input: StateRef<'a, Input>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Output>;
 }
 
@@ -224,10 +224,10 @@ where
 {
     type Output = Input;
 
-    fn apply<'a, 's: 'a>(
+    fn apply<'a, 'r: 'a>(
         &self,
         input: StateRef<'a, Input>,
-        _sc: &mut SignalContext<'s>,
+        _sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Output> {
         input
     }
@@ -243,19 +243,19 @@ where
     Input: ?Sized + 'static,
     Output: ?Sized + 'static,
     M: MapFn<Input> + 'static,
-    F: for<'a, 's> Fn(
+    F: for<'a, 'r> Fn(
             StateRef<'a, M::Output>,
-            &mut SignalContext<'s>,
-            &'a &'s (),
+            &mut SignalContext<'r>,
+            &'a &'r (),
         ) -> StateRef<'a, Output>
         + 'static,
 {
     type Output = Output;
 
-    fn apply<'a, 's: 'a>(
+    fn apply<'a, 'r: 'a>(
         &self,
         input: StateRef<'a, Input>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Output> {
         (self.f)(self.m.apply(input, sc), sc, &&())
     }

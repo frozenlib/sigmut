@@ -25,10 +25,10 @@ mod keep;
 
 pub trait SignalNode: 'static {
     type Value: ?Sized + 'static;
-    fn borrow<'a, 's: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value>;
 
     fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
@@ -38,10 +38,10 @@ pub trait SignalNode: 'static {
 
 trait DynSignalNode: Any {
     type Value: ?Sized + 'static;
-    fn dyn_borrow<'a, 's: 'a>(
+    fn dyn_borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value>;
 
     fn dyn_fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
@@ -52,10 +52,10 @@ trait DynSignalNode: Any {
 impl<S: SignalNode> DynSignalNode for S {
     type Value = S::Value;
 
-    fn dyn_borrow<'a, 's: 'a>(
+    fn dyn_borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value> {
         self.borrow(rc_self, sc)
     }
@@ -146,7 +146,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// Create a new `Signal` from a function to get [`StateRef`].
     pub fn from_borrow<U>(
         this: U,
-        borrow: impl for<'s, 'a> Fn(&'a U, &mut SignalContext<'s>, &'a &'s ()) -> StateRef<'a, T>
+        borrow: impl for<'r, 'a> Fn(&'a U, &mut SignalContext<'r>, &'a &'r ()) -> StateRef<'a, T>
         + 'static,
     ) -> Self
     where
@@ -212,7 +212,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// Obtains a reference to the current value and adds a dependency on this `Signal` to the specified `SignalContext`.
     ///
     /// If the current value has not yet been calculated, it will be calculated.
-    pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> StateRef<'a, T> {
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> StateRef<'a, T> {
         match &self.0 {
             RawSignal::StaticRef(value) => StateRef::from(*value),
             RawSignal::Node(node) => node.dyn_borrow(node.clone(), sc),
@@ -365,10 +365,10 @@ where
 {
     type Value = T;
 
-    fn borrow<'a, 's: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         _rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value> {
         StateRef::map((&self.value).into(), &self.map, sc)
     }
@@ -388,15 +388,15 @@ struct FromBorrowNode<T, F> {
 impl<T, F, O> SignalNode for FromBorrowNode<T, F>
 where
     T: 'static,
-    F: for<'a, 's> Fn(&'a T, &mut SignalContext<'s>, &'a &'s ()) -> StateRef<'a, O> + 'static,
+    F: for<'a, 'r> Fn(&'a T, &mut SignalContext<'r>, &'a &'r ()) -> StateRef<'a, O> + 'static,
     O: ?Sized + 'static,
 {
     type Value = O;
 
-    fn borrow<'a, 's: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         _rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value> {
         (self.borrow)(&self.this, sc, &&())
     }

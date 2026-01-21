@@ -38,10 +38,10 @@ impl<T: ?Sized + 'static> KeepNode<T> {
 impl<T: ?Sized + 'static> SignalNode for KeepNode<T> {
     type Value = T;
 
-    fn borrow<'a, 's: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value> {
         rc_self.downcast::<Self>().unwrap().update(sc.rc());
         self.signal.borrow(sc)

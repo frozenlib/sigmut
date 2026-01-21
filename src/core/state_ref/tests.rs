@@ -259,7 +259,7 @@ fn owned_borrow() {
 
     struct X(i32);
     impl X {
-        fn borrow<'a, 's: 'a>(&'a self, _sc: &mut SignalContext<'s>) -> StateRef<'a, i32> {
+        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r>) -> StateRef<'a, i32> {
             (&self.0).into()
         }
     }
@@ -276,14 +276,14 @@ fn owned_borrow_2() {
 
     struct X(Y);
     impl X {
-        fn borrow<'a, 's: 'a>(&'a self, _sc: &mut SignalContext<'s>) -> StateRef<'a, Y> {
+        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r>) -> StateRef<'a, Y> {
             (&self.0).into()
         }
     }
 
     struct Y(i32);
     impl Y {
-        fn borrow<'a, 's: 'a>(&'a self, _sc: &mut SignalContext<'s>) -> StateRef<'a, i32> {
+        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r>) -> StateRef<'a, i32> {
             (&self.0).into()
         }
     }

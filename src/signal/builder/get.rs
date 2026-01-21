@@ -125,10 +125,10 @@ where
 
     fn map_raw<T: ?Sized + 'static>(
         self,
-        f: impl for<'a, 's> Fn(
+        f: impl for<'a, 'r> Fn(
             StateRef<'a, Self::State>,
-            &mut SignalContext<'s>,
-            &'a &'s (),
+            &mut SignalContext<'r>,
+            &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,
     ) -> impl Build<State = T> {

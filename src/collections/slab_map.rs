@@ -38,10 +38,10 @@ impl<T: 'static> SignalSlabMap<T> {
         Self(Scan::new(f))
     }
 
-    pub fn item<'a, 's: 'a>(&'a self, key: usize, sc: &mut SignalContext<'s>) -> Ref<'a, T> {
+    pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r>) -> Ref<'a, T> {
         self.0.item(self.0.clone().to_any(), key, sc)
     }
-    pub fn items<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
+    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
         self.0.items(self.0.clone().to_any(), None, sc)
     }
     pub fn reader(&self) -> SignalSlabMapReader<T> {
@@ -69,7 +69,7 @@ impl<T: 'static> SignalSlabMapReader<T> {
     fn new(owner: Rc<dyn DynSignalSlabMap<T>>) -> Self {
         Self { owner, age: None }
     }
-    pub fn read<'a, 's: 'a>(&'a mut self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
+    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
         let age = self.age;
 
         let mut ref_counts = self.owner.ref_counts();
@@ -324,11 +324,11 @@ impl<T: 'static> StateSlabMap<T> {
         data.remove(key);
         data.edit_end_and_notify(&mut self.0.sinks.borrow_mut(), age, ac.nc());
     }
-    pub fn item<'a, 's: 'a>(&'a self, key: usize, sc: &mut SignalContext<'s>) -> Ref<'a, T> {
+    pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r>) -> Ref<'a, T> {
         self.0.bind(key_to_slot(key), sc);
         self.0.item(key)
     }
-    pub fn items<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
+    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
         self.0.bind(SLOT_ITEMS, sc);
         self.0.items(None)
     }

@@ -36,7 +36,7 @@ impl<T: 'static> SignalVec<T> {
         }
     }
 
-    pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
         match &self.0 {
             RawSignalVec::Rc(rc) => rc.items(rc.clone(), sc),
             RawSignalVec::Slice(slice) => Items::from_slice_items(slice),
@@ -98,7 +98,7 @@ pub struct SignalVecReader<T: 'static> {
 }
 
 impl<T: 'static> SignalVecReader<T> {
-    pub fn read<'a, 's: 'a>(&'a mut self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
+    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
         match &self.source {
             RawSignalVec::Rc(vec) => vec.read(vec.clone(), &mut self.age, sc),
             RawSignalVec::Slice(slice) => Items::from_slice_read(slice, &mut self.age),
@@ -558,7 +558,7 @@ impl<T> StateVec<T> {
     pub fn reader(&self) -> SignalVecReader<T> {
         self.to_signal_vec().reader()
     }
-    pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> Items<'a, T> {
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
         self.0.items(self.0.clone(), sc)
     }
     pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T> {

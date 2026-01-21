@@ -126,10 +126,10 @@ where
 {
     type Value = T;
 
-    fn borrow<'a, 's: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value> {
         let this = rc_self.clone().downcast::<Self>().unwrap();
         self.sinks.borrow_mut().bind(this.clone(), Slot(0), sc);

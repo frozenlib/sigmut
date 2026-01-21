@@ -78,10 +78,10 @@ where
 
     fn map_raw<T: ?Sized + 'static>(
         self,
-        f: impl for<'a, 's> Fn(
+        f: impl for<'a, 'r> Fn(
             StateRef<'a, Self::State>,
-            &mut SignalContext<'s>,
-            &'a &'s (),
+            &mut SignalContext<'r>,
+            &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,
     ) -> impl Build<State = T> {
@@ -184,10 +184,10 @@ where
     Map: MapFn<St> + 'static,
 {
     type Value = Map::Output;
-    fn borrow<'a, 's: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value> {
         let this = rc_self.clone().downcast::<Self>().unwrap();
         this.update(sc.rc());

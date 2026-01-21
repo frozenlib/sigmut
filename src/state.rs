@@ -34,7 +34,7 @@ impl<T: 'static> State<T> {
     }
 
     /// Obtains a reference to the current value and adds a dependency on this `State` to the specified `SignalContext`.
-    pub fn borrow<'a, 's: 'a>(&'a self, sc: &mut SignalContext<'s>) -> StateRef<'a, T> {
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> StateRef<'a, T> {
         self.0.bind(sc);
         self.0.value.borrow().into()
     }
@@ -197,10 +197,10 @@ impl<T: 'static> BindSink for StateNode<T> {
 
 impl<T: 'static> SignalNode for StateNode<T> {
     type Value = T;
-    fn borrow<'a, 's: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'s>,
+        sc: &mut SignalContext<'r>,
     ) -> StateRef<'a, Self::Value> {
         rc_self.downcast::<Self>().unwrap().bind(sc);
         self.value.borrow().into()

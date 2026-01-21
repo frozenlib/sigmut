@@ -765,10 +765,10 @@ impl Sink {
 
 /// Context required to read state in operations that do not modify state.
 #[repr(transparent)]
-pub struct ReactionContext<'s>(SignalContext<'s>);
+pub struct ReactionContext<'r>(SignalContext<'r>);
 
-impl<'s> ReactionContext<'s> {
-    fn new<'a>(sc: &'a mut SignalContext<'s>) -> &'a mut Self {
+impl<'r> ReactionContext<'r> {
+    fn new<'a>(sc: &'a mut SignalContext<'r>) -> &'a mut Self {
         unsafe { transmute(sc) }
     }
 
@@ -780,7 +780,7 @@ impl<'s> ReactionContext<'s> {
     }
 
     /// Call a function with a [`SignalContext`] that does not track dependencies.
-    pub fn sc_with<T>(&mut self, f: impl FnOnce(&mut SignalContext<'s>) -> T) -> T {
+    pub fn sc_with<T>(&mut self, f: impl FnOnce(&mut SignalContext<'r>) -> T) -> T {
         self.0.untrack(f)
     }
 
@@ -811,22 +811,22 @@ pub fn schedule_notify(node: Weak<dyn BindSink>, slot: Slot) {
 }
 
 /// Context for retrieving state and tracking dependencies.
-pub struct SignalContext<'s> {
-    rt: &'s mut RuntimeData,
-    bump: &'s Bump,
-    sink: Option<&'s mut Sink>,
+pub struct SignalContext<'r> {
+    rt: &'r mut RuntimeData,
+    bump: &'r Bump,
+    sink: Option<&'r mut Sink>,
 }
 
-impl<'s> SignalContext<'s> {
-    pub fn rc(&mut self) -> &mut ReactionContext<'s> {
+impl<'r> SignalContext<'r> {
+    pub fn rc(&mut self) -> &mut ReactionContext<'r> {
         ReactionContext::new(self)
     }
 
     /// Call a function with a [`SignalContext`] that does not track dependencies.
-    pub fn untrack<T>(&mut self, f: impl FnOnce(&mut SignalContext<'s>) -> T) -> T {
-        struct UntrackGuard<'s, 'a> {
-            sc: &'a mut SignalContext<'s>,
-            sink: Option<&'s mut Sink>,
+    pub fn untrack<T>(&mut self, f: impl FnOnce(&mut SignalContext<'r>) -> T) -> T {
+        struct UntrackGuard<'r, 'a> {
+            sc: &'a mut SignalContext<'r>,
+            sink: Option<&'r mut Sink>,
         }
         impl Drop for UntrackGuard<'_, '_> {
             fn drop(&mut self) {
