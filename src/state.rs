@@ -34,13 +34,13 @@ impl<T: 'static> State<T> {
     }
 
     /// Obtains a reference to the current value and adds a dependency on this `State` to the specified `SignalContext`.
-    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> StateRef<'a, T> {
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> StateRef<'a, T> {
         self.0.bind(sc);
         self.0.value.borrow().into()
     }
 
     /// Gets the current value and adds a dependency on this `State` to the specified `SignalContext`.
-    pub fn get(&self, sc: &mut SignalContext) -> T
+    pub fn get(&self, sc: &mut SignalContext<'_, '_>) -> T
     where
         T: Clone,
     {
@@ -160,7 +160,7 @@ struct StateNode<T: 'static> {
     value: RefCell<T>,
 }
 impl<T: 'static> StateNode<T> {
-    fn bind(self: &Rc<Self>, sc: &mut SignalContext) {
+    fn bind(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
     }
     fn notify_raw(&self, nc: &mut NotifyContext) {
@@ -177,15 +177,15 @@ impl<T: 'static> StateNode<T> {
 }
 
 impl<T: 'static> BindSource for StateNode<T> {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         self.sinks.borrow_mut().unbind(key, rc);
     }
 
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }
@@ -200,7 +200,7 @@ impl<T: 'static> SignalNode for StateNode<T> {
     fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value> {
         rc_self.downcast::<Self>().unwrap().bind(sc);
         self.value.borrow().into()

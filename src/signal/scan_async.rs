@@ -74,7 +74,7 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if rc.borrow(&self.data).asb.is_clean() {
             return;
         }
@@ -99,14 +99,14 @@ where
             self.sinks.borrow_mut().update(is_dirty, rc);
         }
     }
-    fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if self.sinks.borrow().is_empty() && !self.discard_scheduled.replace(true) {
             let reaction = Reaction::from_rc_fn(self.clone(), |this, rc| this.discard(rc));
             rc.schedule_discard(reaction);
         }
     }
 
-    fn discard(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         self.discard_scheduled.set(false);
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();
@@ -129,7 +129,7 @@ where
     fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value> {
         let this = rc_self.clone().downcast::<Self>().unwrap();
         self.sinks.borrow_mut().bind(this.clone(), Slot(0), sc);
@@ -157,17 +157,17 @@ where
     Scan: FnMut(&mut St, Poll<Fut::Output>) -> bool + 'static,
     Map: Fn(&St) -> &T + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.update(rc);
         self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         self.sinks.borrow_mut().unbind(key, rc);
         self.try_schedule_discard(rc);
     }
 
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
         self.try_schedule_discard(sc.rc());
     }

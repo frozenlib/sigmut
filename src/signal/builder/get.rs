@@ -3,7 +3,7 @@ use crate::{Signal, SignalBuilder, SignalContext, StateRef};
 use super::{Build, DedupBuild, GetBuild, ScanBuild};
 
 pub fn get_builder<T: 'static>(
-    get: impl Fn(&mut SignalContext) -> T + 'static,
+    get: impl Fn(&mut SignalContext<'_, '_>) -> T + 'static,
 ) -> impl GetBuild<State = T> {
     GetBuilder(GetFnGet(get))
 }
@@ -25,7 +25,7 @@ struct GetFnGet<F>(F);
 impl<T, F> GetFn for GetFnGet<F>
 where
     T: 'static,
-    F: Fn(&mut SignalContext) -> T + 'static,
+    F: Fn(&mut SignalContext<'_, '_>) -> T + 'static,
 {
     type Output = T;
     fn into_scan_build(self) -> impl ScanBuild<State = Option<Self::Output>> {
@@ -41,7 +41,7 @@ struct GetFnGetDedup<F>(F);
 impl<T, F> GetFn for GetFnGetDedup<F>
 where
     T: 'static,
-    F: Fn(&mut SignalContext) -> T + 'static,
+    F: Fn(&mut SignalContext<'_, '_>) -> T + 'static,
     T: PartialEq,
 {
     type Output = T;
@@ -65,7 +65,7 @@ struct GetBuilder<Get>(Get);
 impl<T, F> GetBuild for GetBuilder<GetFnGet<F>>
 where
     T: 'static,
-    F: Fn(&mut SignalContext) -> T + 'static,
+    F: Fn(&mut SignalContext<'_, '_>) -> T + 'static,
 {
     fn dedup(self) -> impl DedupBuild<State = Self::State>
     where
@@ -127,7 +127,7 @@ where
         self,
         f: impl for<'a, 'r> Fn(
             StateRef<'a, Self::State>,
-            &mut SignalContext<'r>,
+            &mut SignalContext<'r, '_>,
             &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,

@@ -23,19 +23,19 @@ impl SourceBinder {
         self.dirty.is_clean()
     }
 
-    pub fn check(&mut self, rc: &mut ReactionContext) -> bool {
+    pub fn check(&mut self, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.sources.check_with(&mut self.dirty, rc)
     }
     pub fn update<T>(
         &mut self,
-        f: impl FnOnce(&mut SignalContext) -> T,
-        rc: &mut ReactionContext,
+        f: impl FnOnce(&mut SignalContext<'_, '_>) -> T,
+        rc: &mut ReactionContext<'_, '_>,
     ) -> T {
         self.dirty = Dirty::Clean;
         self.sources
             .update(self.sink.clone(), self.slot, true, f, rc)
     }
-    pub fn clear(&mut self, rc: &mut ReactionContext) {
+    pub fn clear(&mut self, rc: &mut ReactionContext<'_, '_>) {
         self.sources.clear(rc);
         self.dirty = Dirty::Dirty;
     }

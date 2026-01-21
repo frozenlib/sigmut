@@ -28,7 +28,7 @@ pub trait SignalNode: 'static {
     fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value>;
 
     fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
@@ -41,7 +41,7 @@ trait DynSignalNode: Any {
     fn dyn_borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value>;
 
     fn dyn_fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result
@@ -55,7 +55,7 @@ impl<S: SignalNode> DynSignalNode for S {
     fn dyn_borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value> {
         self.borrow(rc_self, sc)
     }
@@ -98,7 +98,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// The signal created by this function also sends a notification when `f` returns the same value as before.
     /// [`new_dedup`](Self::new_dedup) must be used to avoid sending a notification when `f` returns the same value as before.
-    pub fn new(f: impl Fn(&mut SignalContext) -> T + 'static) -> Self
+    pub fn new(f: impl Fn(&mut SignalContext<'_, '_>) -> T + 'static) -> Self
     where
         T: Sized,
     {
@@ -110,7 +110,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// The signal created by this function does not send a notification when `f` returns the same value as before.
     ///
     /// Even if the value is not changed, a "value may have changed" notification is sent to the dependants, so the overhead cannot be zero.
-    pub fn new_dedup(f: impl Fn(&mut SignalContext) -> T + 'static) -> Self
+    pub fn new_dedup(f: impl Fn(&mut SignalContext<'_, '_>) -> T + 'static) -> Self
     where
         T: Sized + PartialEq,
     {
@@ -146,7 +146,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// Create a new `Signal` from a function to get [`StateRef`].
     pub fn from_borrow<U>(
         this: U,
-        borrow: impl for<'r, 'a> Fn(&'a U, &mut SignalContext<'r>, &'a &'r ()) -> StateRef<'a, T>
+        borrow: impl for<'r, 'a> Fn(&'a U, &mut SignalContext<'r, '_>, &'a &'r ()) -> StateRef<'a, T>
         + 'static,
     ) -> Self
     where
@@ -212,7 +212,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// Obtains a reference to the current value and adds a dependency on this `Signal` to the specified `SignalContext`.
     ///
     /// If the current value has not yet been calculated, it will be calculated.
-    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> StateRef<'a, T> {
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> StateRef<'a, T> {
         match &self.0 {
             RawSignal::StaticRef(value) => StateRef::from(*value),
             RawSignal::Node(node) => node.dyn_borrow(node.clone(), sc),
@@ -222,7 +222,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// Gets the current value and adds a dependency on this `Signal` to the specified `SignalContext`.
     ///
     /// If the current value has not yet been calculated, it will be calculated.
-    pub fn get(&self, sc: &mut SignalContext) -> <T as ToOwned>::Owned
+    pub fn get(&self, sc: &mut SignalContext<'_, '_>) -> <T as ToOwned>::Owned
     where
         T: ToOwned,
     {
@@ -368,7 +368,7 @@ where
     fn borrow<'a, 'r: 'a>(
         &'a self,
         _rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value> {
         StateRef::map((&self.value).into(), &self.map, sc)
     }
@@ -388,7 +388,7 @@ struct FromBorrowNode<T, F> {
 impl<T, F, O> SignalNode for FromBorrowNode<T, F>
 where
     T: 'static,
-    F: for<'a, 'r> Fn(&'a T, &mut SignalContext<'r>, &'a &'r ()) -> StateRef<'a, O> + 'static,
+    F: for<'a, 'r> Fn(&'a T, &mut SignalContext<'r, '_>, &'a &'r ()) -> StateRef<'a, O> + 'static,
     O: ?Sized + 'static,
 {
     type Value = O;
@@ -396,7 +396,7 @@ where
     fn borrow<'a, 'r: 'a>(
         &'a self,
         _rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value> {
         (self.borrow)(&self.this, sc, &&())
     }

@@ -259,7 +259,7 @@ fn owned_borrow() {
 
     struct X(i32);
     impl X {
-        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r>) -> StateRef<'a, i32> {
+        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r, '_>) -> StateRef<'a, i32> {
             (&self.0).into()
         }
     }
@@ -276,14 +276,14 @@ fn owned_borrow_2() {
 
     struct X(Y);
     impl X {
-        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r>) -> StateRef<'a, Y> {
+        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r, '_>) -> StateRef<'a, Y> {
             (&self.0).into()
         }
     }
 
     struct Y(i32);
     impl Y {
-        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r>) -> StateRef<'a, i32> {
+        fn borrow<'a, 'r: 'a>(&'a self, _sc: &mut SignalContext<'r, '_>) -> StateRef<'a, i32> {
             (&self.0).into()
         }
     }
@@ -296,7 +296,7 @@ fn owned_borrow_2() {
 }
 
 trait StateRefFn {
-    fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, sc: &mut SignalContext<'a>);
+    fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, sc: &mut SignalContext<'a, '_>);
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -328,7 +328,7 @@ impl StateRefKind {
 }
 
 impl StateRefFn for () {
-    fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, _oc: &mut SignalContext<'a>) {
+    fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, _oc: &mut SignalContext<'a, '_>) {
         black_box(&*value);
     }
 }
@@ -350,7 +350,7 @@ fn each_from_value(
 
 struct StateRefFnMap;
 impl StateRefFn for StateRefFnMap {
-    fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, sc: &mut SignalContext<'a>) {
+    fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, sc: &mut SignalContext<'a, '_>) {
         bbox(StateRef::map(value, |x| x, sc));
     }
 }
@@ -372,7 +372,7 @@ fn each_map(
 
 struct StateRefFnMapRef(StateRefKind);
 impl StateRefFn for StateRefFnMapRef {
-    fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, sc: &mut SignalContext<'a>) {
+    fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, sc: &mut SignalContext<'a, '_>) {
         match self.0 {
             StateRefKind::ValueSmall => {
                 bbox(StateRef::map_ref(

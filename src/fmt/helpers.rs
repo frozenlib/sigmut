@@ -9,7 +9,7 @@ pub trait SignalStringBuilder: Sized + 'static {
     fn push_eager(self, f: impl FnOnce(&mut String)) -> Self;
     fn push_lazy(
         self,
-        f: impl Fn(&mut String, &mut SignalContext) + 'static,
+        f: impl Fn(&mut String, &mut SignalContext<'_, '_>) + 'static,
     ) -> impl SignalStringBuilder;
     fn push_signal<T: ?Sized>(
         self,
@@ -48,7 +48,7 @@ impl<P: Part> SignalStringBuilder for Node<P> {
 
     fn push_lazy(
         self,
-        f: impl Fn(&mut String, &mut SignalContext) + 'static,
+        f: impl Fn(&mut String, &mut SignalContext<'_, '_>) + 'static,
     ) -> impl SignalStringBuilder {
         Node {
             part: FnPart {
@@ -73,13 +73,13 @@ impl<P: Part> SignalStringBuilder for Node<P> {
 }
 
 trait Part: 'static {
-    fn write(&self, buf: &str, out: &mut String, sc: &mut SignalContext) -> usize;
+    fn write(&self, buf: &str, out: &mut String, sc: &mut SignalContext<'_, '_>) -> usize;
 }
 
 struct NonePart;
 
 impl Part for NonePart {
-    fn write(&self, _buf: &str, _out: &mut String, _sc: &mut SignalContext) -> usize {
+    fn write(&self, _buf: &str, _out: &mut String, _sc: &mut SignalContext<'_, '_>) -> usize {
         0
     }
 }
@@ -92,9 +92,9 @@ struct FnPart<P, F> {
 impl<P, F> Part for FnPart<P, F>
 where
     P: Part + 'static,
-    F: Fn(&mut String, &mut SignalContext) + 'static,
+    F: Fn(&mut String, &mut SignalContext<'_, '_>) + 'static,
 {
-    fn write(&self, buf: &str, out: &mut String, sc: &mut SignalContext) -> usize {
+    fn write(&self, buf: &str, out: &mut String, sc: &mut SignalContext<'_, '_>) -> usize {
         let buf_start = self.prev.write(buf, out, sc);
         out.push_str(&buf[buf_start..self.buf_end]);
         (self.f)(out, sc);

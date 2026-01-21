@@ -13,7 +13,7 @@ use std::{
 
 /// Create a `Stream` from a signal function.
 pub fn stream_from<T: 'static>(
-    f: impl FnMut(&mut SignalContext) -> T + 'static,
+    f: impl FnMut(&mut SignalContext<'_, '_>) -> T + 'static,
 ) -> impl Stream<Item = T> + Unpin + 'static {
     SignalStream::new(f)
 }
@@ -39,7 +39,7 @@ struct Data<F, T> {
 
 impl<F, T> SignalStream<F, T>
 where
-    F: FnMut(&mut SignalContext) -> T + 'static,
+    F: FnMut(&mut SignalContext<'_, '_>) -> T + 'static,
     T: 'static,
 {
     pub fn new(f: F) -> Self {
@@ -56,7 +56,7 @@ where
 
 impl<F, T> Stream for SignalStream<F, T>
 where
-    F: FnMut(&mut SignalContext) -> T + 'static,
+    F: FnMut(&mut SignalContext<'_, '_>) -> T + 'static,
     T: 'static,
 {
     type Item = T;
@@ -78,7 +78,7 @@ where
 
 impl<F, T> BindSink for Node<F, T>
 where
-    F: FnMut(&mut SignalContext) -> T + 'static,
+    F: FnMut(&mut SignalContext<'_, '_>) -> T + 'static,
     T: 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, _nc: &mut NotifyContext) {
@@ -91,7 +91,7 @@ where
 
 impl<F, T> Node<F, T>
 where
-    F: FnMut(&mut SignalContext) -> T + 'static,
+    F: FnMut(&mut SignalContext<'_, '_>) -> T + 'static,
     T: 'static,
 {
     fn schedule(self: &Rc<Self>, d: &mut Data<F, T>) {
@@ -101,7 +101,7 @@ where
         }
     }
 
-    fn update(self: Rc<Self>, rc: &mut ReactionContext) {
+    fn update(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         let d = &mut *self.0.borrow_mut();
         d.is_scheduled = false;
         if d.sb.check(rc) {

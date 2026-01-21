@@ -24,20 +24,20 @@ pub struct SignalBuilder<B>(B);
 
 impl SignalBuilder<()> {
     pub fn new<T: 'static>(
-        f: impl Fn(&mut SignalContext) -> T + 'static,
+        f: impl Fn(&mut SignalContext<'_, '_>) -> T + 'static,
     ) -> SignalBuilder<impl GetBuild<State = T>> {
         SignalBuilder(get_builder(f))
     }
 
     pub fn from_scan<St: 'static>(
         initial_state: St,
-        f: impl FnMut(&mut St, &mut SignalContext) + 'static,
+        f: impl FnMut(&mut St, &mut SignalContext<'_, '_>) + 'static,
     ) -> SignalBuilder<impl ScanBuild<State = St>> {
         SignalBuilder(scan_builder(initial_state, ScanFnVoid(f)))
     }
     pub fn from_scan_filter<St: 'static>(
         initial_state: St,
-        f: impl FnMut(&mut St, &mut SignalContext) -> bool + 'static,
+        f: impl FnMut(&mut St, &mut SignalContext<'_, '_>) -> bool + 'static,
     ) -> SignalBuilder<impl ScanBuild<State = St>> {
         SignalBuilder(scan_builder(initial_state, ScanFnBool(f)))
     }
@@ -127,7 +127,7 @@ impl<B: Build> SignalBuilder<B> {
         self,
         f: impl for<'a, 'r> Fn(
             StateRef<'a, B::State>,
-            &mut SignalContext<'r>,
+            &mut SignalContext<'r, '_>,
             &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,
@@ -171,7 +171,7 @@ pub trait Build: Sized {
         self,
         f: impl for<'a, 'r> Fn(
             StateRef<'a, Self::State>,
-            &mut SignalContext<'r>,
+            &mut SignalContext<'r, '_>,
             &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,
@@ -212,7 +212,7 @@ trait MapFn<Input: ?Sized> {
     fn apply<'a, 'r: 'a>(
         &self,
         input: StateRef<'a, Input>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Output>;
 }
 
@@ -227,7 +227,7 @@ where
     fn apply<'a, 'r: 'a>(
         &self,
         input: StateRef<'a, Input>,
-        _sc: &mut SignalContext<'r>,
+        _sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Output> {
         input
     }
@@ -245,7 +245,7 @@ where
     M: MapFn<Input> + 'static,
     F: for<'a, 'r> Fn(
             StateRef<'a, M::Output>,
-            &mut SignalContext<'r>,
+            &mut SignalContext<'r, '_>,
             &'a &'r (),
         ) -> StateRef<'a, Output>
         + 'static,
@@ -255,7 +255,7 @@ where
     fn apply<'a, 'r: 'a>(
         &self,
         input: StateRef<'a, Input>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Output> {
         (self.f)(self.m.apply(input, sc), sc, &&())
     }

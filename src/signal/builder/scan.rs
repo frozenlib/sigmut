@@ -34,20 +34,20 @@ where
 
 pub(super) trait ScanFn<St> {
     const FILTER: bool;
-    fn call(&mut self, st: &mut St, sc: &mut SignalContext) -> bool;
+    fn call(&mut self, st: &mut St, sc: &mut SignalContext<'_, '_>) -> bool;
 }
 
-impl<St, F: FnMut(&mut St, &mut SignalContext)> ScanFn<St> for ScanFnVoid<F> {
+impl<St, F: FnMut(&mut St, &mut SignalContext<'_, '_>)> ScanFn<St> for ScanFnVoid<F> {
     const FILTER: bool = false;
-    fn call(&mut self, st: &mut St, sc: &mut SignalContext) -> bool {
+    fn call(&mut self, st: &mut St, sc: &mut SignalContext<'_, '_>) -> bool {
         (self.0)(st, sc);
         true
     }
 }
 
-impl<St, F: FnMut(&mut St, &mut SignalContext) -> bool> ScanFn<St> for ScanFnBool<F> {
+impl<St, F: FnMut(&mut St, &mut SignalContext<'_, '_>) -> bool> ScanFn<St> for ScanFnBool<F> {
     const FILTER: bool = true;
-    fn call(&mut self, st: &mut St, sc: &mut SignalContext) -> bool {
+    fn call(&mut self, st: &mut St, sc: &mut SignalContext<'_, '_>) -> bool {
         (self.0)(st, sc)
     }
 }
@@ -95,7 +95,7 @@ where
         self,
         f: impl for<'a, 'r> Fn(
             StateRef<'a, Self::State>,
-            &mut SignalContext<'r>,
+            &mut SignalContext<'r, '_>,
             &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,
@@ -151,7 +151,7 @@ where
     fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value> {
         let this = rc_self.downcast::<Self>().unwrap();
         this.watch(sc);
@@ -173,16 +173,16 @@ where
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.update(rc);
         self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         self.sinks.borrow_mut().unbind(key, rc);
         self.try_schedule_discard(rc);
     }
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
         self.try_schedule_discard(sc.rc());
     }
@@ -210,7 +210,7 @@ where
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
-    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if rc.borrow(&self.data).sb.is_clean() {
             return;
         }
@@ -223,18 +223,18 @@ where
             }
         }
     }
-    fn watch(self: &Rc<Self>, sc: &mut SignalContext) {
+    fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
         self.update(sc.rc());
     }
-    fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if self.discard_scheduled.try_schedule(&self.sinks) {
             let reaction = Reaction::from_rc_fn(self.clone(), |this, rc| this.discard(rc));
             rc.schedule_discard(reaction);
         }
     }
 
-    fn discard(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         self.discard_scheduled.reset_schedule();
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();

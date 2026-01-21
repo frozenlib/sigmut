@@ -34,7 +34,7 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
     /// Create a `StateRef` from a value with `'static` lifetime.
     ///
     /// This method works more efficiently than [`from_value_non_static`](Self::from_value_non_static).
-    pub fn from_value<'r: 'a>(value: T, sc: &SignalContext<'r>) -> Self
+    pub fn from_value<'r: 'a>(value: T, sc: &SignalContext<'r, '_>) -> Self
     where
         T: Sized + 'static,
     {
@@ -45,7 +45,7 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
     }
 
     /// Create a `StateRef` from a value with non-`'static` lifetime.
-    pub fn from_value_non_static<'r: 'a>(value: T, sc: &SignalContext<'r>) -> Self
+    pub fn from_value_non_static<'r: 'a>(value: T, sc: &SignalContext<'r, '_>) -> Self
     where
         T: Sized,
     {
@@ -66,8 +66,12 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
     /// The third argument to `f` is unused but necessary to add the `'r0: 'a0` constraint.
     pub fn map_ref<'r: 'a, U: ?Sized>(
         this: Self,
-        f: impl for<'a0, 'r0> FnOnce(&'a0 T, &mut SignalContext<'r0>, &'a0 &'r0 ()) -> StateRef<'a0, U>,
-        sc: &mut SignalContext<'r>,
+        f: impl for<'a0, 'r0> FnOnce(
+            &'a0 T,
+            &mut SignalContext<'r0, '_>,
+            &'a0 &'r0 (),
+        ) -> StateRef<'a0, U>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, U> {
         unsafe {
             let (is_static, p) = this.0.pin(sc.bump);
@@ -93,7 +97,7 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
     pub fn map<'r: 'a, U: ?Sized>(
         this: Self,
         f: impl FnOnce(&T) -> &U,
-        sc: &SignalContext<'r>,
+        sc: &SignalContext<'r, '_>,
     ) -> StateRef<'a, U> {
         StateRef(match this.0 {
             Data::ValueAndOwner {

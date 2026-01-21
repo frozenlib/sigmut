@@ -23,7 +23,7 @@ impl<T: ?Sized + 'static> KeepNode<T> {
             signal,
         })
     }
-    fn update(&self, rc: &mut ReactionContext) {
+    fn update(&self, rc: &mut ReactionContext<'_, '_>) {
         if self.binder.borrow().is_clean() {
             return;
         }
@@ -41,7 +41,7 @@ impl<T: ?Sized + 'static> SignalNode for KeepNode<T> {
     fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value> {
         rc_self.downcast::<Self>().unwrap().update(sc.rc());
         self.signal.borrow(sc)

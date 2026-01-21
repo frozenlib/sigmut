@@ -19,7 +19,7 @@ mod tests;
 /// However, if the dependency status has not changed since the previous call, it will not be called.
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
-pub fn effect(f: impl FnMut(&mut SignalContext) + 'static) -> Subscription {
+pub fn effect(f: impl FnMut(&mut SignalContext<'_, '_>) + 'static) -> Subscription {
     effect_with(f, ReactionKind::default())
 }
 
@@ -32,7 +32,7 @@ pub fn effect(f: impl FnMut(&mut SignalContext) + 'static) -> Subscription {
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
 pub fn effect_with(
-    f: impl FnMut(&mut SignalContext) + 'static,
+    f: impl FnMut(&mut SignalContext<'_, '_>) + 'static,
     kind: ReactionKind,
 ) -> Subscription {
     let node = EffectNode::new(f, kind);
@@ -51,7 +51,7 @@ struct EffectNode<F> {
 }
 impl<F> EffectNode<F>
 where
-    F: FnMut(&mut SignalContext) + 'static,
+    F: FnMut(&mut SignalContext<'_, '_>) + 'static,
 {
     fn new(f: F, kind: ReactionKind) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
@@ -66,7 +66,7 @@ where
     fn schedule(self: &Rc<Self>) {
         Reaction::from_weak_fn(Rc::downgrade(self), Self::call).schedule_with(self.kind)
     }
-    fn call(self: Rc<Self>, rc: &mut ReactionContext) {
+    fn call(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         let d = &mut *self.data.borrow_mut();
         if d.sb.check(rc) {
             d.sb.update(&mut d.f, rc);
@@ -76,7 +76,7 @@ where
 
 impl<F> BindSink for EffectNode<F>
 where
-    F: FnMut(&mut SignalContext) + 'static,
+    F: FnMut(&mut SignalContext<'_, '_>) + 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, _nc: &mut NotifyContext) {
         if self.data.borrow_mut().sb.on_notify(slot, level) {

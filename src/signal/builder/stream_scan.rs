@@ -54,7 +54,7 @@ where
         self,
         f: impl for<'a, 'r> Fn(
             StateRef<'a, Self::State>,
-            &mut SignalContext<'r>,
+            &mut SignalContext<'r, '_>,
             &'a &'r (),
         ) -> StateRef<'a, T>
         + 'static,
@@ -133,7 +133,7 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if !rc.borrow(&self.data).is_wake() {
             return;
         }
@@ -168,7 +168,7 @@ where
     fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r>,
+        sc: &mut SignalContext<'r, '_>,
     ) -> StateRef<'a, Self::Value> {
         let this = rc_self.clone().downcast::<Self>().unwrap();
         this.update(sc.rc());
@@ -210,16 +210,16 @@ where
     Scan: FnMut(&mut St, Option<I>) -> bool + 'static,
     Map: MapFn<St> + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.update(rc);
         self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         self.sinks.borrow_mut().unbind(key, rc);
     }
 
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }

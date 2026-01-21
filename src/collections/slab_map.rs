@@ -34,14 +34,16 @@ fn slot_to_key(slot: Slot) -> Option<usize> {
 pub struct SignalSlabMap<T>(Rc<dyn DynSignalSlabMap<T>>);
 
 impl<T: 'static> SignalSlabMap<T> {
-    pub fn from_scan(f: impl FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static) -> Self {
+    pub fn from_scan(
+        f: impl FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
+    ) -> Self {
         Self(Scan::new(f))
     }
 
-    pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r>) -> Ref<'a, T> {
+    pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r, '_>) -> Ref<'a, T> {
         self.0.item(self.0.clone().to_any(), key, sc)
     }
-    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
+    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
         self.0.items(self.0.clone().to_any(), None, sc)
     }
     pub fn reader(&self) -> SignalSlabMapReader<T> {
@@ -51,12 +53,12 @@ impl<T: 'static> SignalSlabMap<T> {
 
 trait DynSignalSlabMap<T> {
     fn to_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T>;
+    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T>;
     fn items(
         &self,
         rc_self: Rc<dyn Any>,
         age: Option<usize>,
-        sc: &mut SignalContext,
+        sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T>;
     fn ref_counts(&self) -> RefMut<'_, RefCountOps>;
 }
@@ -69,7 +71,7 @@ impl<T: 'static> SignalSlabMapReader<T> {
     fn new(owner: Rc<dyn DynSignalSlabMap<T>>) -> Self {
         Self { owner, age: None }
     }
-    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
+    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
         let age = self.age;
 
         let mut ref_counts = self.owner.ref_counts();
@@ -324,11 +326,11 @@ impl<T: 'static> StateSlabMap<T> {
         data.remove(key);
         data.edit_end_and_notify(&mut self.0.sinks.borrow_mut(), age, ac.nc());
     }
-    pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r>) -> Ref<'a, T> {
+    pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r, '_>) -> Ref<'a, T> {
         self.0.bind(key_to_slot(key), sc);
         self.0.item(key)
     }
-    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
+    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
         self.0.bind(SLOT_ITEMS, sc);
         self.0.items(None)
     }
@@ -346,7 +348,7 @@ impl<T: 'static> RawStateSlabMap<T> {
     fn rc_this(this: Rc<dyn Any>) -> Rc<Self> {
         Rc::downcast(this).unwrap()
     }
-    fn bind(self: &Rc<Self>, slot: Slot, sc: &mut SignalContext) {
+    fn bind(self: &Rc<Self>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().bind(self.clone(), slot, sc);
     }
     fn item(&self, key: usize) -> Ref<'_, T> {
@@ -363,7 +365,7 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
         self
     }
 
-    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
+    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T> {
         Self::rc_this(rc_self).bind(key_to_slot(key), sc);
         self.item(key)
     }
@@ -372,7 +374,7 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
         &self,
         rc_self: Rc<dyn Any>,
         age: Option<usize>,
-        sc: &mut SignalContext,
+        sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T> {
         Self::rc_this(rc_self).bind(SLOT_ITEMS, sc);
         self.items(age)
@@ -384,13 +386,13 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
 }
 
 impl<T: 'static> BindSource for RawStateSlabMap<T> {
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.sinks.borrow_mut().is_dirty(slot, key, rc)
     }
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         self.sinks.borrow_mut().unbind(slot, key, rc);
     }
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }
@@ -406,7 +408,7 @@ impl SinkBindingsSet {
             any: SinkBindings::new(),
         }
     }
-    fn update_all(&mut self, is_dirty: bool, rc: &mut ReactionContext) {
+    fn update_all(&mut self, is_dirty: bool, rc: &mut ReactionContext<'_, '_>) {
         for s in &mut self.items {
             s.update(is_dirty, rc);
         }
@@ -419,7 +421,7 @@ impl SinkBindingsSet {
         self.any.notify(level, nc);
     }
 
-    fn bind(&mut self, this: Rc<dyn BindSource>, slot: Slot, sc: &mut SignalContext) {
+    fn bind(&mut self, this: Rc<dyn BindSource>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
         if let Some(key) = slot_to_key(slot)
             && self.items.len() < key
         {
@@ -429,7 +431,7 @@ impl SinkBindingsSet {
             s.bind(this, slot, sc);
         }
     }
-    fn unbind(&mut self, slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(&mut self, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         if let Some(s) = self.get_mut(slot) {
             s.unbind(key, rc);
         }
@@ -439,14 +441,14 @@ impl SinkBindingsSet {
         this: Rc<dyn BindSource>,
         slot: Slot,
         key: BindKey,
-        sc: &mut SignalContext,
+        sc: &mut SignalContext<'_, '_>,
     ) {
         if let Some(s) = self.get_mut(slot) {
             s.rebind(this, slot, key, sc);
         }
     }
 
-    fn is_dirty(&self, slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+    fn is_dirty(&self, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         if let Some(s) = self.get(slot) {
             s.is_dirty(key, rc)
         } else {
@@ -478,7 +480,7 @@ struct Scan<T, F> {
 impl<T, F> Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
+    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn new(f: F) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
@@ -492,7 +494,7 @@ where
         })
     }
 
-    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if rc.borrow(&self.data).sb.is_clean() {
             return;
         }
@@ -513,13 +515,13 @@ where
 impl<T, F> DynSignalSlabMap<T> for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
+    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn to_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 
-    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext) -> Ref<'_, T> {
+    fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T> {
         let this = Self::rc_this(rc_self);
         this.update(sc.rc());
         self.sinks.borrow_mut().bind(this, key_to_slot(key), sc);
@@ -530,7 +532,7 @@ where
         &self,
         rc_self: Rc<dyn Any>,
         age: Option<usize>,
-        sc: &mut SignalContext,
+        sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T> {
         let this = Self::rc_this(rc_self);
         this.update(sc.rc());
@@ -545,25 +547,25 @@ where
 impl<T, F> BindSource for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
+    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.update(rc);
         self.sinks.borrow().is_dirty(slot, key, rc)
     }
 
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         self.sinks.borrow_mut().unbind(slot, key, rc)
     }
 
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc)
     }
 }
 impl<T, F> BindSink for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
+    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         if self.data.borrow_mut().sb.on_notify(slot, level) {

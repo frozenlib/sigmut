@@ -26,7 +26,9 @@ use crate::{
 pub struct SignalVec<T: 'static>(RawSignalVec<T>);
 
 impl<T: 'static> SignalVec<T> {
-    pub fn from_scan(f: impl FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static) -> Self {
+    pub fn from_scan(
+        f: impl FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
+    ) -> Self {
         Self(RawSignalVec::Rc(Scan::new(f)))
     }
     pub fn reader(&self) -> SignalVecReader<T> {
@@ -36,7 +38,7 @@ impl<T: 'static> SignalVec<T> {
         }
     }
 
-    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
         match &self.0 {
             RawSignalVec::Rc(rc) => rc.items(rc.clone(), sc),
             RawSignalVec::Slice(slice) => Items::from_slice_items(slice),
@@ -54,14 +56,14 @@ impl<T> From<Rc<Vec<T>>> for SignalVec<T> {
     }
 }
 impl<T: 'static> SignalVecNode<T> for Vec<T> {
-    fn items(&self, _rc_self: Rc<dyn Any>, _oc: &mut SignalContext) -> Items<'_, T> {
+    fn items(&self, _rc_self: Rc<dyn Any>, _oc: &mut SignalContext<'_, '_>) -> Items<'_, T> {
         Items::from_slice_items(self)
     }
     fn read(
         &self,
         _rc_self: Rc<dyn Any>,
         age: &mut Option<usize>,
-        _oc: &mut SignalContext,
+        _oc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T> {
         Items::from_slice_read(self, age)
     }
@@ -76,12 +78,12 @@ impl<T> From<&'static [T]> for SignalVec<T> {
 }
 
 trait SignalVecNode<T>: Any {
-    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T>;
+    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) -> Items<'_, T>;
     fn read(
         &self,
         rc_self: Rc<dyn Any>,
         age: &mut Option<usize>,
-        sc: &mut SignalContext,
+        sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T>;
     fn drop_reader(&self, age: usize);
 }
@@ -98,7 +100,7 @@ pub struct SignalVecReader<T: 'static> {
 }
 
 impl<T: 'static> SignalVecReader<T> {
-    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
+    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
         match &self.source {
             RawSignalVec::Rc(vec) => vec.read(vec.clone(), &mut self.age, sc),
             RawSignalVec::Slice(slice) => Items::from_slice_read(slice, &mut self.age),
@@ -558,7 +560,7 @@ impl<T> StateVec<T> {
     pub fn reader(&self) -> SignalVecReader<T> {
         self.to_signal_vec().reader()
     }
-    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r>) -> Items<'a, T> {
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
         self.0.items(self.0.clone(), sc)
     }
     pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T> {
@@ -654,7 +656,7 @@ impl<T: 'static> RawStateVec<T> {
             sinks: RefCell::new(SinkBindings::new()),
         }
     }
-    fn watch(self: &Rc<Self>, sc: &mut SignalContext) {
+    fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
         let this = self.clone();
         self.sinks.borrow_mut().bind(this, Slot(0), sc);
     }
@@ -663,7 +665,7 @@ impl<T: 'static> RawStateVec<T> {
     }
 }
 impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
-    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
+    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) -> Items<'_, T> {
         Self::to_this(rc_self).watch(sc);
         Items::from_data_items(self.data.borrow())
     }
@@ -672,7 +674,7 @@ impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
         &self,
         rc_self: Rc<dyn Any>,
         age: &mut Option<usize>,
-        sc: &mut SignalContext,
+        sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T> {
         let this = Self::to_this(rc_self);
         this.watch(sc);
@@ -694,14 +696,19 @@ impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
 }
 
 impl<T> BindSource for RawStateVec<T> {
-    fn check(self: Rc<Self>, _slot: Slot, _key: BindKey, _uc: &mut ReactionContext) -> bool {
+    fn check(
+        self: Rc<Self>,
+        _slot: Slot,
+        _key: BindKey,
+        _uc: &mut ReactionContext<'_, '_>,
+    ) -> bool {
         false
     }
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         self.sinks.borrow_mut().unbind(key, rc);
     }
 
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }
@@ -804,7 +811,7 @@ struct Scan<T, F> {
 impl<T, F> Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
+    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn new(f: F) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
@@ -821,13 +828,13 @@ where
         this.downcast::<Self>().unwrap()
     }
 
-    fn watch(self: &Rc<Self>, sc: &mut SignalContext) {
+    fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
         self.update(sc.rc());
         let this = self.clone();
         self.sinks.borrow_mut().bind(this, Slot(0), sc);
     }
 
-    fn update(self: &Rc<Self>, rc: &mut ReactionContext) {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if rc.borrow(&self.data).sb.is_clean() {
             return;
         }
@@ -848,9 +855,9 @@ where
 impl<T, F> SignalVecNode<T> for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
+    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
-    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext) -> Items<'_, T> {
+    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) -> Items<'_, T> {
         let this = Self::to_this(rc_self);
         this.watch(sc);
         Items::from_data_items(Ref::map(self.data.borrow(), |data| &data.data))
@@ -860,7 +867,7 @@ where
         &self,
         rc_self: Rc<dyn Any>,
         age: &mut Option<usize>,
-        sc: &mut SignalContext,
+        sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T> {
         let this = Self::to_this(rc_self);
         this.watch(sc);
@@ -874,7 +881,7 @@ where
 impl<T, F> BindSink for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
+    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         if self.data.borrow_mut().sb.on_notify(slot, level) {
@@ -885,18 +892,18 @@ where
 impl<T, F> BindSource for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext) + 'static,
+    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool {
+    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.update(rc);
         self.sinks.borrow().is_dirty(key, rc)
     }
 
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext) {
+    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
         self.sinks.borrow_mut().unbind(key, rc);
     }
 
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext) {
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
     }
 }

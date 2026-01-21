@@ -24,14 +24,14 @@ struct SignalContextPtr {
     sink: Option<*mut Sink>,
 }
 impl SignalContextPtr {
-    fn new(sc: &mut SignalContext) -> Self {
+    fn new(sc: &mut SignalContext<'_, '_>) -> Self {
         Self {
             rt: sc.rt,
             bump: sc.bump,
             sink: sc.sink.as_mut().map(|x| *x as *mut _),
         }
     }
-    unsafe fn sc(&self) -> SignalContext<'_> {
+    unsafe fn sc(&self) -> SignalContext<'_, '_> {
         SignalContext {
             rt: unsafe { &mut *self.rt },
             bump: unsafe { &*self.bump },
@@ -39,7 +39,7 @@ impl SignalContextPtr {
         }
     }
 }
-unsafe fn sc(p: &mut Option<SignalContextPtr>) -> SignalContext<'_> {
+unsafe fn sc(p: &mut Option<SignalContextPtr>) -> SignalContext<'_, '_> {
     if let Some(p) = p {
         unsafe { p.sc() }
     } else {
@@ -63,7 +63,7 @@ struct AsyncSignalContextData {
 pub struct AsyncSignalContext(Rc<AsyncSignalContextData>);
 
 impl AsyncSignalContext {
-    pub fn with<T>(&mut self, f: impl FnOnce(&mut SignalContext) -> T) -> T {
+    pub fn with<T>(&mut self, f: impl FnOnce(&mut SignalContext<'_, '_>) -> T) -> T {
         unsafe { f(&mut sc(&mut self.0.s.borrow_mut().sc)) }
     }
 
@@ -75,7 +75,7 @@ impl AsyncSignalContext {
     /// and the asynchronous function is completed.
     ///
     /// Only the dependencies recorded in `SingalContext` in the last call of `f` are added to `AsyncSignalContext` dependencies.
-    pub async fn poll_fn<T>(&mut self, f: impl Fn(&mut SignalContext) -> Poll<T>) -> T {
+    pub async fn poll_fn<T>(&mut self, f: impl Fn(&mut SignalContext<'_, '_>) -> Poll<T>) -> T {
         poll_fn(|cx| {
             let s = &mut *self.0.s.borrow_mut();
             let mut sc = unsafe { sc(&mut s.sc) };
@@ -106,7 +106,7 @@ impl AsyncSignalContextSource {
     pub fn sc(&self) -> AsyncSignalContext {
         AsyncSignalContext(self.0.clone())
     }
-    pub fn with<T>(&self, sc: &mut SignalContext, f: impl FnOnce() -> T) -> T {
+    pub fn with<T>(&self, sc: &mut SignalContext<'_, '_>, f: impl FnOnce() -> T) -> T {
         let data = SignalContextPtr::new(sc);
         assert!(self.0.s.borrow().sc.is_none());
         self.0.s.borrow_mut().sc = Some(data);
@@ -137,13 +137,13 @@ impl AsyncSourceBinder {
     pub fn is_clean(&self) -> bool {
         self.dirty.is_clean() && !self.is_wake
     }
-    pub fn check(&mut self, rc: &mut ReactionContext) -> bool {
+    pub fn check(&mut self, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.sources.check_with(&mut self.dirty, rc)
     }
     pub fn init<T>(
         &mut self,
         f: impl FnOnce(AsyncSignalContext) -> T,
-        rc: &mut ReactionContext,
+        rc: &mut ReactionContext<'_, '_>,
     ) -> T {
         self.dirty = Dirty::Clean;
         self.is_wake = true;
@@ -155,7 +155,7 @@ impl AsyncSourceBinder {
     pub fn poll<T>(
         &mut self,
         fut: Pin<&mut impl Future<Output = T>>,
-        rc: &mut ReactionContext,
+        rc: &mut ReactionContext<'_, '_>,
     ) -> Poll<T> {
         self.is_wake = false;
         let sink = self.sc.0.sink.clone();
@@ -170,7 +170,7 @@ impl AsyncSourceBinder {
             rc,
         )
     }
-    pub fn clear(&mut self, rc: &mut ReactionContext) {
+    pub fn clear(&mut self, rc: &mut ReactionContext<'_, '_>) {
         self.sources.clear(rc);
         self.dirty = Dirty::Dirty;
     }

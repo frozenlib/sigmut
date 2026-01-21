@@ -239,10 +239,10 @@ impl Runtime {
     pub fn ac(&mut self) -> &mut ActionContext {
         self.as_raw().ac()
     }
-    pub fn rc(&mut self) -> ReactionContext<'_> {
+    pub fn rc(&mut self) -> ReactionContext<'_, '_> {
         self.as_raw().rc()
     }
-    pub fn sc(&mut self) -> SignalContext<'_> {
+    pub fn sc(&mut self) -> SignalContext<'_, '_> {
         self.as_raw().sc()
     }
 
@@ -360,18 +360,18 @@ impl RawRuntime {
     fn nc(&mut self) -> &mut NotifyContext {
         self.ac().nc()
     }
-    fn rc(&mut self) -> ReactionContext<'_> {
+    fn rc(&mut self) -> ReactionContext<'_, '_> {
         self.apply_notify();
         self.rc_raw()
     }
-    fn rc_raw(&mut self) -> ReactionContext<'_> {
+    fn rc_raw(&mut self) -> ReactionContext<'_, '_> {
         ReactionContext(self.sc_raw())
     }
-    fn sc(&mut self) -> SignalContext<'_> {
+    fn sc(&mut self) -> SignalContext<'_, '_> {
         self.apply_notify();
         self.sc_raw()
     }
-    fn sc_raw(&mut self) -> SignalContext<'_> {
+    fn sc_raw(&mut self) -> SignalContext<'_, '_> {
         SignalContext {
             rt: &mut self.rt,
             bump: &self.bump,
@@ -545,13 +545,13 @@ impl SourceBinding {
     fn is_same(&self, node: &Rc<dyn BindSource>, slot: Slot) -> bool {
         Rc::ptr_eq(&self.source, node) && self.slot == slot
     }
-    fn check(&self, rc: &mut ReactionContext) -> bool {
+    fn check(&self, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.source.clone().check(self.slot, self.key, rc)
     }
-    fn unbind(self, rc: &mut ReactionContext) {
+    fn unbind(self, rc: &mut ReactionContext<'_, '_>) {
         self.source.unbind(self.slot, self.key, rc);
     }
-    fn rebind(self, sc: &mut SignalContext) {
+    fn rebind(self, sc: &mut SignalContext<'_, '_>) {
         self.source.rebind(self.slot, self.key, sc);
     }
 }
@@ -568,7 +568,7 @@ impl SourceBindings {
     /// Checks if any of the bound sources have been modified.
     ///
     /// Returns `true` if at least one source is dirty, `false` if all sources are clean.
-    pub fn check(&self, rc: &mut ReactionContext) -> bool {
+    pub fn check(&self, rc: &mut ReactionContext<'_, '_>) -> bool {
         for source in &self.0 {
             if source.check(rc) {
                 return true;
@@ -576,7 +576,7 @@ impl SourceBindings {
         }
         false
     }
-    fn check_with(&mut self, dirty: &mut Dirty, rc: &mut ReactionContext) -> bool {
+    fn check_with(&mut self, dirty: &mut Dirty, rc: &mut ReactionContext<'_, '_>) -> bool {
         if *dirty == Dirty::MaybeDirty {
             *dirty = Dirty::from_is_dirty(self.check(rc));
         }
@@ -591,13 +591,13 @@ impl SourceBindings {
     /// * `slot` - The notification slot.
     /// * `reset` - If `true`, clears existing dependencies. Set to `false` when building state incrementally across multiple `update` calls to preserve previous dependencies.
     /// * `f` - The function that computes the state.
-    pub fn update<T>(
+    pub fn update<'r, T>(
         &mut self,
         sink: Weak<dyn BindSink>,
         slot: Slot,
         reset: bool,
-        f: impl FnOnce(&mut SignalContext) -> T,
-        rc: &mut ReactionContext,
+        f: impl FnOnce(&mut SignalContext<'r, '_>) -> T,
+        rc: &mut ReactionContext<'r, '_>,
     ) -> T {
         let sources_len = if reset { 0 } else { self.0.len() };
         let mut sink = Sink {
@@ -628,7 +628,7 @@ impl SourceBindings {
     /// Therefore, to guarantee that no further notifications will occur, use this method to clear dependencies immediately.
     ///
     /// `ReactionContext` is required for editing dependencies to prevent `BorrowMutError` in the `RefCell` that records dependencies.
-    pub fn clear(&mut self, rc: &mut ReactionContext) {
+    pub fn clear(&mut self, rc: &mut ReactionContext<'_, '_>) {
         for b in self.0.drain(..) {
             b.unbind(rc)
         }
@@ -663,7 +663,12 @@ impl SinkBindings {
     pub fn new() -> Self {
         Self(SlabMap::new())
     }
-    pub fn bind(&mut self, this: Rc<dyn BindSource>, this_slot: Slot, sc: &mut SignalContext) {
+    pub fn bind(
+        &mut self,
+        this: Rc<dyn BindSource>,
+        this_slot: Slot,
+        sc: &mut SignalContext<'_, '_>,
+    ) {
         let Some(sink) = &mut sc.sink else {
             return;
         };
@@ -693,7 +698,7 @@ impl SinkBindings {
         this: Rc<dyn BindSource>,
         this_slot: Slot,
         key: BindKey,
-        sc: &mut SignalContext,
+        sc: &mut SignalContext<'_, '_>,
     ) {
         if let Some(sink) = &mut sc.sink {
             self.0[key.0].slot = sink.slot;
@@ -712,7 +717,7 @@ impl SinkBindings {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
-    pub fn is_dirty(&self, key: BindKey, _uc: &mut ReactionContext) -> bool {
+    pub fn is_dirty(&self, key: BindKey, _uc: &mut ReactionContext<'_, '_>) -> bool {
         match self.0[key.0].dirty {
             Dirty::Clean => false,
             Dirty::MaybeDirty => panic!("`is_dirty` called before `update()`"),
@@ -720,7 +725,7 @@ impl SinkBindings {
         }
     }
     /// Unbinds the dependency identified by the given `key`.
-    pub fn unbind(&mut self, key: BindKey, _uc: &mut ReactionContext) {
+    pub fn unbind(&mut self, key: BindKey, _uc: &mut ReactionContext<'_, '_>) {
         self.0.remove(key.0);
     }
 
@@ -733,7 +738,7 @@ impl SinkBindings {
             binding.dirty.apply_notify(level);
         }
     }
-    pub fn update(&mut self, is_dirty: bool, _uc: &mut ReactionContext) {
+    pub fn update(&mut self, is_dirty: bool, _uc: &mut ReactionContext<'_, '_>) {
         self.0.optimize();
         for binding in self.0.values_mut() {
             if binding.dirty == Dirty::MaybeDirty {
@@ -765,10 +770,10 @@ impl Sink {
 
 /// Context required to read state in operations that do not modify state.
 #[repr(transparent)]
-pub struct ReactionContext<'r>(SignalContext<'r>);
+pub struct ReactionContext<'r, 's>(SignalContext<'r, 's>);
 
-impl<'r> ReactionContext<'r> {
-    fn new<'a>(sc: &'a mut SignalContext<'r>) -> &'a mut Self {
+impl<'r, 's> ReactionContext<'r, 's> {
+    fn new<'a>(sc: &'a mut SignalContext<'r, 's>) -> &'a mut Self {
         unsafe { transmute(sc) }
     }
 
@@ -780,7 +785,7 @@ impl<'r> ReactionContext<'r> {
     }
 
     /// Call a function with a [`SignalContext`] that does not track dependencies.
-    pub fn sc_with<T>(&mut self, f: impl FnOnce(&mut SignalContext<'r>) -> T) -> T {
+    pub fn sc_with<T>(&mut self, f: impl FnOnce(&mut SignalContext<'r, 's>) -> T) -> T {
         self.0.untrack(f)
     }
 
@@ -811,24 +816,24 @@ pub fn schedule_notify(node: Weak<dyn BindSink>, slot: Slot) {
 }
 
 /// Context for retrieving state and tracking dependencies.
-pub struct SignalContext<'r> {
-    rt: &'r mut RuntimeData,
+pub struct SignalContext<'r, 's> {
+    rt: &'s mut RuntimeData,
     bump: &'r Bump,
-    sink: Option<&'r mut Sink>,
+    sink: Option<&'s mut Sink>,
 }
 
-impl<'r> SignalContext<'r> {
-    pub fn rc(&mut self) -> &mut ReactionContext<'r> {
+impl<'r, 's> SignalContext<'r, 's> {
+    pub fn rc(&mut self) -> &mut ReactionContext<'r, 's> {
         ReactionContext::new(self)
     }
 
     /// Call a function with a [`SignalContext`] that does not track dependencies.
-    pub fn untrack<T>(&mut self, f: impl FnOnce(&mut SignalContext<'r>) -> T) -> T {
-        struct UntrackGuard<'r, 'a> {
-            sc: &'a mut SignalContext<'r>,
-            sink: Option<&'r mut Sink>,
+    pub fn untrack<T>(&mut self, f: impl FnOnce(&mut SignalContext<'r, 's>) -> T) -> T {
+        struct UntrackGuard<'r, 's, 'a> {
+            sc: &'a mut SignalContext<'r, 's>,
+            sink: Option<&'s mut Sink>,
         }
-        impl Drop for UntrackGuard<'_, '_> {
+        impl<'r, 's> Drop for UntrackGuard<'r, 's, '_> {
             fn drop(&mut self) {
                 self.sc.sink = self.sink.take();
             }
@@ -856,9 +861,9 @@ pub trait BindSource: 'static {
     /// Checks if this source has been modified since the last check.
     ///
     /// Returns `true` if the source is dirty (has changes), `false` if clean (no changes).
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext) -> bool;
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext);
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext);
+    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool;
+    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>);
+    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>);
 }
 
 #[derive(Clone)]
@@ -885,10 +890,10 @@ impl ActionContext {
     pub fn nc(&mut self) -> &mut NotifyContext {
         NotifyContext::new(self)
     }
-    pub fn rc(&mut self) -> ReactionContext<'_> {
+    pub fn rc(&mut self) -> ReactionContext<'_, '_> {
         self.0.rc()
     }
-    pub fn sc(&mut self) -> SignalContext<'_> {
+    pub fn sc(&mut self) -> SignalContext<'_, '_> {
         self.0.sc()
     }
 }
@@ -1165,7 +1170,7 @@ impl AsyncActionContext {
 pub struct Reaction(RawReaction);
 
 impl Reaction {
-    pub fn new(f: impl FnOnce(&mut ReactionContext) + 'static) -> Self {
+    pub fn new(f: impl FnOnce(&mut ReactionContext<'_, '_>) + 'static) -> Self {
         Reaction(RawReaction::Box(Box::new(f)))
     }
 
@@ -1175,7 +1180,7 @@ impl Reaction {
     /// If `f` is not a zero-sized type, heap allocation will occur.
     pub fn from_rc_fn<T: Any>(
         this: Rc<T>,
-        f: impl Fn(Rc<T>, &mut ReactionContext) + Copy + 'static,
+        f: impl Fn(Rc<T>, &mut ReactionContext<'_, '_>) + Copy + 'static,
     ) -> Self {
         Reaction(RawReaction::Rc {
             this,
@@ -1189,7 +1194,7 @@ impl Reaction {
     /// If `f` is not a zero-sized type, heap allocation will occur.
     pub fn from_weak_fn<T: Any>(
         this: Weak<T>,
-        f: impl Fn(Rc<T>, &mut ReactionContext) + Copy + 'static,
+        f: impl Fn(Rc<T>, &mut ReactionContext<'_, '_>) + Copy + 'static,
     ) -> Self {
         Reaction(RawReaction::Weak {
             this,
@@ -1207,7 +1212,7 @@ impl Reaction {
     pub fn schedule(self) {
         self.schedule_with(ReactionKind::default());
     }
-    fn run(self, rc: &mut ReactionContext) {
+    fn run(self, rc: &mut ReactionContext<'_, '_>) {
         match self.0 {
             RawReaction::Box(f) => f(rc),
             RawReaction::Rc { this, f } => f(this, rc),
@@ -1217,16 +1222,16 @@ impl Reaction {
 }
 
 enum RawReaction {
-    Box(Box<dyn FnOnce(&mut ReactionContext)>),
+    Box(Box<dyn FnOnce(&mut ReactionContext<'_, '_>)>),
     Rc {
         this: Rc<dyn Any>,
         #[allow(clippy::type_complexity)]
-        f: Box<dyn Fn(Rc<dyn Any>, &mut ReactionContext)>,
+        f: Box<dyn Fn(Rc<dyn Any>, &mut ReactionContext<'_, '_>)>,
     },
     Weak {
         this: Weak<dyn Any>,
         #[allow(clippy::type_complexity)]
-        f: Box<dyn Fn(Weak<dyn Any>, &mut ReactionContext)>,
+        f: Box<dyn Fn(Weak<dyn Any>, &mut ReactionContext<'_, '_>)>,
     },
 }
 
