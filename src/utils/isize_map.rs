@@ -28,6 +28,7 @@ impl<T: Default> ISizeMap<T> {
     pub fn end_index(&self) -> isize {
         self.start + self.values.len() as isize
     }
+    #[allow(unused)]
     pub fn get(&self, index: isize) -> Option<&T> {
         if self.start <= index && (index - self.start) < self.values.len() as isize {
             Some(&self.values[(index - self.start) as usize])

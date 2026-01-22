@@ -16,7 +16,6 @@ use std::{
 
 use bumpalo::Bump;
 use derive_ex::Ex;
-use parse_display::Display;
 use slabmap::SlabMap;
 
 mod async_signal_context;
@@ -49,19 +48,15 @@ struct Globals {
 }
 impl Globals {
     fn new() -> Self {
-        let mut reactions = Buckets::new();
-        let mut actions = Buckets::new();
-        reactions.register_bucket(0);
-        actions.register_bucket(0);
         Self {
             is_runtime_exists: false,
             runtime: None,
             unbinds: Vec::new(),
-            actions,
+            actions: Buckets::new(),
             notifys: Vec::new(),
             need_wake: false,
             wakes: WakeTable::default(),
-            reactions,
+            reactions: Buckets::new(),
         }
     }
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
@@ -72,18 +67,14 @@ impl Globals {
     }
     fn schedule_reaction(phase: ReactionPhase, reaction: Reaction) {
         Self::with(|g| {
-            if !g.reactions.try_push(phase.id as isize, reaction) {
-                panic!("`ReactionPhase` {} is not registered.", phase);
-            }
+            g.reactions.push(phase.0 as isize, reaction);
             g.wake();
         })
     }
 
     fn schedule_action(phase: ActionPhase, action: Action) {
         Self::with(|g| {
-            if !g.actions.try_push(phase.id as isize, action) {
-                panic!("`ActionPhase` {} is not registered.", phase);
-            }
+            g.actions.push(phase.0 as isize, action);
             g.wake();
         })
     }
@@ -97,14 +88,14 @@ impl Globals {
 
     fn get_reactions(phase: Option<ReactionPhase>, reactions: &mut Vec<Reaction>) {
         Self::with(|g| {
-            g.reactions.drain(phase.map(|p| p.id as isize), reactions);
+            g.reactions.drain(phase.map(|p| p.0 as isize), reactions);
         })
     }
     fn get_actions(phase: Option<ActionPhase>, actions: &mut Vec<Action>) -> bool {
         Self::with(|g| {
             g.apply_wake();
             let was_empty = g.actions.is_empty();
-            g.actions.drain(phase.map(|p| p.id as isize), actions);
+            g.actions.drain(phase.map(|p| p.0 as isize), actions);
             !was_empty
         })
     }
@@ -133,10 +124,8 @@ impl Globals {
                         self.notifys.push(reaction.clone());
                     }
                     WakeReaction::AsyncAction(action) => {
-                        let pushed = self
-                            .actions
-                            .try_push(action.phase.id as isize, action.to_action());
-                        debug_assert!(pushed);
+                        self.actions
+                            .push(action.phase.0 as isize, action.to_action());
                     }
                 }
             }
@@ -164,8 +153,6 @@ impl Globals {
         self.is_runtime_exists = false;
         self.reactions = Buckets::new();
         self.actions = Buckets::new();
-        self.reactions.register_bucket(0);
-        self.actions.register_bucket(0);
     }
 
     fn wake(&mut self) {
@@ -174,26 +161,6 @@ impl Globals {
         }
         self.need_wake = false;
         self.wakes.requests.0.lock().unwrap().wake();
-    }
-    fn assert_exists(&self) {
-        if !self.is_runtime_exists {
-            panic!("`Runtime` is not created.");
-        }
-    }
-
-    fn register_reaction_phase(&mut self, phase: ReactionPhase) {
-        self.assert_exists();
-        self.reactions.register_bucket(phase.id as isize);
-    }
-    fn register_action_phase(&mut self, phase: ActionPhase) {
-        self.assert_exists();
-        self.actions.register_bucket(phase.id as isize);
-    }
-    fn is_reaction_phase_registered(&self, phase: ReactionPhase) -> bool {
-        self.reactions.contains_bucket(phase.id as isize)
-    }
-    fn is_action_phase_registered(&self, phase: ActionPhase) -> bool {
-        self.actions.contains_bucket(phase.id as isize)
     }
 }
 
@@ -227,13 +194,6 @@ impl Runtime {
         self.raw
             .as_mut()
             .expect("Runtime is unavailable. `Runtime::wait_for_ready` may have leaked.")
-    }
-
-    pub fn register_action_phase(phase: ActionPhase) {
-        Globals::with(|g| g.register_action_phase(phase))
-    }
-    pub fn register_reaction_phase(phase: ReactionPhase) {
-        Globals::with(|g| g.register_reaction_phase(phase))
     }
 
     pub fn ac(&mut self) -> &mut ActionContext {
@@ -1236,40 +1196,36 @@ enum RawReaction {
 }
 
 /// Phase of reactions performed by the reactive runtime.
-#[derive(Clone, Copy, Display, Debug, Ex)]
-#[derive_ex(PartialEq, Eq, Hash, Default)]
-#[display("{id}: {name}")]
-#[default(Self::new(0, "<default>"))]
-pub struct ReactionPhase {
-    id: i8,
-    #[eq(ignore)]
-    name: &'static str,
-}
+#[derive(Clone, Copy, Debug, Ex)]
+#[derive_ex(PartialEq, Eq, Hash)]
+#[repr(transparent)]
+#[derive(Default)]
+pub struct ReactionPhase(i8);
 impl ReactionPhase {
-    pub const fn new(id: i8, name: &'static str) -> Self {
-        Self { id, name }
+    pub const fn new(id: i8) -> Self {
+        Self(id)
     }
-    pub fn is_registered(&self) -> bool {
-        Globals::with(|g| g.is_reaction_phase_registered(*self))
+}
+impl std::fmt::Display for ReactionPhase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 
 /// Phase of actions performed by the reactive runtime.
-#[derive(Clone, Copy, Display, Debug, Ex)]
-#[derive_ex(PartialEq, Eq, Hash, Default)]
-#[display("{id}: {name}")]
-#[default(Self::new(0, "<default>"))]
-pub struct ActionPhase {
-    id: i8,
-    #[eq(ignore)]
-    name: &'static str,
-}
+#[derive(Clone, Copy, Debug, Ex)]
+#[derive_ex(PartialEq, Eq, Hash)]
+#[repr(transparent)]
+#[derive(Default)]
+pub struct ActionPhase(i8);
 impl ActionPhase {
-    pub const fn new(id: i8, name: &'static str) -> Self {
-        Self { id, name }
+    pub const fn new(id: i8) -> Self {
+        Self(id)
     }
-    pub fn is_registered(&self) -> bool {
-        Globals::with(|g| g.is_action_phase_registered(*self))
+}
+impl std::fmt::Display for ActionPhase {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

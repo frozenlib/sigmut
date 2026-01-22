@@ -32,10 +32,8 @@ fn test_effect_in() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
-    let phase_1 = ReactionPhase::new(1, "1");
-    let phase_2 = ReactionPhase::new(2, "2");
-    Runtime::register_reaction_phase(phase_1);
-    Runtime::register_reaction_phase(phase_2);
+    let phase_1 = ReactionPhase::new(1);
+    let phase_2 = ReactionPhase::new(2);
 
     let s = Signal::from_value(10);
     let _e = effect_in(move |sc| call!("{}", s.get(sc)), phase_1);

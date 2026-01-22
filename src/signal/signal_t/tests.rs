@@ -531,9 +531,8 @@ fn dedup_method() {
 
 #[test]
 fn effect_in_custom_phase() {
-    const CUSTOM_PHASE: ReactionPhase = ReactionPhase::new(1, "custom");
+    const CUSTOM_PHASE: ReactionPhase = ReactionPhase::new(1);
     let mut rt = Runtime::new();
-    Runtime::register_reaction_phase(CUSTOM_PHASE);
     let mut cr = CallRecorder::new();
 
     let st = State::new(0);
