@@ -70,19 +70,19 @@ impl Globals {
     fn try_with<T>(f: impl FnOnce(&mut Self) -> T) -> Result<T, AccessError> {
         GLOBALS.try_with(|g| f(&mut g.borrow_mut()))
     }
-    fn schedule_reaction(kind: ReactionKind, reaction: Reaction) {
+    fn schedule_reaction(phase: ReactionPhase, reaction: Reaction) {
         Self::with(|g| {
-            if !g.reactions.try_push(kind.id as isize, reaction) {
-                panic!("`ReactionKind` {} is not registered.", kind);
+            if !g.reactions.try_push(phase.id as isize, reaction) {
+                panic!("`ReactionPhase` {} is not registered.", phase);
             }
             g.wake();
         })
     }
 
-    fn schedule_action(kind: ActionKind, action: Action) {
+    fn schedule_action(phase: ActionPhase, action: Action) {
         Self::with(|g| {
-            if !g.actions.try_push(kind.id as isize, action) {
-                panic!("`ActionKind` {} is not registered.", kind);
+            if !g.actions.try_push(phase.id as isize, action) {
+                panic!("`ActionPhase` {} is not registered.", phase);
             }
             g.wake();
         })
@@ -95,16 +95,16 @@ impl Globals {
         !notifys.is_empty()
     }
 
-    fn get_reactions(kind: Option<ReactionKind>, reactions: &mut Vec<Reaction>) {
+    fn get_reactions(phase: Option<ReactionPhase>, reactions: &mut Vec<Reaction>) {
         Self::with(|g| {
-            g.reactions.drain(kind.map(|k| k.id as isize), reactions);
+            g.reactions.drain(phase.map(|p| p.id as isize), reactions);
         })
     }
-    fn get_actions(kind: Option<ActionKind>, actions: &mut Vec<Action>) -> bool {
+    fn get_actions(phase: Option<ActionPhase>, actions: &mut Vec<Action>) -> bool {
         Self::with(|g| {
             g.apply_wake();
             let was_empty = g.actions.is_empty();
-            g.actions.drain(kind.map(|k| k.id as isize), actions);
+            g.actions.drain(phase.map(|p| p.id as isize), actions);
             !was_empty
         })
     }
@@ -135,7 +135,7 @@ impl Globals {
                     WakeReaction::AsyncAction(action) => {
                         let pushed = self
                             .actions
-                            .try_push(action.kind.id as isize, action.to_action());
+                            .try_push(action.phase.id as isize, action.to_action());
                         debug_assert!(pushed);
                     }
                 }
@@ -181,19 +181,19 @@ impl Globals {
         }
     }
 
-    fn register_reaction_kind(&mut self, kind: ReactionKind) {
+    fn register_reaction_phase(&mut self, phase: ReactionPhase) {
         self.assert_exists();
-        self.reactions.register_bucket(kind.id as isize);
+        self.reactions.register_bucket(phase.id as isize);
     }
-    fn register_action_kind(&mut self, kind: ActionKind) {
+    fn register_action_phase(&mut self, phase: ActionPhase) {
         self.assert_exists();
-        self.actions.register_bucket(kind.id as isize);
+        self.actions.register_bucket(phase.id as isize);
     }
-    fn is_reaction_kind_registered(&self, kind: ReactionKind) -> bool {
-        self.reactions.contains_bucket(kind.id as isize)
+    fn is_reaction_phase_registered(&self, phase: ReactionPhase) -> bool {
+        self.reactions.contains_bucket(phase.id as isize)
     }
-    fn is_action_kind_registered(&self, kind: ActionKind) -> bool {
-        self.actions.contains_bucket(kind.id as isize)
+    fn is_action_phase_registered(&self, phase: ActionPhase) -> bool {
+        self.actions.contains_bucket(phase.id as isize)
     }
 }
 
@@ -229,11 +229,11 @@ impl Runtime {
             .expect("Runtime is unavailable. `Runtime::wait_for_ready` may have leaked.")
     }
 
-    pub fn register_action_kind(kind: ActionKind) {
-        Globals::with(|g| g.register_action_kind(kind))
+    pub fn register_action_phase(phase: ActionPhase) {
+        Globals::with(|g| g.register_action_phase(phase))
     }
-    pub fn register_reaction_kind(kind: ReactionKind) {
-        Globals::with(|g| g.register_reaction_kind(kind))
+    pub fn register_reaction_phase(phase: ReactionPhase) {
+        Globals::with(|g| g.register_reaction_phase(phase))
     }
 
     pub fn ac(&mut self) -> &mut ActionContext {
@@ -246,28 +246,28 @@ impl Runtime {
         self.as_raw().sc()
     }
 
-    /// Dispatch scheduled actions for the specified kind.
+    /// Dispatch scheduled actions for the specified phase.
     ///
     /// Returns `true` if any action was dispatched.
-    pub fn dispatch_actions(&mut self, kind: ActionKind) -> bool {
-        self.as_raw().dispatch_actions_with(Some(kind))
+    pub fn dispatch_actions(&mut self, phase: ActionPhase) -> bool {
+        self.as_raw().dispatch_actions_with(Some(phase))
     }
 
-    /// Dispatch scheduled actions for all kinds.
+    /// Dispatch scheduled actions for all phases.
     ///
     /// Returns `true` if any action was dispatched.
     pub fn dispatch_all_actions(&mut self) -> bool {
         self.as_raw().dispatch_actions_with(None)
     }
 
-    /// Dispatch scheduled reactions for the specified kind.
+    /// Dispatch scheduled reactions for the specified phase.
     ///
     /// Returns `true` if any reaction was dispatched.
-    pub fn dispatch_reactions(&mut self, kind: ReactionKind) -> bool {
-        self.as_raw().dispatch_reactions_with(Some(kind))
+    pub fn dispatch_reactions(&mut self, phase: ReactionPhase) -> bool {
+        self.as_raw().dispatch_reactions_with(Some(phase))
     }
 
-    /// Dispatch scheduled reactions for all kinds.
+    /// Dispatch scheduled reactions for all phases.
     ///
     /// Returns `true` if any reaction was dispatched.
     pub fn dispatch_all_reactions(&mut self) -> bool {
@@ -378,10 +378,10 @@ impl RawRuntime {
             sink: None,
         }
     }
-    fn dispatch_actions_with(&mut self, kind: Option<ActionKind>) -> bool {
+    fn dispatch_actions_with(&mut self, phase: Option<ActionPhase>) -> bool {
         let mut handled = false;
         let mut actions = take(&mut self.actions_buffer);
-        while Globals::get_actions(kind, &mut actions) {
+        while Globals::get_actions(phase, &mut actions) {
             for action in actions.drain(..) {
                 action.call(self.ac());
                 handled = true;
@@ -391,10 +391,10 @@ impl RawRuntime {
         handled
     }
 
-    fn dispatch_reactions_with(&mut self, kind: Option<ReactionKind>) -> bool {
+    fn dispatch_reactions_with(&mut self, phase: Option<ReactionPhase>) -> bool {
         self.apply_notify();
         let mut reactions = take(&mut self.reactions_buffer);
-        Globals::get_reactions(kind, &mut reactions);
+        Globals::get_reactions(phase, &mut reactions);
         let handled = !reactions.is_empty();
         for reaction in reactions.drain(..) {
             reaction.run(&mut self.rc_raw());
@@ -903,23 +903,23 @@ pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
     Action::new(f).schedule()
 }
 
-/// Spawns a new action with a specific kind.
-pub fn spawn_action_with(kind: ActionKind, f: impl FnOnce(&mut ActionContext) + 'static) {
-    Action::new(f).schedule_with(kind)
+/// Spawns a new action with a specific phase.
+pub fn spawn_action_in(phase: ActionPhase, f: impl FnOnce(&mut ActionContext) + 'static) {
+    Action::new(f).schedule_with(phase)
 }
 
 /// Spawns a new asynchronous action.
 pub fn spawn_action_async(f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static) {
-    spawn_action_async_with(ActionKind::default(), f)
+    spawn_action_async_in(ActionPhase::default(), f)
 }
 
-/// Spawns a new asynchronous action with a specific kind.
-pub fn spawn_action_async_with(
-    kind: ActionKind,
+/// Spawns a new asynchronous action with a specific phase.
+pub fn spawn_action_async_in(
+    phase: ActionPhase,
     f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static,
 ) {
-    spawn_action_with(kind, move |ac| {
-        AsyncAction::start(kind, ac, |mut ac| async move {
+    spawn_action_in(phase, move |ac| {
+        AsyncAction::start(phase, ac, |mut ac| async move {
             f(&mut ac).await;
         })
     })
@@ -979,14 +979,14 @@ impl Action {
         })
     }
 
-    /// Schedules this action with a specific kind.
-    pub fn schedule_with(self, kind: ActionKind) {
-        Globals::schedule_action(kind, self)
+    /// Schedules this action with a specific phase.
+    pub fn schedule_with(self, phase: ActionPhase) {
+        Globals::schedule_action(phase, self)
     }
 
-    /// Schedules this action with default kind.
+    /// Schedules this action with default phase.
     pub fn schedule(self) {
-        self.schedule_with(ActionKind::default())
+        self.schedule_with(ActionPhase::default())
     }
 
     fn call(self, ac: &mut ActionContext) {
@@ -998,13 +998,13 @@ impl Action {
     }
 }
 struct AsyncAction {
-    kind: ActionKind,
+    phase: ActionPhase,
     aac_source: AsyncActionContextSource,
     data: RefCell<Option<AsyncActionData>>,
 }
 impl AsyncAction {
     fn start<Fut>(
-        kind: ActionKind,
+        phase: ActionPhase,
         ac: &mut ActionContext,
         f: impl FnOnce(AsyncActionContext) -> Fut + 'static,
     ) where
@@ -1014,7 +1014,7 @@ impl AsyncAction {
         let aac = aac_source.context();
         let future = aac_source.call(ac, || f(aac));
         let action = Rc::new(Self {
-            kind,
+            phase,
             aac_source,
             data: RefCell::new(None),
         });
@@ -1206,11 +1206,11 @@ impl Reaction {
         })
     }
 
-    pub fn schedule_with(self, kind: ReactionKind) {
-        Globals::schedule_reaction(kind, self)
+    pub fn schedule_with(self, phase: ReactionPhase) {
+        Globals::schedule_reaction(phase, self)
     }
     pub fn schedule(self) {
-        self.schedule_with(ReactionKind::default());
+        self.schedule_with(ReactionPhase::default());
     }
     fn run(self, rc: &mut ReactionContext<'_, '_>) {
         match self.0 {
@@ -1235,41 +1235,41 @@ enum RawReaction {
     },
 }
 
-/// kind of reactions performed by the reactive runtime.
+/// Phase of reactions performed by the reactive runtime.
 #[derive(Clone, Copy, Display, Debug, Ex)]
 #[derive_ex(PartialEq, Eq, Hash, Default)]
 #[display("{id}: {name}")]
 #[default(Self::new(0, "<default>"))]
-pub struct ReactionKind {
+pub struct ReactionPhase {
     id: i8,
     #[eq(ignore)]
     name: &'static str,
 }
-impl ReactionKind {
+impl ReactionPhase {
     pub const fn new(id: i8, name: &'static str) -> Self {
         Self { id, name }
     }
     pub fn is_registered(&self) -> bool {
-        Globals::with(|g| g.is_reaction_kind_registered(*self))
+        Globals::with(|g| g.is_reaction_phase_registered(*self))
     }
 }
 
-/// Kind of actions performed by the reactive runtime.
+/// Phase of actions performed by the reactive runtime.
 #[derive(Clone, Copy, Display, Debug, Ex)]
 #[derive_ex(PartialEq, Eq, Hash, Default)]
 #[display("{id}: {name}")]
 #[default(Self::new(0, "<default>"))]
-pub struct ActionKind {
+pub struct ActionPhase {
     id: i8,
     #[eq(ignore)]
     name: &'static str,
 }
-impl ActionKind {
+impl ActionPhase {
     pub const fn new(id: i8, name: &'static str) -> Self {
         Self { id, name }
     }
     pub fn is_registered(&self) -> bool {
-        Globals::with(|g| g.is_action_kind_registered(*self))
+        Globals::with(|g| g.is_action_phase_registered(*self))
     }
 }
 

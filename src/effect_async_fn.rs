@@ -4,7 +4,7 @@ use crate::{
     Subscription,
     core::{
         AsyncSignalContext, AsyncSourceBinder, BindSink, DirtyLevel, NotifyContext, Reaction,
-        ReactionContext, ReactionKind, Slot,
+        ReactionContext, ReactionPhase, Slot,
     },
 };
 
@@ -13,14 +13,14 @@ mod tests;
 
 /// Call an asynchronous function each time a dependency changes.
 pub fn effect_async(f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static) -> Subscription {
-    effect_async_with(f, ReactionKind::default())
+    effect_async_in(f, ReactionPhase::default())
 }
 
-/// Call an asynchronous function each time a dependency changes with `ReactionKind` specified.
+/// Call an asynchronous function each time a dependency changes with `ReactionPhase` specified.
 #[allow(clippy::await_holding_refcell_ref)]
-pub fn effect_async_with(
+pub fn effect_async_in(
     f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static,
-    kind: ReactionKind,
+    phase: ReactionPhase,
 ) -> Subscription {
     let f = Rc::new(RefCell::new(f));
     let this = EffectAsyncNode::new(
@@ -30,7 +30,7 @@ pub fn effect_async_with(
                 f.borrow_mut()(&mut sc).await;
             }
         },
-        kind,
+        phase,
     );
     this.schedule();
     Subscription::from_rc(this)
@@ -44,26 +44,26 @@ struct EffectAsyncData<GetFut, Fut> {
 
 struct EffectAsyncNode<GetFut, Fut> {
     data: RefCell<EffectAsyncData<GetFut, Fut>>,
-    kind: ReactionKind,
+    phase: ReactionPhase,
 }
 impl<GetFut, Fut> EffectAsyncNode<GetFut, Fut>
 where
     GetFut: FnMut(AsyncSignalContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
-    fn new(f: GetFut, kind: ReactionKind) -> Rc<Self> {
+    fn new(f: GetFut, phase: ReactionPhase) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
             data: RefCell::new(EffectAsyncData {
                 get_fut: f,
                 fut: Box::pin(None),
                 asb: AsyncSourceBinder::new(this),
             }),
-            kind,
+            phase,
         })
     }
     fn schedule(self: &Rc<Self>) {
         Reaction::from_weak_fn(Rc::downgrade(self), |this, rc| this.call(rc))
-            .schedule_with(self.kind)
+            .schedule_with(self.phase)
     }
     fn call(self: &Rc<Self>, rc: &mut ReactionContext) {
         let d = &mut *self.data.borrow_mut();

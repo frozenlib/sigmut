@@ -12,8 +12,8 @@ use derive_ex::{Ex, derive_ex};
 use futures::Stream;
 
 use crate::{
-    ReactionKind, SignalContext, StateRef, Subscription, core::AsyncSignalContext, effect,
-    effect_with, stream_from,
+    ReactionPhase, SignalContext, StateRef, Subscription, core::AsyncSignalContext, effect,
+    effect_in, stream_from,
 };
 
 use super::{builder::SignalBuilder, scan_async::build_scan_async};
@@ -279,7 +279,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// First, call the function with the current value, then call the function each time the value changes.
     ///
-    /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions) is called with `ReactionKind::default()`,
+    /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions) is called with `ReactionPhase::default()`,
     /// or when [`Runtime::dispatch_all_reactions`](crate::core::Runtime::dispatch_all_reactions) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
@@ -288,17 +288,17 @@ impl<T: ?Sized + 'static> Signal<T> {
         effect(move |sc| f(&this.borrow(sc)))
     }
 
-    /// Subscribe to the value of this signal with specifying [`ReactionKind`].
+    /// Subscribe to the value of this signal with specifying [`ReactionPhase`].
     ///
     /// First, call the function with the current value, then call the function each time the value changes.
     ///
-    /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions) is called with `kind`,
+    /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions) is called with `phase`,
     /// or when [`Runtime::dispatch_all_reactions`](crate::core::Runtime::dispatch_all_reactions) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
-    pub fn effect_with(&self, mut f: impl FnMut(&T) + 'static, kind: ReactionKind) -> Subscription {
+    pub fn effect_in(&self, mut f: impl FnMut(&T) + 'static, phase: ReactionPhase) -> Subscription {
         let this = self.clone();
-        effect_with(move |sc| f(&this.borrow(sc)), kind)
+        effect_in(move |sc| f(&this.borrow(sc)), phase)
     }
 
     /// Create a [`Stream`] to subscribe to the value of this signal.

@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc, task::Poll};
 
 use crate::{
-    ReactionKind, Signal, SignalBuilder, State, StateRef,
+    ReactionPhase, Signal, SignalBuilder, State, StateRef,
     core::Runtime,
     effect,
     utils::{sync::oneshot_broadcast, test_helpers::call_on_drop},
@@ -530,28 +530,28 @@ fn dedup_method() {
 }
 
 #[test]
-fn effect_with_custom_kind() {
-    const CUSTOM_KIND: ReactionKind = ReactionKind::new(1, "custom");
+fn effect_in_custom_phase() {
+    const CUSTOM_PHASE: ReactionPhase = ReactionPhase::new(1, "custom");
     let mut rt = Runtime::new();
-    Runtime::register_reaction_kind(CUSTOM_KIND);
+    Runtime::register_reaction_phase(CUSTOM_PHASE);
     let mut cr = CallRecorder::new();
 
     let st = State::new(0);
     let signal = st.to_signal();
 
-    let _sub = signal.effect_with(|x| call!("{x}"), CUSTOM_KIND);
+    let _sub = signal.effect_in(|x| call!("{x}"), CUSTOM_PHASE);
 
-    rt.dispatch_reactions(ReactionKind::default());
+    rt.dispatch_reactions(ReactionPhase::default());
     cr.verify(());
 
-    rt.dispatch_reactions(CUSTOM_KIND);
+    rt.dispatch_reactions(CUSTOM_PHASE);
     cr.verify("0");
 
     st.set(10, rt.ac());
-    rt.dispatch_reactions(ReactionKind::default());
+    rt.dispatch_reactions(ReactionPhase::default());
     cr.verify(());
 
-    rt.dispatch_reactions(CUSTOM_KIND);
+    rt.dispatch_reactions(CUSTOM_PHASE);
     cr.verify("10");
 }
 
