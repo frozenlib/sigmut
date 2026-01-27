@@ -2,7 +2,7 @@
 
 use std::{hint::black_box, rc::Rc};
 
-use sigmut::{State, effect};
+use sigmut::{Signal, State, effect};
 
 extern crate test;
 
@@ -101,6 +101,40 @@ fn many_to_many(b: &mut test::Bencher) {
     b.iter(|| {
         for n in 0..5 {
             ss[n].set(n + 1, rt.ac());
+            rt.flush();
+        }
+    });
+}
+
+#[bench]
+fn deep(b: &mut test::Bencher) {
+    let mut rt = sigmut::core::Runtime::new();
+    let depth = 100;
+    let mut ss = Vec::new();
+    let mut sigs = Vec::new();
+    for i in 0..100 {
+        let state = sigmut::State::new(i);
+        sigs.push(state.to_signal());
+        ss.push(state);
+    }
+
+    for _ in 1..depth {
+        for sig in &mut sigs {
+            let s = sig.clone();
+            *sig = Signal::new(move |sc| s.get(sc) + 1);
+        }
+    }
+    let mut subs = Vec::new();
+    for sig in &sigs {
+        subs.push(sig.effect(|v| {
+            black_box(v);
+        }));
+    }
+    b.iter(|| {
+        for n in 0..5 {
+            for s in &ss {
+                s.set(n, rt.ac());
+            }
             rt.flush();
         }
     });
