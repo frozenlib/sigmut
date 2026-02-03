@@ -36,7 +36,7 @@ fn test_effect_in() {
     let phase_2 = ReactionPhase::new(2);
 
     let s = Signal::from_value(10);
-    let _e = effect_in(move |sc| call!("{}", s.get(sc)), phase_1);
+    let _e = effect_in(phase_1, move |sc| call!("{}", s.get(sc)));
     rt.dispatch_reactions(phase_2);
     cr.verify(());
 

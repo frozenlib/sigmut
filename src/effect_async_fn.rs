@@ -13,14 +13,14 @@ mod tests;
 
 /// Call an asynchronous function each time a dependency changes.
 pub fn effect_async(f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static) -> Subscription {
-    effect_async_in(f, ReactionPhase::default())
+    effect_async_in(ReactionPhase::default(), f)
 }
 
 /// Call an asynchronous function each time a dependency changes with `ReactionPhase` specified.
 #[allow(clippy::await_holding_refcell_ref)]
 pub fn effect_async_in(
-    f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static,
     phase: ReactionPhase,
+    f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static,
 ) -> Subscription {
     let f = Rc::new(RefCell::new(f));
     let this = EffectAsyncNode::new(
@@ -63,7 +63,7 @@ where
     }
     fn schedule(self: &Rc<Self>) {
         Reaction::from_weak_fn(Rc::downgrade(self), |this, rc| this.call(rc))
-            .schedule_with(self.phase)
+            .schedule_in(self.phase)
     }
     fn call(self: &Rc<Self>, rc: &mut ReactionContext) {
         let d = &mut *self.data.borrow_mut();

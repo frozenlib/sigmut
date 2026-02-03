@@ -865,7 +865,7 @@ pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
 
 /// Spawns a new action with a specific phase.
 pub fn spawn_action_in(phase: ActionPhase, f: impl FnOnce(&mut ActionContext) + 'static) {
-    Action::new(f).schedule_with(phase)
+    Action::new(f).schedule_in(phase)
 }
 
 /// Spawns a new asynchronous action.
@@ -940,13 +940,13 @@ impl Action {
     }
 
     /// Schedules this action with a specific phase.
-    pub fn schedule_with(self, phase: ActionPhase) {
+    pub fn schedule_in(self, phase: ActionPhase) {
         Globals::schedule_action(phase, self)
     }
 
     /// Schedules this action with default phase.
     pub fn schedule(self) {
-        self.schedule_with(ActionPhase::default())
+        self.schedule_in(ActionPhase::default())
     }
 
     fn call(self, ac: &mut ActionContext) {
@@ -1166,11 +1166,11 @@ impl Reaction {
         })
     }
 
-    pub fn schedule_with(self, phase: ReactionPhase) {
+    pub fn schedule_in(self, phase: ReactionPhase) {
         Globals::schedule_reaction(phase, self)
     }
     pub fn schedule(self) {
-        self.schedule_with(ReactionPhase::default());
+        self.schedule_in(ReactionPhase::default());
     }
     fn run(self, rc: &mut ReactionContext<'_, '_>) {
         match self.0 {

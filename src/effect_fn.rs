@@ -20,7 +20,7 @@ mod tests;
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
 pub fn effect(f: impl FnMut(&mut SignalContext<'_, '_>) + 'static) -> Subscription {
-    effect_in(f, ReactionPhase::default())
+    effect_in(ReactionPhase::default(), f)
 }
 
 /// Call a function each time a dependency changes with [`ReactionPhase`] specified.
@@ -32,8 +32,8 @@ pub fn effect(f: impl FnMut(&mut SignalContext<'_, '_>) + 'static) -> Subscripti
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
 pub fn effect_in(
-    f: impl FnMut(&mut SignalContext<'_, '_>) + 'static,
     phase: ReactionPhase,
+    f: impl FnMut(&mut SignalContext<'_, '_>) + 'static,
 ) -> Subscription {
     let node = EffectNode::new(f, phase);
     node.schedule();
@@ -64,7 +64,7 @@ where
     }
 
     fn schedule(self: &Rc<Self>) {
-        Reaction::from_weak_fn(Rc::downgrade(self), Self::call).schedule_with(self.phase)
+        Reaction::from_weak_fn(Rc::downgrade(self), Self::call).schedule_in(self.phase)
     }
     fn call(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         let d = &mut *self.data.borrow_mut();

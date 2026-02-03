@@ -2,7 +2,6 @@ use std::time::Duration;
 
 use futures::executor::block_on;
 use pretty_assertions::assert_eq;
-use sigmut::core::{Reaction, Runtime};
 use sigmut::utils::timer::{TimeoutError, sleep, timeout};
 
 #[test]

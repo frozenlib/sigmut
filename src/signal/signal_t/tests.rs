@@ -538,7 +538,7 @@ fn effect_in_custom_phase() {
     let st = State::new(0);
     let signal = st.to_signal();
 
-    let _sub = signal.effect_in(|x| call!("{x}"), CUSTOM_PHASE);
+    let _sub = signal.effect_in(CUSTOM_PHASE, |x| call!("{x}"));
 
     rt.dispatch_reactions(ReactionPhase::default());
     cr.verify(());

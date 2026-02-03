@@ -296,9 +296,9 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// or when [`Runtime::dispatch_all_reactions`](crate::core::Runtime::dispatch_all_reactions) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
-    pub fn effect_in(&self, mut f: impl FnMut(&T) + 'static, phase: ReactionPhase) -> Subscription {
+    pub fn effect_in(&self, phase: ReactionPhase, mut f: impl FnMut(&T) + 'static) -> Subscription {
         let this = self.clone();
-        effect_in(move |sc| f(&this.borrow(sc)), phase)
+        effect_in(phase, move |sc| f(&this.borrow(sc)))
     }
 
     /// Create a [`Stream`] to subscribe to the value of this signal.
