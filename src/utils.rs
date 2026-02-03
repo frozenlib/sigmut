@@ -8,6 +8,7 @@ use std::{
 pub(crate) mod buckets;
 pub(crate) mod isize_map;
 pub mod sync;
+pub mod timer;
 
 #[cfg(test)]
 pub mod test_helpers;

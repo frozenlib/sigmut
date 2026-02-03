@@ -31,7 +31,8 @@
       "label": "cargo test",
       "command": "cargo",
       "args": [
-        "test"
+        "nextest",
+        "run",
       ],
       "problemMatcher": [
         "$rustc"

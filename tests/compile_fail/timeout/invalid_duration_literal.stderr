@@ -1,0 +1,5 @@
+error: invalid duration number
+ --> tests/compile_fail/timeout/invalid_duration_literal.rs:3:11
+  |
+3 | #[timeout("10xs")]
+  |           ^^^^^^
