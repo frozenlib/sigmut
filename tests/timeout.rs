@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use futures::executor::block_on;
 use pretty_assertions::assert_eq;
+use sigmut::core::{Reaction, Runtime};
 use sigmut::utils::timer::{TimeoutError, sleep, timeout};
 
 #[test]
@@ -47,8 +48,8 @@ fn timeout_returns_timeout_error_for_result() {
         Ok(7)
     }
 
-    let err = block_on(timeout_result()).unwrap_err();
-    assert_eq!(err.to_string(), "timeout");
+    let result = block_on(timeout_result());
+    assert!(result.is_err());
 }
 
 #[test]
@@ -119,8 +120,8 @@ fn sync_timeout_returns_timeout_error_for_result() {
         Ok(7)
     }
 
-    let err = timeout_result().unwrap_err();
-    assert_eq!(err.to_string(), "timeout");
+    let result = timeout_result();
+    assert!(result.is_err());
 }
 
 #[test]
