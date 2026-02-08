@@ -206,3 +206,36 @@ fn items_basic_apis() {
     let debug = format!("{:?}", items);
     assert_eq!(debug, "[1, 2, 3]");
 }
+
+#[test]
+fn items_partial_eq() {
+    let mut rt = Runtime::new();
+    let vec = SignalVec::from(&[1, 2, 3]);
+
+    let items = vec.borrow(&mut rt.sc());
+    assert!(items == [1, 2, 3]);
+    assert!(items == *[1, 2, 3].as_slice());
+    assert!(items == vec![1, 2, 3]);
+    assert!(items != [1, 2]);
+    assert!(items != vec![1, 2]);
+}
+
+#[test]
+fn items_mut_partial_eq() {
+    let mut rt = Runtime::new();
+    let vec = StateVec::new();
+
+    {
+        let mut items = vec.borrow_mut(rt.ac());
+        items.push(1);
+        items.push(2);
+        items.push(3);
+    }
+
+    let items = vec.borrow_mut(rt.ac());
+    assert!(items == [1, 2, 3]);
+    assert!(items == *[1, 2, 3].as_slice());
+    assert!(items == vec![1, 2, 3]);
+    assert!(items != [1, 2]);
+    assert!(items != vec![1, 2]);
+}
