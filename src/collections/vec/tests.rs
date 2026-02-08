@@ -9,8 +9,8 @@ fn state_vec_reader_changes() {
     let mut reader = vec.reader();
 
     {
-        let items0 = reader.read(&mut rt.sc());
-        assert!(items0.is_empty());
+        let items = reader.read(&mut rt.sc());
+        assert!(items.is_empty());
     }
 
     {
@@ -20,8 +20,8 @@ fn state_vec_reader_changes() {
     }
 
     {
-        let items1 = reader.read(&mut rt.sc());
-        let changes: Vec<_> = items1.changes().collect();
+        let items = reader.read(&mut rt.sc());
+        let actual: Vec<_> = items.changes().collect();
         let expected = vec![
             VecChange::Insert {
                 index: 0,
@@ -32,7 +32,7 @@ fn state_vec_reader_changes() {
                 new_value: &2,
             },
         ];
-        assert_eq!(changes, expected);
+        assert_eq!(actual, expected);
     }
 
     {
@@ -45,8 +45,8 @@ fn state_vec_reader_changes() {
     }
 
     {
-        let items2 = reader.read(&mut rt.sc());
-        let changes: Vec<_> = items2.changes().collect();
+        let items = reader.read(&mut rt.sc());
+        let actual: Vec<_> = items.changes().collect();
         let expected = vec![
             VecChange::Set {
                 index: 0,
@@ -67,7 +67,7 @@ fn state_vec_reader_changes() {
                 new_value: &20,
             },
         ];
-        assert_eq!(changes, expected);
+        assert_eq!(actual, expected);
     }
 }
 
@@ -90,10 +90,10 @@ fn sort_and_drain_changes() {
         items.sort_by_key(|v| *v);
     }
     {
-        let items1 = reader.read(&mut rt.sc());
-        let changes: Vec<_> = items1.changes().collect();
+        let items = reader.read(&mut rt.sc());
+        let actual: Vec<_> = items.changes().collect();
         let expected = vec![VecChange::Sort(IndexNewToOld::new(&[1, 2, 0]))];
-        assert_eq!(changes, expected);
+        assert_eq!(actual, expected);
     }
 
     {
@@ -101,10 +101,10 @@ fn sort_and_drain_changes() {
         items.sort();
     }
     {
-        let items2 = reader.read(&mut rt.sc());
-        let changes: Vec<_> = items2.changes().collect();
+        let items = reader.read(&mut rt.sc());
+        let actual: Vec<_> = items.changes().collect();
         let expected: Vec<VecChange<'_, i32>> = Vec::new();
-        assert_eq!(changes, expected);
+        assert_eq!(actual, expected);
     }
 
     {
@@ -112,8 +112,8 @@ fn sort_and_drain_changes() {
         items.drain(1..);
     }
     {
-        let items3 = reader.read(&mut rt.sc());
-        let changes: Vec<_> = items3.changes().collect();
+        let items = reader.read(&mut rt.sc());
+        let actual: Vec<_> = items.changes().collect();
         let expected = vec![
             VecChange::Remove {
                 index: 2,
@@ -124,7 +124,7 @@ fn sort_and_drain_changes() {
                 old_value: &2,
             },
         ];
-        assert_eq!(changes, expected);
+        assert_eq!(actual, expected);
     }
 }
 
@@ -136,8 +136,8 @@ fn signal_vec_from_slice_and_vec_changes() {
         let mut reader = vec.reader();
         {
             let items = reader.read(&mut rt.sc());
-            let a: Vec<_> = items.changes().collect();
-            let e = vec![
+            let actual: Vec<_> = items.changes().collect();
+            let expected = vec![
                 VecChange::Insert {
                     index: 0,
                     new_value: &1,
@@ -147,12 +147,12 @@ fn signal_vec_from_slice_and_vec_changes() {
                     new_value: &2,
                 },
             ];
-            assert_eq!(a, e);
+            assert_eq!(actual, expected);
         }
         {
             let items = reader.read(&mut rt.sc());
-            let a: Vec<_> = items.changes().collect();
-            assert_eq!(a, vec![]);
+            let actual: Vec<_> = items.changes().collect();
+            assert_eq!(actual, vec![]);
         }
     }
 
@@ -161,8 +161,8 @@ fn signal_vec_from_slice_and_vec_changes() {
         let mut reader = vec.reader();
         {
             let items = reader.read(&mut rt.sc());
-            let a: Vec<_> = items.changes().collect();
-            let e = vec![
+            let actual: Vec<_> = items.changes().collect();
+            let expected = vec![
                 VecChange::Insert {
                     index: 0,
                     new_value: &1,
@@ -172,13 +172,13 @@ fn signal_vec_from_slice_and_vec_changes() {
                     new_value: &2,
                 },
             ];
-            assert_eq!(a, e);
+            assert_eq!(actual, expected);
         }
 
         {
             let items = reader.read(&mut rt.sc());
-            let a: Vec<_> = items.changes().collect();
-            assert!(a.is_empty());
+            let actual: Vec<_> = items.changes().collect();
+            assert!(actual.is_empty());
         }
     }
 }
