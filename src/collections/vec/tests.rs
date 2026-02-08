@@ -1,5 +1,6 @@
 use super::*;
 use crate::core::Runtime;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn state_vec_reader_changes() {
@@ -124,5 +125,60 @@ fn sort_and_drain_changes() {
             },
         ];
         assert_eq!(changes, expected);
+    }
+}
+
+#[test]
+fn signal_vec_from_slice_and_vec_changes() {
+    let mut rt = Runtime::new();
+    {
+        let vec = SignalVec::from(&[1, 2]);
+        let mut reader = vec.reader();
+        {
+            let items = reader.read(&mut rt.sc());
+            let a: Vec<_> = items.changes().collect();
+            let e = vec![
+                VecChange::Insert {
+                    index: 0,
+                    new_value: &1,
+                },
+                VecChange::Insert {
+                    index: 1,
+                    new_value: &2,
+                },
+            ];
+            assert_eq!(a, e);
+        }
+        {
+            let items = reader.read(&mut rt.sc());
+            let a: Vec<_> = items.changes().collect();
+            assert_eq!(a, vec![]);
+        }
+    }
+
+    {
+        let vec: SignalVec<i32> = vec![1, 2].into();
+        let mut reader = vec.reader();
+        {
+            let items = reader.read(&mut rt.sc());
+            let a: Vec<_> = items.changes().collect();
+            let e = vec![
+                VecChange::Insert {
+                    index: 0,
+                    new_value: &1,
+                },
+                VecChange::Insert {
+                    index: 1,
+                    new_value: &2,
+                },
+            ];
+            assert_eq!(a, e);
+        }
+
+        {
+            let items = reader.read(&mut rt.sc());
+            let a: Vec<_> = items.changes().collect();
+            assert!(a.is_empty());
+        }
     }
 }

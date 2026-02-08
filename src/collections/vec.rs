@@ -31,6 +31,7 @@ impl<T: 'static> SignalVec<T> {
     ) -> Self {
         Self(RawSignalVec::Rc(Scan::new(f)))
     }
+
     pub fn reader(&self) -> SignalVecReader<T> {
         SignalVecReader {
             source: self.0.clone(),
@@ -73,6 +74,11 @@ impl<T: 'static> SignalVecNode<T> for Vec<T> {
 
 impl<T> From<&'static [T]> for SignalVec<T> {
     fn from(value: &'static [T]) -> Self {
+        Self(RawSignalVec::Slice(value))
+    }
+}
+impl<const N: usize, T> From<&'static [T; N]> for SignalVec<T> {
+    fn from(value: &'static [T; N]) -> Self {
         Self(RawSignalVec::Slice(value))
     }
 }
