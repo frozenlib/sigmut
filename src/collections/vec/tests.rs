@@ -182,3 +182,27 @@ fn signal_vec_from_slice_and_vec_changes() {
         }
     }
 }
+
+#[test]
+fn items_basic_apis() {
+    let mut rt = Runtime::new();
+    let vec = SignalVec::from(&[1, 2, 3]);
+
+    let items = vec.borrow(&mut rt.sc());
+
+    assert_eq!(items.len(), 3);
+    assert!(!items.is_empty());
+    assert_eq!(items.get(0), Some(&1));
+    assert_eq!(items.get(2), Some(&3));
+    assert_eq!(items.get(3), None);
+    assert_eq!(items[1], 2);
+
+    let iter_values: Vec<i32> = items.iter().copied().collect();
+    assert_eq!(iter_values, vec![1, 2, 3]);
+
+    let into_iter_values: Vec<i32> = (&items).into_iter().copied().collect();
+    assert_eq!(into_iter_values, vec![1, 2, 3]);
+
+    let debug = format!("{:?}", items);
+    assert_eq!(debug, "[1, 2, 3]");
+}
