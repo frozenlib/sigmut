@@ -216,6 +216,37 @@ impl<T: Debug + 'static> Debug for Items<'_, T> {
         f.debug_list().entries(self.iter()).finish()
     }
 }
+impl<T: PartialEq<T>> PartialEq for Items<'_, T> {
+    fn eq(&self, other: &Self) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for (a, b) in self.iter().zip(other.iter()) {
+            if a != b {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl<T: PartialEq<T>> PartialEq<[T]> for Items<'_, T> {
+    fn eq(&self, other: &[T]) -> bool {
+        if self.len() != other.len() {
+            return false;
+        }
+        for (a, b) in self.iter().zip(other.iter()) {
+            if a != b {
+                return false;
+            }
+        }
+        true
+    }
+}
+impl<const N: usize, T: PartialEq<T>> PartialEq<[T; N]> for Items<'_, T> {
+    fn eq(&self, other: &[T; N]) -> bool {
+        self.eq(other.as_slice())
+    }
+}
 
 enum RawItems<'a, T: 'static> {
     Cell(Ref<'a, ItemsData<T>>),
