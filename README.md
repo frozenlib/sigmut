@@ -22,9 +22,9 @@
 
 In `sigmut`, state management is conducted using the following reactive primitives:
 
-- [`State<T>`]: Similar to `Rc<RefCell<T>>`, but with added functionality to observe changes.
-- [`Signal<T>`]: Similar to `Rc<dyn Fn() -> &T>`, but with added functionality to observe changes in the result.
-- [`effect`]: A function that is called again when there are changes to the dependent state.
+- [`State<T>`] : Similar to `Rc<RefCell<T>>`, but with added functionality to observe changes.
+- [`Signal<T>`] : Similar to `Rc<dyn Fn() -> &T>`, but with added functionality to observe changes in the result.
+- [`effect`] : A function that is called again when there are changes to the dependent state.
 
 [`State<T>`]: https://docs.rs/sigmut/latest/sigmut/struct.State.html
 [`Signal<T>`]: https://docs.rs/sigmut/latest/sigmut/struct.Signal.html
@@ -84,8 +84,8 @@ In [SolidJS], updates are batched so that dependent computations run after state
 
 In `sigmut`, state changes and state calculations are separated using [`SignalContext`] and [`ActionContext`].
 
-- [`ActionContext`]: Used for state changes
-- [`SignalContext`]: Used for state calculations
+- [`ActionContext`] : Used for state changes
+- [`SignalContext`] : Used for state calculations
 
 [`ActionContext`]: https://docs.rs/sigmut/latest/sigmut/struct.ActionContext.html
 [`SignalContext`]: https://docs.rs/sigmut/latest/sigmut/struct.SignalContext.html

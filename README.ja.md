@@ -22,9 +22,9 @@
 
 `sigmut` では、次のリアクティブプリミティブを使って状態管理を行います。
 
-- [`State<T>`]: `Rc<RefCell<T>>` に似ていますが、変更を監視する機能が追加されています。
-- [`Signal<T>`]: `Rc<dyn Fn() -> &T>` に似ていますが、結果の変更を監視する機能が追加されています。
-- [`effect`]: 依存している状態に変更があったときに再度呼び出される関数です。
+- [`State<T>`] : `Rc<RefCell<T>>` に似ていますが、変更を監視する機能が追加されています。
+- [`Signal<T>`] : `Rc<dyn Fn() -> &T>` に似ていますが、結果の変更を監視する機能が追加されています。
+- [`effect`] : 依存している状態に変更があったときに再度呼び出される関数です。
 
 [`State<T>`]: https://docs.rs/sigmut/latest/sigmut/struct.State.html
 [`Signal<T>`]: https://docs.rs/sigmut/latest/sigmut/struct.Signal.html
@@ -84,8 +84,8 @@ rt.flush(); // "8" を表示
 
 `sigmut` では、[`SignalContext`] と [`ActionContext`] を使って状態の変更と状態の計算を分離します。
 
-- [`ActionContext`]: 状態の変更に使います
-- [`SignalContext`]: 状態の計算に使います
+- [`ActionContext`] : 状態の変更に使います
+- [`SignalContext`] : 状態の計算に使います
 
 [`ActionContext`]: https://docs.rs/sigmut/latest/sigmut/struct.ActionContext.html
 [`SignalContext`]: https://docs.rs/sigmut/latest/sigmut/struct.SignalContext.html
