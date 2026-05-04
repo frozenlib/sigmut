@@ -125,7 +125,7 @@ For more details, refer to functions and types with names that include [`async`]
 Some state management libraries use outdated caches during state calculations, which can lead to unexpected results. While these unexpected results are quickly recalculated and the unintended calculation outcomes are discarded, this can still cause issues, including potential panics.
 Therefore, the problem is not fully resolved simply because recalculation occurs.
 
-In `sigmut`, caches are managed by categorizing them into three types: `clean`, `dirty`, and `maybe dirty`. By consistently and accurately checking the validity of these caches, `sigmut` avoids the issues associated with using outdated caches during state calculations.
+In `sigmut`, caches are managed by categorizing them into three types: `clean`, `dirty`, and `maybe dirty`. By always checking cache validity accurately, `sigmut` ensures that users only ever see values derived from the latest state. This behavior means users do not need to account for mixtures of outdated and latest state, keeping code simple and robust.
 
 ### Capable of implementing more efficient reactive primitives
 
