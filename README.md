@@ -11,12 +11,12 @@
 
 ## Features
 
-- Signals-based API
-- Separation of "state changes" and "state calculations"
-- Easy-to-use single-threaded model
-- Support for asynchronous operations using `async`/`await`
-- Glitch-free (no unnecessary calculations based on outdated states)
-- Capable of implementing more efficient reactive primitives
+- [Signals-based API](#signals-based-api)
+- [Separation of "state changes" and "state calculations"](#separation-of-state-changes-and-state-calculations)
+- [Easy-to-use single-threaded model](#easy-to-use-single-threaded-model)
+- [Support for asynchronous operations using `async`/`await`](#support-for-asynchronous-operations-using-asyncawait)
+- [Glitch-free (no unnecessary calculations based on outdated states)](#glitch-free-no-unnecessary-calculations-based-on-outdated-states)
+- [Capable of implementing more efficient reactive primitives](#capable-of-implementing-more-efficient-reactive-primitives)
 
 ### Signals-based API
 
