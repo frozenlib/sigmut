@@ -241,7 +241,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// Creates a new `Signal` whose values are borrowed with [`std::borrow::Borrow`].
     ///
     /// If `T` and `U` are the same type, this returns the same instance as `self`.
-    pub fn map_borrow<U>(&self) -> Signal<U>
+    pub fn map_borrow<U: ?Sized>(&self) -> Signal<U>
     where
         T: std::borrow::Borrow<U>,
     {
