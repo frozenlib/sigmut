@@ -62,11 +62,11 @@
         "panel": "dedicated",
         "clear": true
       },
-      // "options": {
-      //   "env": {
-      //     "MIRIFLAGS": "-Zmiri-backtrace=full",
-      //   }
-      // }
+      "options": {
+        "env": {
+          "MIRIFLAGS": "-Zmiri-strict-provenance",
+        }
+      }
     },
     {
       "type": "shell",
@@ -88,11 +88,11 @@
         "panel": "dedicated",
         "clear": true
       },
-      // "options": {
-      //   "env": {
-      //     "MIRIFLAGS": "-Zmiri-backtrace=full",
-      //   }
-      // }
+      "options": {
+        "env": {
+          "MIRIFLAGS": "-Zmiri-strict-provenance",
+        }
+      }
     },
     {
       "type": "shell",
@@ -112,11 +112,11 @@
         "panel": "dedicated",
         "clear": true
       },
-      // "options": {
-      //   "env": {
-      //     "MIRIFLAGS": "-Zmiri-backtrace=full",
-      //   }
-      // }
+      "options": {
+        "env": {
+          "MIRIFLAGS": "-Zmiri-strict-provenance",
+        }
+      }
     },
     {
       "type": "shell",
