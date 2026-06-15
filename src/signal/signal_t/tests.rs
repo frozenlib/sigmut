@@ -8,6 +8,7 @@ use crate::{
 };
 use assert_call::{CallRecorder, call};
 use futures::StreamExt;
+use pretty_assertions::assert_eq;
 use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
 
 #[test]
@@ -282,6 +283,24 @@ fn from_borrow() {
     st.set(10, rt.ac());
     rt.flush();
     cr.verify("10");
+}
+
+#[test]
+fn map_borrow() {
+    let mut rt = Runtime::new();
+
+    let s = Signal::from_value(Box::new(42));
+    let borrowed = s.map_borrow::<i32>();
+
+    assert_eq!(borrowed.get(&mut rt.sc()), 42);
+}
+
+#[test]
+fn map_borrow_same_type_returns_same_instance() {
+    let s = Signal::from_value(42);
+    let borrowed = s.map_borrow::<i32>();
+
+    assert!(Signal::ptr_eq(&s, &borrowed));
 }
 
 #[test]

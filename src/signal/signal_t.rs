@@ -238,6 +238,20 @@ impl<T: ?Sized + 'static> Signal<T> {
         })
     }
 
+    /// Creates a new `Signal` whose values are borrowed with [`std::borrow::Borrow`].
+    ///
+    /// If `T` and `U` are the same type, this returns the same instance as `self`.
+    pub fn map_borrow<U>(&self) -> Signal<U>
+    where
+        T: std::borrow::Borrow<U>,
+    {
+        if let Some(x) = <dyn Any>::downcast_ref::<Signal<U>>(self) {
+            x.clone()
+        } else {
+            self.map(|x| std::borrow::Borrow::borrow(x))
+        }
+    }
+
     /// Create a `Signal` that does not send notifications to the dependants if the value does not change.
     ///
     /// Even if the value is not changed, a "value may have changed" notification is sent to the dependants, so the overhead cannot be zero.
