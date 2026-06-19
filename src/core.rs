@@ -16,6 +16,7 @@ use std::{
 
 use bumpalo::Bump;
 use derive_ex::Ex;
+use parse_display::Display;
 use slabmap::SlabMap;
 
 mod async_signal_context;
@@ -172,6 +173,20 @@ pub struct Runtime {
     is_owned: bool,
     raw: Option<Box<RawRuntime>>,
 }
+
+/// An error returned when [`Runtime::try_call`] cannot call the function.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Display)]
+pub enum RuntimeCallError {
+    /// No [`Runtime`] exists in the current thread.
+    #[display("Runtime does not exist")]
+    RuntimeDoesNotExist,
+    /// The [`Runtime`] exists but is not currently available for calling.
+    #[display("Runtime is not available. Ensure you are within a `Runtime::lend` call.")]
+    RuntimeUnavailable,
+}
+
+impl std::error::Error for RuntimeCallError {}
+
 impl Runtime {
     pub fn new() -> Self {
         if Globals::with(|g| replace(&mut g.is_runtime_exists, true)) {
@@ -261,19 +276,26 @@ impl Runtime {
     ///
     /// # Panics
     ///
+    /// Panics if no [`Runtime`] exists in the current thread.
+    ///
     /// Panics if not called within [`Runtime::lend`] or if [`Runtime::call`] is reentered.
     pub fn call<T>(f: impl FnOnce(&mut Runtime) -> T) -> T {
-        let raw = Globals::with(|g| {
-            assert!(g.is_runtime_exists, "Runtime does not exist");
-            let Some(raw) = g.runtime.take() else {
-                panic!("Runtime is not available. Ensure you are within a `Runtime::lend` call.");
-            };
-            raw
-        });
-        f(&mut Self {
+        Self::try_call(f).unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    /// Tries to call a function with the runtime as an argument.
+    pub fn try_call<T>(f: impl FnOnce(&mut Runtime) -> T) -> Result<T, RuntimeCallError> {
+        let raw = Globals::try_with(|g| {
+            if !g.is_runtime_exists {
+                return Err(RuntimeCallError::RuntimeDoesNotExist);
+            }
+            g.runtime.take().ok_or(RuntimeCallError::RuntimeUnavailable)
+        })
+        .map_err(|_| RuntimeCallError::RuntimeDoesNotExist)??;
+        Ok(f(&mut Self {
             is_owned: false,
             raw: Some(raw),
-        })
+        }))
     }
 }
 impl Drop for Runtime {

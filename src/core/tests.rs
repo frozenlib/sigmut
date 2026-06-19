@@ -1,4 +1,5 @@
 use super::*;
+use pretty_assertions::assert_eq;
 use std::{cell::Cell, rc::Rc};
 
 #[test]
@@ -27,8 +28,38 @@ fn runtime_call_within_lend_2() {
 }
 
 #[test]
+fn runtime_try_call_within_lend() {
+    let mut rt = Runtime::new();
+    let _lend = rt.lend();
+    assert_eq!(Runtime::try_call(|_rt| 1), Ok(1));
+}
+
+#[test]
+fn runtime_try_call_without_runtime() {
+    assert_eq!(
+        Runtime::try_call(|_rt| ()),
+        Err(RuntimeCallError::RuntimeDoesNotExist)
+    );
+}
+
+#[test]
+fn runtime_try_call_outside_lend() {
+    let _rt = Runtime::new();
+    assert_eq!(
+        Runtime::try_call(|_rt| ()),
+        Err(RuntimeCallError::RuntimeUnavailable)
+    );
+}
+
+#[test]
 #[should_panic(expected = "Runtime is not available")]
 fn runtime_call_outside_lend() {
     let _rt = Runtime::new();
+    Runtime::call(|_rt| {});
+}
+
+#[test]
+#[should_panic(expected = "Runtime does not exist")]
+fn runtime_call_without_runtime() {
     Runtime::call(|_rt| {});
 }
