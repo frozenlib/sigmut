@@ -104,6 +104,13 @@ impl<B: Build> SignalBuilder<B> {
     ) -> SignalBuilder<impl Build<State = T>> {
         SignalBuilder(self.0.map(f))
     }
+    pub fn map_borrow<T: ?Sized + 'static>(self) -> SignalBuilder<impl Build<State = T>>
+    where
+        B::State: std::borrow::Borrow<T>,
+    {
+        self.map(|st| std::borrow::Borrow::<T>::borrow(st))
+    }
+
     pub fn map_value<T: 'static>(
         self,
         f: impl Fn(&B::State) -> T + 'static,
