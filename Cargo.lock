@@ -13,9 +13,9 @@ dependencies = [
 
 [[package]]
 name = "assert-call"
-version = "0.1.2"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8c274781190b3e50cf755b89fddbf61167d6bade949bfb1c1ed210cc7b5e6340"
+checksum = "5c9d161d62c0763184babfa523a9a3b4e650fdf086a8e6b9a5f45721ff401586"
 dependencies = [
  "yansi",
 ]

@@ -28,7 +28,7 @@ iter-n = "0.1.0"
 parse-display = "0.10.0"
 
 [dev-dependencies]
-assert-call = "0.1.2"
+assert-call = "0.2.0"
 rstest = "0.25.0"
 rt-local = "0.1.4"
 trybuild = "1.0.105"
