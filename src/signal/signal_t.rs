@@ -2,7 +2,7 @@ use std::{
     any::{Any, type_name},
     fmt::Debug,
     future::Future,
-    ops::AsyncFn,
+    ops::{AsyncFn, BitAnd, BitOr},
     ptr,
     rc::Rc,
     task::Poll,
@@ -363,6 +363,22 @@ impl<T: 'static + ?Sized + Debug> Debug for Signal<T> {
 impl Signal<bool> {
     pub const TRUE: Signal<bool> = Signal(RawSignal::StaticRef(&true));
     pub const FALSE: Signal<bool> = Signal(RawSignal::StaticRef(&false));
+}
+
+#[derive_ex(BitOr, BitOrAssign)]
+impl BitOr for Signal<bool> {
+    type Output = Signal<bool>;
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Signal::new_dedup(move |sc| self.get(sc) || rhs.get(sc))
+    }
+}
+
+#[derive_ex(BitAnd, BitAndAssign)]
+impl BitAnd for Signal<bool> {
+    type Output = Signal<bool>;
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Signal::new_dedup(move |sc| self.get(sc) && rhs.get(sc))
+    }
 }
 
 impl<T: ?Sized + 'static> ToSignal for Signal<T> {
