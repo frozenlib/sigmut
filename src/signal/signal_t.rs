@@ -360,6 +360,11 @@ impl<T: 'static + ?Sized + Debug> Debug for Signal<T> {
     }
 }
 
+impl Signal<bool> {
+    pub const TRUE: Signal<bool> = Signal(RawSignal::StaticRef(&true));
+    pub const FALSE: Signal<bool> = Signal(RawSignal::StaticRef(&false));
+}
+
 impl<T: ?Sized + 'static> ToSignal for Signal<T> {
     type Value = T;
     fn to_signal(&self) -> Signal<Self::Value> {
