@@ -219,6 +219,13 @@ impl<T: ?Sized + 'static> Signal<T> {
         }
     }
 
+    pub fn try_borrow_constant(&self) -> Option<&T> {
+        match &self.0 {
+            RawSignal::StaticRef(value) => Some(value),
+            RawSignal::Node(_) => None,
+        }
+    }
+
     /// Gets the current value and adds a dependency on this `Signal` to the specified `SignalContext`.
     ///
     /// If the current value has not yet been calculated, it will be calculated.
@@ -369,7 +376,11 @@ impl Signal<bool> {
 impl BitOr for Signal<bool> {
     type Output = Signal<bool>;
     fn bitor(self, rhs: Self) -> Self::Output {
-        Signal::new_dedup(move |sc| self.get(sc) || rhs.get(sc))
+        match (self.try_borrow_constant(), rhs.try_borrow_constant()) {
+            (Some(true), _) | (_, Some(true)) => Signal::TRUE,
+            (Some(false), Some(false)) => Signal::FALSE,
+            _ => Signal::new_dedup(move |sc| self.get(sc) || rhs.get(sc)),
+        }
     }
 }
 
@@ -377,7 +388,11 @@ impl BitOr for Signal<bool> {
 impl BitAnd for Signal<bool> {
     type Output = Signal<bool>;
     fn bitand(self, rhs: Self) -> Self::Output {
-        Signal::new_dedup(move |sc| self.get(sc) && rhs.get(sc))
+        match (self.try_borrow_constant(), rhs.try_borrow_constant()) {
+            (Some(false), _) | (_, Some(false)) => Signal::FALSE,
+            (Some(true), Some(true)) => Signal::TRUE,
+            _ => Signal::new_dedup(move |sc| self.get(sc) && rhs.get(sc)),
+        }
     }
 }
 
