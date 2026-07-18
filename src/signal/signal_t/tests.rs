@@ -11,6 +11,8 @@ use futures::StreamExt;
 use pretty_assertions::assert_eq;
 use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
 
+use super::SignalNode;
+
 #[test]
 fn new() {
     let mut rt = Runtime::new();
@@ -246,6 +248,7 @@ fn from_value() {
 
     let s = Signal::from_value(5);
     assert_eq!(s.get(&mut rt.sc()), 5);
+    assert_eq!(s.try_borrow_constant(), Some(&5));
 }
 
 #[test]
@@ -256,6 +259,7 @@ fn from_value_map() {
     let s = Signal::from_value_map(value, |x| &x.0);
 
     assert_eq!(s.get(&mut rt.sc()), 5);
+    assert_eq!(s.try_borrow_constant(), Some(&5));
 }
 
 #[test]
@@ -266,6 +270,7 @@ fn from_owned() {
     let s = Signal::<str>::from_owned(owned);
 
     assert_eq!(s.get(&mut rt.sc()), "hello");
+    assert_eq!(s.try_borrow_constant(), Some("hello"));
 }
 
 #[test]
@@ -308,6 +313,137 @@ fn from_static_ref() {
     let mut rt = Runtime::new();
     let s = Signal::from_static_ref(&5);
     assert_eq!(s.get(&mut rt.sc()), 5);
+    assert_eq!(s.try_borrow_constant(), Some(&5));
+}
+
+#[test]
+fn try_borrow_constant_dynamic() {
+    assert_eq!(State::new(5).to_signal().try_borrow_constant(), None);
+    assert_eq!(Signal::new(|_| 5).try_borrow_constant(), None);
+}
+
+#[test]
+fn try_borrow_constant_custom_node() {
+    struct ConstantI32(i32);
+
+    impl SignalNode for ConstantI32 {
+        type Value = i32;
+
+        fn try_borrow_constant(&self) -> Option<&Self::Value> {
+            Some(&self.0)
+        }
+
+        fn borrow<'a, 'r: 'a>(
+            &'a self,
+            _rc_self: Rc<dyn std::any::Any>,
+            _sc: &mut crate::SignalContext<'r, '_>,
+        ) -> StateRef<'a, Self::Value> {
+            (&self.0).into()
+        }
+
+        fn fmt_debug(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            std::fmt::Debug::fmt(&self.0, f)
+        }
+    }
+
+    let s = Signal::from_node(Rc::new(ConstantI32(5)));
+
+    assert_eq!(s.try_borrow_constant(), Some(&5));
+}
+
+#[test]
+fn bitor_constant_optimization() {
+    let dynamic = State::new(false).to_signal();
+
+    assert!(Signal::ptr_eq(&(Signal::FALSE | dynamic.clone()), &dynamic));
+    assert!(Signal::ptr_eq(&(dynamic.clone() | Signal::FALSE), &dynamic));
+    assert!(Signal::ptr_eq(
+        &(Signal::from_value(false) | dynamic.clone()),
+        &dynamic
+    ));
+    assert!(Signal::ptr_eq(
+        &(dynamic.clone() | Signal::from_value(false)),
+        &dynamic
+    ));
+    assert!(Signal::ptr_eq(
+        &(Signal::from_value(true) | dynamic.clone()),
+        &Signal::TRUE
+    ));
+    assert!(Signal::ptr_eq(
+        &(dynamic.clone() | Signal::from_value(true)),
+        &Signal::TRUE
+    ));
+    assert!(Signal::ptr_eq(
+        &(Signal::from_value(false) | Signal::from_value(false)),
+        &Signal::FALSE
+    ));
+}
+
+#[test]
+fn boolean_constants_have_stable_identity() {
+    assert!(Signal::ptr_eq(&Signal::TRUE, &Signal::TRUE));
+    assert!(Signal::ptr_eq(&Signal::FALSE, &Signal::FALSE));
+}
+
+#[test]
+fn bitand_constant_optimization() {
+    let dynamic = State::new(true).to_signal();
+
+    assert!(Signal::ptr_eq(&(Signal::TRUE & dynamic.clone()), &dynamic));
+    assert!(Signal::ptr_eq(&(dynamic.clone() & Signal::TRUE), &dynamic));
+    assert!(Signal::ptr_eq(
+        &(Signal::from_value(true) & dynamic.clone()),
+        &dynamic
+    ));
+    assert!(Signal::ptr_eq(
+        &(dynamic.clone() & Signal::from_value(true)),
+        &dynamic
+    ));
+    assert!(Signal::ptr_eq(
+        &(Signal::from_value(false) & dynamic.clone()),
+        &Signal::FALSE
+    ));
+    assert!(Signal::ptr_eq(
+        &(dynamic.clone() & Signal::from_value(false)),
+        &Signal::FALSE
+    ));
+    assert!(Signal::ptr_eq(
+        &(Signal::from_value(true) & Signal::from_value(true)),
+        &Signal::TRUE
+    ));
+}
+
+#[test]
+fn boolean_operators_keep_dynamic_expressions_reactive() {
+    let mut rt = Runtime::new();
+    let lhs = State::new(false);
+    let rhs = State::new(true);
+    let or = lhs.to_signal() | rhs.to_signal();
+    let and = lhs.to_signal() & rhs.to_signal();
+
+    assert_eq!((or.get(&mut rt.sc()), and.get(&mut rt.sc())), (true, false));
+
+    lhs.set(true, rt.ac());
+    rhs.set(false, rt.ac());
+
+    assert_eq!((or.get(&mut rt.sc()), and.get(&mut rt.sc())), (true, false));
+
+    rhs.set(true, rt.ac());
+
+    assert_eq!((or.get(&mut rt.sc()), and.get(&mut rt.sc())), (true, true));
+}
+
+#[test]
+fn boolean_assign_operators_reuse_identity_operand() {
+    let dynamic = State::new(false).to_signal();
+    let mut or = dynamic.clone();
+    let mut and = dynamic.clone();
+
+    or |= Signal::FALSE;
+    and &= Signal::TRUE;
+
+    assert!(Signal::ptr_eq(&or, &dynamic));
+    assert!(Signal::ptr_eq(&and, &dynamic));
 }
 
 #[test]

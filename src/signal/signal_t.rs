@@ -25,6 +25,16 @@ mod keep;
 
 pub trait SignalNode: 'static {
     type Value: ?Sized + 'static;
+
+    /// Returns a reference to the constant value of this node, if known.
+    ///
+    /// Returning `Some` promises that the value does not change during the lifetime of the node
+    /// and can be obtained without reactive evaluation or dependency tracking. Implementations
+    /// that cannot make this guarantee must return `None`.
+    fn try_borrow_constant(&self) -> Option<&Self::Value> {
+        None
+    }
+
     fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
@@ -38,6 +48,9 @@ pub trait SignalNode: 'static {
 
 trait DynSignalNode: Any {
     type Value: ?Sized + 'static;
+
+    fn dyn_try_borrow_constant(&self) -> Option<&Self::Value>;
+
     fn dyn_borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
@@ -51,6 +64,10 @@ trait DynSignalNode: Any {
 
 impl<S: SignalNode> DynSignalNode for S {
     type Value = S::Value;
+
+    fn dyn_try_borrow_constant(&self) -> Option<&Self::Value> {
+        self.try_borrow_constant()
+    }
 
     fn dyn_borrow<'a, 'r: 'a>(
         &'a self,
@@ -126,6 +143,9 @@ impl<T: ?Sized + 'static> Signal<T> {
     }
 
     /// Create a new `Signal` that does not change from its value, with a mapping function.
+    ///
+    /// The mapping function must return a stable projection and must not rely on when or how many
+    /// times it is called.
     pub fn from_value_map<U>(value: U, f: impl Fn(&U) -> &T + 'static) -> Self
     where
         U: 'static,
@@ -219,10 +239,14 @@ impl<T: ?Sized + 'static> Signal<T> {
         }
     }
 
+    /// Returns a reference to the constant value of this signal, if known.
+    ///
+    /// This method does not evaluate reactive nodes or register dependencies. `None` means that
+    /// the signal is not known to be constant, rather than that it is necessarily dynamic.
     pub fn try_borrow_constant(&self) -> Option<&T> {
         match &self.0 {
             RawSignal::StaticRef(value) => Some(value),
-            RawSignal::Node(_) => None,
+            RawSignal::Node(node) => node.dyn_try_borrow_constant(),
         }
     }
 
@@ -367,11 +391,17 @@ impl<T: 'static + ?Sized + Debug> Debug for Signal<T> {
     }
 }
 
+static SIGNAL_TRUE_VALUE: bool = true;
+static SIGNAL_FALSE_VALUE: bool = false;
+
 impl Signal<bool> {
-    pub const TRUE: Signal<bool> = Signal(RawSignal::StaticRef(&true));
-    pub const FALSE: Signal<bool> = Signal(RawSignal::StaticRef(&false));
+    pub const TRUE: Signal<bool> = Signal(RawSignal::StaticRef(&SIGNAL_TRUE_VALUE));
+    pub const FALSE: Signal<bool> = Signal(RawSignal::StaticRef(&SIGNAL_FALSE_VALUE));
 }
 
+/// Combines boolean signals using logical OR.
+///
+/// Algebraic simplification may return a constant or reuse the non-constant operand directly.
 #[derive_ex(BitOr, BitOrAssign)]
 impl BitOr for Signal<bool> {
     type Output = Signal<bool>;
@@ -379,11 +409,16 @@ impl BitOr for Signal<bool> {
         match (self.try_borrow_constant(), rhs.try_borrow_constant()) {
             (Some(true), _) | (_, Some(true)) => Signal::TRUE,
             (Some(false), Some(false)) => Signal::FALSE,
-            _ => Signal::new_dedup(move |sc| self.get(sc) || rhs.get(sc)),
+            (Some(false), None) => rhs,
+            (None, Some(false)) => self,
+            (None, None) => Signal::new_dedup(move |sc| self.get(sc) || rhs.get(sc)),
         }
     }
 }
 
+/// Combines boolean signals using logical AND.
+///
+/// Algebraic simplification may return a constant or reuse the non-constant operand directly.
 #[derive_ex(BitAnd, BitAndAssign)]
 impl BitAnd for Signal<bool> {
     type Output = Signal<bool>;
@@ -391,7 +426,9 @@ impl BitAnd for Signal<bool> {
         match (self.try_borrow_constant(), rhs.try_borrow_constant()) {
             (Some(false), _) | (_, Some(false)) => Signal::FALSE,
             (Some(true), Some(true)) => Signal::TRUE,
-            _ => Signal::new_dedup(move |sc| self.get(sc) && rhs.get(sc)),
+            (Some(true), None) => rhs,
+            (None, Some(true)) => self,
+            (None, None) => Signal::new_dedup(move |sc| self.get(sc) && rhs.get(sc)),
         }
     }
 }
@@ -414,6 +451,10 @@ where
     T: ?Sized + 'static,
 {
     type Value = T;
+
+    fn try_borrow_constant(&self) -> Option<&Self::Value> {
+        Some((self.map)(&self.value))
+    }
 
     fn borrow<'a, 'r: 'a>(
         &'a self,
