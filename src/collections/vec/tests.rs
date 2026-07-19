@@ -1,5 +1,5 @@
 use super::*;
-use crate::core::Runtime;
+use crate::{State, core::Runtime};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -68,6 +68,209 @@ fn state_vec_reader_changes() {
             },
         ];
         assert_eq!(actual, expected);
+    }
+}
+
+#[test]
+fn state_vec_reader_peek_does_not_advance() {
+    let mut rt = Runtime::new();
+    let vec: StateVec<_> = [1, 2].into_iter().collect();
+    let mut reader = vec.reader();
+
+    for _ in 0..2 {
+        let items = reader.peek(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![
+                VecChange::Insert {
+                    index: 0,
+                    new_value: &1,
+                },
+                VecChange::Insert {
+                    index: 1,
+                    new_value: &2,
+                },
+            ]
+        );
+    }
+
+    {
+        let items = reader.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![
+                VecChange::Insert {
+                    index: 0,
+                    new_value: &1,
+                },
+                VecChange::Insert {
+                    index: 1,
+                    new_value: &2,
+                },
+            ]
+        );
+    }
+
+    vec.borrow_mut(rt.ac()).push(3);
+    {
+        let items = reader.peek(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![VecChange::Insert {
+                index: 2,
+                new_value: &3,
+            }]
+        );
+    }
+
+    vec.borrow_mut(rt.ac()).push(4);
+    for _ in 0..2 {
+        let items = reader.peek(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![
+                VecChange::Insert {
+                    index: 2,
+                    new_value: &3,
+                },
+                VecChange::Insert {
+                    index: 3,
+                    new_value: &4,
+                },
+            ]
+        );
+    }
+
+    {
+        let items = reader.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![
+                VecChange::Insert {
+                    index: 2,
+                    new_value: &3,
+                },
+                VecChange::Insert {
+                    index: 3,
+                    new_value: &4,
+                },
+            ]
+        );
+    }
+    assert_eq!(reader.peek(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
+}
+
+#[test]
+fn signal_vec_from_scan_peek_retains_changes() {
+    let mut rt = Runtime::new();
+    let state = State::new(1);
+    let state_for_scan = state.clone();
+    let vec = SignalVec::from_scan(move |items, sc| {
+        let value = state_for_scan.get(sc);
+        if items.is_empty() {
+            items.push(value);
+        } else if items[0] != value {
+            items.set(0, value);
+        }
+    });
+    let mut reader = vec.reader();
+
+    let _ = reader.read(&mut rt.sc());
+    state.set(2, rt.ac());
+
+    for _ in 0..2 {
+        let items = reader.peek(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![VecChange::Set {
+                index: 0,
+                old_value: &1,
+                new_value: &2,
+            }]
+        );
+    }
+
+    state.set(3, rt.ac());
+    {
+        let items = reader.peek(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![
+                VecChange::Set {
+                    index: 0,
+                    old_value: &1,
+                    new_value: &2,
+                },
+                VecChange::Set {
+                    index: 0,
+                    old_value: &2,
+                    new_value: &3,
+                },
+            ]
+        );
+        assert_eq!(items, [3]);
+    }
+
+    {
+        let items = reader.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![
+                VecChange::Set {
+                    index: 0,
+                    old_value: &1,
+                    new_value: &2,
+                },
+                VecChange::Set {
+                    index: 0,
+                    old_value: &2,
+                    new_value: &3,
+                },
+            ]
+        );
+    }
+}
+
+#[test]
+fn immutable_signal_vec_reader_peek_does_not_advance() {
+    let mut rt = Runtime::new();
+    let sources: [SignalVec<i32>; 2] = [SignalVec::from(&[1, 2]), vec![1, 2].into()];
+
+    for vec in sources {
+        let mut reader = vec.reader();
+        {
+            let items = reader.peek(&mut rt.sc());
+            assert_eq!(
+                items.changes().collect::<Vec<_>>(),
+                vec![
+                    VecChange::Insert {
+                        index: 0,
+                        new_value: &1,
+                    },
+                    VecChange::Insert {
+                        index: 1,
+                        new_value: &2,
+                    },
+                ]
+            );
+        }
+        {
+            let items = reader.read(&mut rt.sc());
+            assert_eq!(
+                items.changes().collect::<Vec<_>>(),
+                vec![
+                    VecChange::Insert {
+                        index: 0,
+                        new_value: &1,
+                    },
+                    VecChange::Insert {
+                        index: 1,
+                        new_value: &2,
+                    },
+                ]
+            );
+        }
+        assert_eq!(reader.peek(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
     }
 }
 

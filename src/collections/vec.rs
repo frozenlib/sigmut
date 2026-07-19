@@ -68,6 +68,14 @@ impl<T: 'static> SignalVecNode<T> for Vec<T> {
     ) -> Items<'_, T> {
         Items::from_slice_read(self, age)
     }
+    fn peek(
+        &self,
+        _rc_self: Rc<dyn Any>,
+        age: Option<usize>,
+        _sc: &mut SignalContext<'_, '_>,
+    ) -> Items<'_, T> {
+        Items::from_slice(self, age)
+    }
 
     fn drop_reader(&self, _age: usize) {}
 }
@@ -91,6 +99,12 @@ trait SignalVecNode<T>: Any {
         age: &mut Option<usize>,
         sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T>;
+    fn peek(
+        &self,
+        rc_self: Rc<dyn Any>,
+        age: Option<usize>,
+        sc: &mut SignalContext<'_, '_>,
+    ) -> Items<'_, T>;
     fn drop_reader(&self, age: usize);
 }
 
@@ -110,6 +124,21 @@ impl<T: 'static> SignalVecReader<T> {
         match &self.source {
             RawSignalVec::Rc(vec) => vec.read(vec.clone(), &mut self.age, sc),
             RawSignalVec::Slice(slice) => Items::from_slice_read(slice, &mut self.age),
+        }
+    }
+
+    /// Returns the current items and changes since the last [`read`](Self::read) without advancing the reader.
+    ///
+    /// Before the first `read`, the changes contain an insertion for every current item.
+    ///
+    /// This method registers the same signal dependency as [`read`](Self::read). Because a subsequent
+    /// `peek` or `read` reports the same changes again, callers must not treat the returned changes as
+    /// consumed or use them to update retained mirror or element state. Use [`read`](Self::read) when
+    /// applying changes to such state.
+    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
+        match &self.source {
+            RawSignalVec::Rc(vec) => vec.peek(vec.clone(), self.age, sc),
+            RawSignalVec::Slice(slice) => Items::from_slice(slice, self.age),
         }
     }
 }
@@ -145,7 +174,14 @@ impl<'a, T: 'static> Items<'a, T> {
         }
     }
 
-    fn from_data_read(data: Ref<'a, ItemsData<T>>, age: &mut Option<usize>) -> Self {
+    fn from_data_read(
+        data: Ref<'a, ItemsData<T>>,
+        age: &mut Option<usize>,
+        ref_count_ops: &RefCell<RefCountOps>,
+    ) -> Self {
+        let mut ref_count_ops = ref_count_ops.borrow_mut();
+        ref_count_ops.decrement(*age);
+        ref_count_ops.increment();
         let age_since = *age;
         *age = Some(data.changes.end_age());
         Self::from_data(data, age_since)
@@ -756,16 +792,17 @@ impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
     ) -> Items<'_, T> {
         let this = Self::to_this(rc_self);
         this.watch(sc);
-        let data = self.data.borrow();
-        let mut r = self.ref_count_ops.borrow_mut();
-        r.decrement(*age);
-        r.increment();
-        let age_since = *age;
-        *age = Some(data.changes.end_age());
-        Items {
-            items: RawItems::Cell(self.data.borrow()),
-            age_since,
-        }
+        Items::from_data_read(self.data.borrow(), age, &self.ref_count_ops)
+    }
+
+    fn peek(
+        &self,
+        rc_self: Rc<dyn Any>,
+        age: Option<usize>,
+        sc: &mut SignalContext<'_, '_>,
+    ) -> Items<'_, T> {
+        Self::to_this(rc_self).watch(sc);
+        Items::from_data(self.data.borrow(), age)
     }
 
     fn drop_reader(&self, age: usize) {
@@ -949,7 +986,22 @@ where
     ) -> Items<'_, T> {
         let this = Self::to_this(rc_self);
         this.watch(sc);
-        Items::from_data_read(Ref::map(self.data.borrow(), |data| &data.data), age)
+        Items::from_data_read(
+            Ref::map(self.data.borrow(), |data| &data.data),
+            age,
+            &self.ref_counts,
+        )
+    }
+
+    fn peek(
+        &self,
+        rc_self: Rc<dyn Any>,
+        age: Option<usize>,
+        sc: &mut SignalContext<'_, '_>,
+    ) -> Items<'_, T> {
+        let this = Self::to_this(rc_self);
+        this.watch(sc);
+        Items::from_data(Ref::map(self.data.borrow(), |data| &data.data), age)
     }
 
     fn drop_reader(&self, age: usize) {
