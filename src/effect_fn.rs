@@ -19,6 +19,11 @@ mod tests;
 /// However, if the dependency status has not changed since the previous call, it will not be called.
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
+///
+/// # Panics
+///
+/// Panics if a [`Runtime`](crate::core::Runtime) exists and the default [`ReactionPhase`] is not
+/// valid according to its [`RuntimeConfig`](crate::core::RuntimeConfig).
 pub fn effect(f: impl FnMut(&mut SignalContext<'_, '_>) + 'static) -> Subscription {
     effect_in(ReactionPhase::default(), f)
 }
@@ -31,6 +36,11 @@ pub fn effect(f: impl FnMut(&mut SignalContext<'_, '_>) + 'static) -> Subscripti
 /// However, if the dependency status has not changed since the previous call, it will not be called.
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
+///
+/// # Panics
+///
+/// Panics if a [`Runtime`](crate::core::Runtime) exists and `phase` is not valid according to its
+/// [`RuntimeConfig`](crate::core::RuntimeConfig).
 pub fn effect_in(
     phase: ReactionPhase,
     f: impl FnMut(&mut SignalContext<'_, '_>) + 'static,

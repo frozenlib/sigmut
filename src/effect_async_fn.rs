@@ -12,11 +12,21 @@ use crate::{
 mod tests;
 
 /// Call an asynchronous function each time a dependency changes.
+///
+/// # Panics
+///
+/// Panics if a [`Runtime`](crate::core::Runtime) exists and the default [`ReactionPhase`] is not
+/// valid according to its [`RuntimeConfig`](crate::core::RuntimeConfig).
 pub fn effect_async(f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static) -> Subscription {
     effect_async_in(ReactionPhase::default(), f)
 }
 
-/// Call an asynchronous function each time a dependency changes with `ReactionPhase` specified.
+/// Call an asynchronous function each time a dependency changes with [`ReactionPhase`] specified.
+///
+/// # Panics
+///
+/// Panics if a [`Runtime`](crate::core::Runtime) exists and `phase` is not valid according to its
+/// [`RuntimeConfig`](crate::core::RuntimeConfig).
 #[allow(clippy::await_holding_refcell_ref)]
 pub fn effect_async_in(
     phase: ReactionPhase,

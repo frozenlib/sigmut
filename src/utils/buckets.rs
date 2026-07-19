@@ -27,6 +27,9 @@ impl<T> Buckets<T> {
     pub fn is_empty(&self) -> bool {
         self.start == isize::MAX
     }
+    pub fn ids(&self) -> impl Iterator<Item = isize> + '_ {
+        (self.start..=self.last).filter(|&id| !self.buckets[id].is_empty())
+    }
     pub fn set_empty(&mut self) {
         self.start = isize::MAX;
         self.last = isize::MIN;
@@ -73,3 +76,6 @@ impl<T> Buckets<T> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

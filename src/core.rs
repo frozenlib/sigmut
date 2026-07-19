@@ -38,7 +38,7 @@ thread_local! {
 }
 
 struct Globals {
-    is_runtime_exists: bool,
+    runtime_config: Option<RuntimeConfig>,
     runtime: Option<Box<RawRuntime>>,
     unbinds: Vec<SourceBindingsData>,
     actions: Buckets<Action>,
@@ -50,7 +50,7 @@ struct Globals {
 impl Globals {
     fn new() -> Self {
         Self {
-            is_runtime_exists: false,
+            runtime_config: None,
             runtime: None,
             unbinds: Vec::new(),
             actions: Buckets::new(),
@@ -66,16 +66,75 @@ impl Globals {
     fn try_with<T>(f: impl FnOnce(&mut Self) -> T) -> Result<T, AccessError> {
         GLOBALS.try_with(|g| f(&mut g.borrow_mut()))
     }
+    fn prepare_runtime(config: &RuntimeConfig) {
+        Self::with(|g| {
+            if g.runtime_config.is_some() {
+                panic!("Only one `Runtime` can exist in the same thread at the same time.");
+            }
+            for id in g.actions.ids() {
+                config.assert_valid_action_phase(ActionPhase::new(
+                    id.try_into().expect("Action phase ID must fit in `i8`."),
+                ));
+            }
+            for id in g.reactions.ids() {
+                config.assert_valid_reaction_phase(ReactionPhase::new(
+                    id.try_into().expect("Reaction phase ID must fit in `i8`."),
+                ));
+            }
+        });
+    }
+    fn activate_runtime(config: RuntimeConfig) {
+        Self::with(|g| {
+            debug_assert!(g.runtime_config.is_none());
+            g.runtime_config = Some(config);
+        });
+    }
+    fn push_reaction(
+        config: Option<&RuntimeConfig>,
+        reactions: &mut Buckets<Reaction>,
+        phase: ReactionPhase,
+        reaction: Reaction,
+    ) {
+        if let Some(config) = config {
+            config.assert_valid_reaction_phase(phase);
+        }
+        reactions.push(phase.0 as isize, reaction);
+    }
+    fn push_action(
+        config: Option<&RuntimeConfig>,
+        actions: &mut Buckets<Action>,
+        phase: ActionPhase,
+        action: Action,
+    ) {
+        if let Some(config) = config {
+            config.assert_valid_action_phase(phase);
+        }
+        actions.push(phase.0 as isize, action);
+    }
+    fn assert_valid_action_phase(phase: ActionPhase) {
+        Self::with(|g| {
+            if let Some(config) = &g.runtime_config {
+                config.assert_valid_action_phase(phase);
+            }
+        });
+    }
+    fn assert_valid_reaction_phase(phase: ReactionPhase) {
+        Self::with(|g| {
+            if let Some(config) = &g.runtime_config {
+                config.assert_valid_reaction_phase(phase);
+            }
+        });
+    }
     fn schedule_reaction(phase: ReactionPhase, reaction: Reaction) {
         Self::with(|g| {
-            g.reactions.push(phase.0 as isize, reaction);
+            Self::push_reaction(g.runtime_config.as_ref(), &mut g.reactions, phase, reaction);
             g.wake();
         })
     }
 
     fn schedule_action(phase: ActionPhase, action: Action) {
         Self::with(|g| {
-            g.actions.push(phase.0 as isize, action);
+            Self::push_action(g.runtime_config.as_ref(), &mut g.actions, phase, action);
             g.wake();
         })
     }
@@ -130,8 +189,12 @@ impl Globals {
                         self.notifys.push(reaction.clone());
                     }
                     WakeReaction::AsyncAction(action) => {
-                        self.actions
-                            .push(action.phase.0 as isize, action.to_action());
+                        Self::push_action(
+                            self.runtime_config.as_ref(),
+                            &mut self.actions,
+                            action.phase,
+                            action.to_action(),
+                        );
                     }
                 }
             }
@@ -156,7 +219,7 @@ impl Globals {
     }
 
     fn finish_runtime(&mut self) {
-        self.is_runtime_exists = false;
+        self.runtime_config = None;
         self.reactions = Buckets::new();
         self.actions = Buckets::new();
     }
@@ -167,6 +230,96 @@ impl Globals {
         }
         self.need_wake = false;
         self.wakes.requests.0.lock().unwrap().wake();
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+enum ValidPhases {
+    #[default]
+    All,
+    Only(PhaseSet),
+}
+impl ValidPhases {
+    fn from_ids(ids: impl IntoIterator<Item = i8>) -> Self {
+        let mut phases = PhaseSet::default();
+        for id in ids {
+            phases.insert(id);
+        }
+        Self::Only(phases)
+    }
+    fn contains(&self, id: i8) -> bool {
+        match self {
+            Self::All => true,
+            Self::Only(phases) => phases.contains(id),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct PhaseSet([u64; 4]);
+impl PhaseSet {
+    fn index(id: i8) -> usize {
+        (i16::from(id) - i16::from(i8::MIN)) as usize
+    }
+    fn insert(&mut self, id: i8) {
+        let index = Self::index(id);
+        self.0[index / u64::BITS as usize] |= 1 << (index % u64::BITS as usize);
+    }
+    fn contains(&self, id: i8) -> bool {
+        let index = Self::index(id);
+        self.0[index / u64::BITS as usize] & (1 << (index % u64::BITS as usize)) != 0
+    }
+}
+
+/// Configuration for a [`Runtime`].
+///
+/// By default, every [`ActionPhase`] and [`ReactionPhase`] is valid.
+///
+/// # Examples
+///
+/// ```
+/// use sigmut::core::{ActionPhase, ReactionPhase, Runtime, RuntimeConfig};
+///
+/// let config = RuntimeConfig::default()
+///     .with_action_phases([ActionPhase::default(), ActionPhase::new(1)])
+///     .with_reaction_phases([ReactionPhase::default()]);
+/// let _runtime = Runtime::new_with_config(config);
+/// ```
+#[derive(Clone, Debug, Default)]
+pub struct RuntimeConfig {
+    action_phases: ValidPhases,
+    reaction_phases: ValidPhases,
+}
+impl RuntimeConfig {
+    /// Restricts the valid action phases to `phases`.
+    ///
+    /// Passing an empty iterator disables every [`ActionPhase`].
+    #[must_use]
+    pub fn with_action_phases(mut self, phases: impl IntoIterator<Item = ActionPhase>) -> Self {
+        self.action_phases = ValidPhases::from_ids(phases.into_iter().map(|phase| phase.0));
+        self
+    }
+
+    /// Restricts the valid reaction phases to `phases`.
+    ///
+    /// Passing an empty iterator disables every [`ReactionPhase`].
+    #[must_use]
+    pub fn with_reaction_phases(mut self, phases: impl IntoIterator<Item = ReactionPhase>) -> Self {
+        self.reaction_phases = ValidPhases::from_ids(phases.into_iter().map(|phase| phase.0));
+        self
+    }
+
+    fn assert_valid_action_phase(&self, phase: ActionPhase) {
+        assert!(
+            self.action_phases.contains(phase.0),
+            "ActionPhase `{phase}` is not valid for this `Runtime`."
+        );
+    }
+    fn assert_valid_reaction_phase(&self, phase: ReactionPhase) {
+        assert!(
+            self.reaction_phases.contains(phase.0),
+            "ReactionPhase `{phase}` is not valid for this `Runtime`."
+        );
     }
 }
 
@@ -193,20 +346,38 @@ pub enum RuntimeCallError {
 impl std::error::Error for RuntimeCallError {}
 
 impl Runtime {
+    /// Creates a runtime that accepts every action and reaction phase.
+    ///
+    /// # Panics
+    ///
+    /// Panics if another [`Runtime`] exists in the current thread.
     pub fn new() -> Self {
-        if Globals::with(|g| replace(&mut g.is_runtime_exists, true)) {
-            panic!("Only one `Runtime` can exist in the same thread at the same time.");
-        };
+        Self::new_with_config(RuntimeConfig::default())
+    }
+
+    /// Creates a runtime with the specified configuration.
+    ///
+    /// Actions and reactions may be scheduled before a runtime exists. They are checked against
+    /// `config` before the runtime is created.
+    ///
+    /// # Panics
+    ///
+    /// Panics if another [`Runtime`] exists in the current thread, or if an action or reaction has
+    /// already been scheduled in a phase that is not valid according to `config`.
+    pub fn new_with_config(config: RuntimeConfig) -> Self {
+        Globals::prepare_runtime(&config);
+        let raw = Box::new(RawRuntime {
+            rt: RuntimeData::new(),
+            bump: Bump::new(),
+            notifys_buffer: Vec::new(),
+            actions_buffer: Vec::new(),
+            reactions_buffer: Vec::new(),
+            unbinds_buffer: Vec::new(),
+        });
+        Globals::activate_runtime(config);
         Self {
             is_owned: true,
-            raw: Some(Box::new(RawRuntime {
-                rt: RuntimeData::new(),
-                bump: Bump::new(),
-                notifys_buffer: Vec::new(),
-                actions_buffer: Vec::new(),
-                reactions_buffer: Vec::new(),
-                unbinds_buffer: Vec::new(),
-            })),
+            raw: Some(raw),
         }
     }
 
@@ -232,7 +403,12 @@ impl Runtime {
     /// dispatch. Actions for other phases are not dispatched.
     ///
     /// Returns `true` if an action was dispatched.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `phase` is not valid according to the runtime's [`RuntimeConfig`].
     pub fn dispatch_action(&mut self, phase: ActionPhase) -> bool {
+        Globals::assert_valid_action_phase(phase);
         self.as_raw().dispatch_action(phase)
     }
 
@@ -242,7 +418,12 @@ impl Runtime {
     /// phases are not dispatched.
     ///
     /// Returns `true` if at least one action was dispatched.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `phase` is not valid according to the runtime's [`RuntimeConfig`].
     pub fn dispatch_actions(&mut self, phase: ActionPhase) -> bool {
+        Globals::assert_valid_action_phase(phase);
         self.as_raw().dispatch_actions_with(Some(phase))
     }
 
@@ -258,7 +439,12 @@ impl Runtime {
     /// Dispatch scheduled reactions for the specified phase.
     ///
     /// Returns `true` if any reaction was dispatched.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `phase` is not valid according to the runtime's [`RuntimeConfig`].
     pub fn dispatch_reactions(&mut self, phase: ReactionPhase) -> bool {
+        Globals::assert_valid_reaction_phase(phase);
         self.as_raw().dispatch_reactions_with(Some(phase))
     }
 
@@ -306,7 +492,7 @@ impl Runtime {
     /// Tries to call a function with the runtime as an argument.
     pub fn try_call<T>(f: impl FnOnce(&mut Runtime) -> T) -> Result<T, RuntimeCallError> {
         let raw = Globals::try_with(|g| {
-            if !g.is_runtime_exists {
+            if g.runtime_config.is_none() {
                 return Err(RuntimeCallError::RuntimeDoesNotExist);
             }
             g.runtime.take().ok_or(RuntimeCallError::RuntimeUnavailable)
@@ -908,21 +1094,39 @@ impl ActionContext {
 }
 
 /// Spawns a new action.
+///
+/// # Panics
+///
+/// Panics if a [`Runtime`] exists and the default [`ActionPhase`] is not valid according to its
+/// [`RuntimeConfig`].
 pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
     Action::new(f).schedule()
 }
 
 /// Spawns a new action with a specific phase.
+///
+/// # Panics
+///
+/// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
 pub fn spawn_action_in(phase: ActionPhase, f: impl FnOnce(&mut ActionContext) + 'static) {
     Action::new(f).schedule_in(phase)
 }
 
 /// Spawns a new asynchronous action.
+///
+/// # Panics
+///
+/// Panics if a [`Runtime`] exists and the default [`ActionPhase`] is not valid according to its
+/// [`RuntimeConfig`].
 pub fn spawn_action_async(f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static) {
     spawn_action_async_in(ActionPhase::default(), f)
 }
 
 /// Spawns a new asynchronous action with a specific phase.
+///
+/// # Panics
+///
+/// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
 pub fn spawn_action_async_in(
     phase: ActionPhase,
     f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static,
@@ -989,11 +1193,20 @@ impl Action {
     }
 
     /// Schedules this action with a specific phase.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
     pub fn schedule_in(self, phase: ActionPhase) {
         Globals::schedule_action(phase, self)
     }
 
     /// Schedules this action with default phase.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a [`Runtime`] exists and the default [`ActionPhase`] is not valid according to its
+    /// [`RuntimeConfig`].
     pub fn schedule(self) {
         self.schedule_in(ActionPhase::default())
     }
@@ -1215,9 +1428,20 @@ impl Reaction {
         })
     }
 
+    /// Schedules this reaction with a specific phase.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
     pub fn schedule_in(self, phase: ReactionPhase) {
         Globals::schedule_reaction(phase, self)
     }
+    /// Schedules this reaction with the default phase.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a [`Runtime`] exists and the default [`ReactionPhase`] is not valid according to
+    /// its [`RuntimeConfig`].
     pub fn schedule(self) {
         self.schedule_in(ReactionPhase::default());
     }
