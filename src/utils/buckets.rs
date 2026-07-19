@@ -12,6 +12,7 @@ use super::isize_map::ISizeMap;
 #[default(Self::new())]
 pub struct Buckets<T> {
     buckets: ISizeMap<VecDeque<T>>,
+    // Number of stored `T` values across all buckets, not the number of buckets.
     len: usize,
     start: isize,
     last: isize,
