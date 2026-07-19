@@ -92,12 +92,17 @@ impl Globals {
             g.reactions.drain(phase.map(|p| p.0 as isize), reactions);
         })
     }
+    fn get_action(phase: ActionPhase) -> Option<Action> {
+        Self::with(|g| {
+            g.apply_wake();
+            g.actions.pop_front(phase.0 as isize)
+        })
+    }
     fn get_actions(phase: Option<ActionPhase>, actions: &mut Vec<Action>) -> bool {
         Self::with(|g| {
             g.apply_wake();
-            let was_empty = g.actions.is_empty();
             g.actions.drain(phase.map(|p| p.0 as isize), actions);
-            !was_empty
+            !actions.is_empty()
         })
     }
 
@@ -221,16 +226,31 @@ impl Runtime {
         self.as_raw().sc()
     }
 
-    /// Dispatch scheduled actions for the specified phase.
+    /// Dispatches the first scheduled action for the specified phase.
     ///
-    /// Returns `true` if any action was dispatched.
+    /// Actions scheduled while the dispatched action is running remain pending until a later
+    /// dispatch. Actions for other phases are not dispatched.
+    ///
+    /// Returns `true` if an action was dispatched.
+    pub fn dispatch_action(&mut self, phase: ActionPhase) -> bool {
+        self.as_raw().dispatch_action(phase)
+    }
+
+    /// Dispatches all scheduled actions for the specified phase.
+    ///
+    /// This includes actions scheduled for the same phase while dispatching. Actions for other
+    /// phases are not dispatched.
+    ///
+    /// Returns `true` if at least one action was dispatched.
     pub fn dispatch_actions(&mut self, phase: ActionPhase) -> bool {
         self.as_raw().dispatch_actions_with(Some(phase))
     }
 
-    /// Dispatch scheduled actions for all phases.
+    /// Dispatches all scheduled actions for all phases.
     ///
-    /// Returns `true` if any action was dispatched.
+    /// This includes actions scheduled while dispatching.
+    ///
+    /// Returns `true` if at least one action was dispatched.
     pub fn dispatch_all_actions(&mut self) -> bool {
         self.as_raw().dispatch_actions_with(None)
     }
@@ -359,6 +379,13 @@ impl RawRuntime {
             bump: &self.bump,
             sink: None,
         }
+    }
+    fn dispatch_action(&mut self, phase: ActionPhase) -> bool {
+        let Some(action) = Globals::get_action(phase) else {
+            return false;
+        };
+        action.call(self.ac());
+        true
     }
     fn dispatch_actions_with(&mut self, phase: Option<ActionPhase>) -> bool {
         let mut handled = false;
