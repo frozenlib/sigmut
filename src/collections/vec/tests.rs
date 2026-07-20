@@ -161,6 +161,72 @@ fn state_vec_reader_peek_does_not_advance() {
 }
 
 #[test]
+fn state_vec_reader_clones_have_independent_cursors() {
+    let mut rt = Runtime::new();
+    let vec = StateVec::new();
+    let mut reader = vec.reader();
+    let mut unread_clone = reader.clone();
+
+    assert_eq!(reader.read(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
+    vec.borrow_mut(rt.ac()).push(1);
+    {
+        let items = unread_clone.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![VecChange::Insert {
+                index: 0,
+                new_value: &1,
+            }]
+        );
+    }
+    drop(unread_clone);
+
+    let mut reader_clone = reader.clone();
+    {
+        let items = reader.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![VecChange::Insert {
+                index: 0,
+                new_value: &1,
+            }]
+        );
+    }
+
+    vec.borrow_mut(rt.ac()).push(2);
+    {
+        let items = reader_clone.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![
+                VecChange::Insert {
+                    index: 0,
+                    new_value: &1,
+                },
+                VecChange::Insert {
+                    index: 1,
+                    new_value: &2,
+                },
+            ]
+        );
+    }
+    {
+        let items = reader.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![VecChange::Insert {
+                index: 1,
+                new_value: &2,
+            }]
+        );
+    }
+
+    drop(reader_clone);
+    drop(reader);
+    vec.borrow_mut(rt.ac()).push(3);
+}
+
+#[test]
 fn signal_vec_from_scan_peek_retains_changes() {
     let mut rt = Runtime::new();
     let state = State::new(1);
@@ -232,6 +298,74 @@ fn signal_vec_from_scan_peek_retains_changes() {
 }
 
 #[test]
+fn signal_vec_from_scan_reader_clones_have_independent_cursors() {
+    let mut rt = Runtime::new();
+    let state = State::new(1);
+    let state_for_scan = state.clone();
+    let vec = SignalVec::from_scan(move |items, sc| {
+        let value = state_for_scan.get(sc);
+        if items.is_empty() {
+            items.push(value);
+        } else if items[0] != value {
+            items.set(0, value);
+        }
+    });
+    let mut reader = vec.reader();
+
+    let _ = reader.read(&mut rt.sc());
+    let mut reader_clone = reader.clone();
+
+    state.set(2, rt.ac());
+    {
+        let items = reader.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![VecChange::Set {
+                index: 0,
+                old_value: &1,
+                new_value: &2,
+            }]
+        );
+    }
+
+    state.set(3, rt.ac());
+    {
+        let items = reader_clone.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![
+                VecChange::Set {
+                    index: 0,
+                    old_value: &1,
+                    new_value: &2,
+                },
+                VecChange::Set {
+                    index: 0,
+                    old_value: &2,
+                    new_value: &3,
+                },
+            ]
+        );
+    }
+    {
+        let items = reader.read(&mut rt.sc());
+        assert_eq!(
+            items.changes().collect::<Vec<_>>(),
+            vec![VecChange::Set {
+                index: 0,
+                old_value: &2,
+                new_value: &3,
+            }]
+        );
+    }
+
+    drop(reader_clone);
+    drop(reader);
+    state.set(4, rt.ac());
+    assert_eq!(vec.borrow(&mut rt.sc()), [4]);
+}
+
+#[test]
 fn immutable_signal_vec_reader_peek_does_not_advance() {
     let mut rt = Runtime::new();
     let sources: [SignalVec<i32>; 2] = [SignalVec::from(&[1, 2]), vec![1, 2].into()];
@@ -271,6 +405,51 @@ fn immutable_signal_vec_reader_peek_does_not_advance() {
             );
         }
         assert_eq!(reader.peek(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
+    }
+}
+
+#[test]
+fn immutable_signal_vec_reader_clones_have_independent_cursors() {
+    let mut rt = Runtime::new();
+    let sources: [SignalVec<i32>; 2] = [SignalVec::from(&[1, 2]), vec![1, 2].into()];
+
+    for vec in sources {
+        let mut reader = vec.reader();
+        let mut reader_clone = reader.clone();
+
+        let _ = reader.read(&mut rt.sc());
+        assert_eq!(reader.peek(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
+        assert_eq!(
+            reader
+                .clone()
+                .peek(&mut rt.sc())
+                .changes()
+                .collect::<Vec<_>>(),
+            []
+        );
+        {
+            let items = reader_clone.read(&mut rt.sc());
+            assert_eq!(
+                items.changes().collect::<Vec<_>>(),
+                vec![
+                    VecChange::Insert {
+                        index: 0,
+                        new_value: &1,
+                    },
+                    VecChange::Insert {
+                        index: 1,
+                        new_value: &2,
+                    },
+                ]
+            );
+        }
+        assert_eq!(
+            reader_clone
+                .peek(&mut rt.sc())
+                .changes()
+                .collect::<Vec<_>>(),
+            []
+        );
     }
 }
 

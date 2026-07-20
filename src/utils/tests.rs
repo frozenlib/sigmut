@@ -32,10 +32,17 @@ fn changes_and_ref_count_ops() {
     ops.apply(&mut changes);
     changes.push("a");
 
+    ops.increment_at(0);
     ops.decrement(Some(0));
     ops.apply(&mut changes);
 
     let mut cleaned = Vec::new();
+    changes.clean(|d| cleaned.push(d));
+    assert_eq!(cleaned, Vec::<&str>::new());
+    assert_eq!(changes.items(0).copied().collect::<Vec<_>>(), vec!["a"]);
+
+    ops.decrement(Some(0));
+    ops.apply(&mut changes);
     changes.clean(|d| cleaned.push(d));
     assert_eq!(cleaned, vec!["a"]);
     let remaining = changes.items(changes.end_age()).next().is_none();

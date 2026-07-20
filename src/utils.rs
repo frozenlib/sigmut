@@ -115,16 +115,23 @@ impl<T> Changes<T> {
             .checked_add(count)
             .expect("ref_count overflow");
     }
+    fn increment_ref_count_at(&mut self, age: usize) {
+        let ref_count = self.ref_count_mut(age);
+        *ref_count = ref_count.checked_add(1).expect("ref_count overflow");
+    }
     fn decrement_ref_count(&mut self, age: usize) {
-        let index = self.age_to_index(age);
-        let ref_count = if index == self.items.len() {
-            &mut self.end_ref_count
-        } else {
-            &mut self.items[index].ref_count
-        };
+        let ref_count = self.ref_count_mut(age);
         *ref_count = ref_count
             .checked_sub(1)
             .expect("too many calls to `decrement_ref_count`");
+    }
+    fn ref_count_mut(&mut self, age: usize) -> &mut usize {
+        let index = self.age_to_index(age);
+        if index == self.items.len() {
+            &mut self.end_ref_count
+        } else {
+            &mut self.items[index].ref_count
+        }
     }
     pub fn end_age(&self) -> usize {
         self.age_base.wrapping_add(self.items.len())
@@ -152,6 +159,7 @@ impl<T> Changes<T> {
 
 pub(crate) struct RefCountOps {
     increments: usize,
+    increment_ages: Vec<usize>,
     decrement_ages: Vec<usize>,
 }
 
@@ -159,11 +167,15 @@ impl RefCountOps {
     pub fn new() -> Self {
         Self {
             increments: 0,
+            increment_ages: Vec::new(),
             decrement_ages: Vec::new(),
         }
     }
     pub fn increment(&mut self) {
         self.increments += 1;
+    }
+    pub fn increment_at(&mut self, age: usize) {
+        self.increment_ages.push(age);
     }
     pub fn decrement(&mut self, age: Option<usize>) {
         if let Some(age) = age {
@@ -173,6 +185,9 @@ impl RefCountOps {
     pub fn apply<T>(&mut self, items: &mut Changes<T>) {
         items.increment_ref_count(self.increments);
         self.increments = 0;
+        while let Some(age) = self.increment_ages.pop() {
+            items.increment_ref_count_at(age);
+        }
         while let Some(age) = self.decrement_ages.pop() {
             items.decrement_ref_count(age);
         }

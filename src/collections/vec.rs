@@ -71,6 +71,7 @@ impl<T: 'static> SignalVecNode<T> for Vec<T> {
     fn advance_reader(&self, _age: Option<usize>) -> usize {
         0
     }
+    fn clone_reader(&self, _age: usize) {}
 
     fn drop_reader(&self, _age: usize) {}
 }
@@ -96,6 +97,7 @@ trait SignalVecNode<T>: Any {
     ) -> Items<'_, T>;
     #[must_use]
     fn advance_reader(&self, age: Option<usize>) -> usize;
+    fn clone_reader(&self, age: usize);
     fn drop_reader(&self, age: usize);
 }
 
@@ -105,9 +107,28 @@ enum RawSignalVec<T: 'static> {
     Slice(&'static [T]),
 }
 
+/// Reads snapshots and changes from a signal vector.
+///
+/// A clone starts at the same cursor position. Subsequent [`read`](Self::read) calls advance each
+/// reader independently.
 pub struct SignalVecReader<T: 'static> {
     source: RawSignalVec<T>,
     age: Option<usize>,
+}
+
+impl<T: 'static> Clone for SignalVecReader<T> {
+    fn clone(&self) -> Self {
+        let source = self.source.clone();
+        if let Some(age) = self.age
+            && let RawSignalVec::Rc(vec) = &source
+        {
+            vec.clone_reader(age);
+        }
+        Self {
+            source,
+            age: self.age,
+        }
+    }
 }
 
 impl<T: 'static> SignalVecReader<T> {
@@ -778,6 +799,9 @@ impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
     fn advance_reader(&self, age: Option<usize>) -> usize {
         self.data.borrow().advance_reader(age, &self.ref_count_ops)
     }
+    fn clone_reader(&self, age: usize) {
+        self.ref_count_ops.borrow_mut().increment_at(age)
+    }
 
     fn drop_reader(&self, age: usize) {
         self.ref_count_ops.borrow_mut().decrement(Some(age))
@@ -974,6 +998,9 @@ where
             .borrow()
             .data
             .advance_reader(age, &self.ref_counts)
+    }
+    fn clone_reader(&self, age: usize) {
+        self.ref_counts.borrow_mut().increment_at(age)
     }
 
     fn drop_reader(&self, age: usize) {
