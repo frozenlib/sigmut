@@ -60,14 +60,6 @@ impl<T: 'static> SignalVecNode<T> for Vec<T> {
     fn items(&self, _rc_self: Rc<dyn Any>, _oc: &mut SignalContext<'_, '_>) -> Items<'_, T> {
         Items::from_slice_items(self)
     }
-    fn read(
-        &self,
-        _rc_self: Rc<dyn Any>,
-        age: &mut Option<usize>,
-        _oc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T> {
-        Items::from_slice_read(self, age)
-    }
     fn peek(
         &self,
         _rc_self: Rc<dyn Any>,
@@ -75,6 +67,9 @@ impl<T: 'static> SignalVecNode<T> for Vec<T> {
         _sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T> {
         Items::from_slice(self, age)
+    }
+    fn advance_reader(&self, _age: Option<usize>) -> usize {
+        0
     }
 
     fn drop_reader(&self, _age: usize) {}
@@ -93,18 +88,14 @@ impl<const N: usize, T> From<&'static [T; N]> for SignalVec<T> {
 
 trait SignalVecNode<T>: Any {
     fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) -> Items<'_, T>;
-    fn read(
-        &self,
-        rc_self: Rc<dyn Any>,
-        age: &mut Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T>;
     fn peek(
         &self,
         rc_self: Rc<dyn Any>,
         age: Option<usize>,
         sc: &mut SignalContext<'_, '_>,
     ) -> Items<'_, T>;
+    #[must_use]
+    fn advance_reader(&self, age: Option<usize>) -> usize;
     fn drop_reader(&self, age: usize);
 }
 
@@ -121,9 +112,18 @@ pub struct SignalVecReader<T: 'static> {
 
 impl<T: 'static> SignalVecReader<T> {
     pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
+        let age = self.age;
         match &self.source {
-            RawSignalVec::Rc(vec) => vec.read(vec.clone(), &mut self.age, sc),
-            RawSignalVec::Slice(slice) => Items::from_slice_read(slice, &mut self.age),
+            RawSignalVec::Rc(vec) => {
+                let items = vec.peek(vec.clone(), age, sc);
+                self.age = Some(vec.advance_reader(age));
+                items
+            }
+            RawSignalVec::Slice(slice) => {
+                let items = Items::from_slice(slice, age);
+                self.age = Some(0);
+                items
+            }
         }
     }
 
@@ -159,11 +159,6 @@ pub struct Items<'a, T: 'static> {
 }
 
 impl<'a, T: 'static> Items<'a, T> {
-    fn from_slice_read(slice: &'a [T], age: &mut Option<usize>) -> Self {
-        let age_since = *age;
-        *age = Some(0);
-        Self::from_slice(slice, age_since)
-    }
     fn from_slice_items(slice: &'a [T]) -> Self {
         Self::from_slice(slice, Some(0))
     }
@@ -172,19 +167,6 @@ impl<'a, T: 'static> Items<'a, T> {
             items: RawItems::Slice(slice),
             age_since,
         }
-    }
-
-    fn from_data_read(
-        data: Ref<'a, ItemsData<T>>,
-        age: &mut Option<usize>,
-        ref_count_ops: &RefCell<RefCountOps>,
-    ) -> Self {
-        let mut ref_count_ops = ref_count_ops.borrow_mut();
-        ref_count_ops.decrement(*age);
-        ref_count_ops.increment();
-        let age_since = *age;
-        *age = Some(data.changes.end_age());
-        Self::from_data(data, age_since)
     }
 
     fn from_data_items(data: Ref<'a, ItemsData<T>>) -> Self {
@@ -784,17 +766,6 @@ impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
         Items::from_data_items(self.data.borrow())
     }
 
-    fn read(
-        &self,
-        rc_self: Rc<dyn Any>,
-        age: &mut Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T> {
-        let this = Self::to_this(rc_self);
-        this.watch(sc);
-        Items::from_data_read(self.data.borrow(), age, &self.ref_count_ops)
-    }
-
     fn peek(
         &self,
         rc_self: Rc<dyn Any>,
@@ -803,6 +774,9 @@ impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
     ) -> Items<'_, T> {
         Self::to_this(rc_self).watch(sc);
         Items::from_data(self.data.borrow(), age)
+    }
+    fn advance_reader(&self, age: Option<usize>) -> usize {
+        self.data.borrow().advance_reader(age, &self.ref_count_ops)
     }
 
     fn drop_reader(&self, age: usize) {
@@ -885,6 +859,13 @@ impl<T: 'static> ItemsData<T> {
         self.changes
             .items(age)
             .map(|x| x.to_signal_vec_change(&self.values))
+    }
+    #[must_use]
+    fn advance_reader(&self, age: Option<usize>, ref_count_ops: &RefCell<RefCountOps>) -> usize {
+        let mut ref_count_ops = ref_count_ops.borrow_mut();
+        ref_count_ops.decrement(age);
+        ref_count_ops.increment();
+        self.changes.end_age()
     }
 
     fn sort_as(&mut self, mut compare: impl FnMut(&T, &T) -> Ordering, stable: bool) {
@@ -978,21 +959,6 @@ where
         Items::from_data_items(Ref::map(self.data.borrow(), |data| &data.data))
     }
 
-    fn read(
-        &self,
-        rc_self: Rc<dyn Any>,
-        age: &mut Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T> {
-        let this = Self::to_this(rc_self);
-        this.watch(sc);
-        Items::from_data_read(
-            Ref::map(self.data.borrow(), |data| &data.data),
-            age,
-            &self.ref_counts,
-        )
-    }
-
     fn peek(
         &self,
         rc_self: Rc<dyn Any>,
@@ -1002,6 +968,12 @@ where
         let this = Self::to_this(rc_self);
         this.watch(sc);
         Items::from_data(Ref::map(self.data.borrow(), |data| &data.data), age)
+    }
+    fn advance_reader(&self, age: Option<usize>) -> usize {
+        self.data
+            .borrow()
+            .data
+            .advance_reader(age, &self.ref_counts)
     }
 
     fn drop_reader(&self, age: usize) {
