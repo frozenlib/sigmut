@@ -192,25 +192,22 @@ struct ScanFnBool<F>(F);
 
 trait DiscardFn<St> {
     type ScheduledCell: DiscardScheduledCell;
-    fn call(&self, st: &mut St) -> bool;
+    fn call(&self, st: &mut St);
 }
 
 struct DiscardFnKeep;
 
 impl<St> DiscardFn<St> for DiscardFnKeep {
     type ScheduledCell = ();
-    fn call(&self, _: &mut St) -> bool {
-        true
-    }
+    fn call(&self, _: &mut St) {}
 }
 
 struct DiscardFnVoid<F>(F);
 
 impl<St, F: Fn(&mut St)> DiscardFn<St> for DiscardFnVoid<F> {
     type ScheduledCell = Cell<bool>;
-    fn call(&self, st: &mut St) -> bool {
+    fn call(&self, st: &mut St) {
         (self.0)(st);
-        false
     }
 }
 

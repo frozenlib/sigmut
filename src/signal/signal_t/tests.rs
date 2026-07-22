@@ -1,4 +1,8 @@
-use std::{cell::RefCell, rc::Rc, task::Poll};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+    task::Poll,
+};
 
 use crate::{
     ReactionPhase, Signal, SignalBuilder, State, StateRef,
@@ -129,6 +133,23 @@ fn new_discard() {
     cr.verify(());
     rt.flush();
     cr.verify("drop");
+}
+
+#[test]
+fn new_recomputes_after_discard() {
+    let mut rt = Runtime::new();
+    let calls = Rc::new(Cell::new(0));
+    let s = Signal::new({
+        let calls = calls.clone();
+        move |_| {
+            calls.set(calls.get() + 1);
+            calls.get()
+        }
+    });
+
+    assert_eq!(s.get(&mut rt.sc()), 1);
+    assert!(rt.dispatch_discards());
+    assert_eq!(s.get(&mut rt.sc()), 2);
 }
 
 #[test]

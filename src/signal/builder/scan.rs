@@ -238,9 +238,8 @@ where
         self.discard_scheduled.reset_schedule();
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();
-            if self.discard.call(&mut d.state) {
-                d.sb.clear(rc);
-            }
+            self.discard.call(&mut d.state);
+            d.sb.clear(rc);
         }
     }
 }
