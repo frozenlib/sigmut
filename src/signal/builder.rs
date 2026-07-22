@@ -199,7 +199,9 @@ struct DiscardFnKeep;
 
 impl<St> DiscardFn<St> for DiscardFnKeep {
     type ScheduledCell = ();
-    fn call(&self, _: &mut St) {}
+    fn call(&self, _: &mut St) {
+        unreachable!()
+    }
 }
 
 struct DiscardFnVoid<F>(F);
