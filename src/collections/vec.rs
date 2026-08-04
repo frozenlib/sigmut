@@ -630,7 +630,11 @@ impl<T: Serialize> Serialize for StateVec<T> {
     where
         S: serde::Serializer,
     {
-        serializer.collect_seq(self.0.borrow_untracked().current().iter())
+        let model = self
+            .0
+            .try_borrow_contextless()
+            .map_err(serde::ser::Error::custom)?;
+        serializer.collect_seq(model.current().iter())
     }
 }
 impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for StateVec<T> {

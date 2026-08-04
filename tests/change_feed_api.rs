@@ -33,6 +33,19 @@ impl StateList {
     }
 }
 
+impl serde::Serialize for StateList {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let model = self
+            .0
+            .try_borrow_contextless()
+            .map_err(serde::ser::Error::custom)?;
+        serde::Serialize::serialize(&model.current().0, serializer)
+    }
+}
+
 struct SignalList(ChangeFeedSignal<ListModel>);
 
 impl SignalList {
@@ -99,14 +112,32 @@ fn external_state_facade_uses_public_change_feed_api() {
 
     {
         let items = reader.read(&mut runtime.sc());
-        assert_eq!(items.values(), &[]);
-        assert_eq!(items.changes(), []);
+        assert_eq!(items.values(), &[] as &[i32]);
+        assert_eq!(items.changes(), Vec::<usize>::new());
     }
 
     state.borrow_mut(runtime.ac()).push(10);
     let items = reader.read(&mut runtime.sc());
     assert_eq!(items.values(), &[10]);
     assert_eq!(items.changes(), [0]);
+}
+
+#[test]
+fn external_state_facade_serializes_with_contextless_borrow() {
+    let mut runtime = Runtime::new();
+    let state = StateList::new();
+    state.borrow_mut(runtime.ac()).push(10);
+
+    assert_eq!(serde_json::to_string(&state).unwrap(), "[10]");
+}
+
+#[test]
+fn external_state_facade_serialization_reports_borrow_conflict() {
+    let mut runtime = Runtime::new();
+    let state = StateList::new();
+    let _items = state.borrow_mut(runtime.ac());
+
+    assert!(serde_json::to_string(&state).is_err());
 }
 
 #[test]

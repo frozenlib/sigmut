@@ -749,3 +749,12 @@ fn state_vec_serde_preserves_values_and_starts_readers_as_initial() {
         ]
     );
 }
+
+#[test]
+fn state_vec_serialization_reports_borrow_conflict() {
+    let mut rt = Runtime::new();
+    let vec: StateVec<_> = [1, 2].into_iter().collect();
+    let _items = vec.borrow_mut(rt.ac());
+
+    assert!(serde_json::to_string(&vec).is_err());
+}

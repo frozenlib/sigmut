@@ -93,6 +93,31 @@ fn ref_drop_applies_deferred_reader_advance() {
 }
 
 #[test]
+fn contextless_borrow_returns_materialized_current_without_advancing_reader() {
+    let mut rt = Runtime::new();
+    let state = ChangeFeedState::new(TestModel {
+        value: 1,
+        released: Rc::new(RefCell::new(Vec::new())),
+    });
+    let mut reader = state.reader();
+
+    assert_eq!(state.try_borrow_contextless().unwrap().current().value, 1);
+    assert_eq!(delta(&reader.read(&mut rt.sc())), None);
+}
+
+#[test]
+fn contextless_borrow_returns_error_while_mutably_borrowed() {
+    let mut rt = Runtime::new();
+    let state = ChangeFeedState::new(TestModel {
+        value: 1,
+        released: Rc::new(RefCell::new(Vec::new())),
+    });
+    let _edit = state.borrow_mut(rt.ac());
+
+    assert!(state.try_borrow_contextless().is_err());
+}
+
+#[test]
 fn scan_records_changes_incrementally() {
     let mut rt = Runtime::new();
     let source = State::new(1);

@@ -142,6 +142,16 @@ impl<M: ChangeFeedModel> ChangeFeedStorage<M> {
         }
     }
 
+    fn try_borrow_current(&self) -> Result<ChangeFeedRef<'_, M>, std::cell::BorrowError> {
+        let history = self.0.history.try_borrow()?;
+        let since = Some(history.end_cursor());
+        Ok(ChangeFeedRef {
+            storage: self,
+            history: Some(history),
+            since,
+        })
+    }
+
     pub(crate) fn current_ref(&self) -> Ref<'_, M> {
         self.compact();
         Ref::map(self.0.history.borrow(), |history| &history.current)
@@ -457,9 +467,16 @@ impl<M: ChangeFeedModel> ChangeFeedState<M> {
         self.0.storage.borrow_current()
     }
 
-    /// Borrows the current model value without registering a dependency.
-    pub fn borrow_untracked(&self) -> ChangeFeedRef<'_, M> {
-        self.0.storage.borrow_current()
+    /// Tries to borrow the already materialized current model without a context.
+    ///
+    /// Prefer [`Self::borrow`] for normal reads. For a non-tracking reactive read, use
+    /// [`SignalContext::untrack`] around [`Self::borrow`]. This low-level API is intended for
+    /// operations that cannot receive a context, such as serialization or diagnostic formatting.
+    ///
+    /// This method does not register a dependency, evaluate derived state, or read or advance a
+    /// reader cursor. It returns [`std::cell::BorrowError`] when the model is mutably borrowed.
+    pub fn try_borrow_contextless(&self) -> Result<ChangeFeedRef<'_, M>, std::cell::BorrowError> {
+        self.0.storage.try_borrow_current()
     }
 
     /// Mutably borrows the model for a change-recording edit.
