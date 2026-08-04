@@ -1,9 +1,9 @@
 //! Change feed building blocks for reactive collection types.
 //!
-//! A change feed model stores its latest value together with model-specific changes. A reader's
-//! first read is [`ChangeFeedDelta::Initial`]; later reads provide the recorded changes through
-//! [`ChangeFeedDelta::Changes`]. Unread changes remain available until the reader advances or is
-//! dropped. Use [`ChangeFeedState`] for mutable state and [`ChangeFeedSignal::from_scan`] for
+//! A change feed model stores its current value together with model-specific changes. A reader's
+//! first read is [`ChangeFeedDelta::Initial`]; later reads provide the incremental delta through
+//! [`ChangeFeedDelta::Incremental`]. Unread changes remain available until the reader advances or
+//! is dropped. Use [`ChangeFeedState`] for mutable state and [`ChangeFeedSignal::from_scan`] for
 //! derived values.
 //!
 //! Mutating [`ChangeFeedRefMut::current_mut`] does not record a change by itself. Every observable
@@ -40,10 +40,13 @@
 //!     ChangeFeedDelta::Initial,
 //! ));
 //!
-//! set(&mut state.borrow_mut(runtime.ac()), 1);
+//! let mut edit = state.borrow_mut(runtime.ac());
+//! set(&mut edit, 1);
+//! assert_eq!(edit.changes().copied().collect::<Vec<_>>(), [0]);
+//! drop(edit);
 //! match reader.read(&mut runtime.sc()).delta() {
 //!     ChangeFeedDelta::Initial => unreachable!(),
-//!     ChangeFeedDelta::Changes(changes) => {
+//!     ChangeFeedDelta::Incremental(changes) => {
 //!         assert_eq!(changes.copied().collect::<Vec<_>>(), [0]);
 //!     }
 //! }
@@ -70,7 +73,7 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-/// Defines the latest value and change type exposed through a change feed.
+/// Defines the current value and change type exposed through a change feed.
 pub trait ChangeFeedModel: 'static {
     /// A model-specific recorded change.
     type Change: 'static;
@@ -208,18 +211,18 @@ impl<M: ChangeFeedModel> ChangeFeedStorage<M> {
     }
 }
 
-/// Distinguishes an initial read from changes after a reader cursor.
+/// Distinguishes an initial read from an incremental delta after a reader cursor.
 #[must_use]
 pub enum ChangeFeedDelta<I> {
     /// No earlier reader cursor exists.
     Initial,
-    /// Changes recorded after the earlier reader cursor.
-    Changes(I),
+    /// An incremental delta of changes recorded after the earlier reader cursor.
+    Incremental(I),
 }
 
-/// A borrowed latest value and the changes after a reader cursor.
+/// A borrowed current value and delta after a reader cursor.
 ///
-/// This guard cannot access an earlier value. The latest value and referenced changes remain
+/// This guard cannot access an earlier value. The current value and referenced changes remain
 /// stable until the guard is dropped.
 pub struct ChangeFeedRef<'a, M: ChangeFeedModel> {
     storage: &'a ChangeFeedStorage<M>,
@@ -237,11 +240,11 @@ impl<M: ChangeFeedModel> ChangeFeedRef<'_, M> {
         &self.history().current
     }
 
-    /// Returns whether this is an initial read or changes after an earlier read.
+    /// Returns whether this is an initial read or an incremental delta after an earlier read.
     pub fn delta(&self) -> ChangeFeedDelta<impl Iterator<Item = &M::Change> + '_> {
         match self.since {
             None => ChangeFeedDelta::Initial,
-            Some(cursor) => ChangeFeedDelta::Changes(self.history().changes.items(cursor.0)),
+            Some(cursor) => ChangeFeedDelta::Incremental(self.history().changes.items(cursor.0)),
         }
     }
 }
@@ -306,6 +309,14 @@ impl<'a, M: ChangeFeedModel> ChangeFeedRefMut<'a, M> {
     /// for every observable mutation before this edit is dropped.
     pub fn current_mut(&mut self) -> &mut M {
         &mut self.history_mut().current
+    }
+
+    /// Returns the changes recorded by this edit, in recording order.
+    ///
+    /// The returned changes are already reflected in [`current`](Self::current). Changes that
+    /// existed before this edit began are not included.
+    pub fn changes(&self) -> impl Iterator<Item = &M::Change> + '_ {
+        self.history().changes.items(self.start.0)
     }
 
     /// Appends a model-specific change to the feed.
@@ -379,7 +390,7 @@ trait ChangeFeedNode<M: ChangeFeedModel>: Any {
     fn storage(&self) -> &ChangeFeedStorage<M>;
 }
 
-/// A reactive signal that exposes its latest value and model-specific changes.
+/// A reactive signal that exposes its current value and model-specific changes.
 #[derive(Ex)]
 #[derive_ex(Clone(bound()))]
 pub struct ChangeFeedSignal<M: ChangeFeedModel>(Rc<dyn ChangeFeedNode<M>>);
@@ -425,13 +436,13 @@ pub struct ChangeFeedReader<M: ChangeFeedModel> {
 }
 
 impl<M: ChangeFeedModel> ChangeFeedReader<M> {
-    /// Borrows the latest value and advances this reader to the current end.
+    /// Borrows the current value and advances this reader to the current end.
     pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> ChangeFeedRef<'a, M> {
         self.source.watch(sc);
         self.cursor.read()
     }
 
-    /// Borrows the latest value without advancing this reader.
+    /// Borrows the current value without advancing this reader.
     pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> ChangeFeedRef<'a, M> {
         self.source.watch(sc);
         self.cursor.peek()
@@ -447,7 +458,7 @@ impl<M: ChangeFeedModel> Clone for ChangeFeedReader<M> {
     }
 }
 
-/// Mutable reactive state that exposes its latest value and model-specific changes.
+/// Mutable reactive state that exposes its current value and model-specific changes.
 #[derive(Ex)]
 #[derive_ex(Clone(bound()))]
 pub struct ChangeFeedState<M: ChangeFeedModel>(Rc<StateNode<M>>);

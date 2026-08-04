@@ -78,10 +78,10 @@ impl ListItems<'_> {
         &self.0.current().0
     }
 
-    fn changes(&self) -> Vec<usize> {
+    fn delta(&self) -> Vec<usize> {
         match self.0.delta() {
             ChangeFeedDelta::Initial => (0..self.0.current().0.len()).collect(),
-            ChangeFeedDelta::Changes(changes) => changes
+            ChangeFeedDelta::Incremental(changes) => changes
                 .map(|change| match change {
                     ListChange::Push { index } => *index,
                 })
@@ -102,6 +102,15 @@ impl ListItemsMut<'_> {
         self.0.current_mut().0.push(value);
         self.0.record(ListChange::Push { index });
     }
+
+    fn changes(&self) -> Vec<usize> {
+        self.0
+            .changes()
+            .map(|change| match change {
+                ListChange::Push { index } => *index,
+            })
+            .collect()
+    }
 }
 
 #[test]
@@ -113,13 +122,13 @@ fn external_state_facade_uses_public_change_feed_api() {
     {
         let items = reader.read(&mut runtime.sc());
         assert_eq!(items.values(), &[] as &[i32]);
-        assert_eq!(items.changes(), Vec::<usize>::new());
+        assert_eq!(items.delta(), Vec::<usize>::new());
     }
 
     state.borrow_mut(runtime.ac()).push(10);
     let items = reader.read(&mut runtime.sc());
     assert_eq!(items.values(), &[10]);
-    assert_eq!(items.changes(), [0]);
+    assert_eq!(items.delta(), [0]);
 }
 
 #[test]
@@ -157,11 +166,25 @@ fn external_scan_facade_owns_the_same_change_feed_ref_mut() {
     {
         let items = reader.read(&mut runtime.sc());
         assert_eq!(items.values(), &[0]);
-        assert_eq!(items.changes(), [0]);
+        assert_eq!(items.delta(), [0]);
     }
 
     count.set(2, runtime.ac());
     let items = reader.read(&mut runtime.sc());
     assert_eq!(items.values(), &[0, 1]);
-    assert_eq!(items.changes(), [1]);
+    assert_eq!(items.delta(), [1]);
+}
+
+#[test]
+fn external_edit_exposes_only_its_recorded_changes() {
+    let mut runtime = Runtime::new();
+    let state = StateList::new();
+    state.borrow_mut(runtime.ac()).push(10);
+
+    let mut items = state.borrow_mut(runtime.ac());
+    assert_eq!(items.changes(), Vec::<usize>::new());
+    items.push(20);
+    items.push(30);
+
+    assert_eq!((items.len(), items.changes()), (3, vec![1, 2]));
 }

@@ -140,14 +140,17 @@ impl<'a, T: 'static> Items<'a, T> {
         Iter(self.value.current().0.items.iter())
     }
 
-    pub fn changes(&self) -> impl Iterator<Item = SlabMapChange<'_, T>> {
+    /// Returns the delta needed to reproduce the current items from the reader's baseline.
+    ///
+    /// An initial read returns an [`Insert`](SlabMapChange::Insert) for every current item.
+    pub fn delta(&self) -> impl Iterator<Item = SlabMapChange<'_, T>> {
         use iter_n::iter2::*;
         match self.value.delta() {
             ChangeFeedDelta::Initial => self
                 .iter()
                 .map(|(key, new_value)| SlabMapChange::Insert { key, new_value })
                 .into_iter0(),
-            ChangeFeedDelta::Changes(changes) => changes
+            ChangeFeedDelta::Incremental(changes) => changes
                 .map(|change| {
                     let value = &self.value.current().0.items[change.key].value;
                     match change.action {

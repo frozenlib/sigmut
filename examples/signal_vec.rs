@@ -10,7 +10,7 @@ fn main() {
 
     let mut r = s.to_signal_vec().reader();
     let _e = SignalBuilder::from_scan(0, move |sum, sc| {
-        for change in r.read(sc).changes() {
+        for change in r.read(sc).delta() {
             match change {
                 VecChange::Insert { new_value, .. } => *sum += new_value,
                 VecChange::Remove { old_value, .. } => *sum -= old_value,

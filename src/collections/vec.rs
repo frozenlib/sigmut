@@ -90,7 +90,7 @@ enum RawSignalVec<T: 'static> {
     Slice(&'static [T]),
 }
 
-/// Reads latest values and changes from a signal vector.
+/// Reads current values and deltas from a signal vector.
 ///
 /// A clone starts at the same cursor position. Subsequent [`read`](Self::read) calls advance each
 /// reader independently.
@@ -123,13 +123,13 @@ impl<T: 'static> SignalVecReader<T> {
         }
     }
 
-    /// Returns the current items and changes since the last [`read`](Self::read) without advancing the reader.
+    /// Returns the current items and delta since the last [`read`](Self::read) without advancing the reader.
     ///
-    /// Before the first `read`, the changes contain an insertion for every current item.
+    /// Before the first `read`, the delta contains an insertion for every current item.
     ///
     /// This method registers the same signal dependency as [`read`](Self::read). Because a subsequent
-    /// `peek` or `read` reports the same changes again, callers must not treat the returned changes as
-    /// consumed or use them to update retained mirror or element state. Use [`read`](Self::read) when
+    /// `peek` or `read` reports the same delta again, callers must not treat the returned delta as
+    /// consumed or use it to update retained mirror or element state. Use [`read`](Self::read) when
     /// applying changes to such state.
     pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
         match &self.0 {
@@ -175,12 +175,15 @@ impl<'a, T: 'static> Items<'a, T> {
     pub fn get(&self, index: usize) -> Option<&T> {
         self.items.get(index)
     }
-    pub fn changes(&self) -> impl Iterator<Item = VecChange<'_, T>> + '_ {
+    /// Returns the delta needed to reproduce the current items from the reader's baseline.
+    ///
+    /// An initial read returns an [`Insert`](VecChange::Insert) for every current item.
+    pub fn delta(&self) -> impl Iterator<Item = VecChange<'_, T>> + '_ {
         use iter_n::iter3::*;
         match &self.items {
             RawItems::ChangeFeed(value) => match value.delta() {
                 ChangeFeedDelta::Initial => self.initial_changes().into_iter0(),
-                ChangeFeedDelta::Changes(changes) => changes
+                ChangeFeedDelta::Incremental(changes) => changes
                     .map(|change| change.to_signal_vec_change(&value.current().values))
                     .into_iter1(),
             },

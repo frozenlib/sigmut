@@ -27,12 +27,51 @@ fn set(edit: &mut ChangeFeedRefMut<'_, TestModel>, value: i32) {
 fn delta(value: &ChangeFeedRef<'_, TestModel>) -> Option<Vec<i32>> {
     match value.delta() {
         ChangeFeedDelta::Initial => None,
-        ChangeFeedDelta::Changes(changes) => Some(changes.copied().collect()),
+        ChangeFeedDelta::Incremental(changes) => Some(changes.copied().collect()),
     }
 }
 
 #[test]
-fn reader_distinguishes_initial_and_incremental_changes() {
+fn edit_changes_are_empty_without_records() {
+    let mut rt = Runtime::new();
+    let state = ChangeFeedState::new(TestModel {
+        value: 0,
+        released: Rc::new(RefCell::new(Vec::new())),
+    });
+    let edit = state.borrow_mut(rt.ac());
+
+    assert_eq!(
+        edit.changes().copied().collect::<Vec<_>>(),
+        Vec::<i32>::new()
+    );
+}
+
+#[test]
+fn edit_changes_are_ordered_and_exclude_changes_before_the_edit() {
+    let mut rt = Runtime::new();
+    let state = ChangeFeedState::new(TestModel {
+        value: 0,
+        released: Rc::new(RefCell::new(Vec::new())),
+    });
+    let mut reader = state.reader();
+    drop(reader.read(&mut rt.sc()));
+    set(&mut state.borrow_mut(rt.ac()), 1);
+
+    let mut edit = state.borrow_mut(rt.ac());
+    set(&mut edit, 2);
+    set(&mut edit, 3);
+
+    assert_eq!(
+        (
+            edit.current().value,
+            edit.changes().copied().collect::<Vec<_>>()
+        ),
+        (3, vec![1, 2]),
+    );
+}
+
+#[test]
+fn reader_distinguishes_initial_and_incremental_deltas() {
     let mut rt = Runtime::new();
     let state = ChangeFeedState::new(TestModel {
         value: 0,
@@ -118,7 +157,7 @@ fn contextless_borrow_returns_error_while_mutably_borrowed() {
 }
 
 #[test]
-fn scan_records_changes_incrementally() {
+fn scan_reports_incremental_deltas() {
     let mut rt = Runtime::new();
     let source = State::new(1);
     let signal = ChangeFeedSignal::from_scan(

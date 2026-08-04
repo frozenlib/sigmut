@@ -4,7 +4,7 @@ use pretty_assertions::assert_eq;
 use std::{cell::Cell, rc::Rc};
 
 #[test]
-fn state_slab_map_reader_changes() {
+fn state_slab_map_reader_delta() {
     let mut rt = Runtime::new();
     let map = StateSlabMap::new();
     let mut reader = map.reader();
@@ -19,7 +19,7 @@ fn state_slab_map_reader_changes() {
 
     {
         let items1 = reader.read(&mut rt.sc());
-        let changes: Vec<_> = items1.changes().collect();
+        let changes: Vec<_> = items1.delta().collect();
         let expected = vec![
             SlabMapChange::Insert {
                 key: key1,
@@ -36,7 +36,7 @@ fn state_slab_map_reader_changes() {
     map.remove(key1, rt.ac());
     {
         let items2 = reader.read(&mut rt.sc());
-        let changes: Vec<_> = items2.changes().collect();
+        let changes: Vec<_> = items2.delta().collect();
         let expected = vec![SlabMapChange::Remove {
             key: key1,
             old_value: &10,
@@ -107,7 +107,7 @@ fn state_slab_map_reader_peek_and_clone_have_independent_cursors() {
     for _ in 0..2 {
         let items = reader.peek(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             [SlabMapChange::Insert {
                 key,
                 new_value: &10,
@@ -116,17 +116,14 @@ fn state_slab_map_reader_peek_and_clone_have_independent_cursors() {
     }
 
     assert_eq!(
-        reader.read(&mut rt.sc()).changes().collect::<Vec<_>>(),
+        reader.read(&mut rt.sc()).delta().collect::<Vec<_>>(),
         [SlabMapChange::Insert {
             key,
             new_value: &10,
         }]
     );
     assert_eq!(
-        reader_clone
-            .read(&mut rt.sc())
-            .changes()
-            .collect::<Vec<_>>(),
+        reader_clone.read(&mut rt.sc()).delta().collect::<Vec<_>>(),
         [SlabMapChange::Insert {
             key,
             new_value: &10,
@@ -148,7 +145,7 @@ fn state_slab_map_releases_removed_values_after_the_last_reader_advances() {
 
     let items = reader.read(&mut rt.sc());
     assert_eq!(
-        items.changes().collect::<Vec<_>>(),
+        items.delta().collect::<Vec<_>>(),
         [SlabMapChange::Remove {
             key,
             old_value: &old,
@@ -184,15 +181,15 @@ fn state_slab_map_retries_compaction_after_an_item_borrow() {
     map.remove(removed_key, rt.ac());
 
     let retained = map.0.item(retained_key);
-    let changes = reader.read(&mut rt.sc());
+    let items = reader.read(&mut rt.sc());
     assert_eq!(
-        changes.changes().collect::<Vec<_>>(),
+        items.delta().collect::<Vec<_>>(),
         [SlabMapChange::Remove {
             key: removed_key,
             old_value: &old,
         }]
     );
-    drop(changes);
+    drop(items);
     assert_eq!(Rc::strong_count(&old), 2);
 
     drop(retained);
@@ -328,19 +325,16 @@ fn signal_slab_map_scan_readers_share_history_with_independent_cursors() {
     let key = key.get().unwrap_or(0);
     for _ in 0..2 {
         assert_eq!(
-            reader.peek(&mut rt.sc()).changes().collect::<Vec<_>>(),
+            reader.peek(&mut rt.sc()).delta().collect::<Vec<_>>(),
             [SlabMapChange::Insert { key, new_value: &1 }]
         );
     }
     assert_eq!(
-        reader.read(&mut rt.sc()).changes().collect::<Vec<_>>(),
+        reader.read(&mut rt.sc()).delta().collect::<Vec<_>>(),
         [SlabMapChange::Insert { key, new_value: &1 }]
     );
     assert_eq!(
-        reader_clone
-            .read(&mut rt.sc())
-            .changes()
-            .collect::<Vec<_>>(),
+        reader_clone.read(&mut rt.sc()).delta().collect::<Vec<_>>(),
         [SlabMapChange::Insert { key, new_value: &1 }]
     );
 }

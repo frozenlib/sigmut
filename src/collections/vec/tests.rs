@@ -5,7 +5,7 @@ use crate::{State, core::Runtime, effect};
 use pretty_assertions::assert_eq;
 
 #[test]
-fn state_vec_reader_changes() {
+fn state_vec_reader_delta() {
     let mut rt = Runtime::new();
     let vec = StateVec::new();
     let mut reader = vec.reader();
@@ -23,7 +23,7 @@ fn state_vec_reader_changes() {
 
     {
         let items = reader.read(&mut rt.sc());
-        let actual: Vec<_> = items.changes().collect();
+        let actual: Vec<_> = items.delta().collect();
         let expected = vec![
             VecChange::Insert {
                 index: 0,
@@ -48,7 +48,7 @@ fn state_vec_reader_changes() {
 
     {
         let items = reader.read(&mut rt.sc());
-        let actual: Vec<_> = items.changes().collect();
+        let actual: Vec<_> = items.delta().collect();
         let expected = vec![
             VecChange::Set {
                 index: 0,
@@ -82,7 +82,7 @@ fn state_vec_reader_peek_does_not_advance() {
     for _ in 0..2 {
         let items = reader.peek(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![
                 VecChange::Insert {
                     index: 0,
@@ -99,7 +99,7 @@ fn state_vec_reader_peek_does_not_advance() {
     {
         let items = reader.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![
                 VecChange::Insert {
                     index: 0,
@@ -117,7 +117,7 @@ fn state_vec_reader_peek_does_not_advance() {
     {
         let items = reader.peek(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![VecChange::Insert {
                 index: 2,
                 new_value: &3,
@@ -129,7 +129,7 @@ fn state_vec_reader_peek_does_not_advance() {
     for _ in 0..2 {
         let items = reader.peek(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![
                 VecChange::Insert {
                     index: 2,
@@ -146,7 +146,7 @@ fn state_vec_reader_peek_does_not_advance() {
     {
         let items = reader.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![
                 VecChange::Insert {
                     index: 2,
@@ -159,7 +159,7 @@ fn state_vec_reader_peek_does_not_advance() {
             ]
         );
     }
-    assert_eq!(reader.peek(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
+    assert_eq!(reader.peek(&mut rt.sc()).delta().collect::<Vec<_>>(), []);
 }
 
 #[test]
@@ -169,12 +169,12 @@ fn state_vec_reader_clones_have_independent_cursors() {
     let mut reader = vec.reader();
     let mut unread_clone = reader.clone();
 
-    assert_eq!(reader.read(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
+    assert_eq!(reader.read(&mut rt.sc()).delta().collect::<Vec<_>>(), []);
     vec.borrow_mut(rt.ac()).push(1);
     {
         let items = unread_clone.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![VecChange::Insert {
                 index: 0,
                 new_value: &1,
@@ -187,7 +187,7 @@ fn state_vec_reader_clones_have_independent_cursors() {
     {
         let items = reader.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![VecChange::Insert {
                 index: 0,
                 new_value: &1,
@@ -199,7 +199,7 @@ fn state_vec_reader_clones_have_independent_cursors() {
     {
         let items = reader_clone.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![
                 VecChange::Insert {
                     index: 0,
@@ -215,7 +215,7 @@ fn state_vec_reader_clones_have_independent_cursors() {
     {
         let items = reader.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![VecChange::Insert {
                 index: 1,
                 new_value: &2,
@@ -229,7 +229,7 @@ fn state_vec_reader_clones_have_independent_cursors() {
 }
 
 #[test]
-fn signal_vec_from_scan_peek_retains_changes() {
+fn signal_vec_from_scan_peek_retains_delta() {
     let mut rt = Runtime::new();
     let state = State::new(1);
     let state_for_scan = state.clone();
@@ -249,7 +249,7 @@ fn signal_vec_from_scan_peek_retains_changes() {
     for _ in 0..2 {
         let items = reader.peek(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![VecChange::Set {
                 index: 0,
                 old_value: &1,
@@ -262,7 +262,7 @@ fn signal_vec_from_scan_peek_retains_changes() {
     {
         let items = reader.peek(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![
                 VecChange::Set {
                     index: 0,
@@ -282,7 +282,7 @@ fn signal_vec_from_scan_peek_retains_changes() {
     {
         let items = reader.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![
                 VecChange::Set {
                     index: 0,
@@ -321,7 +321,7 @@ fn signal_vec_from_scan_reader_clones_have_independent_cursors() {
     {
         let items = reader.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![VecChange::Set {
                 index: 0,
                 old_value: &1,
@@ -334,7 +334,7 @@ fn signal_vec_from_scan_reader_clones_have_independent_cursors() {
     {
         let items = reader_clone.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![
                 VecChange::Set {
                     index: 0,
@@ -352,7 +352,7 @@ fn signal_vec_from_scan_reader_clones_have_independent_cursors() {
     {
         let items = reader.read(&mut rt.sc());
         assert_eq!(
-            items.changes().collect::<Vec<_>>(),
+            items.delta().collect::<Vec<_>>(),
             vec![VecChange::Set {
                 index: 0,
                 old_value: &2,
@@ -377,7 +377,7 @@ fn immutable_signal_vec_reader_peek_does_not_advance() {
         {
             let items = reader.peek(&mut rt.sc());
             assert_eq!(
-                items.changes().collect::<Vec<_>>(),
+                items.delta().collect::<Vec<_>>(),
                 vec![
                     VecChange::Insert {
                         index: 0,
@@ -393,7 +393,7 @@ fn immutable_signal_vec_reader_peek_does_not_advance() {
         {
             let items = reader.read(&mut rt.sc());
             assert_eq!(
-                items.changes().collect::<Vec<_>>(),
+                items.delta().collect::<Vec<_>>(),
                 vec![
                     VecChange::Insert {
                         index: 0,
@@ -406,7 +406,7 @@ fn immutable_signal_vec_reader_peek_does_not_advance() {
                 ]
             );
         }
-        assert_eq!(reader.peek(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
+        assert_eq!(reader.peek(&mut rt.sc()).delta().collect::<Vec<_>>(), []);
     }
 }
 
@@ -420,19 +420,19 @@ fn immutable_signal_vec_reader_clones_have_independent_cursors() {
         let mut reader_clone = reader.clone();
 
         let _ = reader.read(&mut rt.sc());
-        assert_eq!(reader.peek(&mut rt.sc()).changes().collect::<Vec<_>>(), []);
+        assert_eq!(reader.peek(&mut rt.sc()).delta().collect::<Vec<_>>(), []);
         assert_eq!(
             reader
                 .clone()
                 .peek(&mut rt.sc())
-                .changes()
+                .delta()
                 .collect::<Vec<_>>(),
             []
         );
         {
             let items = reader_clone.read(&mut rt.sc());
             assert_eq!(
-                items.changes().collect::<Vec<_>>(),
+                items.delta().collect::<Vec<_>>(),
                 vec![
                     VecChange::Insert {
                         index: 0,
@@ -446,17 +446,14 @@ fn immutable_signal_vec_reader_clones_have_independent_cursors() {
             );
         }
         assert_eq!(
-            reader_clone
-                .peek(&mut rt.sc())
-                .changes()
-                .collect::<Vec<_>>(),
+            reader_clone.peek(&mut rt.sc()).delta().collect::<Vec<_>>(),
             []
         );
     }
 }
 
 #[test]
-fn sort_and_drain_changes() {
+fn sort_and_drain_delta() {
     let mut rt = Runtime::new();
     let vec = StateVec::new();
     let mut reader = vec.reader();
@@ -475,7 +472,7 @@ fn sort_and_drain_changes() {
     }
     {
         let items = reader.read(&mut rt.sc());
-        let actual: Vec<_> = items.changes().collect();
+        let actual: Vec<_> = items.delta().collect();
         let expected = vec![VecChange::Sort(IndexNewToOld::new(&[1, 2, 0]))];
         assert_eq!(actual, expected);
     }
@@ -486,7 +483,7 @@ fn sort_and_drain_changes() {
     }
     {
         let items = reader.read(&mut rt.sc());
-        let actual: Vec<_> = items.changes().collect();
+        let actual: Vec<_> = items.delta().collect();
         let expected: Vec<VecChange<'_, i32>> = Vec::new();
         assert_eq!(actual, expected);
     }
@@ -497,7 +494,7 @@ fn sort_and_drain_changes() {
     }
     {
         let items = reader.read(&mut rt.sc());
-        let actual: Vec<_> = items.changes().collect();
+        let actual: Vec<_> = items.delta().collect();
         let expected = vec![
             VecChange::Remove {
                 index: 2,
@@ -513,14 +510,14 @@ fn sort_and_drain_changes() {
 }
 
 #[test]
-fn signal_vec_from_slice_and_vec_changes() {
+fn signal_vec_from_slice_and_vec_delta() {
     let mut rt = Runtime::new();
     {
         let vec = SignalVec::from(&[1, 2]);
         let mut reader = vec.reader();
         {
             let items = reader.read(&mut rt.sc());
-            let actual: Vec<_> = items.changes().collect();
+            let actual: Vec<_> = items.delta().collect();
             let expected = vec![
                 VecChange::Insert {
                     index: 0,
@@ -535,7 +532,7 @@ fn signal_vec_from_slice_and_vec_changes() {
         }
         {
             let items = reader.read(&mut rt.sc());
-            let actual: Vec<_> = items.changes().collect();
+            let actual: Vec<_> = items.delta().collect();
             assert_eq!(actual, vec![]);
         }
     }
@@ -545,7 +542,7 @@ fn signal_vec_from_slice_and_vec_changes() {
         let mut reader = vec.reader();
         {
             let items = reader.read(&mut rt.sc());
-            let actual: Vec<_> = items.changes().collect();
+            let actual: Vec<_> = items.delta().collect();
             let expected = vec![
                 VecChange::Insert {
                     index: 0,
@@ -561,7 +558,7 @@ fn signal_vec_from_slice_and_vec_changes() {
 
         {
             let items = reader.read(&mut rt.sc());
-            let actual: Vec<_> = items.changes().collect();
+            let actual: Vec<_> = items.delta().collect();
             assert!(actual.is_empty());
         }
     }
@@ -638,7 +635,7 @@ fn state_vec_releases_old_values_after_the_last_reader_advances() {
 
     let items = reader.read(&mut rt.sc());
     assert_eq!(
-        items.changes().collect::<Vec<_>>(),
+        items.delta().collect::<Vec<_>>(),
         vec![VecChange::Set {
             index: 0,
             old_value: &old,
@@ -736,7 +733,7 @@ fn state_vec_serde_preserves_values_and_starts_readers_as_initial() {
     let mut reader = restored.reader();
     let mut rt = Runtime::new();
     assert_eq!(
-        reader.read(&mut rt.sc()).changes().collect::<Vec<_>>(),
+        reader.read(&mut rt.sc()).delta().collect::<Vec<_>>(),
         vec![
             VecChange::Insert {
                 index: 0,
