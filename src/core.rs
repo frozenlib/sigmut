@@ -6,7 +6,6 @@ use std::{
     mem::{replace, swap, take, transmute},
     ops::AsyncFnOnce,
     pin::Pin,
-    ptr::null_mut,
     rc::{Rc, Weak},
     result::Result,
     sync::{Arc, Mutex, MutexGuard},
@@ -20,18 +19,22 @@ use parse_display::Display;
 use slabmap::SlabMap;
 
 mod async_signal_context;
+mod context_channel;
 mod dirty;
+mod raw_context;
 mod source_binder;
 mod state_ref;
 mod state_ref_builder;
 
 pub use async_signal_context::*;
+pub use context_channel::*;
 pub use dirty::*;
 pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
 use crate::utils::{buckets::Buckets, downcast_or};
+use raw_context::ActionContextPtr;
 
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
@@ -1354,19 +1357,19 @@ impl Drop for RawWake {
     }
 }
 
-struct AsyncActionContextSource(Rc<RefCell<*mut RawRuntime>>);
+struct AsyncActionContextSource(Rc<RefCell<Option<ActionContextPtr>>>);
 
 impl AsyncActionContextSource {
     fn new() -> Self {
-        Self(Rc::new(RefCell::new(null_mut())))
+        Self(Rc::new(RefCell::new(None)))
     }
     fn call<T>(&self, ac: &mut ActionContext, f: impl FnOnce() -> T) -> T {
-        let p: *mut RawRuntime = &mut ac.0;
-        assert!(self.0.borrow().is_null());
-        *self.0.borrow_mut() = p;
+        let pointer = ActionContextPtr::new(ac);
+        assert!(self.0.borrow().is_none());
+        *self.0.borrow_mut() = Some(pointer);
         let ret = f();
-        assert!(*self.0.borrow() == p);
-        *self.0.borrow_mut() = null_mut();
+        assert!(*self.0.borrow() == Some(pointer));
+        *self.0.borrow_mut() = None;
         ret
     }
     fn context(&self) -> AsyncActionContext {
@@ -1375,16 +1378,16 @@ impl AsyncActionContextSource {
 }
 
 /// Context for asynchronous state change.
-pub struct AsyncActionContext(Rc<RefCell<*mut RawRuntime>>);
+pub struct AsyncActionContext(Rc<RefCell<Option<ActionContextPtr>>>);
 
 impl AsyncActionContext {
     pub fn call<T>(&self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
-        let mut b = self.0.borrow_mut();
-        assert!(
-            !b.is_null(),
-            "`AsyncActionContext` cannot be used after being moved."
-        );
-        unsafe { f((**b).ac()) }
+        let context = self.0.borrow_mut();
+        let pointer = context
+            .as_ref()
+            .copied()
+            .expect("`AsyncActionContext` cannot be used after being moved.");
+        unsafe { f(pointer.action_context()) }
     }
 }
 

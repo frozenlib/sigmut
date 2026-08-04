@@ -6,42 +6,18 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-use bumpalo::Bump;
-
 use super::{
-    BindSink, Dirty, DirtyLevel, ReactionContext, RuntimeData, SignalContext, Sink, Slot,
-    SourceBindings, waker_from_sink,
+    BindSink, Dirty, DirtyLevel, ReactionContext, SignalContext, Slot, SourceBindings,
+    raw_context::SignalContextPtr, waker_from_sink,
 };
 
 const SLOT_WAKE: Slot = Slot(0);
 const SLOT_DEPS: Slot = Slot(1);
 const SLOT_POLL: Slot = Slot(2);
 
-#[derive(Debug, Eq, PartialEq, Copy, Clone)]
-struct SignalContextPtr {
-    rt: *mut RuntimeData,
-    bump: *const Bump,
-    sink: Option<*mut Sink>,
-}
-impl SignalContextPtr {
-    fn new(sc: &mut SignalContext<'_, '_>) -> Self {
-        Self {
-            rt: sc.rt,
-            bump: sc.bump,
-            sink: sc.sink.as_mut().map(|x| *x as *mut _),
-        }
-    }
-    unsafe fn sc(&self) -> SignalContext<'_, '_> {
-        SignalContext {
-            rt: unsafe { &mut *self.rt },
-            bump: unsafe { &*self.bump },
-            sink: self.sink.map(|x| unsafe { &mut *x }),
-        }
-    }
-}
 unsafe fn sc(p: &mut Option<SignalContextPtr>) -> SignalContext<'_, '_> {
     if let Some(p) = p {
-        unsafe { p.sc() }
+        unsafe { p.signal_context() }
     } else {
         panic!("`SignalContext` cannot be used after being moved.");
     }
