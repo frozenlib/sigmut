@@ -14,7 +14,9 @@
 //! ```
 //! use sigmut::{
 //!     core::Runtime,
-//!     change_feed::{ChangeFeedDelta, ChangeFeedRefMut, ChangeFeedModel, ChangeFeedState},
+//!     building_blocks::change_feed::{
+//!         ChangeFeedDelta, ChangeFeedModel, ChangeFeedRefMut, ChangeFeedState,
+//!     },
 //! };
 //!
 //! struct Counter(i32);

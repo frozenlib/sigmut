@@ -1,6 +1,6 @@
 use sigmut::{
     ActionContext, SignalContext, State,
-    change_feed::{
+    building_blocks::change_feed::{
         ChangeFeedDelta, ChangeFeedModel, ChangeFeedReader, ChangeFeedRef, ChangeFeedRefMut,
         ChangeFeedSignal, ChangeFeedState,
     },

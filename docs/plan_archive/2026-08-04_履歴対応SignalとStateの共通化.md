@@ -1,6 +1,6 @@
 # 履歴対応 Signal / State の共通化設計
 
-> 後続の名称変更により、公開モジュールは`change_feed`、公開型は`ChangeFeed*`、借用ガードは`ChangeFeedRef` / `ChangeFeedRefMut`、初回／差分を表すenumは`ChangeFeedDelta`となった。本文では設計・実装時点の名称を保持する。
+> 後続の名称変更により、公開モジュールは`building_blocks::change_feed`、公開型は`ChangeFeed*`、借用ガードは`ChangeFeedRef` / `ChangeFeedRefMut`、初回／差分を表すenumは`ChangeFeedDelta`となった。本文では設計・実装時点の名称を保持する。
 
 ## 目的
 
