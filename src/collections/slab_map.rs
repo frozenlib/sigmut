@@ -1,6 +1,7 @@
 use std::{
     any::Any,
-    cell::{Ref, RefCell, RefMut},
+    cell::{Ref, RefCell},
+    mem,
     ops::Index,
     rc::Rc,
 };
@@ -10,11 +11,14 @@ use slabmap::SlabMap;
 
 use crate::{
     ActionContext, SignalContext,
+    change_feed::{
+        ChangeFeedCursorReader, ChangeFeedDelta, ChangeFeedModel, ChangeFeedReader, ChangeFeedRef,
+        ChangeFeedRefMut, ChangeFeedState, ChangeFeedStorage,
+    },
     core::{
         BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, ReactionContext, SinkBindings,
         Slot, SourceBinder,
     },
-    utils::{Changes, RefCountOps},
 };
 
 const SLOT_ITEMS: Slot = Slot(usize::MAX);
@@ -23,6 +27,7 @@ fn key_to_slot(key: usize) -> Slot {
     assert!(key != usize::MAX);
     Slot(key)
 }
+
 fn slot_to_key(slot: Slot) -> Option<usize> {
     if slot == SLOT_ITEMS {
         None
@@ -43,109 +48,133 @@ impl<T: 'static> SignalSlabMap<T> {
     pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r, '_>) -> Ref<'a, T> {
         self.0.item(self.0.clone().to_any(), key, sc)
     }
+
     pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        self.0.items(self.0.clone().to_any(), None, sc)
+        self.0.items(self.0.clone().to_any(), sc)
     }
+
     pub fn reader(&self) -> SignalSlabMapReader<T> {
-        SignalSlabMapReader::new(self.0.clone())
+        self.0.clone().reader()
     }
 }
 
 trait DynSignalSlabMap<T> {
     fn to_any(self: Rc<Self>) -> Rc<dyn Any>;
     fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T>;
-    fn items(
-        &self,
+    fn items<'a, 'r: 'a>(
+        &'a self,
         rc_self: Rc<dyn Any>,
-        age: Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T>;
-    fn ref_counts(&self) -> RefMut<'_, RefCountOps>;
+        sc: &mut SignalContext<'r, '_>,
+    ) -> Items<'a, T>;
+    fn watch_items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>);
+    fn reader(self: Rc<Self>) -> SignalSlabMapReader<T>;
 }
 
-pub struct SignalSlabMapReader<T> {
-    owner: Rc<dyn DynSignalSlabMap<T>>,
-    age: Option<usize>,
+#[derive_ex(Clone(bound()))]
+pub struct SignalSlabMapReader<T: 'static>(RawSignalSlabMapReader<T>);
+
+#[derive_ex(Clone(bound()))]
+enum RawSignalSlabMapReader<T: 'static> {
+    State(ChangeFeedReader<SlabMapModel<T>>),
+    Scan {
+        source: Rc<dyn DynSignalSlabMap<T>>,
+        cursor: ChangeFeedCursorReader<SlabMapModel<T>>,
+    },
 }
+
 impl<T: 'static> SignalSlabMapReader<T> {
-    fn new(owner: Rc<dyn DynSignalSlabMap<T>>) -> Self {
-        Self { owner, age: None }
+    fn from_state(reader: ChangeFeedReader<SlabMapModel<T>>) -> Self {
+        Self(RawSignalSlabMapReader::State(reader))
     }
+
+    fn from_scan(
+        source: Rc<dyn DynSignalSlabMap<T>>,
+        cursor: ChangeFeedCursorReader<SlabMapModel<T>>,
+    ) -> Self {
+        Self(RawSignalSlabMapReader::Scan { source, cursor })
+    }
+
     pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        let age = self.age;
+        match &mut self.0 {
+            RawSignalSlabMapReader::State(reader) => Items::new(reader.read(sc)),
+            RawSignalSlabMapReader::Scan { source, cursor } => {
+                source.watch_items(source.clone().to_any(), sc);
+                Items::new(cursor.read())
+            }
+        }
+    }
 
-        let mut ref_counts = self.owner.ref_counts();
-        ref_counts.increment();
-        ref_counts.decrement(age);
-
-        let items = self.owner.items(self.owner.clone().to_any(), age, sc);
-        self.age = Some(items.items.changes.end_age());
-        items
+    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
+        match &self.0 {
+            RawSignalSlabMapReader::State(reader) => Items::new(reader.peek(sc)),
+            RawSignalSlabMapReader::Scan { source, cursor } => {
+                source.watch_items(source.clone().to_any(), sc);
+                Items::new(cursor.peek())
+            }
+        }
     }
 }
-impl<T> Drop for SignalSlabMapReader<T> {
-    fn drop(&mut self) {
-        self.owner.ref_counts().decrement(self.age);
+
+pub struct Items<'a, T: 'static> {
+    value: ChangeFeedRef<'a, SlabMapModel<T>>,
+}
+
+impl<'a, T: 'static> Items<'a, T> {
+    fn new(value: ChangeFeedRef<'a, SlabMapModel<T>>) -> Self {
+        Self { value }
     }
-}
 
-pub struct Items<'a, T> {
-    items: Ref<'a, ItemsMut<T>>,
-    age: Option<usize>,
-}
-
-impl<T> Items<'_, T> {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
     pub fn len(&self) -> usize {
-        self.items.len
+        self.value.current().0.len
     }
+
     pub fn get(&self, key: usize) -> Option<&T> {
-        self.items.get(key)
+        self.value.current().0.get(key)
     }
+
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter(self.items.items.iter())
+        Iter(self.value.current().0.items.iter())
     }
+
     pub fn changes(&self) -> impl Iterator<Item = SlabMapChange<'_, T>> {
         use iter_n::iter2::*;
-        if let Some(age) = self.age {
-            self.items
-                .changes
-                .items(age)
+        match self.value.delta() {
+            ChangeFeedDelta::Initial => self
+                .iter()
+                .map(|(key, new_value)| SlabMapChange::Insert { key, new_value })
+                .into_iter0(),
+            ChangeFeedDelta::Changes(changes) => changes
                 .map(|change| {
-                    let key = change.key;
-                    let value = &self.items.items[key].value;
+                    let value = &self.value.current().0.items[change.key].value;
                     match change.action {
                         ChangeAction::Insert => SlabMapChange::Insert {
-                            key,
+                            key: change.key,
                             new_value: value,
                         },
                         ChangeAction::Remove => SlabMapChange::Remove {
-                            key,
+                            key: change.key,
                             old_value: value,
                         },
                     }
                 })
-                .into_iter0()
-        } else {
-            self.iter()
-                .map(|(key, value)| SlabMapChange::Insert {
-                    key,
-                    new_value: value,
-                })
-                .into_iter1()
+                .into_iter1(),
         }
     }
 }
-impl<T> Index<usize> for Items<'_, T> {
+
+impl<T: 'static> Index<usize> for Items<'_, T> {
     type Output = T;
+
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("index out of bounds")
     }
 }
 
-impl<'a, T> IntoIterator for &'a Items<'a, T> {
+impl<'a, T: 'static> IntoIterator for &'a Items<'a, T> {
     type Item = (usize, &'a T);
     type IntoIter = Iter<'a, T>;
 
@@ -157,54 +186,20 @@ impl<'a, T> IntoIterator for &'a Items<'a, T> {
 pub struct ItemsMut<T> {
     items: SlabMap<Item<T>>,
     len: usize,
-    changes: Changes<ChangeData>,
+    pending_changes: Vec<ChangeData>,
 }
+
 impl<T> ItemsMut<T> {
     fn new() -> Self {
         Self {
             items: SlabMap::new(),
             len: 0,
-            changes: Changes::new(),
+            pending_changes: Vec::new(),
         }
     }
-    fn edit_start(&mut self, ref_counts: &RefCell<RefCountOps>) -> usize {
-        ref_counts.borrow_mut().apply(&mut self.changes);
-        self.clean_changes();
-        self.changes.end_age()
-    }
-    fn edit_end(
-        &mut self,
-        age: usize,
-        sinks: &mut SinkBindingsSet,
-        mut f: impl FnMut(&mut SinkBindings),
-    ) {
-        let mut is_dirty = false;
-        for c in self.changes.items(age) {
-            is_dirty = true;
-            if let Some(sink) = sinks.get_mut(key_to_slot(c.key)) {
-                f(sink);
-            }
-        }
-        if is_dirty {
-            f(&mut sinks.any);
-        }
-        self.clean_changes();
-    }
-    fn edit_end_and_update(
-        &mut self,
-        age: usize,
-        sinks: &mut SinkBindingsSet,
-        rc: &mut ReactionContext,
-    ) {
-        self.edit_end(age, sinks, |sink| sink.update(true, rc))
-    }
-    fn edit_end_and_notify(
-        &mut self,
-        sinks: &mut SinkBindingsSet,
-        age: usize,
-        nc: &mut NotifyContext,
-    ) {
-        self.edit_end(age, sinks, |sink| sink.notify(DirtyLevel::Dirty, nc))
+
+    fn take_changes(&mut self) -> Vec<ChangeData> {
+        mem::take(&mut self.pending_changes)
     }
 
     pub fn get(&self, key: usize) -> Option<&T> {
@@ -215,39 +210,80 @@ impl<T> ItemsMut<T> {
             None
         }
     }
+
     pub fn insert(&mut self, value: T) -> usize {
         let key = self.items.insert(Item::new(value));
         self.len += 1;
-        self.changes.push(ChangeData {
+        self.pending_changes.push(ChangeData {
             action: ChangeAction::Insert,
             key,
         });
         key
     }
+
     pub fn remove(&mut self, key: usize) {
         let item = &mut self.items[key];
         assert!(item.is_exists);
         item.is_exists = false;
         self.len -= 1;
-        self.changes.push(ChangeData {
+        self.pending_changes.push(ChangeData {
             action: ChangeAction::Remove,
             key,
         });
     }
-
-    fn clean_changes(&mut self) {
-        self.changes.clean(|d| match d.action {
-            ChangeAction::Insert => {}
-            ChangeAction::Remove => {
-                self.items.remove(d.key);
-            }
-        });
-    }
 }
+
 impl<T> Index<usize> for ItemsMut<T> {
     type Output = T;
+
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("index out of bounds")
+    }
+}
+
+struct SlabMapModel<T>(ItemsMut<T>);
+
+impl<T: 'static> ChangeFeedModel for SlabMapModel<T> {
+    type Change = ChangeData;
+
+    fn release_change(&mut self, change: Self::Change) {
+        if matches!(change.action, ChangeAction::Remove) {
+            self.0.items.remove(change.key);
+        }
+    }
+}
+
+fn record_pending<T: 'static>(edit: &mut ChangeFeedRefMut<'_, SlabMapModel<T>>) -> Vec<usize> {
+    let mut keys = Vec::new();
+    record_pending_into(edit, &mut keys);
+    keys
+}
+
+fn record_pending_into<T: 'static>(
+    edit: &mut ChangeFeedRefMut<'_, SlabMapModel<T>>,
+    keys: &mut Vec<usize>,
+) {
+    let changes = edit.current_mut().0.take_changes();
+    keys.extend(changes.iter().map(|change| change.key));
+    for change in changes {
+        edit.record(change);
+    }
+}
+
+struct PendingEdit<'a, 'h, T: 'static> {
+    edit: &'a mut ChangeFeedRefMut<'h, SlabMapModel<T>>,
+    keys: &'a mut Vec<usize>,
+}
+
+impl<T: 'static> PendingEdit<'_, '_, T> {
+    fn current(&mut self) -> &mut ItemsMut<T> {
+        &mut self.edit.current_mut().0
+    }
+}
+
+impl<T: 'static> Drop for PendingEdit<'_, '_, T> {
+    fn drop(&mut self) {
+        record_pending_into(self.edit, self.keys);
     }
 }
 
@@ -270,6 +306,7 @@ struct Item<T> {
     value: T,
     is_exists: bool,
 }
+
 impl<T> Item<T> {
     fn new(value: T) -> Self {
         Self {
@@ -285,6 +322,7 @@ pub enum SlabMapChange<'a, T> {
     Remove { key: usize, old_value: &'a T },
 }
 
+#[derive(Clone, Copy)]
 enum ChangeAction {
     Insert,
     Remove,
@@ -297,66 +335,72 @@ struct ChangeData {
 
 #[derive_ex(Default, Clone(bound()))]
 #[default(Self::new())]
-pub struct StateSlabMap<T>(Rc<RawStateSlabMap<T>>);
-
-impl<T> StateSlabMap<T> {
-    pub fn new() -> Self {
-        Self(Rc::new(RawStateSlabMap {
-            items: RefCell::new(ItemsMut::new()),
-            sinks: RefCell::new(SinkBindingsSet::new()),
-            ref_counts: RefCell::new(RefCountOps::new()),
-        }))
-    }
-}
+pub struct StateSlabMap<T: 'static>(Rc<RawStateSlabMap<T>>);
 
 impl<T: 'static> StateSlabMap<T> {
+    pub fn new() -> Self {
+        Self(Rc::new(RawStateSlabMap {
+            state: ChangeFeedState::new(SlabMapModel(ItemsMut::new())),
+            item_sinks: RefCell::new(ItemSinkBindings::new()),
+        }))
+    }
+
     pub fn to_signal_slab_map(&self) -> SignalSlabMap<T> {
         SignalSlabMap(self.0.clone())
     }
+
     pub fn insert(&self, value: T, ac: &mut ActionContext) -> usize {
-        let mut data = self.0.items.borrow_mut();
-        let age = data.edit_start(&self.0.ref_counts);
-        let key = data.insert(value);
-        data.edit_end_and_notify(&mut self.0.sinks.borrow_mut(), age, ac.nc());
+        let key;
+        {
+            let mut edit = self.0.state.borrow_mut(ac);
+            key = edit.current_mut().0.insert(value);
+            let keys = record_pending(&mut edit);
+            debug_assert_eq!(keys, [key]);
+        }
+        self.0.item_sinks.borrow_mut().notify(key, ac.nc());
         key
     }
+
     pub fn remove(&self, key: usize, ac: &mut ActionContext) {
-        let mut data = self.0.items.borrow_mut();
-        let age = data.edit_start(&self.0.ref_counts);
-        data.remove(key);
-        data.edit_end_and_notify(&mut self.0.sinks.borrow_mut(), age, ac.nc());
+        {
+            let mut edit = self.0.state.borrow_mut(ac);
+            edit.current_mut().0.remove(key);
+            let keys = record_pending(&mut edit);
+            debug_assert_eq!(keys, [key]);
+        }
+        self.0.item_sinks.borrow_mut().notify(key, ac.nc());
     }
+
     pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r, '_>) -> Ref<'a, T> {
-        self.0.bind(key_to_slot(key), sc);
+        self.0.bind(key, sc);
         self.0.item(key)
     }
+
     pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        self.0.bind(SLOT_ITEMS, sc);
-        self.0.items(None)
+        Items::new(self.0.state.borrow(sc))
     }
+
     pub fn reader(&self) -> SignalSlabMapReader<T> {
-        SignalSlabMapReader::new(self.0.clone())
+        SignalSlabMapReader::from_state(self.0.state.reader())
     }
 }
 
-struct RawStateSlabMap<T> {
-    items: RefCell<ItemsMut<T>>,
-    sinks: RefCell<SinkBindingsSet>,
-    ref_counts: RefCell<RefCountOps>,
+struct RawStateSlabMap<T: 'static> {
+    state: ChangeFeedState<SlabMapModel<T>>,
+    item_sinks: RefCell<ItemSinkBindings>,
 }
+
 impl<T: 'static> RawStateSlabMap<T> {
     fn rc_this(this: Rc<dyn Any>) -> Rc<Self> {
         Rc::downcast(this).unwrap()
     }
-    fn bind(self: &Rc<Self>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
-        self.sinks.borrow_mut().bind(self.clone(), slot, sc);
+
+    fn bind(self: &Rc<Self>, key: usize, sc: &mut SignalContext<'_, '_>) {
+        self.item_sinks.borrow_mut().bind(self.clone(), key, sc);
     }
+
     fn item(&self, key: usize) -> Ref<'_, T> {
-        Ref::map(self.items.borrow(), |r| r.get(key).expect("key not found"))
-    }
-    fn items(&self, age: Option<usize>) -> Items<'_, T> {
-        let items = self.items.borrow();
-        Items { items, age }
+        Ref::map(self.state.current_ref_untracked(), |model| &model.0[key])
     }
 }
 
@@ -366,34 +410,90 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
     }
 
     fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T> {
-        Self::rc_this(rc_self).bind(key_to_slot(key), sc);
+        Self::rc_this(rc_self).bind(key, sc);
         self.item(key)
     }
 
-    fn items(
-        &self,
-        rc_self: Rc<dyn Any>,
-        age: Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T> {
-        Self::rc_this(rc_self).bind(SLOT_ITEMS, sc);
-        self.items(age)
+    fn items<'a, 'r: 'a>(
+        &'a self,
+        _rc_self: Rc<dyn Any>,
+        sc: &mut SignalContext<'r, '_>,
+    ) -> Items<'a, T> {
+        Items::new(self.state.borrow(sc))
     }
 
-    fn ref_counts(&self) -> RefMut<'_, RefCountOps> {
-        self.ref_counts.borrow_mut()
+    fn watch_items(&self, _rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
+        drop(self.state.borrow(sc));
+    }
+
+    fn reader(self: Rc<Self>) -> SignalSlabMapReader<T> {
+        SignalSlabMapReader::from_state(self.state.reader())
     }
 }
 
 impl<T: 'static> BindSource for RawStateSlabMap<T> {
     fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
-        self.sinks.borrow_mut().is_dirty(slot, key, rc)
+        self.item_sinks
+            .borrow()
+            .is_dirty(slot_to_key(slot).expect("item slot"), key, rc)
     }
+
     fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        self.sinks.borrow_mut().unbind(slot, key, rc);
+        self.item_sinks
+            .borrow_mut()
+            .unbind(slot_to_key(slot).expect("item slot"), key, rc);
     }
+
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
-        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
+        self.item_sinks.borrow_mut().rebind(
+            self.clone(),
+            slot_to_key(slot).expect("item slot"),
+            key,
+            sc,
+        );
+    }
+}
+
+struct ItemSinkBindings(Vec<SinkBindings>);
+
+impl ItemSinkBindings {
+    fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    fn bind(&mut self, this: Rc<dyn BindSource>, key: usize, sc: &mut SignalContext<'_, '_>) {
+        if self.0.len() <= key {
+            self.0.resize_with(key + 1, SinkBindings::new);
+        }
+        self.0[key].bind(this, key_to_slot(key), sc);
+    }
+
+    fn unbind(&mut self, item: usize, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
+        if let Some(sink) = self.0.get_mut(item) {
+            sink.unbind(key, rc);
+        }
+    }
+
+    fn rebind(
+        &mut self,
+        this: Rc<dyn BindSource>,
+        item: usize,
+        key: BindKey,
+        sc: &mut SignalContext<'_, '_>,
+    ) {
+        if let Some(sink) = self.0.get_mut(item) {
+            sink.rebind(this, key_to_slot(item), key, sc);
+        }
+    }
+
+    fn is_dirty(&self, item: usize, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
+        self.0.get(item).is_none_or(|sink| sink.is_dirty(key, rc))
+    }
+
+    fn notify(&mut self, item: usize, nc: &mut NotifyContext) {
+        if let Some(sink) = self.0.get_mut(item) {
+            sink.notify(DirtyLevel::Dirty, nc);
+        }
     }
 }
 
@@ -401,6 +501,7 @@ struct SinkBindingsSet {
     items: Vec<SinkBindings>,
     any: SinkBindings,
 }
+
 impl SinkBindingsSet {
     fn new() -> Self {
         Self {
@@ -408,34 +509,49 @@ impl SinkBindingsSet {
             any: SinkBindings::new(),
         }
     }
+
+    fn update_changed(&mut self, keys: &[usize], rc: &mut ReactionContext<'_, '_>) {
+        for &key in keys {
+            if let Some(sink) = self.items.get_mut(key) {
+                sink.update(true, rc);
+            }
+        }
+        if !keys.is_empty() {
+            self.any.update(true, rc);
+        }
+    }
+
     fn update_all(&mut self, is_dirty: bool, rc: &mut ReactionContext<'_, '_>) {
-        for s in &mut self.items {
-            s.update(is_dirty, rc);
+        for sink in &mut self.items {
+            sink.update(is_dirty, rc);
         }
         self.any.update(is_dirty, rc);
     }
+
     fn notify_all(&mut self, level: DirtyLevel, nc: &mut NotifyContext) {
-        for s in &mut self.items {
-            s.notify(level, nc);
+        for sink in &mut self.items {
+            sink.notify(level, nc);
         }
         self.any.notify(level, nc);
     }
 
     fn bind(&mut self, this: Rc<dyn BindSource>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
-        if let Some(key) = slot_to_key(slot)
-            && self.items.len() < key
-        {
-            self.items.resize_with(key + 1, SinkBindings::new);
-        }
-        if let Some(s) = self.get_mut(slot) {
-            s.bind(this, slot, sc);
+        if let Some(key) = slot_to_key(slot) {
+            if self.items.len() <= key {
+                self.items.resize_with(key + 1, SinkBindings::new);
+            }
+            self.items[key].bind(this, slot, sc);
+        } else {
+            self.any.bind(this, slot, sc);
         }
     }
+
     fn unbind(&mut self, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        if let Some(s) = self.get_mut(slot) {
-            s.unbind(key, rc);
+        if let Some(sink) = self.get_mut(slot) {
+            sink.unbind(key, rc);
         }
     }
+
     fn rebind(
         &mut self,
         this: Rc<dyn BindSource>,
@@ -443,17 +559,13 @@ impl SinkBindingsSet {
         key: BindKey,
         sc: &mut SignalContext<'_, '_>,
     ) {
-        if let Some(s) = self.get_mut(slot) {
-            s.rebind(this, slot, key, sc);
+        if let Some(sink) = self.get_mut(slot) {
+            sink.rebind(this, slot, key, sc);
         }
     }
 
     fn is_dirty(&self, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
-        if let Some(s) = self.get(slot) {
-            s.is_dirty(key, rc)
-        } else {
-            true
-        }
+        self.get(slot).is_none_or(|sink| sink.is_dirty(key, rc))
     }
 
     fn get(&self, slot: Slot) -> Option<&SinkBindings> {
@@ -463,6 +575,7 @@ impl SinkBindingsSet {
             Some(&self.any)
         }
     }
+
     fn get_mut(&mut self, slot: Slot) -> Option<&mut SinkBindings> {
         if let Some(key) = slot_to_key(slot) {
             self.items.get_mut(key)
@@ -472,11 +585,12 @@ impl SinkBindingsSet {
     }
 }
 
-struct Scan<T, F> {
-    data: RefCell<ScanData<T, F>>,
-    ref_counts: RefCell<RefCountOps>,
+struct Scan<T: 'static, F> {
+    storage: ChangeFeedStorage<SlabMapModel<T>>,
+    data: RefCell<ScanData<F>>,
     sinks: RefCell<SinkBindingsSet>,
 }
+
 impl<T, F> Scan<T, F>
 where
     T: 'static,
@@ -484,31 +598,44 @@ where
 {
     fn new(f: F) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
+            storage: ChangeFeedStorage::new(SlabMapModel(ItemsMut::new())),
             data: RefCell::new(ScanData {
-                sb: SourceBinder::new(this, Slot(0)),
-                items: ItemsMut::new(),
+                source_binder: SourceBinder::new(this, Slot(0)),
                 f,
             }),
-            ref_counts: RefCell::new(RefCountOps::new()),
             sinks: RefCell::new(SinkBindingsSet::new()),
         })
     }
 
     fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
-        if rc.borrow(&self.data).sb.is_clean() {
+        if rc.borrow(&self.data).source_binder.is_clean() {
             return;
         }
-        let d = &mut *self.data.borrow_mut();
-        if d.sb.check(rc) {
-            let age = d.items.edit_start(&self.ref_counts);
-            d.sb.update(|sc| (d.f)(&mut d.items, sc), rc);
-            d.items
-                .edit_end_and_update(age, &mut self.sinks.borrow_mut(), rc);
+        let data = &mut *self.data.borrow_mut();
+        if data.source_binder.check(rc) {
+            let mut edit = self.storage.begin_edit();
+            let mut keys = Vec::new();
+            {
+                let mut pending = PendingEdit {
+                    edit: &mut edit,
+                    keys: &mut keys,
+                };
+                data.source_binder
+                    .update(|sc| (data.f)(pending.current(), sc), rc);
+            }
+            drop(edit);
+            self.sinks.borrow_mut().update_changed(&keys, rc);
         }
         self.sinks.borrow_mut().update_all(false, rc);
     }
+
     fn rc_this(this: Rc<dyn Any>) -> Rc<Self> {
         Rc::downcast(this).unwrap()
+    }
+
+    fn watch(self: &Rc<Self>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
+        self.update(sc.rc());
+        self.sinks.borrow_mut().bind(self.clone(), slot, sc);
     }
 }
 
@@ -522,28 +649,30 @@ where
     }
 
     fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T> {
-        let this = Self::rc_this(rc_self);
-        this.update(sc.rc());
-        self.sinks.borrow_mut().bind(this, key_to_slot(key), sc);
-        Ref::map(self.data.borrow(), |data| &data.items[key])
+        Self::rc_this(rc_self).watch(key_to_slot(key), sc);
+        Ref::map(self.storage.current_ref(), |model| &model.0[key])
     }
 
-    fn items(
-        &self,
+    fn items<'a, 'r: 'a>(
+        &'a self,
         rc_self: Rc<dyn Any>,
-        age: Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T> {
-        let this = Self::rc_this(rc_self);
-        this.update(sc.rc());
-        self.sinks.borrow_mut().bind(this, SLOT_ITEMS, sc);
-        let data = Ref::map(self.data.borrow(), |data| &data.items);
-        Items { items: data, age }
+        sc: &mut SignalContext<'r, '_>,
+    ) -> Items<'a, T> {
+        Self::rc_this(rc_self).watch(SLOT_ITEMS, sc);
+        Items::new(self.storage.borrow_current())
     }
-    fn ref_counts(&self) -> RefMut<'_, RefCountOps> {
-        self.ref_counts.borrow_mut()
+
+    fn watch_items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
+        Self::rc_this(rc_self).watch(SLOT_ITEMS, sc);
+    }
+
+    fn reader(self: Rc<Self>) -> SignalSlabMapReader<T> {
+        let cursor = self.storage.reader();
+        let source: Rc<dyn DynSignalSlabMap<T>> = self;
+        SignalSlabMapReader::from_scan(source, cursor)
     }
 }
+
 impl<T, F> BindSource for Scan<T, F>
 where
     T: 'static,
@@ -562,13 +691,14 @@ where
         self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc)
     }
 }
+
 impl<T, F> BindSink for Scan<T, F>
 where
     T: 'static,
     F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
-        if self.data.borrow_mut().sb.on_notify(slot, level) {
+        if self.data.borrow_mut().source_binder.on_notify(slot, level) {
             self.sinks
                 .borrow_mut()
                 .notify_all(DirtyLevel::MaybeDirty, nc);
@@ -576,9 +706,8 @@ where
     }
 }
 
-struct ScanData<T, F> {
-    sb: SourceBinder,
-    items: ItemsMut<T>,
+struct ScanData<F> {
+    source_binder: SourceBinder,
     f: F,
 }
 

@@ -1,10 +1,8 @@
 use std::{
-    any::Any,
-    cell::{Ref, RefCell, RefMut},
     cmp::Ordering,
     fmt::{self, Debug},
     marker::PhantomData,
-    ops::{Deref, DerefMut, Index, IndexMut, RangeBounds},
+    ops::{Deref, DerefMut, Index, RangeBounds},
     rc::Rc,
 };
 
@@ -14,11 +12,11 @@ use slabmap::SlabMap;
 
 use crate::{
     ActionContext, SignalContext,
-    core::{
-        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, ReactionContext, SinkBindings,
-        Slot, SourceBinder, schedule_notify,
+    change_feed::{
+        ChangeFeedDelta, ChangeFeedModel, ChangeFeedReader, ChangeFeedRef, ChangeFeedRefMut,
+        ChangeFeedSignal, ChangeFeedState,
     },
-    utils::{Changes, IndexNewToOld, RefCountOps, is_sorted, to_range},
+    utils::{IndexNewToOld, is_sorted, to_range},
 };
 
 #[derive(Ex)]
@@ -29,19 +27,36 @@ impl<T: 'static> SignalVec<T> {
     pub fn from_scan(
         f: impl FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
-        Self(RawSignalVec::Rc(Scan::new(f)))
+        let mut f = f;
+        Self(RawSignalVec::Changing(ChangeFeedSignal::from_scan(
+            VecModel::new(),
+            move |edit, sc| {
+                let mut items = ItemsMut {
+                    data: ItemsMutData(edit),
+                };
+                f(&mut items, sc);
+            },
+        )))
     }
 
     pub fn reader(&self) -> SignalVecReader<T> {
-        SignalVecReader {
-            source: self.0.clone(),
-            age: None,
-        }
+        SignalVecReader(match &self.0 {
+            RawSignalVec::Changing(signal) => RawSignalVecReader::Changing(signal.reader()),
+            RawSignalVec::Vec(vec) => RawSignalVecReader::Vec {
+                vec: vec.clone(),
+                has_read: false,
+            },
+            RawSignalVec::Slice(slice) => RawSignalVecReader::Slice {
+                slice,
+                has_read: false,
+            },
+        })
     }
 
     pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
         match &self.0 {
-            RawSignalVec::Rc(rc) => rc.items(rc.clone(), sc),
+            RawSignalVec::Changing(signal) => Items::from_ref(signal.borrow(sc)),
+            RawSignalVec::Vec(vec) => Items::from_slice_items(vec),
             RawSignalVec::Slice(slice) => Items::from_slice_items(slice),
         }
     }
@@ -53,27 +68,8 @@ impl<T> From<Vec<T>> for SignalVec<T> {
 }
 impl<T> From<Rc<Vec<T>>> for SignalVec<T> {
     fn from(value: Rc<Vec<T>>) -> Self {
-        Self(RawSignalVec::Rc(value))
+        Self(RawSignalVec::Vec(value))
     }
-}
-impl<T: 'static> SignalVecNode<T> for Vec<T> {
-    fn items(&self, _rc_self: Rc<dyn Any>, _oc: &mut SignalContext<'_, '_>) -> Items<'_, T> {
-        Items::from_slice_items(self)
-    }
-    fn peek(
-        &self,
-        _rc_self: Rc<dyn Any>,
-        age: Option<usize>,
-        _sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T> {
-        Items::from_slice(self, age)
-    }
-    fn advance_reader(&self, _age: Option<usize>) -> usize {
-        0
-    }
-    fn clone_reader(&self, _age: usize) {}
-
-    fn drop_reader(&self, _age: usize) {}
 }
 
 impl<T> From<&'static [T]> for SignalVec<T> {
@@ -87,62 +83,41 @@ impl<const N: usize, T> From<&'static [T; N]> for SignalVec<T> {
     }
 }
 
-trait SignalVecNode<T>: Any {
-    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) -> Items<'_, T>;
-    fn peek(
-        &self,
-        rc_self: Rc<dyn Any>,
-        age: Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T>;
-    #[must_use]
-    fn advance_reader(&self, age: Option<usize>) -> usize;
-    fn clone_reader(&self, age: usize);
-    fn drop_reader(&self, age: usize);
-}
-
 #[derive_ex(Clone)]
 enum RawSignalVec<T: 'static> {
-    Rc(Rc<dyn SignalVecNode<T>>),
+    Changing(ChangeFeedSignal<VecModel<T>>),
+    Vec(Rc<Vec<T>>),
     Slice(&'static [T]),
 }
 
-/// Reads snapshots and changes from a signal vector.
+/// Reads latest values and changes from a signal vector.
 ///
 /// A clone starts at the same cursor position. Subsequent [`read`](Self::read) calls advance each
 /// reader independently.
-pub struct SignalVecReader<T: 'static> {
-    source: RawSignalVec<T>,
-    age: Option<usize>,
-}
+#[derive(Ex)]
+#[derive_ex(Clone(bound()))]
+pub struct SignalVecReader<T: 'static>(RawSignalVecReader<T>);
 
-impl<T: 'static> Clone for SignalVecReader<T> {
-    fn clone(&self) -> Self {
-        let source = self.source.clone();
-        if let Some(age) = self.age
-            && let RawSignalVec::Rc(vec) = &source
-        {
-            vec.clone_reader(age);
-        }
-        Self {
-            source,
-            age: self.age,
-        }
-    }
+#[derive(Ex)]
+#[derive_ex(Clone(bound()))]
+enum RawSignalVecReader<T: 'static> {
+    Changing(ChangeFeedReader<VecModel<T>>),
+    Vec { vec: Rc<Vec<T>>, has_read: bool },
+    Slice { slice: &'static [T], has_read: bool },
 }
 
 impl<T: 'static> SignalVecReader<T> {
     pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        let age = self.age;
-        match &self.source {
-            RawSignalVec::Rc(vec) => {
-                let items = vec.peek(vec.clone(), age, sc);
-                self.age = Some(vec.advance_reader(age));
+        match &mut self.0 {
+            RawSignalVecReader::Changing(reader) => Items::from_ref(reader.read(sc)),
+            RawSignalVecReader::Vec { vec, has_read } => {
+                let items = Items::from_slice(vec, !*has_read);
+                *has_read = true;
                 items
             }
-            RawSignalVec::Slice(slice) => {
-                let items = Items::from_slice(slice, age);
-                self.age = Some(0);
+            RawSignalVecReader::Slice { slice, has_read } => {
+                let items = Items::from_slice(slice, !*has_read);
+                *has_read = true;
                 items
             }
         }
@@ -157,53 +132,40 @@ impl<T: 'static> SignalVecReader<T> {
     /// consumed or use them to update retained mirror or element state. Use [`read`](Self::read) when
     /// applying changes to such state.
     pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        match &self.source {
-            RawSignalVec::Rc(vec) => vec.peek(vec.clone(), self.age, sc),
-            RawSignalVec::Slice(slice) => Items::from_slice(slice, self.age),
-        }
-    }
-}
-impl<T> Drop for SignalVecReader<T> {
-    fn drop(&mut self) {
-        if let Some(age) = self.age {
-            match &self.source {
-                RawSignalVec::Rc(vec) => vec.drop_reader(age),
-                RawSignalVec::Slice(_) => {}
-            }
+        match &self.0 {
+            RawSignalVecReader::Changing(reader) => Items::from_ref(reader.peek(sc)),
+            RawSignalVecReader::Vec { vec, has_read } => Items::from_slice(vec, !*has_read),
+            RawSignalVecReader::Slice { slice, has_read } => Items::from_slice(slice, !*has_read),
         }
     }
 }
 
 pub struct Items<'a, T: 'static> {
     items: RawItems<'a, T>,
-    age_since: Option<usize>,
+    immutable_initial: bool,
 }
 
 impl<'a, T: 'static> Items<'a, T> {
     fn from_slice_items(slice: &'a [T]) -> Self {
-        Self::from_slice(slice, Some(0))
+        Self::from_slice(slice, false)
     }
-    fn from_slice(slice: &'a [T], age_since: Option<usize>) -> Self {
+    fn from_slice(slice: &'a [T], initial: bool) -> Self {
         Self {
             items: RawItems::Slice(slice),
-            age_since,
+            immutable_initial: initial,
         }
     }
 
-    fn from_data_items(data: Ref<'a, ItemsData<T>>) -> Self {
-        let age_since = Some(data.changes.end_age());
-        Self::from_data(data, age_since)
-    }
-    fn from_data(data: Ref<'a, ItemsData<T>>, age_since: Option<usize>) -> Self {
+    fn from_ref(value: ChangeFeedRef<'a, VecModel<T>>) -> Self {
         Self {
-            items: RawItems::Cell(data),
-            age_since,
+            items: RawItems::ChangeFeed(value),
+            immutable_initial: false,
         }
     }
 
     pub fn len(&self) -> usize {
         match &self.items {
-            RawItems::Cell(data) => data.items.len(),
+            RawItems::ChangeFeed(value) => value.current().items.len(),
             RawItems::Slice(slice) => slice.len(),
         }
     }
@@ -215,21 +177,27 @@ impl<'a, T: 'static> Items<'a, T> {
     }
     pub fn changes(&self) -> impl Iterator<Item = VecChange<'_, T>> + '_ {
         use iter_n::iter3::*;
-        if let Some(age) = self.age_since {
-            match &self.items {
-                RawItems::Cell(data) => data.changes(age).into_iter0(),
-                RawItems::Slice(_) => [].into_iter1(),
-            }
-        } else {
-            self.iter()
-                .enumerate()
-                .map(|(index, new_value)| VecChange::Insert { index, new_value })
-                .into_iter2()
+        match &self.items {
+            RawItems::ChangeFeed(value) => match value.delta() {
+                ChangeFeedDelta::Initial => self.initial_changes().into_iter0(),
+                ChangeFeedDelta::Changes(changes) => changes
+                    .map(|change| change.to_signal_vec_change(&value.current().values))
+                    .into_iter1(),
+            },
+            RawItems::Slice(_) if self.immutable_initial => self.initial_changes().into_iter0(),
+            RawItems::Slice(_) => [].into_iter2(),
         }
     }
+
+    fn initial_changes(&self) -> impl Iterator<Item = VecChange<'_, T>> + '_ {
+        self.iter()
+            .enumerate()
+            .map(|(index, new_value)| VecChange::Insert { index, new_value })
+    }
+
     pub fn iter(&self) -> Iter<'_, T> {
         Iter::new(match &self.items {
-            RawItems::Cell(data) => IterSource::Cell(data),
+            RawItems::ChangeFeed(value) => IterSource::Model(value.current()),
             RawItems::Slice(slice) => IterSource::Slice(slice),
         })
     }
@@ -293,13 +261,13 @@ impl<T: PartialEq<T>> PartialEq<Vec<T>> for Items<'_, T> {
 }
 
 enum RawItems<'a, T: 'static> {
-    Cell(Ref<'a, ItemsData<T>>),
+    ChangeFeed(ChangeFeedRef<'a, VecModel<T>>),
     Slice(&'a [T]),
 }
 impl<T: 'static> RawItems<'_, T> {
     fn get(&self, index: usize) -> Option<&T> {
         match self {
-            RawItems::Cell(data) => data.get(index),
+            RawItems::ChangeFeed(value) => value.current().get(index),
             RawItems::Slice(slice) => slice.get(index),
         }
     }
@@ -307,7 +275,6 @@ impl<T: 'static> RawItems<'_, T> {
 
 pub struct ItemsMut<'a, T: 'static> {
     data: ItemsMutData<'a, T>,
-    age: usize,
 }
 
 impl<T: 'static> ItemsMut<'_, T> {
@@ -325,9 +292,7 @@ impl<T: 'static> ItemsMut<'_, T> {
     }
     pub fn insert(&mut self, index: usize, value: T) {
         let new_value = self.data.insert_raw(index, value);
-        self.data
-            .changes
-            .push(ChangeData::Insert { index, new_value });
+        self.data.record(ChangeData::Insert { index, new_value });
     }
     pub fn push(&mut self, value: T) {
         let len = self.len();
@@ -335,21 +300,16 @@ impl<T: 'static> ItemsMut<'_, T> {
     }
     pub fn remove(&mut self, index: usize) {
         let old_value = self.data.items.remove(index);
-        self.data
-            .changes
-            .push(ChangeData::Remove { index, old_value });
+        self.data.record(ChangeData::Remove { index, old_value });
     }
     pub fn get(&self, index: usize) -> Option<&T> {
         self.data.get(index)
-    }
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        self.data.get_mut(index)
     }
     pub fn set(&mut self, index: usize, value: T) {
         let old_value = self.data.items[index];
         let new_value = self.data.values.insert(value);
         self.data.items[index] = new_value;
-        self.data.changes.push(ChangeData::Set {
+        self.data.record(ChangeData::Set {
             index,
             old_value,
             new_value,
@@ -360,7 +320,7 @@ impl<T: 'static> ItemsMut<'_, T> {
             return;
         }
         self.data.items.swap(index0, index1);
-        self.data.changes.push(ChangeData::Swap {
+        self.data.record(ChangeData::Swap {
             index: (index0, index1),
         });
     }
@@ -376,7 +336,7 @@ impl<T: 'static> ItemsMut<'_, T> {
             Ordering::Greater => self.data.items[new_index..=old_index].rotate_right(1),
             Ordering::Equal => return,
         }
-        self.data.changes.push(ChangeData::Move {
+        self.data.record(ChangeData::Move {
             old_index,
             new_index,
         });
@@ -388,7 +348,9 @@ impl<T: 'static> ItemsMut<'_, T> {
         self.sort_by(|a, b| a.cmp(b))
     }
     pub fn sort_by(&mut self, compare: impl FnMut(&T, &T) -> Ordering) {
-        self.data.sort_as(compare, true)
+        if let Some(change) = self.data.sort_as(compare, true) {
+            self.data.record(change);
+        }
     }
     pub fn sort_by_key<K: Ord>(&mut self, mut key: impl FnMut(&T) -> K) {
         self.sort_by(|a, b| key(a).cmp(&key(b)))
@@ -401,7 +363,9 @@ impl<T: 'static> ItemsMut<'_, T> {
         self.sort_unstable_by(|a, b| a.cmp(b))
     }
     pub fn sort_unstable_by(&mut self, compare: impl FnMut(&T, &T) -> Ordering) {
-        self.data.sort_as(compare, false)
+        if let Some(change) = self.data.sort_as(compare, false) {
+            self.data.record(change);
+        }
     }
     pub fn sort_unstable_by_key<K: Ord>(&mut self, mut key: impl FnMut(&T) -> K) {
         self.sort_unstable_by(|a, b| key(a).cmp(&key(b)))
@@ -410,9 +374,7 @@ impl<T: 'static> ItemsMut<'_, T> {
         let range = to_range(range, self.len());
         for index in (range.start..range.end).rev() {
             let old_value = self.data.items[index];
-            self.data
-                .changes
-                .push(ChangeData::Remove { index, old_value });
+            self.data.record(ChangeData::Remove { index, old_value });
         }
         self.data.items.drain(range);
     }
@@ -422,23 +384,7 @@ impl<T: 'static> ItemsMut<'_, T> {
     }
 
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter::new(IterSource::Cell(&self.data))
-    }
-    fn is_dirty(&self) -> bool {
-        self.data.is_dirty(self.age)
-    }
-}
-impl<T> Drop for ItemsMut<'_, T> {
-    fn drop(&mut self) {
-        if self.is_dirty()
-            && let ItemsMutData::Cell {
-                node: Some(node),
-                nc,
-                ..
-            } = &mut self.data
-        {
-            node.schedule_notify(nc);
-        }
+        Iter::new(IterSource::Model(&self.data))
     }
 }
 
@@ -447,11 +393,6 @@ impl<T> Index<usize> for ItemsMut<'_, T> {
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("index out of bounds")
-    }
-}
-impl<T> IndexMut<usize> for ItemsMut<'_, T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.get_mut(index).expect("index out of bounds")
     }
 }
 impl<'a, T> IntoIterator for &'a ItemsMut<'_, T> {
@@ -512,30 +453,23 @@ impl<T: PartialEq<T>> PartialEq<Vec<T>> for ItemsMut<'_, T> {
     }
 }
 
-enum ItemsMutData<'a, T: 'static> {
-    Cell {
-        data: RefMut<'a, ItemsData<T>>,
-        node: Option<&'a StateVec<T>>,
-        nc: Option<&'a mut NotifyContext>,
-    },
-    Direct(&'a mut ItemsData<T>),
+struct ItemsMutData<'a, T: 'static>(ChangeFeedRefMut<'a, VecModel<T>>);
+
+impl<T> ItemsMutData<'_, T> {
+    fn record(&mut self, change: ChangeData) {
+        self.0.record(change);
+    }
 }
 impl<T> Deref for ItemsMutData<'_, T> {
-    type Target = ItemsData<T>;
+    type Target = VecModel<T>;
 
     fn deref(&self) -> &Self::Target {
-        match self {
-            ItemsMutData::Cell { data, .. } => data,
-            ItemsMutData::Direct(x) => x,
-        }
+        self.0.current()
     }
 }
 impl<T> DerefMut for ItemsMutData<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        match self {
-            ItemsMutData::Cell { data, .. } => data,
-            ItemsMutData::Direct(x) => x,
-        }
+        self.0.current_mut()
     }
 }
 
@@ -564,13 +498,13 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
 #[derive_ex(Clone)]
 enum IterSource<'a, T: 'static> {
-    Cell(&'a ItemsData<T>),
+    Model(&'a VecModel<T>),
     Slice(&'a [T]),
 }
 impl<'a, T: 'static> IterSource<'a, T> {
     fn get(&self, index: usize) -> Option<&'a T> {
         match self {
-            IterSource::Cell(data) => data.get(index),
+            IterSource::Model(data) => data.get(index),
             IterSource::Slice(slice) => slice.get(index),
         }
     }
@@ -665,47 +599,29 @@ impl ChangeData {
 #[derive(Ex)]
 #[derive_ex(Clone(bound()), Default)]
 #[default(Self::new())]
-pub struct StateVec<T: 'static>(Rc<RawStateVec<T>>);
+pub struct StateVec<T: 'static>(ChangeFeedState<VecModel<T>>);
 
 impl<T> StateVec<T> {
     pub fn new() -> Self {
-        Self(Rc::new(RawStateVec::new()))
+        Self(ChangeFeedState::new(VecModel::new()))
     }
     pub fn to_signal_vec(&self) -> SignalVec<T> {
-        SignalVec(RawSignalVec::Rc(self.0.clone()))
+        SignalVec(RawSignalVec::Changing(self.0.to_signal()))
     }
     pub fn reader(&self) -> SignalVecReader<T> {
-        self.to_signal_vec().reader()
+        SignalVecReader(RawSignalVecReader::Changing(self.0.reader()))
     }
     pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        self.0.items(self.0.clone(), sc)
+        Items::from_ref(self.0.borrow(sc))
     }
     pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T> {
-        let mut data = self.0.data.borrow_mut();
-        let age = data.edit_start(&self.0.ref_count_ops);
-        let data = ItemsMutData::Cell {
-            data,
-            node: Some(self),
-            nc: Some(ac.nc()),
-        };
-        ItemsMut { data, age }
+        ItemsMut {
+            data: ItemsMutData(self.0.borrow_mut(ac)),
+        }
     }
-    pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> ItemsMut<'_, T> {
-        let mut data = self.0.data.borrow_mut();
-        let age = data.edit_start(&self.0.ref_count_ops);
-        let data = ItemsMutData::Cell {
-            data,
-            node: Some(self),
-            nc: None,
-        };
-        ItemsMut { data, age }
-    }
-    fn schedule_notify(&self, nc: &mut Option<&mut NotifyContext>) {
-        if let Some(nc) = nc {
-            self.0.sinks.borrow_mut().notify(DirtyLevel::Dirty, nc)
-        } else {
-            let node = Rc::downgrade(&self.0);
-            schedule_notify(node, Slot(0))
+    pub fn borrow_mut_loose(&self, ac: &mut ActionContext) -> ItemsMut<'_, T> {
+        ItemsMut {
+            data: ItemsMutData(self.0.borrow_mut_loose(ac)),
         }
     }
 }
@@ -714,7 +630,7 @@ impl<T: Serialize> Serialize for StateVec<T> {
     where
         S: serde::Serializer,
     {
-        serializer.collect_seq(self.0.data.borrow().iter())
+        serializer.collect_seq(self.0.borrow_untracked().current().iter())
     }
 }
 impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for StateVec<T> {
@@ -734,13 +650,11 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for StateVec<T> {
             where
                 A: serde::de::SeqAccess<'de>,
             {
-                let cell = StateVec::new();
-                let mut data = cell.0.data.borrow_mut();
+                let mut data = VecModel::new();
                 while let Some(value) = seq.next_element()? {
                     data.push_raw(value)
                 }
-                drop(data);
-                Ok(cell)
+                Ok(StateVec(ChangeFeedState::new(data)))
             }
         }
         deserializer.deserialize_seq(StateVecVisitor(PhantomData))
@@ -748,95 +662,25 @@ impl<'de, T: Deserialize<'de> + 'static> Deserialize<'de> for StateVec<T> {
 }
 impl<A> FromIterator<A> for StateVec<A> {
     fn from_iter<T: IntoIterator<Item = A>>(iter: T) -> Self {
-        let this = Self::new();
-        let mut data = this.0.data.borrow_mut();
+        let mut data = VecModel::new();
         let iter = iter.into_iter();
         data.reserve(iter.size_hint().0);
         for i in iter {
             data.push_raw(i);
         }
-        drop(data);
-        this
+        Self(ChangeFeedState::new(data))
     }
 }
 
-struct RawStateVec<T: 'static> {
-    data: RefCell<ItemsData<T>>,
-    ref_count_ops: RefCell<RefCountOps>,
-    sinks: RefCell<SinkBindings>,
-}
-impl<T: 'static> RawStateVec<T> {
-    fn new() -> Self {
-        Self {
-            data: RefCell::new(ItemsData::new()),
-            ref_count_ops: RefCell::new(RefCountOps::new()),
-            sinks: RefCell::new(SinkBindings::new()),
-        }
-    }
-    fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
-        let this = self.clone();
-        self.sinks.borrow_mut().bind(this, Slot(0), sc);
-    }
-    fn to_this(this: Rc<dyn Any>) -> Rc<Self> {
-        this.downcast::<Self>().unwrap()
-    }
-}
-impl<T: 'static> SignalVecNode<T> for RawStateVec<T> {
-    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) -> Items<'_, T> {
-        Self::to_this(rc_self).watch(sc);
-        Items::from_data_items(self.data.borrow())
-    }
-
-    fn peek(
-        &self,
-        rc_self: Rc<dyn Any>,
-        age: Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T> {
-        Self::to_this(rc_self).watch(sc);
-        Items::from_data(self.data.borrow(), age)
-    }
-    fn advance_reader(&self, age: Option<usize>) -> usize {
-        self.data.borrow().advance_reader(age, &self.ref_count_ops)
-    }
-    fn clone_reader(&self, age: usize) {
-        self.ref_count_ops.borrow_mut().increment_at(age)
-    }
-
-    fn drop_reader(&self, age: usize) {
-        self.ref_count_ops.borrow_mut().decrement(Some(age))
-    }
-}
-
-impl<T> BindSource for RawStateVec<T> {
-    fn check(
-        self: Rc<Self>,
-        _slot: Slot,
-        _key: BindKey,
-        _uc: &mut ReactionContext<'_, '_>,
-    ) -> bool {
-        false
-    }
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        self.sinks.borrow_mut().unbind(key, rc);
-    }
-
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
-        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
-    }
-}
-
-struct ItemsData<T> {
+struct VecModel<T> {
     items: Vec<usize>,
     values: SlabMap<T>,
-    changes: Changes<ChangeData>,
 }
-impl<T: 'static> ItemsData<T> {
+impl<T: 'static> VecModel<T> {
     fn new() -> Self {
         Self {
             items: Vec::new(),
             values: SlabMap::new(),
-            changes: Changes::new(),
         }
     }
     fn len(&self) -> usize {
@@ -855,44 +699,14 @@ impl<T: 'static> ItemsData<T> {
         let index = self.len();
         self.insert_raw(index, value);
     }
-
-    fn edit_start(&mut self, ref_count_ops: &RefCell<RefCountOps>) -> usize {
-        ref_count_ops.borrow_mut().apply(&mut self.changes);
-        self.clean_changes();
-        self.changes.end_age()
-    }
-    fn clean_changes(&mut self) {
-        self.changes.clean(|d| match d {
-            ChangeData::Remove { old_value, .. } | ChangeData::Set { old_value, .. } => {
-                self.values.remove(old_value);
-            }
-            ChangeData::Insert { .. } => {}
-            ChangeData::Move { .. } => {}
-            ChangeData::Swap { .. } => {}
-            ChangeData::Sort { .. } => {}
-        });
-    }
-
     fn get(&self, index: usize) -> Option<&T> {
         Some(&self.values[*self.items.get(index)?])
     }
-    fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        Some(&mut self.values[*self.items.get(index)?])
-    }
-    fn changes(&self, age: usize) -> impl Iterator<Item = VecChange<'_, T>> + '_ {
-        self.changes
-            .items(age)
-            .map(|x| x.to_signal_vec_change(&self.values))
-    }
-    #[must_use]
-    fn advance_reader(&self, age: Option<usize>, ref_count_ops: &RefCell<RefCountOps>) -> usize {
-        let mut ref_count_ops = ref_count_ops.borrow_mut();
-        ref_count_ops.decrement(age);
-        ref_count_ops.increment();
-        self.changes.end_age()
-    }
-
-    fn sort_as(&mut self, mut compare: impl FnMut(&T, &T) -> Ordering, stable: bool) {
+    fn sort_as(
+        &mut self,
+        mut compare: impl FnMut(&T, &T) -> Ordering,
+        stable: bool,
+    ) -> Option<ChangeData> {
         let mut new_to_old: Vec<_> = (0..self.items.len()).collect();
         let compare = |&i0: &usize, &i1: &usize| {
             compare(&self.values[self.items[i0]], &self.values[self.items[i1]])
@@ -903,144 +717,30 @@ impl<T: 'static> ItemsData<T> {
             new_to_old.sort_by(compare);
         }
         if is_sorted(&new_to_old) {
-            return;
+            return None;
         }
         IndexNewToOld::new(&new_to_old).apply_to(&mut self.items);
-        self.changes.push(ChangeData::Sort { new_to_old });
+        Some(ChangeData::Sort { new_to_old })
     }
     fn iter(&self) -> Iter<'_, T> {
-        Iter::new(IterSource::Cell(self))
-    }
-
-    fn is_dirty(&self, age: usize) -> bool {
-        self.changes.end_age() != age
+        Iter::new(IterSource::Model(self))
     }
 }
 
-impl<T: 'static> BindSink for RawStateVec<T> {
-    fn notify(self: Rc<Self>, _slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
-        self.sinks.borrow_mut().notify(level, nc)
-    }
-}
+impl<T: 'static> ChangeFeedModel for VecModel<T> {
+    type Change = ChangeData;
 
-struct Scan<T, F> {
-    data: RefCell<ScanData<T, F>>,
-    ref_counts: RefCell<RefCountOps>,
-    sinks: RefCell<SinkBindings>,
-}
-impl<T, F> Scan<T, F>
-where
-    T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
-{
-    fn new(f: F) -> Rc<Self> {
-        Rc::new_cyclic(|this| Self {
-            data: RefCell::new(ScanData {
-                data: ItemsData::new(),
-                sb: SourceBinder::new(this, Slot(0)),
-                f,
-            }),
-            ref_counts: RefCell::new(RefCountOps::new()),
-            sinks: RefCell::new(SinkBindings::new()),
-        })
-    }
-    fn to_this(this: Rc<dyn Any>) -> Rc<Self> {
-        this.downcast::<Self>().unwrap()
-    }
-
-    fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
-        self.update(sc.rc());
-        let this = self.clone();
-        self.sinks.borrow_mut().bind(this, Slot(0), sc);
-    }
-
-    fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
-        if rc.borrow(&self.data).sb.is_clean() {
-            return;
-        }
-        let d = &mut *self.data.borrow_mut();
-        let mut is_dirty = false;
-        if d.sb.check(rc) {
-            let age = d.data.edit_start(&self.ref_counts);
-            let mut items = ItemsMut {
-                data: ItemsMutData::Direct(&mut d.data),
-                age,
-            };
-            d.sb.update(|sc| (d.f)(&mut items, sc), rc);
-            is_dirty = items.is_dirty();
-        }
-        self.sinks.borrow_mut().update(is_dirty, rc);
-    }
-}
-impl<T, F> SignalVecNode<T> for Scan<T, F>
-where
-    T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
-{
-    fn items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) -> Items<'_, T> {
-        let this = Self::to_this(rc_self);
-        this.watch(sc);
-        Items::from_data_items(Ref::map(self.data.borrow(), |data| &data.data))
-    }
-
-    fn peek(
-        &self,
-        rc_self: Rc<dyn Any>,
-        age: Option<usize>,
-        sc: &mut SignalContext<'_, '_>,
-    ) -> Items<'_, T> {
-        let this = Self::to_this(rc_self);
-        this.watch(sc);
-        Items::from_data(Ref::map(self.data.borrow(), |data| &data.data), age)
-    }
-    fn advance_reader(&self, age: Option<usize>) -> usize {
-        self.data
-            .borrow()
-            .data
-            .advance_reader(age, &self.ref_counts)
-    }
-    fn clone_reader(&self, age: usize) {
-        self.ref_counts.borrow_mut().increment_at(age)
-    }
-
-    fn drop_reader(&self, age: usize) {
-        self.ref_counts.borrow_mut().decrement(Some(age))
-    }
-}
-impl<T, F> BindSink for Scan<T, F>
-where
-    T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
-{
-    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
-        if self.data.borrow_mut().sb.on_notify(slot, level) {
-            self.sinks.borrow_mut().notify(level, nc)
+    fn release_change(&mut self, change: Self::Change) {
+        match change {
+            ChangeData::Remove { old_value, .. } | ChangeData::Set { old_value, .. } => {
+                self.values.remove(old_value);
+            }
+            ChangeData::Insert { .. }
+            | ChangeData::Move { .. }
+            | ChangeData::Swap { .. }
+            | ChangeData::Sort { .. } => {}
         }
     }
-}
-impl<T, F> BindSource for Scan<T, F>
-where
-    T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
-{
-    fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
-        self.update(rc);
-        self.sinks.borrow().is_dirty(key, rc)
-    }
-
-    fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        self.sinks.borrow_mut().unbind(key, rc);
-    }
-
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
-        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
-    }
-}
-
-struct ScanData<T, F> {
-    data: ItemsData<T>,
-    sb: SourceBinder,
-    f: F,
 }
 
 #[cfg(test)]

@@ -1,4 +1,5 @@
 use super::*;
+use pretty_assertions::assert_eq;
 
 #[test]
 fn downcast_and_into_owned() {
@@ -47,6 +48,32 @@ fn changes_and_ref_count_ops() {
     assert_eq!(cleaned, vec!["a"]);
     let remaining = changes.items(changes.end_age()).next().is_none();
     assert!(remaining);
+}
+
+#[test]
+fn changes_ages_wrap_without_invalidating_cursors() {
+    let mut changes = Changes {
+        age_base: usize::MAX,
+        items: VecDeque::new(),
+        end_ref_count: 0,
+    };
+
+    changes.push("change");
+
+    assert_eq!(changes.end_age(), 0);
+    assert_eq!(
+        changes.items(usize::MAX).copied().collect::<Vec<_>>(),
+        vec!["change"]
+    );
+    assert_eq!(
+        changes.items(0).copied().collect::<Vec<_>>(),
+        Vec::<&str>::new()
+    );
+
+    let mut cleaned = Vec::new();
+    changes.clean(|change| cleaned.push(change));
+    assert_eq!(cleaned, vec!["change"]);
+    assert_eq!(changes.end_age(), 0);
 }
 
 #[test]

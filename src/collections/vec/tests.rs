@@ -1,5 +1,7 @@
+use std::{cell::Cell, rc::Rc};
+
 use super::*;
-use crate::{State, core::Runtime};
+use crate::{State, core::Runtime, effect};
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -620,4 +622,130 @@ fn items_mut_partial_eq() {
     assert!(items == vec![1, 2, 3]);
     assert!(items != [1, 2]);
     assert!(items != vec![1, 2]);
+}
+
+#[test]
+fn state_vec_releases_old_values_after_the_last_reader_advances() {
+    let mut rt = Runtime::new();
+    let old = Rc::new(String::from("old"));
+    let new = Rc::new(String::from("new"));
+    let vec: StateVec<_> = [old.clone()].into_iter().collect();
+    let mut reader = vec.reader();
+    drop(reader.read(&mut rt.sc()));
+
+    vec.borrow_mut(rt.ac()).set(0, new.clone());
+    assert_eq!(Rc::strong_count(&old), 2);
+
+    let items = reader.read(&mut rt.sc());
+    assert_eq!(
+        items.changes().collect::<Vec<_>>(),
+        vec![VecChange::Set {
+            index: 0,
+            old_value: &old,
+            new_value: &new,
+        }]
+    );
+    assert_eq!(Rc::strong_count(&old), 2);
+    drop(items);
+
+    assert_eq!(Rc::strong_count(&old), 1);
+}
+
+#[test]
+fn state_vec_releases_unread_history_without_readers() {
+    let mut rt = Runtime::new();
+    let old = Rc::new(String::from("old"));
+    let vec: StateVec<_> = [old.clone()].into_iter().collect();
+
+    vec.borrow_mut(rt.ac()).set(0, Rc::new(String::from("new")));
+
+    assert_eq!(Rc::strong_count(&old), 1);
+}
+
+#[test]
+fn state_vec_notifies_only_when_history_is_recorded() {
+    let mut rt = Runtime::new();
+    let vec = StateVec::<i32>::new();
+    let calls = Rc::new(Cell::new(0));
+    let _subscription = effect({
+        let calls = calls.clone();
+        let vec = vec.clone();
+        move |sc| {
+            drop(vec.borrow(sc));
+            calls.set(calls.get() + 1);
+        }
+    });
+    rt.flush();
+    assert_eq!(calls.get(), 1);
+
+    drop(vec.borrow_mut(rt.ac()));
+    rt.flush();
+    assert_eq!(calls.get(), 1);
+
+    vec.borrow_mut(rt.ac()).push(1);
+    rt.flush();
+    assert_eq!(calls.get(), 2);
+
+    vec.borrow_mut_loose(rt.ac()).push(2);
+    rt.flush();
+    assert_eq!(calls.get(), 3);
+}
+
+#[test]
+fn signal_vec_scan_does_not_propagate_unchanged_updates() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let vec = SignalVec::from_scan({
+        let source = source.clone();
+        move |items, sc| {
+            let value = source.get(sc);
+            if items.is_empty() {
+                items.push(value);
+            } else if items[0] != value {
+                items.set(0, value);
+            }
+        }
+    });
+    let calls = Rc::new(Cell::new(0));
+    let _subscription = effect({
+        let calls = calls.clone();
+        move |sc| {
+            drop(vec.borrow(sc));
+            calls.set(calls.get() + 1);
+        }
+    });
+    rt.flush();
+    assert_eq!(calls.get(), 1);
+
+    source.set(1, rt.ac());
+    rt.flush();
+    assert_eq!(calls.get(), 1);
+
+    source.set(2, rt.ac());
+    rt.flush();
+    assert_eq!(calls.get(), 2);
+}
+
+#[test]
+fn state_vec_serde_preserves_values_and_starts_readers_as_initial() {
+    let vec: StateVec<_> = [1, 2].into_iter().collect();
+    let json = serde_json::to_string(&vec).unwrap();
+    assert_eq!(json, "[1,2]");
+
+    let restored: StateVec<i32> = serde_json::from_str(&json).unwrap();
+    let mut reader = restored.reader();
+    let mut rt = Runtime::new();
+    assert_eq!(
+        reader.read(&mut rt.sc()).changes().collect::<Vec<_>>(),
+        vec![
+            VecChange::Insert {
+                index: 0,
+                new_value: &1,
+            },
+            VecChange::Insert {
+                index: 1,
+                new_value: &2,
+            },
+        ]
+    );
 }

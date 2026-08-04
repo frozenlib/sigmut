@@ -1,3 +1,4 @@
+pub mod change_feed;
 pub mod collections;
 pub mod core;
 mod effect_async_fn;
