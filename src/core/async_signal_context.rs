@@ -7,30 +7,22 @@ use std::{
 };
 
 use super::{
-    BindSink, Dirty, DirtyLevel, ReactionContext, SignalContext, Slot, SourceBindings,
-    raw_context::SignalContextPtr, waker_from_sink,
+    BindSink, Dirty, DirtyLevel, ReactionContext, SignalContext, SignalContextChannel, Slot,
+    SourceBindings, waker_from_sink,
 };
 
 const SLOT_WAKE: Slot = Slot(0);
 const SLOT_DEPS: Slot = Slot(1);
 const SLOT_POLL: Slot = Slot(2);
 
-unsafe fn sc(p: &mut Option<SignalContextPtr>) -> SignalContext<'_, '_> {
-    if let Some(p) = p {
-        unsafe { p.signal_context() }
-    } else {
-        panic!("`SignalContext` cannot be used after being moved.");
-    }
-}
-
 #[derive(Default)]
 struct AsyncSignalContextState {
-    sc: Option<SignalContextPtr>,
     poll_waker: Option<Waker>,
     poll_bindings: SourceBindings,
 }
 
 struct AsyncSignalContextData {
+    context: SignalContextChannel,
     s: RefCell<AsyncSignalContextState>,
     sink: Weak<dyn BindSink>,
 }
@@ -40,7 +32,10 @@ pub struct AsyncSignalContext(Rc<AsyncSignalContextData>);
 
 impl AsyncSignalContext {
     pub fn with<T>(&mut self, f: impl FnOnce(&mut SignalContext<'_, '_>) -> T) -> T {
-        unsafe { f(&mut sc(&mut self.0.s.borrow_mut().sc)) }
+        self.0
+            .context
+            .try_with(f)
+            .expect("`SignalContext` cannot be used after being moved.")
     }
 
     /// Creates a future that wraps a signal function returning [`Poll`].
@@ -53,18 +48,23 @@ impl AsyncSignalContext {
     /// Only the dependencies recorded in `SingalContext` in the last call of `f` are added to `AsyncSignalContext` dependencies.
     pub async fn poll_fn<T>(&mut self, f: impl Fn(&mut SignalContext<'_, '_>) -> Poll<T>) -> T {
         poll_fn(|cx| {
-            let s = &mut *self.0.s.borrow_mut();
-            let mut sc = unsafe { sc(&mut s.sc) };
-
-            let sink = self.0.sink.clone();
-            let ret = s.poll_bindings.update(sink, SLOT_POLL, true, &f, sc.rc());
-            if ret.is_ready() {
-                sc.extend(&mut s.poll_bindings);
-                s.poll_waker.take();
-            } else {
-                s.poll_waker = Some(cx.waker().clone());
-            }
-            ret
+            self.0
+                .context
+                .try_with(|context| {
+                    let s = &mut *self.0.s.borrow_mut();
+                    let sink = self.0.sink.clone();
+                    let ret = s
+                        .poll_bindings
+                        .update(sink, SLOT_POLL, true, &f, context.rc());
+                    if ret.is_ready() {
+                        context.extend(&mut s.poll_bindings);
+                        s.poll_waker.take();
+                    } else {
+                        s.poll_waker = Some(cx.waker().clone());
+                    }
+                    ret
+                })
+                .expect("`SignalContext` cannot be used after being moved.")
         })
         .await
     }
@@ -75,6 +75,7 @@ struct AsyncSignalContextSource(Rc<AsyncSignalContextData>);
 impl AsyncSignalContextSource {
     pub fn new(sink: Weak<dyn BindSink>) -> Self {
         Self(Rc::new(AsyncSignalContextData {
+            context: SignalContextChannel::new(),
             s: RefCell::new(AsyncSignalContextState::default()),
             sink,
         }))
@@ -83,13 +84,7 @@ impl AsyncSignalContextSource {
         AsyncSignalContext(self.0.clone())
     }
     pub fn with<T>(&self, sc: &mut SignalContext<'_, '_>, f: impl FnOnce() -> T) -> T {
-        let data = SignalContextPtr::new(sc);
-        assert!(self.0.s.borrow().sc.is_none());
-        self.0.s.borrow_mut().sc = Some(data);
-        let ret = f();
-        assert!(self.0.s.borrow().sc == Some(data));
-        self.0.s.borrow_mut().sc = None;
-        ret
+        self.0.context.scope(sc, f)
     }
 }
 

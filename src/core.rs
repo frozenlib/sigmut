@@ -34,7 +34,6 @@ pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
 use crate::utils::{buckets::Buckets, downcast_or};
-use raw_context::ActionContextPtr;
 
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
@@ -1357,20 +1356,14 @@ impl Drop for RawWake {
     }
 }
 
-struct AsyncActionContextSource(Rc<RefCell<Option<ActionContextPtr>>>);
+struct AsyncActionContextSource(Rc<ActionContextChannel>);
 
 impl AsyncActionContextSource {
     fn new() -> Self {
-        Self(Rc::new(RefCell::new(None)))
+        Self(Rc::new(ActionContextChannel::new()))
     }
     fn call<T>(&self, ac: &mut ActionContext, f: impl FnOnce() -> T) -> T {
-        let pointer = ActionContextPtr::new(ac);
-        assert!(self.0.borrow().is_none());
-        *self.0.borrow_mut() = Some(pointer);
-        let ret = f();
-        assert!(*self.0.borrow() == Some(pointer));
-        *self.0.borrow_mut() = None;
-        ret
+        self.0.scope(ac, f)
     }
     fn context(&self) -> AsyncActionContext {
         AsyncActionContext(self.0.clone())
@@ -1378,16 +1371,13 @@ impl AsyncActionContextSource {
 }
 
 /// Context for asynchronous state change.
-pub struct AsyncActionContext(Rc<RefCell<Option<ActionContextPtr>>>);
+pub struct AsyncActionContext(Rc<ActionContextChannel>);
 
 impl AsyncActionContext {
     pub fn call<T>(&self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
-        let context = self.0.borrow_mut();
-        let pointer = context
-            .as_ref()
-            .copied()
-            .expect("`AsyncActionContext` cannot be used after being moved.");
-        unsafe { f(pointer.action_context()) }
+        self.0
+            .try_with(f)
+            .expect("`AsyncActionContext` cannot be used after being moved.")
     }
 }
 

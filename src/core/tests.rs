@@ -200,9 +200,9 @@ fn runtime_config_applies_when_an_async_action_wakes() {
     let called = Rc::new(Cell::new(false));
     spawn_action_async_in(phase, {
         let called = called.clone();
-        async move |_| {
+        async move |context| {
             receiver.recv().await;
-            called.set(true);
+            context.call(|_| called.set(true));
         }
     });
 
