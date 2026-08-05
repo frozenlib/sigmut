@@ -16,6 +16,29 @@ fn schedule_reaction_call(phase: ReactionPhase, calls: Rc<RefCell<Vec<i32>>>, va
 }
 
 #[test]
+fn sink_bindings_update_does_not_downgrade_dirty() {
+    struct NoopSink;
+
+    impl BindSink for NoopSink {
+        fn notify(self: Rc<Self>, _slot: Slot, _level: DirtyLevel, _nc: &mut NotifyContext) {}
+    }
+
+    let sink: Rc<dyn BindSink> = Rc::new(NoopSink);
+    let mut sinks = SinkBindings::new();
+    let key = BindKey(sinks.0.insert(SinkBinding {
+        sink: Rc::downgrade(&sink),
+        slot: Slot(0),
+        dirty: Dirty::Dirty,
+    }));
+    let mut rt = Runtime::new();
+    let mut rc = rt.rc();
+
+    sinks.update(false, &mut rc);
+
+    assert!(sinks.is_dirty(key, &mut rc));
+}
+
+#[test]
 fn runtime_config_phase_sets_cover_the_full_id_range() {
     let all = RuntimeConfig::default();
     let config = RuntimeConfig::default()

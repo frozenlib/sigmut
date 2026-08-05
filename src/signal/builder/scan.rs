@@ -216,12 +216,12 @@ where
         }
         self.try_schedule_discard(rc);
         let d = &mut *self.data.borrow_mut();
-        if d.sb.check(rc) {
-            let is_dirty = d.sb.update(|sc| d.scan.call(&mut d.state, sc), rc);
-            if Scan::FILTER {
-                self.sinks.borrow_mut().update(is_dirty, rc);
-            }
-        }
+        let is_dirty = if d.sb.check(rc) {
+            d.sb.update(|sc| d.scan.call(&mut d.state, sc), rc)
+        } else {
+            false
+        };
+        self.sinks.borrow_mut().update(is_dirty, rc);
     }
     fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);

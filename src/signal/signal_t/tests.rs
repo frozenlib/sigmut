@@ -17,6 +17,18 @@ use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
 
 use super::SignalNode;
 
+fn scan_dedup(source: Signal<i32>) -> Signal<i32> {
+    SignalBuilder::from_scan_filter(0, move |value, sc| {
+        let next = source.get(sc);
+        if *value == next {
+            return false;
+        }
+        *value = next;
+        true
+    })
+    .build()
+}
+
 #[test]
 fn new() {
     let mut rt = Runtime::new();
@@ -261,6 +273,57 @@ fn new_dedup() {
     st.set(10, rt.ac());
     rt.flush();
     cr.verify("10");
+}
+
+#[test]
+fn nested_filtered_scan_resolves_clean_source() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+    let source = State::new(0);
+    let inner = scan_dedup(source.to_signal());
+    let outer = scan_dedup(inner);
+    let _subscription = outer.effect(|value| call!("{value}"));
+
+    rt.flush();
+    cr.verify("0");
+
+    source.set(0, rt.ac());
+    rt.flush();
+    cr.verify(());
+}
+
+#[test]
+fn nested_filtered_scan_resolves_dirty_source() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+    let source = State::new(0);
+    let inner = scan_dedup(source.to_signal());
+    let outer = scan_dedup(inner);
+    let _subscription = outer.effect(|value| call!("{value}"));
+
+    rt.flush();
+    cr.verify("0");
+
+    source.set(1, rt.ac());
+    rt.flush();
+    cr.verify("1");
+}
+
+#[test]
+fn unfiltered_scan_resolves_maybe_dirty_source() {
+    let mut rt = Runtime::new();
+    let mut cr = CallRecorder::new();
+    let source = State::new(0);
+    let inner = scan_dedup(source.to_signal());
+    let outer = SignalBuilder::from_scan(0, move |value, sc| *value = inner.get(sc)).build();
+    let _subscription = outer.effect(|value| call!("{value}"));
+
+    rt.flush();
+    cr.verify("0");
+
+    source.set(1, rt.ac());
+    rt.flush();
+    cr.verify("1");
 }
 
 #[test]
