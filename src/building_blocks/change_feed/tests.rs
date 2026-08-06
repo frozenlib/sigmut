@@ -1,9 +1,12 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::{Cell, RefCell},
+    rc::Rc,
+};
 
 use pretty_assertions::assert_eq;
 
 use super::*;
-use crate::{State, core::Runtime};
+use crate::{Signal, State, core::Runtime};
 
 struct TestModel {
     value: i32,
@@ -29,6 +32,24 @@ fn delta(value: &ChangeFeedRef<'_, TestModel>) -> Option<Vec<i32>> {
         ChangeFeedDelta::Initial => None,
         ChangeFeedDelta::Incremental(changes) => Some(changes.copied().collect()),
     }
+}
+
+fn scanned_state(source: &State<i32>) -> ChangeFeedState<TestModel> {
+    ChangeFeedState::from_scan(
+        TestModel {
+            value: 0,
+            released: Rc::new(RefCell::new(Vec::new())),
+        },
+        {
+            let source = source.clone();
+            move |mut edit, sc| {
+                let value = source.get(sc);
+                if edit.current().value != value {
+                    set(&mut edit, value);
+                }
+            }
+        },
+    )
 }
 
 #[test]
@@ -183,4 +204,205 @@ fn scan_reports_incremental_deltas() {
     source.set(2, rt.ac());
     assert_eq!(delta(&reader.read(&mut rt.sc())), Some(vec![1]));
     assert_eq!(signal.borrow(&mut rt.sc()).current().value, 2);
+}
+
+#[test]
+fn state_scan_materializes_latest_source_and_keeps_initial_delta() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let state = scanned_state(&source);
+    let mut reader = state.reader();
+
+    source.set(2, rt.ac());
+
+    let value = reader.read(&mut rt.sc());
+    assert_eq!((value.current().value, delta(&value)), (2, None));
+}
+
+#[test]
+fn state_scan_reader_peek_resolves_source_without_advancing() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let state = scanned_state(&source);
+    let mut reader = state.reader();
+
+    source.set(2, rt.ac());
+
+    let value = reader.peek(&mut rt.sc());
+    assert_eq!((value.current().value, delta(&value)), (2, None));
+    drop(value);
+    let value = reader.read(&mut rt.sc());
+    assert_eq!((value.current().value, delta(&value)), (2, None));
+}
+
+#[test]
+fn state_scan_resolves_source_before_mutable_edit() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let state = scanned_state(&source);
+    let mut reader = state.reader();
+    drop(reader.read(&mut rt.sc()));
+
+    source.set(2, rt.ac());
+    {
+        let mut edit = state.borrow_mut(rt.ac());
+        assert_eq!(edit.current().value, 2);
+        set(&mut edit, 3);
+    }
+
+    let value = reader.read(&mut rt.sc());
+    assert_eq!(
+        (value.current().value, delta(&value)),
+        (3, Some(vec![1, 2]))
+    );
+}
+
+#[test]
+fn state_scan_resolves_source_before_loose_mutable_edit() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let state = scanned_state(&source);
+    let mut reader = state.reader();
+    drop(reader.read(&mut rt.sc()));
+
+    source.set(2, rt.ac());
+    {
+        let mut edit = state.borrow_mut_loose(rt.ac());
+        assert_eq!(edit.current().value, 2);
+        set(&mut edit, 3);
+    }
+
+    let value = reader.read(&mut rt.sc());
+    assert_eq!(
+        (value.current().value, delta(&value)),
+        (3, Some(vec![1, 2]))
+    );
+}
+
+#[test]
+fn state_scan_equal_source_notification_resolves_clean() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let state = scanned_state(&source);
+    let scans = Rc::new(Cell::new(0));
+    let observed = ChangeFeedSignal::from_scan(
+        TestModel {
+            value: 0,
+            released: Rc::new(RefCell::new(Vec::new())),
+        },
+        {
+            let scans = scans.clone();
+            let state = state.clone();
+            move |mut edit, sc| {
+                scans.set(scans.get() + 1);
+                let value = state.borrow(sc).current().value;
+                if edit.current().value != value {
+                    set(&mut edit, value);
+                }
+            }
+        },
+    );
+
+    assert_eq!(observed.borrow(&mut rt.sc()).current().value, 1);
+    assert_eq!(scans.get(), 1);
+
+    source.set(1, rt.ac());
+
+    assert_eq!(observed.borrow(&mut rt.sc()).current().value, 1);
+    assert_eq!(scans.get(), 1);
+}
+
+#[test]
+fn state_scan_maybe_dirty_source_resolves_clean_without_scanning() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let dedup = Signal::new_dedup({
+        let source = source.clone();
+        move |sc| source.get(sc)
+    });
+    let state_scans = Rc::new(Cell::new(0));
+    let state = ChangeFeedState::from_scan(
+        TestModel {
+            value: 0,
+            released: Rc::new(RefCell::new(Vec::new())),
+        },
+        {
+            let state_scans = state_scans.clone();
+            move |mut edit, sc| {
+                state_scans.set(state_scans.get() + 1);
+                let value = dedup.get(sc);
+                if edit.current().value != value {
+                    set(&mut edit, value);
+                }
+            }
+        },
+    );
+    let downstream_scans = Rc::new(Cell::new(0));
+    let observed = ChangeFeedSignal::from_scan(
+        TestModel {
+            value: 0,
+            released: Rc::new(RefCell::new(Vec::new())),
+        },
+        {
+            let downstream_scans = downstream_scans.clone();
+            let state = state.clone();
+            move |mut edit, sc| {
+                downstream_scans.set(downstream_scans.get() + 1);
+                let value = state.borrow(sc).current().value;
+                if edit.current().value != value {
+                    set(&mut edit, value);
+                }
+            }
+        },
+    );
+
+    assert_eq!(observed.borrow(&mut rt.sc()).current().value, 1);
+    assert_eq!((state_scans.get(), downstream_scans.get()), (1, 1));
+
+    source.set(1, rt.ac());
+
+    assert_eq!(observed.borrow(&mut rt.sc()).current().value, 1);
+    assert_eq!((state_scans.get(), downstream_scans.get()), (1, 1));
+}
+
+#[test]
+fn state_scan_loose_edit_dirty_is_not_absorbed_by_equal_source_update() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let state = scanned_state(&source);
+    let observed = ChangeFeedSignal::from_scan(
+        TestModel {
+            value: 0,
+            released: Rc::new(RefCell::new(Vec::new())),
+        },
+        {
+            let state = state.clone();
+            move |mut edit, sc| {
+                let value = state.borrow(sc).current().value;
+                if edit.current().value != value {
+                    set(&mut edit, value);
+                }
+            }
+        },
+    );
+    assert_eq!(observed.borrow(&mut rt.sc()).current().value, 1);
+
+    set(&mut state.borrow_mut_loose(rt.ac()), 2);
+    source.set(2, rt.ac());
+    rt.dispatch_all_reactions();
+
+    assert_eq!(observed.borrow(&mut rt.sc()).current().value, 2);
+}
+
+#[test]
+fn state_scan_contextless_borrow_does_not_resolve_source() {
+    let mut rt = Runtime::new();
+    let source = State::new(1);
+    let state = scanned_state(&source);
+    assert_eq!(state.borrow(&mut rt.sc()).current().value, 1);
+
+    source.set(2, rt.ac());
+
+    assert_eq!(state.try_borrow_contextless().unwrap().current().value, 1);
+    assert_eq!(state.borrow(&mut rt.sc()).current().value, 2);
 }

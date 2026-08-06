@@ -24,6 +24,15 @@ impl StateList {
         Self(ChangeFeedState::new(ListModel(Vec::new())))
     }
 
+    fn from_scan(
+        mut f: impl FnMut(&mut ListItemsMut<'_>, &mut SignalContext<'_, '_>) + 'static,
+    ) -> Self {
+        Self(ChangeFeedState::from_scan(
+            ListModel(Vec::new()),
+            move |edit, sc| f(&mut ListItemsMut(edit), sc),
+        ))
+    }
+
     fn reader(&self) -> ListReader {
         ListReader(self.0.reader())
     }
@@ -173,6 +182,33 @@ fn external_scan_facade_owns_the_same_change_feed_ref_mut() {
     let items = reader.read(&mut runtime.sc());
     assert_eq!(items.values(), &[0, 1]);
     assert_eq!(items.delta(), [1]);
+}
+
+#[test]
+fn external_state_scan_facade_remains_directly_mutable() {
+    let mut runtime = Runtime::new();
+    let count = State::new(1);
+    let state = StateList::from_scan({
+        let count = count.clone();
+        move |items, sc| {
+            while items.len() < count.get(sc) {
+                items.push(items.len() as i32);
+            }
+        }
+    });
+    let mut reader = state.reader();
+
+    {
+        let items = reader.read(&mut runtime.sc());
+        assert_eq!(items.values(), &[0]);
+        assert_eq!(items.delta(), [0]);
+    }
+
+    count.set(2, runtime.ac());
+    state.borrow_mut(runtime.ac()).push(10);
+    let items = reader.read(&mut runtime.sc());
+    assert_eq!(items.values(), &[0, 1, 10]);
+    assert_eq!(items.delta(), [1, 2]);
 }
 
 #[test]

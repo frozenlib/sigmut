@@ -3,8 +3,9 @@
 //! A change feed model stores its current value together with model-specific changes. A reader's
 //! first read is [`ChangeFeedDelta::Initial`]; later reads provide the incremental delta through
 //! [`ChangeFeedDelta::Incremental`]. Unread changes remain available until the reader advances or
-//! is dropped. Use [`ChangeFeedState`] for mutable state and [`ChangeFeedSignal::from_scan`] for
-//! derived values.
+//! is dropped. Use [`ChangeFeedState::new`] for independent mutable state,
+//! [`ChangeFeedState::from_scan`] for mutable state derived from reactive sources, and
+//! [`ChangeFeedSignal::from_scan`] for derived values without direct mutation.
 //!
 //! Mutating [`ChangeFeedRefMut::current_mut`] does not record a change by itself. Every observable
 //! mutation must be paired with [`ChangeFeedRefMut::record`] in the same mutable borrow.
@@ -263,7 +264,10 @@ enum EditFinish<'a> {
         sinks: &'a RefCell<SinkBindings>,
         nc: &'a mut NotifyContext,
     },
-    Schedule(Weak<dyn BindSink>),
+    Schedule {
+        node: Weak<dyn BindSink>,
+        slot: Slot,
+    },
 }
 
 /// A mutable borrowed reference that records model-specific changes.
@@ -340,7 +344,7 @@ impl<M: ChangeFeedModel> Drop for ChangeFeedRefMut<'_, M> {
             EditFinish::Notify { sinks, nc } => {
                 sinks.borrow_mut().notify(DirtyLevel::Dirty, nc);
             }
-            EditFinish::Schedule(node) => schedule_notify(node, Slot(0)),
+            EditFinish::Schedule { node, slot } => schedule_notify(node, slot),
         }
     }
 }
@@ -463,18 +467,43 @@ impl<M: ChangeFeedModel> Clone for ChangeFeedReader<M> {
 #[derive_ex(Clone(bound()))]
 pub struct ChangeFeedState<M: ChangeFeedModel>(Rc<StateNode<M>>);
 
+const STATE_SOURCE_SLOT: Slot = Slot(0);
+const STATE_LOCAL_EDIT_SLOT: Slot = Slot(1);
+
 impl<M: ChangeFeedModel> ChangeFeedState<M> {
     /// Creates change feed state with an initial model value.
     pub fn new(initial: M) -> Self {
         Self(Rc::new(StateNode {
             storage: ChangeFeedStorage::new(initial),
+            scan: None,
+            sinks: RefCell::new(SinkBindings::new()),
+        }))
+    }
+
+    /// Creates mutable change feed state derived from reactive sources.
+    ///
+    /// The scan function receives ownership of an edit. Contextual reads and mutable borrows
+    /// evaluate `scan` when a source may have changed. Changes recorded by `scan` determine
+    /// whether dependants become dirty; the first reader delta remains
+    /// [`ChangeFeedDelta::Initial`] even when the first scan records changes. Direct edits remain
+    /// available through [`Self::borrow_mut`] and [`Self::borrow_mut_loose`].
+    pub fn from_scan(
+        initial: M,
+        scan: impl FnMut(ChangeFeedRefMut<'_, M>, &mut SignalContext<'_, '_>) + 'static,
+    ) -> Self {
+        Self(Rc::new_cyclic(|this| StateNode {
+            storage: ChangeFeedStorage::new(initial),
+            scan: Some(RefCell::new(StateScanData {
+                source_binder: SourceBinder::new(this, STATE_SOURCE_SLOT),
+                scan: Box::new(scan),
+            })),
             sinks: RefCell::new(SinkBindings::new()),
         }))
     }
 
     /// Borrows the current model value and registers a dependency.
     pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> ChangeFeedRef<'a, M> {
-        self.0.bind(sc);
+        self.0.watch(sc);
         self.0.storage.borrow_current()
     }
 
@@ -492,6 +521,7 @@ impl<M: ChangeFeedModel> ChangeFeedState<M> {
 
     /// Mutably borrows the model for a change-recording edit.
     pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ChangeFeedRefMut<'a, M> {
+        self.0.update(&mut ac.rc());
         self.0.storage.begin_edit().with_finish(EditFinish::Notify {
             sinks: &self.0.sinks,
             nc: ac.nc(),
@@ -501,12 +531,16 @@ impl<M: ChangeFeedModel> ChangeFeedState<M> {
     /// Mutably borrows the model without tying the returned guard to the action context.
     ///
     /// A recorded change schedules notification after the edit is dropped.
-    pub fn borrow_mut_loose(&self, _ac: &mut ActionContext) -> ChangeFeedRefMut<'_, M> {
+    pub fn borrow_mut_loose(&self, ac: &mut ActionContext) -> ChangeFeedRefMut<'_, M> {
+        self.0.update(&mut ac.rc());
         let node: Rc<dyn BindSink> = self.0.clone();
         self.0
             .storage
             .begin_edit()
-            .with_finish(EditFinish::Schedule(Rc::downgrade(&node)))
+            .with_finish(EditFinish::Schedule {
+                node: Rc::downgrade(&node),
+                slot: STATE_LOCAL_EDIT_SLOT,
+            })
     }
 
     /// Returns a signal backed by this state.
@@ -526,10 +560,35 @@ impl<M: ChangeFeedModel> ChangeFeedState<M> {
 
 struct StateNode<M: ChangeFeedModel> {
     storage: ChangeFeedStorage<M>,
+    scan: Option<RefCell<StateScanData<M>>>,
     sinks: RefCell<SinkBindings>,
 }
 
 impl<M: ChangeFeedModel> StateNode<M> {
+    fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
+        let Some(scan) = &self.scan else {
+            return;
+        };
+        if rc.borrow(scan).source_binder.is_clean() {
+            return;
+        }
+        let scan = &mut *scan.borrow_mut();
+        let dirty = Cell::new(false);
+        if scan.source_binder.check(rc) {
+            let edit = self
+                .storage
+                .begin_edit()
+                .with_finish(EditFinish::Track(&dirty));
+            scan.source_binder.update(|sc| (scan.scan)(edit, sc), rc);
+        }
+        self.sinks.borrow_mut().update(dirty.get(), rc);
+    }
+
+    fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
+        self.update(sc.rc());
+        self.bind(sc);
+    }
+
     fn bind(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
         self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
     }
@@ -541,7 +600,7 @@ impl<M: ChangeFeedModel> ChangeFeedNode<M> for StateNode<M> {
     }
 
     fn watch(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
-        rc_self.downcast::<Self>().unwrap().bind(sc);
+        rc_self.downcast::<Self>().unwrap().watch(sc);
     }
 
     fn storage(&self) -> &ChangeFeedStorage<M> {
@@ -551,6 +610,7 @@ impl<M: ChangeFeedModel> ChangeFeedNode<M> for StateNode<M> {
 
 impl<M: ChangeFeedModel> BindSource for StateNode<M> {
     fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
+        self.update(rc);
         self.sinks.borrow().is_dirty(key, rc)
     }
 
@@ -564,9 +624,25 @@ impl<M: ChangeFeedModel> BindSource for StateNode<M> {
 }
 
 impl<M: ChangeFeedModel> BindSink for StateNode<M> {
-    fn notify(self: Rc<Self>, _slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
-        self.sinks.borrow_mut().notify(level, nc);
+    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
+        if slot == STATE_LOCAL_EDIT_SLOT {
+            self.sinks.borrow_mut().notify(level, nc);
+            return;
+        }
+        let Some(scan) = &self.scan else {
+            return;
+        };
+        if scan.borrow_mut().source_binder.on_notify(slot, level) {
+            self.sinks.borrow_mut().notify(DirtyLevel::MaybeDirty, nc);
+        }
     }
+}
+
+type StateScan<M> = dyn FnMut(ChangeFeedRefMut<'_, M>, &mut SignalContext<'_, '_>) + 'static;
+
+struct StateScanData<M: ChangeFeedModel> {
+    source_binder: SourceBinder,
+    scan: Box<StateScan<M>>,
 }
 
 struct ScanNode<M: ChangeFeedModel, F> {
