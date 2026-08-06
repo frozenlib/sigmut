@@ -55,7 +55,7 @@
 
 use std::{
     any::Any,
-    cell::{Cell, Ref, RefCell, RefMut},
+    cell::{Ref, RefCell, RefMut},
     mem,
     rc::{Rc, Weak},
 };
@@ -259,7 +259,7 @@ impl<M: ChangeFeedModel> Drop for ChangeFeedRef<'_, M> {
 
 enum EditFinish<'a> {
     None,
-    Track(&'a Cell<bool>),
+    Track(&'a mut bool),
     Notify {
         sinks: &'a RefCell<SinkBindings>,
         nc: &'a mut NotifyContext,
@@ -340,7 +340,7 @@ impl<M: ChangeFeedModel> Drop for ChangeFeedRefMut<'_, M> {
         }
         match mem::replace(&mut self.finish, EditFinish::None) {
             EditFinish::None => {}
-            EditFinish::Track(dirty) => dirty.set(true),
+            EditFinish::Track(dirty) => *dirty = true,
             EditFinish::Notify { sinks, nc } => {
                 sinks.borrow_mut().notify(DirtyLevel::Dirty, nc);
             }
@@ -573,15 +573,15 @@ impl<M: ChangeFeedModel> StateNode<M> {
             return;
         }
         let scan = &mut *scan.borrow_mut();
-        let dirty = Cell::new(false);
+        let mut dirty = false;
         if scan.source_binder.check(rc) {
             let edit = self
                 .storage
                 .begin_edit()
-                .with_finish(EditFinish::Track(&dirty));
+                .with_finish(EditFinish::Track(&mut dirty));
             scan.source_binder.update(|sc| (scan.scan)(edit, sc), rc);
         }
-        self.sinks.borrow_mut().update(dirty.get(), rc);
+        self.sinks.borrow_mut().update(dirty, rc);
     }
 
     fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
@@ -672,15 +672,15 @@ where
             return;
         }
         let data = &mut *self.data.borrow_mut();
-        let dirty = Cell::new(false);
+        let mut dirty = false;
         if data.source_binder.check(rc) {
             let edit = self
                 .storage
                 .begin_edit()
-                .with_finish(EditFinish::Track(&dirty));
+                .with_finish(EditFinish::Track(&mut dirty));
             data.source_binder.update(|sc| (data.f)(edit, sc), rc);
         }
-        self.sinks.borrow_mut().update(dirty.get(), rc);
+        self.sinks.borrow_mut().update(dirty, rc);
     }
 
     fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
