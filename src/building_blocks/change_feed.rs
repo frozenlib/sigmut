@@ -328,6 +328,13 @@ impl<'a, M: ChangeFeedModel> ChangeFeedRefMut<'a, M> {
         self.history_mut().changes.push(change);
         self.dirty = true;
     }
+
+    pub(crate) fn with_notify_context(&mut self, f: impl FnOnce(&mut NotifyContext)) {
+        let EditFinish::Notify { nc, .. } = &mut self.finish else {
+            panic!("edit does not have a synchronous notify context");
+        };
+        f(nc);
+    }
 }
 
 impl<M: ChangeFeedModel> Drop for ChangeFeedRefMut<'_, M> {
