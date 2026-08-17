@@ -4,6 +4,34 @@ use pretty_assertions::assert_eq;
 use std::{cell::Cell, rc::Rc};
 
 #[test]
+fn state_slab_map_direct_mutations_and_signal_conversion() {
+    let mut rt = Runtime::new();
+    let state = StateSlabMap::new();
+
+    {
+        let map = state.borrow(&mut rt.sc());
+        assert!(map.is_empty());
+        assert_eq!(map.len(), 0);
+        assert_eq!((&map).into_iter().count(), 0);
+    }
+
+    let key0 = state.insert(10, rt.ac());
+    let key1 = state.insert(20, rt.ac());
+
+    {
+        let map = state.borrow(&mut rt.sc());
+        assert_eq!(map.len(), 2);
+        assert!(!map.is_empty());
+        assert_eq!((&map).into_iter().count(), 2);
+    }
+
+    let signal = state.to_signal();
+    let value0 = *signal.item(key0, &mut rt.sc());
+    let value1 = *signal.item(key1, &mut rt.sc());
+    assert_eq!((value0, value1), (10, 20));
+}
+
+#[test]
 fn state_slab_map_reader_delta() {
     let mut rt = Runtime::new();
     let map = StateSlabMap::new();
@@ -19,6 +47,7 @@ fn state_slab_map_reader_delta() {
 
     {
         let items1 = reader.read(&mut rt.sc());
+        assert_eq!((items1.item(key1), &items1[key2]), (&10, &20));
         let changes: Vec<_> = items1.delta().collect();
         let expected = vec![
             SlabMapChange::Insert {
@@ -77,22 +106,42 @@ fn signal_slab_map_from_scan_updates() {
     });
 
     {
-        let items0 = signal.items(&mut rt.sc());
+        let items0 = signal.borrow(&mut rt.sc());
         assert!(items0.is_empty());
     }
 
     state.set(MapAction::Insert, rt.ac());
     {
-        let items1 = signal.items(&mut rt.sc());
+        let items1 = signal.borrow(&mut rt.sc());
         let values: Vec<_> = items1.iter().map(|(_, value)| *value).collect();
         assert_eq!(values, vec![1]);
     }
 
     state.set(MapAction::Remove, rt.ac());
     {
-        let items2 = signal.items(&mut rt.sc());
+        let items2 = signal.borrow(&mut rt.sc());
         assert!(items2.is_empty());
     }
+}
+
+#[test]
+fn signal_slab_map_scan_ref_mut_read_apis() {
+    let mut rt = Runtime::new();
+    let signal = SignalSlabMap::from_scan(|map, _| {
+        assert_eq!((map.len(), map.is_empty()), (0, true));
+        let key0 = map.insert(10);
+        let key1 = map.insert(20);
+        assert_eq!((map.item(key0), &map[key1]), (&10, &20));
+        assert_eq!(
+            map.iter()
+                .map(|(key, value)| (key, *value))
+                .collect::<Vec<_>>(),
+            [(key0, 10), (key1, 20)]
+        );
+        assert_eq!((&*map).into_iter().count(), 2);
+    });
+
+    assert_eq!(signal.borrow(&mut rt.sc()).len(), 2);
 }
 
 #[test]
@@ -194,7 +243,7 @@ fn state_slab_map_retries_compaction_after_an_item_borrow() {
 
     drop(retained);
     assert_eq!(Rc::strong_count(&old), 2);
-    drop(map.items(&mut rt.sc()));
+    drop(map.borrow(&mut rt.sc()));
 
     assert_eq!(Rc::strong_count(&old), 1);
 }
@@ -221,7 +270,7 @@ fn state_slab_map_tracks_item_and_all_items_separately() {
         let calls = items_calls.clone();
         let map = map.clone();
         move |sc| {
-            drop(map.items(sc));
+            drop(map.borrow(sc));
             calls.set(calls.get() + 1);
         }
     });
@@ -232,6 +281,88 @@ fn state_slab_map_tracks_item_and_all_items_separately() {
     rt.flush();
 
     assert_eq!((item_calls.get(), items_calls.get()), (1, 2));
+}
+
+#[test]
+fn state_slab_map_remove_notifies_changed_item_and_collection() {
+    let mut rt = Runtime::new();
+    let map = StateSlabMap::new();
+    let key0 = map.insert(10, rt.ac());
+    let key1 = map.insert(20, rt.ac());
+    let key1_is_active = Rc::new(Cell::new(true));
+    let key0_calls = Rc::new(Cell::new(0));
+    let _key0_subscription = effect({
+        let calls = key0_calls.clone();
+        let map = map.clone();
+        move |sc| {
+            drop(map.item(key0, sc));
+            calls.set(calls.get() + 1);
+        }
+    });
+    let key1_calls = Rc::new(Cell::new(0));
+    let _key1_subscription = effect({
+        let is_active = key1_is_active.clone();
+        let calls = key1_calls.clone();
+        let map = map.clone();
+        move |sc| {
+            if is_active.get() {
+                drop(map.item(key1, sc));
+            }
+            calls.set(calls.get() + 1);
+        }
+    });
+    let all_calls = Rc::new(Cell::new(0));
+    let _all_subscription = effect({
+        let calls = all_calls.clone();
+        let map = map.clone();
+        move |sc| {
+            drop(map.borrow(sc));
+            calls.set(calls.get() + 1);
+        }
+    });
+    rt.flush();
+
+    key1_is_active.set(false);
+    map.remove(key1, rt.ac());
+    rt.flush();
+
+    assert_eq!(
+        (key0_calls.get(), key1_calls.get(), all_calls.get()),
+        (1, 2, 2)
+    );
+}
+
+#[test]
+#[should_panic]
+fn slab_map_ref_item_panics_for_a_removed_key() {
+    let mut rt = Runtime::new();
+    let map = StateSlabMap::new();
+    let key = map.insert(10, rt.ac());
+    map.remove(key, rt.ac());
+
+    map.borrow(&mut rt.sc()).item(key);
+}
+
+#[test]
+#[should_panic]
+fn state_slab_map_item_panics_for_a_removed_key() {
+    let mut rt = Runtime::new();
+    let map = StateSlabMap::new();
+    let key = map.insert(10, rt.ac());
+    map.remove(key, rt.ac());
+
+    drop(map.item(key, &mut rt.sc()));
+}
+
+#[test]
+#[should_panic]
+fn state_slab_map_remove_panics_for_a_removed_key() {
+    let mut rt = Runtime::new();
+    let map = StateSlabMap::new();
+    let key = map.insert(10, rt.ac());
+    map.remove(key, rt.ac());
+
+    map.remove(key, rt.ac());
 }
 
 #[test]
@@ -255,7 +386,7 @@ fn signal_slab_map_scan_does_not_propagate_unchanged_updates() {
     let _subscription = effect({
         let calls = calls.clone();
         move |sc| {
-            drop(signal.items(sc));
+            drop(signal.borrow(sc));
             calls.set(calls.get() + 1);
         }
     });
@@ -278,8 +409,8 @@ fn signal_slab_map_scan_cleans_unchanged_item_dependencies() {
     let signal = SignalSlabMap::from_scan({
         let count = count.clone();
         move |items, sc| {
-            while items.len < count.get(sc) {
-                items.insert(items.len);
+            while items.len() < count.get(sc) {
+                items.insert(items.len());
             }
         }
     });

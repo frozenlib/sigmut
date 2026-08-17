@@ -8,7 +8,7 @@ fn main() {
 
     let s = StateVec::new();
 
-    let mut r = s.to_signal_vec().reader();
+    let mut r = s.to_signal().reader();
     let _e = SignalBuilder::from_scan(0, move |sum, sc| {
         for change in r.read(sc).delta() {
             match change {

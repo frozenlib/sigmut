@@ -1,4 +1,4 @@
-//! Reactive hash sets backed by the hash map change-feed implementation.
+//! Reactive hash sets with collection-wide dependencies and incremental change readers.
 
 use std::{
     borrow::Borrow,
@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use crate::{ActionContext, SignalContext};
 
 use super::hash_map::{
-    HashMapChange, RawItemsMut, SignalHashMap, SignalHashMapReader, StateHashMap,
+    HashMapChange, RawHashMapRefMut, SignalHashMap, SignalHashMapReader, StateHashMap,
 };
 
 /// A reactive read-only hash set.
@@ -27,7 +27,7 @@ where
 {
     /// Creates a derived hash set using [`RandomState`].
     pub fn from_scan(
-        f: impl FnMut(&mut ItemsMut<'_, T>, &mut SignalContext<'_, '_>) + 'static,
+        f: impl FnMut(&mut HashSetRefMut<'_, T>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
         Self::from_scan_with_hasher(RandomState::new(), f)
     }
@@ -41,27 +41,18 @@ where
     /// Creates a derived hash set with the specified hash builder.
     pub fn from_scan_with_hasher(
         hash_builder: S,
-        mut f: impl FnMut(&mut ItemsMut<'_, T, S>, &mut SignalContext<'_, '_>) + 'static,
+        mut f: impl FnMut(&mut HashSetRefMut<'_, T, S>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
         Self(SignalHashMap::from_raw_scan(
             hash_builder,
-            move |raw, sc| f(&mut ItemsMut { raw }, sc),
+            move |raw, sc| f(&mut HashSetRefMut { raw }, sc),
         ))
     }
 
-    /// Returns whether a value exists and registers a dependency on its hash slot.
-    pub fn contains<Q>(&self, value: &Q, sc: &mut SignalContext<'_, '_>) -> bool
-    where
-        T: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.0.get(value, sc).is_some()
-    }
-
     /// Borrows all current values and registers a collection-wide dependency.
-    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T, S> {
-        Items {
-            map: self.0.items(sc),
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> HashSetRef<'a, T, S> {
+        HashSetRef {
+            map: self.0.borrow(sc),
         }
     }
 
@@ -77,26 +68,26 @@ pub struct SignalHashSetReader<T: 'static, S: 'static = RandomState>(SignalHashM
 
 impl<T: 'static, S: 'static> SignalHashSetReader<T, S> {
     /// Reads the current values and advances this reader's cursor.
-    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T, S> {
-        Items {
+    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> HashSetRef<'a, T, S> {
+        HashSetRef {
             map: self.0.read(sc),
         }
     }
 
     /// Reads without advancing this reader's cursor.
-    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T, S> {
-        Items {
+    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> HashSetRef<'a, T, S> {
+        HashSetRef {
             map: self.0.peek(sc),
         }
     }
 }
 
-/// A borrowed view of the current hash set and its reader delta.
-pub struct Items<'a, T: 'static, S: 'static = RandomState> {
-    map: super::hash_map::Items<'a, T, (), S>,
+/// A borrowed reference to the current hash set and its reader delta.
+pub struct HashSetRef<'a, T: 'static, S: 'static = RandomState> {
+    map: super::hash_map::HashMapRef<'a, T, (), S>,
 }
 
-impl<T: 'static, S: 'static> Items<'_, T, S> {
+impl<T: 'static, S: 'static> HashSetRef<'_, T, S> {
     /// Returns the number of values.
     pub fn len(&self) -> usize {
         self.map.len()
@@ -132,7 +123,7 @@ impl<T: 'static, S: 'static> Items<'_, T, S> {
     }
 }
 
-impl<'a, T: 'static, S: 'static> IntoIterator for &'a Items<'a, T, S> {
+impl<'a, T: 'static, S: 'static> IntoIterator for &'a HashSetRef<'a, T, S> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -141,18 +132,21 @@ impl<'a, T: 'static, S: 'static> IntoIterator for &'a Items<'a, T, S> {
     }
 }
 
-impl<T: Debug, S> Debug for Items<'_, T, S> {
+impl<T: Debug, S> Debug for HashSetRef<'_, T, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_set().entries(self.iter()).finish()
     }
 }
 
-/// A change-recording mutable view of a [`StateHashSet`] or derived scan.
-pub struct ItemsMut<'a, T: 'static, S: 'static = RandomState> {
-    raw: RawItemsMut<'a, T, (), S>,
+/// A mutable borrowed reference that records hash set changes.
+///
+/// This guard exposes only operations that record their changes and deliberately does not
+/// implement [`DerefMut`](std::ops::DerefMut).
+pub struct HashSetRefMut<'a, T: 'static, S: 'static = RandomState> {
+    raw: RawHashMapRefMut<'a, T, (), S>,
 }
 
-impl<T, S> ItemsMut<'_, T, S>
+impl<T, S> HashSetRefMut<'_, T, S>
 where
     T: Eq + Hash + 'static,
     S: BuildHasher + 'static,
@@ -201,7 +195,7 @@ where
     }
 }
 
-impl<'a, T, S> IntoIterator for &'a ItemsMut<'_, T, S>
+impl<'a, T, S> IntoIterator for &'a HashSetRefMut<'_, T, S>
 where
     T: Eq + Hash,
     S: BuildHasher,
@@ -214,7 +208,7 @@ where
     }
 }
 
-impl<T, S> Debug for ItemsMut<'_, T, S>
+impl<T, S> Debug for HashSetRefMut<'_, T, S>
 where
     T: Debug + Eq + Hash,
     S: BuildHasher,
@@ -270,44 +264,30 @@ where
     }
 
     /// Returns a signal backed by this state.
-    pub fn to_signal_hash_set(&self) -> SignalHashSet<T, S> {
-        SignalHashSet(self.0.to_signal_hash_map())
-    }
-
-    /// Inserts a value, returning whether it was newly inserted.
-    pub fn insert(&self, value: T, ac: &mut ActionContext) -> bool {
-        self.borrow_mut(ac).insert(value)
-    }
-
-    /// Removes a value, returning whether it existed.
-    pub fn remove<Q>(&self, value: &Q, ac: &mut ActionContext) -> bool
-    where
-        T: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.borrow_mut(ac).remove(value)
-    }
-
-    /// Returns whether a value exists and registers a dependency on its hash slot.
-    pub fn contains<Q>(&self, value: &Q, sc: &mut SignalContext<'_, '_>) -> bool
-    where
-        T: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.0.contains_key(value, sc)
+    pub fn to_signal(&self) -> SignalHashSet<T, S> {
+        SignalHashSet(self.0.to_signal())
     }
 
     /// Borrows all current values and registers a collection-wide dependency.
-    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T, S> {
-        Items {
-            map: self.0.items(sc),
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> HashSetRef<'a, T, S> {
+        HashSetRef {
+            map: self.0.borrow(sc),
         }
     }
 
     /// Mutably borrows the set for a change-recording edit.
-    pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T, S> {
-        ItemsMut {
+    pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> HashSetRefMut<'a, T, S> {
+        HashSetRefMut {
             raw: self.0.borrow_mut_raw(ac),
+        }
+    }
+
+    /// Mutably borrows the set without tying the returned guard to the action context.
+    ///
+    /// Collection-wide notification is scheduled after this guard is dropped.
+    pub fn borrow_mut_loose(&self, ac: &mut ActionContext) -> HashSetRefMut<'_, T, S> {
+        HashSetRefMut {
+            raw: self.0.borrow_mut_loose_raw(ac),
         }
     }
 
@@ -348,7 +328,7 @@ where
     {
         let items = self
             .0
-            .try_items_contextless()
+            .try_borrow_contextless()
             .map_err(serde::ser::Error::custom)?;
         serializer.collect_seq(items.iter().map(|(value, ())| value))
     }

@@ -1,7 +1,8 @@
+//! Reactive slab maps with live-key dependencies and incremental change readers.
+
 use std::{
     any::Any,
     cell::{Ref, RefCell},
-    mem,
     ops::Index,
     rc::Rc,
 };
@@ -36,23 +37,32 @@ fn slot_to_key(slot: Slot) -> Option<usize> {
     }
 }
 
+/// A reactive read-only slab map.
 pub struct SignalSlabMap<T>(Rc<dyn DynSignalSlabMap<T>>);
 
 impl<T: 'static> SignalSlabMap<T> {
+    /// Creates a derived slab map.
     pub fn from_scan(
-        f: impl FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
+        f: impl FnMut(&mut SlabMapRefMut<'_, T>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
         Self(Scan::new(f))
     }
 
+    /// Borrows an item and registers a dependency on its key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not live.
     pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r, '_>) -> Ref<'a, T> {
         self.0.item(self.0.clone().to_any(), key, sc)
     }
 
-    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        self.0.items(self.0.clone().to_any(), sc)
+    /// Borrows all current items and registers a collection-wide dependency.
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> SlabMapRef<'a, T> {
+        self.0.borrow(self.0.clone().to_any(), sc)
     }
 
+    /// Creates an independently advancing change reader.
     pub fn reader(&self) -> SignalSlabMapReader<T> {
         self.0.clone().reader()
     }
@@ -61,15 +71,16 @@ impl<T: 'static> SignalSlabMap<T> {
 trait DynSignalSlabMap<T> {
     fn to_any(self: Rc<Self>) -> Rc<dyn Any>;
     fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T>;
-    fn items<'a, 'r: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'r, '_>,
-    ) -> Items<'a, T>;
-    fn watch_items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>);
+    ) -> SlabMapRef<'a, T>;
+    fn watch_all(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>);
     fn reader(self: Rc<Self>) -> SignalSlabMapReader<T>;
 }
 
+/// An independently advancing reader for a [`SignalSlabMap`].
 #[derive_ex(Clone(bound()))]
 pub struct SignalSlabMapReader<T: 'static>(RawSignalSlabMapReader<T>);
 
@@ -94,50 +105,61 @@ impl<T: 'static> SignalSlabMapReader<T> {
         Self(RawSignalSlabMapReader::Scan { source, cursor })
     }
 
-    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
+    /// Reads the current items and advances this reader's cursor.
+    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> SlabMapRef<'a, T> {
         match &mut self.0 {
-            RawSignalSlabMapReader::State(reader) => Items::new(reader.read(sc)),
+            RawSignalSlabMapReader::State(reader) => SlabMapRef::new(reader.read(sc)),
             RawSignalSlabMapReader::Scan { source, cursor } => {
-                source.watch_items(source.clone().to_any(), sc);
-                Items::new(cursor.read())
+                source.watch_all(source.clone().to_any(), sc);
+                SlabMapRef::new(cursor.read())
             }
         }
     }
 
-    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
+    /// Reads without advancing this reader's cursor.
+    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> SlabMapRef<'a, T> {
         match &self.0 {
-            RawSignalSlabMapReader::State(reader) => Items::new(reader.peek(sc)),
+            RawSignalSlabMapReader::State(reader) => SlabMapRef::new(reader.peek(sc)),
             RawSignalSlabMapReader::Scan { source, cursor } => {
-                source.watch_items(source.clone().to_any(), sc);
-                Items::new(cursor.peek())
+                source.watch_all(source.clone().to_any(), sc);
+                SlabMapRef::new(cursor.peek())
             }
         }
     }
 }
 
-pub struct Items<'a, T: 'static> {
+/// A borrowed reference to the current slab map and its reader delta.
+pub struct SlabMapRef<'a, T: 'static> {
     value: ChangeFeedRef<'a, SlabMapModel<T>>,
 }
 
-impl<'a, T: 'static> Items<'a, T> {
+impl<'a, T: 'static> SlabMapRef<'a, T> {
     fn new(value: ChangeFeedRef<'a, SlabMapModel<T>>) -> Self {
         Self { value }
     }
 
+    /// Returns whether the map contains no items.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Returns the number of items.
     pub fn len(&self) -> usize {
-        self.value.current().0.len
+        self.value.current().len
     }
 
-    pub fn get(&self, key: usize) -> Option<&T> {
-        self.value.current().0.get(key)
+    /// Returns an item for a live key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not live.
+    pub fn item(&self, key: usize) -> &T {
+        self.value.current().item(key)
     }
 
+    /// Iterates over live keys and items.
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter(self.value.current().0.items.iter())
+        self.value.current().iter()
     }
 
     /// Returns the delta needed to reproduce the current items from the reader's baseline.
@@ -152,7 +174,7 @@ impl<'a, T: 'static> Items<'a, T> {
                 .into_iter0(),
             ChangeFeedDelta::Incremental(changes) => changes
                 .map(|change| {
-                    let value = &self.value.current().0.items[change.key].value;
+                    let value = &self.value.current().items[change.key].value;
                     match change.action {
                         ChangeAction::Insert => SlabMapChange::Insert {
                             key: change.key,
@@ -169,15 +191,15 @@ impl<'a, T: 'static> Items<'a, T> {
     }
 }
 
-impl<T: 'static> Index<usize> for Items<'_, T> {
+impl<T: 'static> Index<usize> for SlabMapRef<'_, T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
-        self.get(index).expect("index out of bounds")
+        self.item(index)
     }
 }
 
-impl<'a, T: 'static> IntoIterator for &'a Items<'a, T> {
+impl<'a, T: 'static> IntoIterator for &'a SlabMapRef<'a, T> {
     type Item = (usize, &'a T);
     type IntoIter = Iter<'a, T>;
 
@@ -186,110 +208,132 @@ impl<'a, T: 'static> IntoIterator for &'a Items<'a, T> {
     }
 }
 
-pub struct ItemsMut<T> {
-    items: SlabMap<Item<T>>,
-    len: usize,
-    pending_changes: Vec<ChangeData>,
+/// A mutable borrowed reference that records slab map changes.
+///
+/// This guard exposes only operations that record their changes and deliberately does not
+/// implement [`DerefMut`](std::ops::DerefMut).
+pub struct SlabMapRefMut<'a, T: 'static> {
+    edit: ChangeFeedRefMut<'a, SlabMapModel<T>>,
 }
 
-impl<T> ItemsMut<T> {
+impl<T: 'static> SlabMapRefMut<'_, T> {
+    /// Returns whether the map contains no items.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the number of items.
+    pub fn len(&self) -> usize {
+        self.edit.current().len
+    }
+
+    /// Returns an item for a live key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not live.
+    pub fn item(&self, key: usize) -> &T {
+        self.edit.current().item(key)
+    }
+
+    /// Inserts an item and returns its key.
+    pub fn insert(&mut self, value: T) -> usize {
+        let (key, change) = self.edit.current_mut().insert(value);
+        self.edit.record(change);
+        key
+    }
+
+    /// Removes an item.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not live.
+    pub fn remove(&mut self, key: usize) {
+        let change = self.edit.current_mut().remove(key);
+        self.edit.record(change);
+    }
+
+    /// Iterates over live keys and items.
+    pub fn iter(&self) -> Iter<'_, T> {
+        self.edit.current().iter()
+    }
+}
+
+impl<T: 'static> Index<usize> for SlabMapRefMut<'_, T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.item(index)
+    }
+}
+
+impl<'a, T: 'static> IntoIterator for &'a SlabMapRefMut<'_, T> {
+    type Item = (usize, &'a T);
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+struct SlabMapModel<T> {
+    items: SlabMap<Item<T>>,
+    len: usize,
+}
+
+impl<T> SlabMapModel<T> {
     fn new() -> Self {
         Self {
             items: SlabMap::new(),
             len: 0,
-            pending_changes: Vec::new(),
         }
     }
 
-    fn take_changes(&mut self) -> Vec<ChangeData> {
-        mem::take(&mut self.pending_changes)
+    fn item(&self, key: usize) -> &T {
+        let item = &self.items[key];
+        assert!(item.is_exists, "invalid slab map key");
+        &item.value
     }
 
-    pub fn get(&self, key: usize) -> Option<&T> {
-        let item = self.items.get(key)?;
-        if item.is_exists {
-            Some(&item.value)
-        } else {
-            None
-        }
-    }
-
-    pub fn insert(&mut self, value: T) -> usize {
+    fn insert(&mut self, value: T) -> (usize, ChangeData) {
         let key = self.items.insert(Item::new(value));
         self.len += 1;
-        self.pending_changes.push(ChangeData {
-            action: ChangeAction::Insert,
+        (
             key,
-        });
-        key
+            ChangeData {
+                action: ChangeAction::Insert,
+                key,
+            },
+        )
     }
 
-    pub fn remove(&mut self, key: usize) {
+    fn remove(&mut self, key: usize) -> ChangeData {
         let item = &mut self.items[key];
-        assert!(item.is_exists);
+        assert!(item.is_exists, "invalid slab map key");
         item.is_exists = false;
         self.len -= 1;
-        self.pending_changes.push(ChangeData {
+        ChangeData {
             action: ChangeAction::Remove,
             key,
-        });
+        }
+    }
+
+    fn iter(&self) -> Iter<'_, T> {
+        Iter(self.items.iter())
     }
 }
-
-impl<T> Index<usize> for ItemsMut<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        self.get(index).expect("index out of bounds")
-    }
-}
-
-struct SlabMapModel<T>(ItemsMut<T>);
 
 impl<T: 'static> ChangeFeedModel for SlabMapModel<T> {
     type Change = ChangeData;
 
     fn release_change(&mut self, change: Self::Change) {
         if matches!(change.action, ChangeAction::Remove) {
-            self.0.items.remove(change.key);
+            self.items.remove(change.key);
         }
     }
 }
 
-fn record_pending<T: 'static>(edit: &mut ChangeFeedRefMut<'_, SlabMapModel<T>>) -> Vec<usize> {
-    let mut keys = Vec::new();
-    record_pending_into(edit, &mut keys);
-    keys
-}
-
-fn record_pending_into<T: 'static>(
-    edit: &mut ChangeFeedRefMut<'_, SlabMapModel<T>>,
-    keys: &mut Vec<usize>,
-) {
-    let changes = edit.current_mut().0.take_changes();
-    keys.extend(changes.iter().map(|change| change.key));
-    for change in changes {
-        edit.record(change);
-    }
-}
-
-struct PendingEdit<'a, 'h, T: 'static> {
-    edit: &'a mut ChangeFeedRefMut<'h, SlabMapModel<T>>,
-    keys: &'a mut Vec<usize>,
-}
-
-impl<T: 'static> PendingEdit<'_, '_, T> {
-    fn current(&mut self) -> &mut ItemsMut<T> {
-        &mut self.edit.current_mut().0
-    }
-}
-
-impl<T: 'static> Drop for PendingEdit<'_, '_, T> {
-    fn drop(&mut self) {
-        record_pending_into(self.edit, self.keys);
-    }
-}
-
+/// Iterates over live slab map entries.
 pub struct Iter<'a, T>(slabmap::Iter<'a, Item<T>>);
 
 impl<'a, T> Iterator for Iter<'a, T> {
@@ -319,9 +363,12 @@ impl<T> Item<T> {
     }
 }
 
+/// A single incremental slab map change.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SlabMapChange<'a, T> {
+    /// An item was inserted.
     Insert { key: usize, new_value: &'a T },
+    /// An item was removed.
     Remove { key: usize, old_value: &'a T },
 }
 
@@ -336,53 +383,70 @@ struct ChangeData {
     key: usize,
 }
 
+/// Mutable reactive slab map state.
 #[derive_ex(Default, Clone(bound()))]
 #[default(Self::new())]
 pub struct StateSlabMap<T: 'static>(Rc<RawStateSlabMap<T>>);
 
 impl<T: 'static> StateSlabMap<T> {
+    /// Creates an empty slab map.
     pub fn new() -> Self {
         Self(Rc::new(RawStateSlabMap {
-            state: ChangeFeedState::new(SlabMapModel(ItemsMut::new())),
+            state: ChangeFeedState::new(SlabMapModel::new()),
             item_sinks: RefCell::new(ItemSinkBindings::new()),
         }))
     }
 
-    pub fn to_signal_slab_map(&self) -> SignalSlabMap<T> {
+    /// Returns a signal backed by this state.
+    pub fn to_signal(&self) -> SignalSlabMap<T> {
         SignalSlabMap(self.0.clone())
     }
 
+    /// Borrows an item and registers a dependency on its key.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not live.
+    pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r, '_>) -> Ref<'a, T> {
+        let item = self.0.item(key);
+        self.0.bind(key, sc);
+        item
+    }
+
+    /// Borrows all current items and registers a collection-wide dependency.
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> SlabMapRef<'a, T> {
+        SlabMapRef::new(self.0.state.borrow(sc))
+    }
+
+    /// Inserts an item and returns its key.
     pub fn insert(&self, value: T, ac: &mut ActionContext) -> usize {
-        let key;
-        {
+        let key = {
             let mut edit = self.0.state.borrow_mut(ac);
-            key = edit.current_mut().0.insert(value);
-            let keys = record_pending(&mut edit);
-            debug_assert_eq!(keys, [key]);
-        }
+            let (key, change) = edit.current_mut().insert(value);
+            edit.record(change);
+            key
+        };
         self.0.item_sinks.borrow_mut().notify(key, ac.nc());
         key
     }
 
+    /// Removes an item.
+    ///
+    /// Reactive consumers notified by removal must not read `key` again.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `key` is not live.
     pub fn remove(&self, key: usize, ac: &mut ActionContext) {
         {
             let mut edit = self.0.state.borrow_mut(ac);
-            edit.current_mut().0.remove(key);
-            let keys = record_pending(&mut edit);
-            debug_assert_eq!(keys, [key]);
+            let change = edit.current_mut().remove(key);
+            edit.record(change);
         }
         self.0.item_sinks.borrow_mut().notify(key, ac.nc());
     }
 
-    pub fn item<'a, 'r: 'a>(&'a self, key: usize, sc: &mut SignalContext<'r, '_>) -> Ref<'a, T> {
-        self.0.bind(key, sc);
-        self.0.item(key)
-    }
-
-    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        Items::new(self.0.state.borrow(sc))
-    }
-
+    /// Creates an independently advancing change reader.
     pub fn reader(&self) -> SignalSlabMapReader<T> {
         SignalSlabMapReader::from_state(self.0.state.reader())
     }
@@ -403,7 +467,7 @@ impl<T: 'static> RawStateSlabMap<T> {
     }
 
     fn item(&self, key: usize) -> Ref<'_, T> {
-        Ref::map(self.state.current_ref_untracked(), |model| &model.0[key])
+        Ref::map(self.state.current_ref_untracked(), |model| model.item(key))
     }
 }
 
@@ -413,19 +477,20 @@ impl<T: 'static> DynSignalSlabMap<T> for RawStateSlabMap<T> {
     }
 
     fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T> {
+        let item = self.item(key);
         Self::rc_this(rc_self).bind(key, sc);
-        self.item(key)
+        item
     }
 
-    fn items<'a, 'r: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         _rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'r, '_>,
-    ) -> Items<'a, T> {
-        Items::new(self.state.borrow(sc))
+    ) -> SlabMapRef<'a, T> {
+        SlabMapRef::new(self.state.borrow(sc))
     }
 
-    fn watch_items(&self, _rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
+    fn watch_all(&self, _rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
         drop(self.state.borrow(sc));
     }
 
@@ -513,13 +578,19 @@ impl SinkBindingsSet {
         }
     }
 
-    fn update_changed(&mut self, keys: &[usize], rc: &mut ReactionContext<'_, '_>) {
-        for &key in keys {
+    fn update_changed(
+        &mut self,
+        keys: impl IntoIterator<Item = usize>,
+        rc: &mut ReactionContext<'_, '_>,
+    ) {
+        let mut changed = false;
+        for key in keys {
+            changed = true;
             if let Some(sink) = self.items.get_mut(key) {
                 sink.update(true, rc);
             }
         }
-        if !keys.is_empty() {
+        if changed {
             self.any.update(true, rc);
         }
     }
@@ -597,11 +668,11 @@ struct Scan<T: 'static, F> {
 impl<T, F> Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
+    F: FnMut(&mut SlabMapRefMut<'_, T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn new(f: F) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
-            storage: ChangeFeedStorage::new(SlabMapModel(ItemsMut::new())),
+            storage: ChangeFeedStorage::new(SlabMapModel::new()),
             data: RefCell::new(ScanData {
                 source_binder: SourceBinder::new(this, Slot(0)),
                 f,
@@ -616,18 +687,13 @@ where
         }
         let data = &mut *self.data.borrow_mut();
         if data.source_binder.check(rc) {
-            let mut edit = self.storage.begin_edit();
-            let mut keys = Vec::new();
-            {
-                let mut pending = PendingEdit {
-                    edit: &mut edit,
-                    keys: &mut keys,
-                };
-                data.source_binder
-                    .update(|sc| (data.f)(pending.current(), sc), rc);
-            }
-            drop(edit);
-            self.sinks.borrow_mut().update_changed(&keys, rc);
+            let mut map = SlabMapRefMut {
+                edit: self.storage.begin_edit(),
+            };
+            data.source_binder.update(|sc| (data.f)(&mut map, sc), rc);
+            self.sinks
+                .borrow_mut()
+                .update_changed(map.edit.changes().map(|change| change.key), rc);
         }
         self.sinks.borrow_mut().update_all(false, rc);
     }
@@ -645,27 +711,32 @@ where
 impl<T, F> DynSignalSlabMap<T> for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
+    F: FnMut(&mut SlabMapRefMut<'_, T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn to_any(self: Rc<Self>) -> Rc<dyn Any> {
         self
     }
 
     fn item(&self, rc_self: Rc<dyn Any>, key: usize, sc: &mut SignalContext<'_, '_>) -> Ref<'_, T> {
-        Self::rc_this(rc_self).watch(key_to_slot(key), sc);
-        Ref::map(self.storage.current_ref(), |model| &model.0[key])
+        let this = Self::rc_this(rc_self);
+        this.update(sc.rc());
+        let item = Ref::map(self.storage.current_ref(), |model| model.item(key));
+        this.sinks
+            .borrow_mut()
+            .bind(this.clone(), key_to_slot(key), sc);
+        item
     }
 
-    fn items<'a, 'r: 'a>(
+    fn borrow<'a, 'r: 'a>(
         &'a self,
         rc_self: Rc<dyn Any>,
         sc: &mut SignalContext<'r, '_>,
-    ) -> Items<'a, T> {
+    ) -> SlabMapRef<'a, T> {
         Self::rc_this(rc_self).watch(SLOT_ITEMS, sc);
-        Items::new(self.storage.borrow_current())
+        SlabMapRef::new(self.storage.borrow_current())
     }
 
-    fn watch_items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
+    fn watch_all(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
         Self::rc_this(rc_self).watch(SLOT_ITEMS, sc);
     }
 
@@ -679,7 +750,7 @@ where
 impl<T, F> BindSource for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
+    F: FnMut(&mut SlabMapRefMut<'_, T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.update(rc);
@@ -698,7 +769,7 @@ where
 impl<T, F> BindSink for Scan<T, F>
 where
     T: 'static,
-    F: FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
+    F: FnMut(&mut SlabMapRefMut<'_, T>, &mut SignalContext<'_, '_>) + 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         if self.data.borrow_mut().source_binder.on_notify(slot, level) {

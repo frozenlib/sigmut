@@ -39,11 +39,11 @@ fn state_hash_set_reader_reports_insert_and_remove() {
 }
 
 #[test]
-fn state_hash_set_items_and_mutable_items_basic_apis() {
+fn state_hash_set_refs_basic_apis() {
     let mut rt = Runtime::new();
     let set = StateHashSet::<String>::default();
     {
-        let items = set.items(&mut rt.sc());
+        let items = set.borrow(&mut rt.sc());
         assert_eq!((items.len(), items.is_empty()), (0, true));
         assert_eq!(format!("{items:?}"), "{}");
     }
@@ -59,7 +59,7 @@ fn state_hash_set_items_and_mutable_items_basic_apis() {
         items.clear();
         assert_eq!((items.len(), items.is_empty()), (0, true));
     }
-    let items = set.items(&mut rt.sc());
+    let items = set.borrow(&mut rt.sc());
     assert_eq!(
         (&items).into_iter().collect::<Vec<_>>(),
         Vec::<&String>::new()
@@ -67,14 +67,13 @@ fn state_hash_set_items_and_mutable_items_basic_apis() {
 }
 
 #[test]
-fn state_backed_signal_hash_set_exposes_contains_and_items() {
+fn state_backed_signal_hash_set_exposes_collection_reads() {
     let mut rt = Runtime::new();
     let set = StateHashSet::new();
-    set.insert(String::from("a"), rt.ac());
-    let signal = set.to_signal_hash_set();
+    set.borrow_mut(rt.ac()).insert(String::from("a"));
+    let signal = set.to_signal();
 
-    assert!(signal.contains("a", &mut rt.sc()));
-    let items = signal.items(&mut rt.sc());
+    let items = signal.borrow(&mut rt.sc());
     assert_eq!((items.len(), items.contains("a")), (1, true));
     assert_eq!((&items).into_iter().count(), 1);
     assert_eq!(format!("{items:?}"), "{\"a\"}");
@@ -84,54 +83,67 @@ fn state_backed_signal_hash_set_exposes_contains_and_items() {
 fn state_hash_set_duplicate_insert_and_missing_remove_do_not_notify() {
     let mut rt = Runtime::new();
     let set = StateHashSet::new();
-    set.insert(String::from("a"), rt.ac());
+    set.borrow_mut(rt.ac()).insert(String::from("a"));
     let calls = Rc::new(Cell::new(0));
     let _subscription = effect({
         let calls = calls.clone();
         let set = set.clone();
         move |sc| {
-            drop(set.items(sc));
+            drop(set.borrow(sc));
             calls.set(calls.get() + 1);
         }
     });
     rt.flush();
 
-    assert!(!set.insert(String::from("a"), rt.ac()));
-    assert!(!set.remove("missing", rt.ac()));
+    assert!(!set.borrow_mut(rt.ac()).insert(String::from("a")));
+    assert!(!set.borrow_mut(rt.ac()).remove("missing"));
     rt.flush();
 
     assert_eq!(calls.get(), 1);
 }
 
 #[test]
-fn state_hash_set_tracks_contains_and_all_items_separately() {
+fn state_hash_set_tracks_the_collection_as_one_state() {
     let mut rt = Runtime::new();
     let set = StateHashSet::new();
-    set.insert(String::from("a"), rt.ac());
-    let contains_calls = Rc::new(Cell::new(0));
-    let _contains_subscription = effect({
-        let calls = contains_calls.clone();
+    set.borrow_mut(rt.ac()).insert(String::from("a"));
+    let calls = Rc::new(Cell::new(0));
+    let _subscription = effect({
+        let calls = calls.clone();
         let set = set.clone();
         move |sc| {
-            assert!(set.contains("a", sc));
-            calls.set(calls.get() + 1);
-        }
-    });
-    let items_calls = Rc::new(Cell::new(0));
-    let _items_subscription = effect({
-        let calls = items_calls.clone();
-        let set = set.clone();
-        move |sc| {
-            drop(set.items(sc));
+            assert!(set.borrow(sc).contains("a"));
             calls.set(calls.get() + 1);
         }
     });
     rt.flush();
 
-    set.insert(String::from("b"), rt.ac());
+    set.borrow_mut(rt.ac()).insert(String::from("b"));
     rt.flush();
 
-    assert_eq!((contains_calls.get(), items_calls.get()), (1, 2));
+    assert_eq!(calls.get(), 2);
+}
+
+#[test]
+fn state_hash_set_loose_borrow_notifies_the_collection() {
+    let mut rt = Runtime::new();
+    let set = StateHashSet::<String>::new();
+    let calls = Rc::new(Cell::new(0));
+    let _subscription = effect({
+        let calls = calls.clone();
+        let set = set.clone();
+        move |sc| {
+            let contains = set.borrow(sc).contains("b");
+            assert_eq!(contains, calls.get() != 0);
+            calls.set(calls.get() + 1);
+        }
+    });
+    rt.flush();
+
+    set.borrow_mut_loose(rt.ac()).insert(String::from("b"));
+    rt.flush();
+
+    assert_eq!(calls.get(), 2);
 }
 
 #[test]

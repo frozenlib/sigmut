@@ -565,7 +565,7 @@ fn signal_vec_from_slice_and_vec_delta() {
 }
 
 #[test]
-fn items_basic_apis() {
+fn vec_refs_basic_apis() {
     let mut rt = Runtime::new();
     let vec = SignalVec::from(&[1, 2, 3]);
 
@@ -589,7 +589,7 @@ fn items_basic_apis() {
 }
 
 #[test]
-fn items_partial_eq() {
+fn vec_ref_partial_eq() {
     let mut rt = Runtime::new();
     let vec = SignalVec::from(&[1, 2, 3]);
 
@@ -602,7 +602,7 @@ fn items_partial_eq() {
 }
 
 #[test]
-fn items_mut_partial_eq() {
+fn vec_ref_mut_partial_eq() {
     let mut rt = Runtime::new();
     let vec = StateVec::new();
 

@@ -1,13 +1,10 @@
-//! Reactive hash maps with key-specific dependencies and incremental change readers.
+//! Reactive hash maps with collection-wide dependencies and incremental change readers.
 
 use std::{
-    any::Any,
-    cell::{Ref, RefCell},
     collections::hash_map::RandomState,
     fmt::{self, Debug},
     hash::{BuildHasher, Hash},
     marker::PhantomData,
-    rc::Rc,
 };
 
 use derive_ex::derive_ex;
@@ -17,32 +14,15 @@ use slabmap::SlabMap;
 use crate::{
     ActionContext, SignalContext,
     building_blocks::change_feed::{
-        ChangeFeedCursorReader, ChangeFeedDelta, ChangeFeedModel, ChangeFeedReader, ChangeFeedRef,
-        ChangeFeedRefMut, ChangeFeedState, ChangeFeedStorage,
-    },
-    core::{
-        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, ReactionContext, SinkBindings,
-        Slot, SourceBinder,
+        ChangeFeedDelta, ChangeFeedModel, ChangeFeedReader, ChangeFeedRef, ChangeFeedRefMut,
+        ChangeFeedSignal, ChangeFeedState,
     },
 };
-
-const SLOT_ITEMS: Slot = Slot(usize::MAX);
-
-fn hash_to_slot(hash: u64) -> Slot {
-    let mut value = hash as usize;
-    if usize::BITS < u64::BITS {
-        value ^= (hash >> 32) as usize;
-    }
-    if value == SLOT_ITEMS.0 {
-        value -= 1;
-    }
-    Slot(value)
-}
 
 /// A reactive read-only hash map.
 #[derive_ex(Clone(bound()))]
 pub struct SignalHashMap<K: 'static, V: 'static, S: 'static = RandomState>(
-    Rc<dyn DynSignalHashMap<K, V, S>>,
+    ChangeFeedSignal<HashMapModel<K, V, S>>,
 );
 
 impl<K, V> SignalHashMap<K, V, RandomState>
@@ -52,7 +32,7 @@ where
 {
     /// Creates a derived hash map using [`RandomState`].
     pub fn from_scan(
-        f: impl FnMut(&mut ItemsMut<'_, K, V>, &mut SignalContext<'_, '_>) + 'static,
+        f: impl FnMut(&mut HashMapRefMut<'_, K, V>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
         Self::from_scan_with_hasher(RandomState::new(), f)
     }
@@ -67,114 +47,69 @@ where
     /// Creates a derived hash map with the specified hash builder.
     pub fn from_scan_with_hasher(
         hash_builder: S,
-        mut f: impl FnMut(&mut ItemsMut<'_, K, V, S>, &mut SignalContext<'_, '_>) + 'static,
+        mut f: impl FnMut(&mut HashMapRefMut<'_, K, V, S>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
-        Self::from_raw_scan(hash_builder, move |raw, sc| {
-            f(&mut ItemsMut { raw }, sc);
-        })
+        Self(ChangeFeedSignal::from_scan(
+            HashMapModel::new(hash_builder),
+            move |edit, sc| {
+                f(
+                    &mut HashMapRefMut {
+                        raw: RawHashMapRefMut::new(edit),
+                    },
+                    sc,
+                );
+            },
+        ))
     }
 
     pub(crate) fn from_raw_scan(
         hash_builder: S,
-        f: impl FnMut(RawItemsMut<'_, K, V, S>, &mut SignalContext<'_, '_>) + 'static,
+        mut f: impl FnMut(RawHashMapRefMut<'_, K, V, S>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
-        Self(Scan::new(hash_builder, f))
-    }
-
-    /// Gets the value for a key and registers a dependency on its hash slot.
-    pub fn get<'a, Q>(&'a self, key: &Q, sc: &mut SignalContext<'_, '_>) -> Option<Ref<'a, V>>
-    where
-        K: std::borrow::Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        let slot = {
-            let current = self.0.current_ref();
-            hash_to_slot(current.hash(key))
-        };
-        self.0.watch_key(self.0.clone().to_any(), slot, sc);
-        Ref::filter_map(self.0.current_ref(), |current| current.get(key)).ok()
+        Self(ChangeFeedSignal::from_scan(
+            HashMapModel::new(hash_builder),
+            move |edit, sc| f(RawHashMapRefMut::new(edit), sc),
+        ))
     }
 
     /// Borrows all current entries and registers a collection-wide dependency.
-    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, K, V, S> {
-        self.0.items(self.0.clone().to_any(), sc)
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> HashMapRef<'a, K, V, S> {
+        HashMapRef::new(self.0.borrow(sc))
     }
 
     /// Creates an independently advancing change reader.
     pub fn reader(&self) -> SignalHashMapReader<K, V, S> {
-        self.0.clone().reader()
+        SignalHashMapReader(self.0.reader())
     }
-}
-
-trait DynSignalHashMap<K: 'static, V: 'static, S: 'static> {
-    fn to_any(self: Rc<Self>) -> Rc<dyn Any>;
-    fn current_ref(&self) -> Ref<'_, HashMapModel<K, V, S>>;
-    fn watch_key(&self, rc_self: Rc<dyn Any>, slot: Slot, sc: &mut SignalContext<'_, '_>);
-    fn items<'a, 'r: 'a>(
-        &'a self,
-        rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r, '_>,
-    ) -> Items<'a, K, V, S>;
-    fn watch_items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>);
-    fn reader(self: Rc<Self>) -> SignalHashMapReader<K, V, S>;
 }
 
 /// An independently advancing reader for a [`SignalHashMap`].
 #[derive_ex(Clone(bound()))]
 pub struct SignalHashMapReader<K: 'static, V: 'static, S: 'static = RandomState>(
-    RawSignalHashMapReader<K, V, S>,
+    ChangeFeedReader<HashMapModel<K, V, S>>,
 );
 
-#[derive_ex(Clone(bound()))]
-enum RawSignalHashMapReader<K: 'static, V: 'static, S: 'static> {
-    State(ChangeFeedReader<HashMapModel<K, V, S>>),
-    Scan {
-        source: Rc<dyn DynSignalHashMap<K, V, S>>,
-        cursor: ChangeFeedCursorReader<HashMapModel<K, V, S>>,
-    },
-}
-
 impl<K: 'static, V: 'static, S: 'static> SignalHashMapReader<K, V, S> {
-    fn from_state(reader: ChangeFeedReader<HashMapModel<K, V, S>>) -> Self {
-        Self(RawSignalHashMapReader::State(reader))
-    }
-
-    fn from_scan(
-        source: Rc<dyn DynSignalHashMap<K, V, S>>,
-        cursor: ChangeFeedCursorReader<HashMapModel<K, V, S>>,
-    ) -> Self {
-        Self(RawSignalHashMapReader::Scan { source, cursor })
-    }
-
     /// Reads the current entries and advances this reader's cursor.
-    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, K, V, S> {
-        match &mut self.0 {
-            RawSignalHashMapReader::State(reader) => Items::new(reader.read(sc)),
-            RawSignalHashMapReader::Scan { source, cursor } => {
-                source.watch_items(source.clone().to_any(), sc);
-                Items::new(cursor.read())
-            }
-        }
+    pub fn read<'a, 'r: 'a>(
+        &'a mut self,
+        sc: &mut SignalContext<'r, '_>,
+    ) -> HashMapRef<'a, K, V, S> {
+        HashMapRef::new(self.0.read(sc))
     }
 
     /// Reads without advancing this reader's cursor.
-    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, K, V, S> {
-        match &self.0 {
-            RawSignalHashMapReader::State(reader) => Items::new(reader.peek(sc)),
-            RawSignalHashMapReader::Scan { source, cursor } => {
-                source.watch_items(source.clone().to_any(), sc);
-                Items::new(cursor.peek())
-            }
-        }
+    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> HashMapRef<'a, K, V, S> {
+        HashMapRef::new(self.0.peek(sc))
     }
 }
 
-/// A borrowed view of the current hash map and its reader delta.
-pub struct Items<'a, K: 'static, V: 'static, S: 'static = RandomState> {
+/// A borrowed reference to the current hash map and its reader delta.
+pub struct HashMapRef<'a, K: 'static, V: 'static, S: 'static = RandomState> {
     value: ChangeFeedRef<'a, HashMapModel<K, V, S>>,
 }
 
-impl<'a, K: 'static, V: 'static, S: 'static> Items<'a, K, V, S> {
+impl<'a, K: 'static, V: 'static, S: 'static> HashMapRef<'a, K, V, S> {
     fn new(value: ChangeFeedRef<'a, HashMapModel<K, V, S>>) -> Self {
         Self { value }
     }
@@ -229,7 +164,7 @@ impl<'a, K: 'static, V: 'static, S: 'static> Items<'a, K, V, S> {
     }
 }
 
-impl<'a, K: 'static, V: 'static, S: 'static> IntoIterator for &'a Items<'a, K, V, S> {
+impl<'a, K: 'static, V: 'static, S: 'static> IntoIterator for &'a HashMapRef<'a, K, V, S> {
     type Item = (&'a K, &'a V);
     type IntoIter = Iter<'a, K, V>;
 
@@ -238,7 +173,7 @@ impl<'a, K: 'static, V: 'static, S: 'static> IntoIterator for &'a Items<'a, K, V
     }
 }
 
-impl<K, V, S> Debug for Items<'_, K, V, S>
+impl<K, V, S> Debug for HashMapRef<'_, K, V, S>
 where
     K: Debug,
     V: Debug,
@@ -248,12 +183,15 @@ where
     }
 }
 
-/// A change-recording mutable view of a [`StateHashMap`] or derived scan.
-pub struct ItemsMut<'a, K: 'static, V: 'static, S: 'static = RandomState> {
-    raw: RawItemsMut<'a, K, V, S>,
+/// A mutable borrowed reference that records hash map changes.
+///
+/// This guard exposes only operations that record their changes and deliberately does not
+/// implement [`DerefMut`](std::ops::DerefMut).
+pub struct HashMapRefMut<'a, K: 'static, V: 'static, S: 'static = RandomState> {
+    raw: RawHashMapRefMut<'a, K, V, S>,
 }
 
-impl<K, V, S> ItemsMut<'_, K, V, S>
+impl<K, V, S> HashMapRefMut<'_, K, V, S>
 where
     K: Eq + Hash + 'static,
     V: 'static,
@@ -312,7 +250,7 @@ where
     }
 }
 
-impl<'a, K, V, S> IntoIterator for &'a ItemsMut<'_, K, V, S>
+impl<'a, K, V, S> IntoIterator for &'a HashMapRefMut<'_, K, V, S>
 where
     K: Eq + Hash,
     S: BuildHasher,
@@ -325,7 +263,7 @@ where
     }
 }
 
-impl<K, V, S> Debug for ItemsMut<'_, K, V, S>
+impl<K, V, S> Debug for HashMapRefMut<'_, K, V, S>
 where
     K: Debug + Eq + Hash,
     V: Debug,
@@ -336,23 +274,13 @@ where
     }
 }
 
-pub(crate) struct RawItemsMut<'a, K: 'static, V: 'static, S: 'static> {
+pub(crate) struct RawHashMapRefMut<'a, K: 'static, V: 'static, S: 'static> {
     edit: ChangeFeedRefMut<'a, HashMapModel<K, V, S>>,
-    changed_slots: Rc<RefCell<Vec<Slot>>>,
-    item_sinks: Option<&'a RefCell<HashSlotBindings>>,
 }
 
-impl<'a, K: 'static, V: 'static, S: 'static> RawItemsMut<'a, K, V, S> {
-    fn new(
-        edit: ChangeFeedRefMut<'a, HashMapModel<K, V, S>>,
-        changed_slots: Rc<RefCell<Vec<Slot>>>,
-        item_sinks: Option<&'a RefCell<HashSlotBindings>>,
-    ) -> Self {
-        Self {
-            edit,
-            changed_slots,
-            item_sinks,
-        }
+impl<'a, K: 'static, V: 'static, S: 'static> RawHashMapRefMut<'a, K, V, S> {
+    fn new(edit: ChangeFeedRefMut<'a, HashMapModel<K, V, S>>) -> Self {
+        Self { edit }
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -374,7 +302,6 @@ impl<'a, K: 'static, V: 'static, S: 'static> RawItemsMut<'a, K, V, S> {
         S: BuildHasher,
     {
         let (inserted, change) = self.edit.current_mut().insert(key, value);
-        self.changed_slots.borrow_mut().push(change.slot());
         self.edit.record(change);
         inserted
     }
@@ -400,7 +327,6 @@ impl<'a, K: 'static, V: 'static, S: 'static> RawItemsMut<'a, K, V, S> {
         let Some(change) = self.edit.current_mut().remove(key) else {
             return false;
         };
-        self.changed_slots.borrow_mut().push(change.slot());
         self.edit.record(change);
         true
     }
@@ -411,25 +337,12 @@ impl<'a, K: 'static, V: 'static, S: 'static> RawItemsMut<'a, K, V, S> {
         S: BuildHasher,
     {
         for change in self.edit.current_mut().clear() {
-            self.changed_slots.borrow_mut().push(change.slot());
             self.edit.record(change);
         }
     }
 
     pub(crate) fn iter(&self) -> Iter<'_, K, V> {
         self.edit.current().iter()
-    }
-}
-
-impl<K: 'static, V: 'static, S: 'static> Drop for RawItemsMut<'_, K, V, S> {
-    fn drop(&mut self) {
-        let Some(item_sinks) = self.item_sinks else {
-            return;
-        };
-        let changed_slots = RefCell::borrow(&self.changed_slots);
-        self.edit.with_notify_context(|nc| {
-            item_sinks.borrow_mut().notify(&changed_slots, nc);
-        });
     }
 }
 
@@ -538,7 +451,6 @@ where
 
     fn insert(&mut self, key: K, value: V) -> (bool, ChangeData) {
         let hash = self.hash(&key);
-        let slot = hash_to_slot(hash);
         if let Some(entry) = self.find_entry(hash, &key) {
             let new_value = self.values.insert(value);
             let old_value = std::mem::replace(&mut self.entries[entry].value, new_value);
@@ -548,7 +460,6 @@ where
                     entry,
                     old_value,
                     new_value,
-                    slot,
                 },
             );
         }
@@ -562,14 +473,7 @@ where
         });
         self.index.entry(hash).or_default().push(entry);
         self.len += 1;
-        (
-            true,
-            ChangeData::Insert {
-                entry,
-                new_value,
-                slot,
-            },
-        )
+        (true, ChangeData::Insert { entry, new_value })
     }
 
     fn remove<Q>(&mut self, key: &Q) -> Option<ChangeData>
@@ -600,7 +504,6 @@ where
         ChangeData::Remove {
             entry,
             old_value: item.value,
-            slot: hash_to_slot(hash),
         }
     }
 
@@ -647,28 +550,19 @@ enum ChangeData {
     Insert {
         entry: usize,
         new_value: usize,
-        slot: Slot,
     },
     Remove {
         entry: usize,
         old_value: usize,
-        slot: Slot,
     },
     Set {
         entry: usize,
         old_value: usize,
         new_value: usize,
-        slot: Slot,
     },
 }
 
 impl ChangeData {
-    fn slot(&self) -> Slot {
-        match *self {
-            Self::Insert { slot, .. } | Self::Remove { slot, .. } | Self::Set { slot, .. } => slot,
-        }
-    }
-
     fn to_hash_map_change<'a, K, V, S>(
         &'a self,
         model: &'a HashMapModel<K, V, S>,
@@ -703,7 +597,7 @@ impl ChangeData {
 /// Mutable reactive hash map state.
 #[derive_ex(Clone(bound()))]
 pub struct StateHashMap<K: 'static, V: 'static, S: 'static = RandomState>(
-    Rc<RawStateHashMap<K, V, S>>,
+    ChangeFeedState<HashMapModel<K, V, S>>,
 );
 
 impl<K, V> StateHashMap<K, V, RandomState>
@@ -729,10 +623,7 @@ where
     }
 
     fn from_model(model: HashMapModel<K, V, S>) -> Self {
-        Self(Rc::new(RawStateHashMap {
-            state: ChangeFeedState::new(model),
-            item_sinks: RefCell::new(HashSlotBindings::new()),
-        }))
+        Self(ChangeFeedState::new(model))
     }
 
     pub(crate) fn from_iter_with_hasher(
@@ -748,74 +639,54 @@ where
     }
 
     /// Returns a signal backed by this state.
-    pub fn to_signal_hash_map(&self) -> SignalHashMap<K, V, S> {
-        SignalHashMap(self.0.clone())
-    }
-
-    /// Inserts a key-value pair, returning whether the key was newly inserted.
-    pub fn insert(&self, key: K, value: V, ac: &mut ActionContext) -> bool {
-        self.borrow_mut(ac).insert(key, value)
-    }
-
-    /// Removes a key, returning whether an entry existed.
-    pub fn remove<Q>(&self, key: &Q, ac: &mut ActionContext) -> bool
-    where
-        K: std::borrow::Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.borrow_mut(ac).remove(key)
-    }
-
-    /// Gets the value for a key and registers a dependency on its hash slot.
-    pub fn get<'a, Q>(&'a self, key: &Q, sc: &mut SignalContext<'_, '_>) -> Option<Ref<'a, V>>
-    where
-        K: std::borrow::Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.0.get(key, sc)
-    }
-
-    /// Returns whether a key exists and registers a dependency on its hash slot.
-    pub fn contains_key<Q>(&self, key: &Q, sc: &mut SignalContext<'_, '_>) -> bool
-    where
-        K: std::borrow::Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.get(key, sc).is_some()
+    pub fn to_signal(&self) -> SignalHashMap<K, V, S> {
+        SignalHashMap(self.0.to_signal())
     }
 
     /// Borrows all current entries and registers a collection-wide dependency.
-    pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, K, V, S> {
-        Items::new(self.0.state.borrow(sc))
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> HashMapRef<'a, K, V, S> {
+        HashMapRef::new(self.0.borrow(sc))
     }
 
-    pub(crate) fn try_items_contextless(
+    pub(crate) fn try_borrow_contextless(
         &self,
-    ) -> Result<Items<'_, K, V, S>, std::cell::BorrowError> {
-        self.0.state.try_borrow_contextless().map(Items::new)
+    ) -> Result<HashMapRef<'_, K, V, S>, std::cell::BorrowError> {
+        self.0.try_borrow_contextless().map(HashMapRef::new)
     }
 
     /// Mutably borrows the map for a change-recording edit.
-    pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, K, V, S> {
-        ItemsMut {
-            raw: self.borrow_mut_raw(ac),
+    pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> HashMapRefMut<'a, K, V, S> {
+        HashMapRefMut {
+            raw: RawHashMapRefMut::new(self.0.borrow_mut(ac)),
+        }
+    }
+
+    /// Mutably borrows the map without tying the returned guard to the action context.
+    ///
+    /// Collection-wide notification is scheduled after this guard is dropped.
+    pub fn borrow_mut_loose(&self, ac: &mut ActionContext) -> HashMapRefMut<'_, K, V, S> {
+        HashMapRefMut {
+            raw: RawHashMapRefMut::new(self.0.borrow_mut_loose(ac)),
         }
     }
 
     pub(crate) fn borrow_mut_raw<'a>(
         &'a self,
         ac: &'a mut ActionContext,
-    ) -> RawItemsMut<'a, K, V, S> {
-        RawItemsMut::new(
-            self.0.state.borrow_mut(ac),
-            Rc::new(RefCell::new(Vec::new())),
-            Some(&self.0.item_sinks),
-        )
+    ) -> RawHashMapRefMut<'a, K, V, S> {
+        RawHashMapRefMut::new(self.0.borrow_mut(ac))
+    }
+
+    pub(crate) fn borrow_mut_loose_raw(
+        &self,
+        ac: &mut ActionContext,
+    ) -> RawHashMapRefMut<'_, K, V, S> {
+        RawHashMapRefMut::new(self.0.borrow_mut_loose(ac))
     }
 
     /// Creates an independently advancing change reader.
     pub fn reader(&self) -> SignalHashMapReader<K, V, S> {
-        SignalHashMapReader::from_state(self.0.state.reader())
+        SignalHashMapReader(self.0.reader())
     }
 }
 
@@ -851,7 +722,6 @@ where
     {
         let items = self
             .0
-            .state
             .try_borrow_contextless()
             .map_err(serde::ser::Error::custom)?;
         serializer.collect_map(items.current().iter())
@@ -896,357 +766,6 @@ where
 
         deserializer.deserialize_map(StateHashMapVisitor(PhantomData))
     }
-}
-
-struct RawStateHashMap<K: 'static, V: 'static, S: 'static> {
-    state: ChangeFeedState<HashMapModel<K, V, S>>,
-    item_sinks: RefCell<HashSlotBindings>,
-}
-
-impl<K, V, S> RawStateHashMap<K, V, S>
-where
-    K: Eq + Hash + 'static,
-    V: 'static,
-    S: BuildHasher + 'static,
-{
-    fn rc_this(this: Rc<dyn Any>) -> Rc<Self> {
-        Rc::downcast(this).unwrap()
-    }
-
-    fn bind(self: &Rc<Self>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
-        self.item_sinks.borrow_mut().bind(self.clone(), slot, sc);
-    }
-
-    fn get<'a, Q>(self: &'a Rc<Self>, key: &Q, sc: &mut SignalContext<'_, '_>) -> Option<Ref<'a, V>>
-    where
-        K: std::borrow::Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        let slot = {
-            let current = self.state.current_ref_untracked();
-            hash_to_slot(current.hash(key))
-        };
-        self.bind(slot, sc);
-        Ref::filter_map(self.state.current_ref_untracked(), |current| {
-            current.get(key)
-        })
-        .ok()
-    }
-}
-
-impl<K, V, S> DynSignalHashMap<K, V, S> for RawStateHashMap<K, V, S>
-where
-    K: Eq + Hash + 'static,
-    V: 'static,
-    S: BuildHasher + 'static,
-{
-    fn to_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-
-    fn current_ref(&self) -> Ref<'_, HashMapModel<K, V, S>> {
-        self.state.current_ref_untracked()
-    }
-
-    fn watch_key(&self, rc_self: Rc<dyn Any>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
-        Self::rc_this(rc_self).bind(slot, sc);
-    }
-
-    fn items<'a, 'r: 'a>(
-        &'a self,
-        _rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r, '_>,
-    ) -> Items<'a, K, V, S> {
-        Items::new(self.state.borrow(sc))
-    }
-
-    fn watch_items(&self, _rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
-        drop(self.state.borrow(sc));
-    }
-
-    fn reader(self: Rc<Self>) -> SignalHashMapReader<K, V, S> {
-        SignalHashMapReader::from_state(self.state.reader())
-    }
-}
-
-impl<K: 'static, V: 'static, S: 'static> BindSource for RawStateHashMap<K, V, S> {
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
-        self.item_sinks.borrow().is_dirty(slot, key, rc)
-    }
-
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        self.item_sinks.borrow_mut().unbind(slot, key, rc);
-    }
-
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
-        self.item_sinks
-            .borrow_mut()
-            .rebind(self.clone(), slot, key, sc);
-    }
-}
-
-struct HashSlotBindings(std::collections::HashMap<usize, SinkBindings>);
-
-impl HashSlotBindings {
-    fn new() -> Self {
-        Self(std::collections::HashMap::new())
-    }
-
-    fn bind(&mut self, this: Rc<dyn BindSource>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
-        self.0.entry(slot.0).or_default().bind(this, slot, sc);
-    }
-
-    fn unbind(&mut self, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        if let Some(sink) = self.0.get_mut(&slot.0) {
-            sink.unbind(key, rc);
-        }
-    }
-
-    fn rebind(
-        &mut self,
-        this: Rc<dyn BindSource>,
-        slot: Slot,
-        key: BindKey,
-        sc: &mut SignalContext<'_, '_>,
-    ) {
-        if let Some(sink) = self.0.get_mut(&slot.0) {
-            sink.rebind(this, slot, key, sc);
-        }
-    }
-
-    fn is_dirty(&self, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
-        self.0
-            .get(&slot.0)
-            .is_none_or(|sink| sink.is_dirty(key, rc))
-    }
-
-    fn notify(&mut self, slots: &[Slot], nc: &mut NotifyContext) {
-        for slot in slots {
-            if let Some(sink) = self.0.get_mut(&slot.0) {
-                sink.notify(DirtyLevel::Dirty, nc);
-            }
-        }
-    }
-}
-
-struct SinkBindingsSet {
-    keys: std::collections::HashMap<usize, SinkBindings>,
-    items: SinkBindings,
-}
-
-impl SinkBindingsSet {
-    fn new() -> Self {
-        Self {
-            keys: std::collections::HashMap::new(),
-            items: SinkBindings::new(),
-        }
-    }
-
-    fn update_changed(&mut self, slots: &[Slot], rc: &mut ReactionContext<'_, '_>) {
-        for slot in slots {
-            if let Some(sink) = self.keys.get_mut(&slot.0) {
-                sink.update(true, rc);
-            }
-        }
-        if !slots.is_empty() {
-            self.items.update(true, rc);
-        }
-    }
-
-    fn update_all(&mut self, is_dirty: bool, rc: &mut ReactionContext<'_, '_>) {
-        for sink in self.keys.values_mut() {
-            sink.update(is_dirty, rc);
-        }
-        self.items.update(is_dirty, rc);
-    }
-
-    fn notify_all(&mut self, level: DirtyLevel, nc: &mut NotifyContext) {
-        for sink in self.keys.values_mut() {
-            sink.notify(level, nc);
-        }
-        self.items.notify(level, nc);
-    }
-
-    fn bind(&mut self, this: Rc<dyn BindSource>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
-        if slot == SLOT_ITEMS {
-            self.items.bind(this, slot, sc);
-        } else {
-            self.keys.entry(slot.0).or_default().bind(this, slot, sc);
-        }
-    }
-
-    fn unbind(&mut self, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        if let Some(sink) = self.get_mut(slot) {
-            sink.unbind(key, rc);
-        }
-    }
-
-    fn rebind(
-        &mut self,
-        this: Rc<dyn BindSource>,
-        slot: Slot,
-        key: BindKey,
-        sc: &mut SignalContext<'_, '_>,
-    ) {
-        if let Some(sink) = self.get_mut(slot) {
-            sink.rebind(this, slot, key, sc);
-        }
-    }
-
-    fn is_dirty(&self, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
-        if slot == SLOT_ITEMS {
-            self.items.is_dirty(key, rc)
-        } else {
-            self.keys
-                .get(&slot.0)
-                .is_none_or(|sink| sink.is_dirty(key, rc))
-        }
-    }
-
-    fn get_mut(&mut self, slot: Slot) -> Option<&mut SinkBindings> {
-        if slot == SLOT_ITEMS {
-            Some(&mut self.items)
-        } else {
-            self.keys.get_mut(&slot.0)
-        }
-    }
-}
-
-struct Scan<K: 'static, V: 'static, S: 'static, F> {
-    storage: ChangeFeedStorage<HashMapModel<K, V, S>>,
-    data: RefCell<ScanData<F>>,
-    sinks: RefCell<SinkBindingsSet>,
-}
-
-impl<K, V, S, F> Scan<K, V, S, F>
-where
-    K: Eq + Hash + 'static,
-    V: 'static,
-    S: BuildHasher + 'static,
-    F: FnMut(RawItemsMut<'_, K, V, S>, &mut SignalContext<'_, '_>) + 'static,
-{
-    fn new(hash_builder: S, f: F) -> Rc<Self> {
-        Rc::new_cyclic(|this| Self {
-            storage: ChangeFeedStorage::new(HashMapModel::new(hash_builder)),
-            data: RefCell::new(ScanData {
-                source_binder: SourceBinder::new(this, Slot(0)),
-                f,
-            }),
-            sinks: RefCell::new(SinkBindingsSet::new()),
-        })
-    }
-
-    fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
-        if rc.borrow(&self.data).source_binder.is_clean() {
-            return;
-        }
-        let data = &mut *self.data.borrow_mut();
-        if data.source_binder.check(rc) {
-            let changed_slots = Rc::new(RefCell::new(Vec::new()));
-            let edit = self.storage.begin_edit();
-            data.source_binder.update(
-                {
-                    let changed_slots = changed_slots.clone();
-                    |sc| (data.f)(RawItemsMut::new(edit, changed_slots, None), sc)
-                },
-                rc,
-            );
-            self.sinks
-                .borrow_mut()
-                .update_changed(&RefCell::borrow(&changed_slots), rc);
-        }
-        self.sinks.borrow_mut().update_all(false, rc);
-    }
-
-    fn rc_this(this: Rc<dyn Any>) -> Rc<Self> {
-        Rc::downcast(this).unwrap()
-    }
-
-    fn watch(self: &Rc<Self>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
-        self.update(sc.rc());
-        self.sinks.borrow_mut().bind(self.clone(), slot, sc);
-    }
-}
-
-impl<K, V, S, F> DynSignalHashMap<K, V, S> for Scan<K, V, S, F>
-where
-    K: Eq + Hash + 'static,
-    V: 'static,
-    S: BuildHasher + 'static,
-    F: FnMut(RawItemsMut<'_, K, V, S>, &mut SignalContext<'_, '_>) + 'static,
-{
-    fn to_any(self: Rc<Self>) -> Rc<dyn Any> {
-        self
-    }
-
-    fn current_ref(&self) -> Ref<'_, HashMapModel<K, V, S>> {
-        self.storage.current_ref()
-    }
-
-    fn watch_key(&self, rc_self: Rc<dyn Any>, slot: Slot, sc: &mut SignalContext<'_, '_>) {
-        Self::rc_this(rc_self).watch(slot, sc);
-    }
-
-    fn items<'a, 'r: 'a>(
-        &'a self,
-        rc_self: Rc<dyn Any>,
-        sc: &mut SignalContext<'r, '_>,
-    ) -> Items<'a, K, V, S> {
-        Self::rc_this(rc_self).watch(SLOT_ITEMS, sc);
-        Items::new(self.storage.borrow_current())
-    }
-
-    fn watch_items(&self, rc_self: Rc<dyn Any>, sc: &mut SignalContext<'_, '_>) {
-        Self::rc_this(rc_self).watch(SLOT_ITEMS, sc);
-    }
-
-    fn reader(self: Rc<Self>) -> SignalHashMapReader<K, V, S> {
-        let cursor = self.storage.reader();
-        let source: Rc<dyn DynSignalHashMap<K, V, S>> = self;
-        SignalHashMapReader::from_scan(source, cursor)
-    }
-}
-
-impl<K, V, S, F> BindSource for Scan<K, V, S, F>
-where
-    K: Eq + Hash + 'static,
-    V: 'static,
-    S: BuildHasher + 'static,
-    F: FnMut(RawItemsMut<'_, K, V, S>, &mut SignalContext<'_, '_>) + 'static,
-{
-    fn check(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
-        self.update(rc);
-        self.sinks.borrow().is_dirty(slot, key, rc)
-    }
-
-    fn unbind(self: Rc<Self>, slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        self.sinks.borrow_mut().unbind(slot, key, rc);
-    }
-
-    fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
-        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
-    }
-}
-
-impl<K, V, S, F> BindSink for Scan<K, V, S, F>
-where
-    K: Eq + Hash + 'static,
-    V: 'static,
-    S: BuildHasher + 'static,
-    F: FnMut(RawItemsMut<'_, K, V, S>, &mut SignalContext<'_, '_>) + 'static,
-{
-    fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
-        if self.data.borrow_mut().source_binder.on_notify(slot, level) {
-            self.sinks
-                .borrow_mut()
-                .notify_all(DirtyLevel::MaybeDirty, nc);
-        }
-    }
-}
-
-struct ScanData<F> {
-    source_binder: SourceBinder,
-    f: F,
 }
 
 #[cfg(test)]

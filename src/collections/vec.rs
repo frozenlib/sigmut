@@ -1,3 +1,5 @@
+//! Reactive vectors with incremental change readers.
+
 use std::{
     cmp::Ordering,
     fmt::{self, Debug},
@@ -21,24 +23,27 @@ use crate::{
 
 #[derive(Ex)]
 #[derive_ex(Clone(bound()))]
+/// A reactive read-only vector.
 pub struct SignalVec<T: 'static>(RawSignalVec<T>);
 
 impl<T: 'static> SignalVec<T> {
+    /// Creates a derived vector.
     pub fn from_scan(
-        f: impl FnMut(&mut ItemsMut<T>, &mut SignalContext<'_, '_>) + 'static,
+        f: impl FnMut(&mut VecRefMut<T>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
         let mut f = f;
         Self(RawSignalVec::Changing(ChangeFeedSignal::from_scan(
             VecModel::new(),
             move |edit, sc| {
-                let mut items = ItemsMut {
-                    data: ItemsMutData(edit),
+                let mut items = VecRefMut {
+                    data: VecRefMutData(edit),
                 };
                 f(&mut items, sc);
             },
         )))
     }
 
+    /// Creates an independently advancing change reader.
     pub fn reader(&self) -> SignalVecReader<T> {
         SignalVecReader(match &self.0 {
             RawSignalVec::Changing(signal) => RawSignalVecReader::Changing(signal.reader()),
@@ -53,11 +58,12 @@ impl<T: 'static> SignalVec<T> {
         })
     }
 
-    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
+    /// Borrows all current items and registers a collection-wide dependency.
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> VecRef<'a, T> {
         match &self.0 {
-            RawSignalVec::Changing(signal) => Items::from_ref(signal.borrow(sc)),
-            RawSignalVec::Vec(vec) => Items::from_slice_items(vec),
-            RawSignalVec::Slice(slice) => Items::from_slice_items(slice),
+            RawSignalVec::Changing(signal) => VecRef::from_ref(signal.borrow(sc)),
+            RawSignalVec::Vec(vec) => VecRef::from_slice_items(vec),
+            RawSignalVec::Slice(slice) => VecRef::from_slice_items(slice),
         }
     }
 }
@@ -107,16 +113,16 @@ enum RawSignalVecReader<T: 'static> {
 }
 
 impl<T: 'static> SignalVecReader<T> {
-    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
+    pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> VecRef<'a, T> {
         match &mut self.0 {
-            RawSignalVecReader::Changing(reader) => Items::from_ref(reader.read(sc)),
+            RawSignalVecReader::Changing(reader) => VecRef::from_ref(reader.read(sc)),
             RawSignalVecReader::Vec { vec, has_read } => {
-                let items = Items::from_slice(vec, !*has_read);
+                let items = VecRef::from_slice(vec, !*has_read);
                 *has_read = true;
                 items
             }
             RawSignalVecReader::Slice { slice, has_read } => {
-                let items = Items::from_slice(slice, !*has_read);
+                let items = VecRef::from_slice(slice, !*has_read);
                 *has_read = true;
                 items
             }
@@ -131,21 +137,22 @@ impl<T: 'static> SignalVecReader<T> {
     /// `peek` or `read` reports the same delta again, callers must not treat the returned delta as
     /// consumed or use it to update retained mirror or element state. Use [`read`](Self::read) when
     /// applying changes to such state.
-    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
+    pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> VecRef<'a, T> {
         match &self.0 {
-            RawSignalVecReader::Changing(reader) => Items::from_ref(reader.peek(sc)),
-            RawSignalVecReader::Vec { vec, has_read } => Items::from_slice(vec, !*has_read),
-            RawSignalVecReader::Slice { slice, has_read } => Items::from_slice(slice, !*has_read),
+            RawSignalVecReader::Changing(reader) => VecRef::from_ref(reader.peek(sc)),
+            RawSignalVecReader::Vec { vec, has_read } => VecRef::from_slice(vec, !*has_read),
+            RawSignalVecReader::Slice { slice, has_read } => VecRef::from_slice(slice, !*has_read),
         }
     }
 }
 
-pub struct Items<'a, T: 'static> {
+/// A borrowed reference to the current vector and its reader delta.
+pub struct VecRef<'a, T: 'static> {
     items: RawItems<'a, T>,
     immutable_initial: bool,
 }
 
-impl<'a, T: 'static> Items<'a, T> {
+impl<'a, T: 'static> VecRef<'a, T> {
     fn from_slice_items(slice: &'a [T]) -> Self {
         Self::from_slice(slice, false)
     }
@@ -206,14 +213,14 @@ impl<'a, T: 'static> Items<'a, T> {
     }
 }
 
-impl<T: 'static> Index<usize> for Items<'_, T> {
+impl<T: 'static> Index<usize> for VecRef<'_, T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("index out of bounds")
     }
 }
-impl<'a, T: 'static> IntoIterator for &'a Items<'_, T> {
+impl<'a, T: 'static> IntoIterator for &'a VecRef<'_, T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -221,12 +228,12 @@ impl<'a, T: 'static> IntoIterator for &'a Items<'_, T> {
         self.iter()
     }
 }
-impl<T: Debug + 'static> Debug for Items<'_, T> {
+impl<T: Debug + 'static> Debug for VecRef<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
     }
 }
-impl<T: PartialEq<T>> PartialEq for Items<'_, T> {
+impl<T: PartialEq<T>> PartialEq for VecRef<'_, T> {
     fn eq(&self, other: &Self) -> bool {
         if self.len() != other.len() {
             return false;
@@ -239,7 +246,7 @@ impl<T: PartialEq<T>> PartialEq for Items<'_, T> {
         true
     }
 }
-impl<T: PartialEq<T>> PartialEq<[T]> for Items<'_, T> {
+impl<T: PartialEq<T>> PartialEq<[T]> for VecRef<'_, T> {
     fn eq(&self, other: &[T]) -> bool {
         if self.len() != other.len() {
             return false;
@@ -252,12 +259,12 @@ impl<T: PartialEq<T>> PartialEq<[T]> for Items<'_, T> {
         true
     }
 }
-impl<const N: usize, T: PartialEq<T>> PartialEq<[T; N]> for Items<'_, T> {
+impl<const N: usize, T: PartialEq<T>> PartialEq<[T; N]> for VecRef<'_, T> {
     fn eq(&self, other: &[T; N]) -> bool {
         self.eq(other.as_slice())
     }
 }
-impl<T: PartialEq<T>> PartialEq<Vec<T>> for Items<'_, T> {
+impl<T: PartialEq<T>> PartialEq<Vec<T>> for VecRef<'_, T> {
     fn eq(&self, other: &Vec<T>) -> bool {
         self.eq(other.as_slice())
     }
@@ -276,11 +283,15 @@ impl<T: 'static> RawItems<'_, T> {
     }
 }
 
-pub struct ItemsMut<'a, T: 'static> {
-    data: ItemsMutData<'a, T>,
+/// A mutable borrowed reference that records vector changes.
+///
+/// This guard exposes only operations that record their changes and deliberately does not
+/// implement [`DerefMut`].
+pub struct VecRefMut<'a, T: 'static> {
+    data: VecRefMutData<'a, T>,
 }
 
-impl<T: 'static> ItemsMut<'_, T> {
+impl<T: 'static> VecRefMut<'_, T> {
     pub fn len(&self) -> usize {
         self.data.len()
     }
@@ -391,14 +402,14 @@ impl<T: 'static> ItemsMut<'_, T> {
     }
 }
 
-impl<T> Index<usize> for ItemsMut<'_, T> {
+impl<T> Index<usize> for VecRefMut<'_, T> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
         self.get(index).expect("index out of bounds")
     }
 }
-impl<'a, T> IntoIterator for &'a ItemsMut<'_, T> {
+impl<'a, T> IntoIterator for &'a VecRefMut<'_, T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -406,7 +417,7 @@ impl<'a, T> IntoIterator for &'a ItemsMut<'_, T> {
         self.iter()
     }
 }
-impl<T> Extend<T> for ItemsMut<'_, T> {
+impl<T> Extend<T> for VecRefMut<'_, T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for value in iter {
             self.push(value)
@@ -414,12 +425,12 @@ impl<T> Extend<T> for ItemsMut<'_, T> {
     }
 }
 
-impl<T: Debug> Debug for ItemsMut<'_, T> {
+impl<T: Debug> Debug for VecRefMut<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list().entries(self.iter()).finish()
     }
 }
-impl<T: PartialEq<T>> PartialEq for ItemsMut<'_, T> {
+impl<T: PartialEq<T>> PartialEq for VecRefMut<'_, T> {
     fn eq(&self, other: &Self) -> bool {
         if self.len() != other.len() {
             return false;
@@ -432,7 +443,7 @@ impl<T: PartialEq<T>> PartialEq for ItemsMut<'_, T> {
         true
     }
 }
-impl<T: PartialEq<T>> PartialEq<[T]> for ItemsMut<'_, T> {
+impl<T: PartialEq<T>> PartialEq<[T]> for VecRefMut<'_, T> {
     fn eq(&self, other: &[T]) -> bool {
         if self.len() != other.len() {
             return false;
@@ -445,32 +456,32 @@ impl<T: PartialEq<T>> PartialEq<[T]> for ItemsMut<'_, T> {
         true
     }
 }
-impl<const N: usize, T: PartialEq<T>> PartialEq<[T; N]> for ItemsMut<'_, T> {
+impl<const N: usize, T: PartialEq<T>> PartialEq<[T; N]> for VecRefMut<'_, T> {
     fn eq(&self, other: &[T; N]) -> bool {
         self.eq(other.as_slice())
     }
 }
-impl<T: PartialEq<T>> PartialEq<Vec<T>> for ItemsMut<'_, T> {
+impl<T: PartialEq<T>> PartialEq<Vec<T>> for VecRefMut<'_, T> {
     fn eq(&self, other: &Vec<T>) -> bool {
         self.eq(other.as_slice())
     }
 }
 
-struct ItemsMutData<'a, T: 'static>(ChangeFeedRefMut<'a, VecModel<T>>);
+struct VecRefMutData<'a, T: 'static>(ChangeFeedRefMut<'a, VecModel<T>>);
 
-impl<T> ItemsMutData<'_, T> {
+impl<T> VecRefMutData<'_, T> {
     fn record(&mut self, change: ChangeData) {
         self.0.record(change);
     }
 }
-impl<T> Deref for ItemsMutData<'_, T> {
+impl<T> Deref for VecRefMutData<'_, T> {
     type Target = VecModel<T>;
 
     fn deref(&self) -> &Self::Target {
         self.0.current()
     }
 }
-impl<T> DerefMut for ItemsMutData<'_, T> {
+impl<T> DerefMut for VecRefMutData<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.0.current_mut()
     }
@@ -602,29 +613,36 @@ impl ChangeData {
 #[derive(Ex)]
 #[derive_ex(Clone(bound()), Default)]
 #[default(Self::new())]
+/// Mutable reactive vector state.
 pub struct StateVec<T: 'static>(ChangeFeedState<VecModel<T>>);
 
 impl<T> StateVec<T> {
+    /// Creates an empty vector.
     pub fn new() -> Self {
         Self(ChangeFeedState::new(VecModel::new()))
     }
-    pub fn to_signal_vec(&self) -> SignalVec<T> {
+    /// Returns a signal backed by this state.
+    pub fn to_signal(&self) -> SignalVec<T> {
         SignalVec(RawSignalVec::Changing(self.0.to_signal()))
     }
+    /// Creates an independently advancing change reader.
     pub fn reader(&self) -> SignalVecReader<T> {
         SignalVecReader(RawSignalVecReader::Changing(self.0.reader()))
     }
-    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, T> {
-        Items::from_ref(self.0.borrow(sc))
+    /// Borrows all current items and registers a collection-wide dependency.
+    pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> VecRef<'a, T> {
+        VecRef::from_ref(self.0.borrow(sc))
     }
-    pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> ItemsMut<'a, T> {
-        ItemsMut {
-            data: ItemsMutData(self.0.borrow_mut(ac)),
+    /// Mutably borrows the vector for a change-recording edit.
+    pub fn borrow_mut<'a>(&'a self, ac: &'a mut ActionContext) -> VecRefMut<'a, T> {
+        VecRefMut {
+            data: VecRefMutData(self.0.borrow_mut(ac)),
         }
     }
-    pub fn borrow_mut_loose(&self, ac: &mut ActionContext) -> ItemsMut<'_, T> {
-        ItemsMut {
-            data: ItemsMutData(self.0.borrow_mut_loose(ac)),
+    /// Mutably borrows the vector without tying the returned guard to the action context.
+    pub fn borrow_mut_loose(&self, ac: &mut ActionContext) -> VecRefMut<'_, T> {
+        VecRefMut {
+            data: VecRefMutData(self.0.borrow_mut_loose(ac)),
         }
     }
 }
