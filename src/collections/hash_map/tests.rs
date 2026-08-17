@@ -86,7 +86,6 @@ fn state_backed_signal_hash_map_exposes_key_and_collection_reads() {
     map.insert(String::from("a"), 1, rt.ac());
     let signal = map.to_signal_hash_map();
 
-    assert!(signal.contains_key("a", &mut rt.sc()));
     assert_eq!(signal.get("a", &mut rt.sc()).as_deref(), Some(&1));
     let items = signal.items(&mut rt.sc());
     assert_eq!((items.len(), items.contains_key("a")), (1, true));

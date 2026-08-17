@@ -8,7 +8,7 @@
 
 - `HashMap` を中核実装とし、`HashSet` は `HashMap<T, ()>` を包む facade として実装する。
 - 現在値と変更履歴には既存の `ChangeFeedModel`、`ChangeFeedState`、`ChangeFeedStorage` を再利用する。
-- コレクション全体の依存関係とは別に、キーのハッシュから作る slot を用いて `get` / `contains_key` / `contains` の依存関係を追跡する。
+- コレクション全体の依存関係とは別に、キーのハッシュから作る slot を用いて `get`、`StateHashMap::contains_key`、HashSet の `contains` の依存関係を追跡する。
 - ハッシュ衝突時の余分な再評価は許容するが、結果の正しさは維持する。
 - キーと値を arena に保持し、変更には arena key を記録する。削除されたキーと旧値は reader が必要とする間だけ保持する。
 - `K: Clone` / `V: Clone` は要求しない。
@@ -26,7 +26,7 @@
 - `ItemsMut<'a, K, V, S>`
 - `HashMapChange<'a, K, V>`
 
-`StateHashMap` は `new`、`with_hasher`、`insert`、`remove`、`get`、`contains_key`、`items`、`borrow_mut`、`reader`、`to_signal_hash_map` を提供する。`SignalHashMap` は読み取り API、reader、および `from_scan` / `from_scan_with_hasher` を提供する。
+`StateHashMap` は `new`、`with_hasher`、`insert`、`remove`、`get`、`contains_key`、`items`、`borrow_mut`、`reader`、`to_signal_hash_map` を提供する。`SignalHashMap` は `get`、`items`、`reader`、`from_scan` / `from_scan_with_hasher` を提供する。
 
 差分は `Insert`、`Remove`、`Set` とする。初回 reader read は現在の全要素を `Insert` として返し、以降は編集順の差分を返す。
 
@@ -57,7 +57,7 @@
 ## 通知
 
 - `items` と reader は任意の変更に依存する。
-- `get(key)` と `contains_key(key)` は key hash から作る slot に依存する。
+- `get(key)`、`StateHashMap::contains_key(key)`、HashSet の `contains(value)` は key hash から作る slot に依存する。
 - 存在しないキーへの lookup も同じ slot へ bind する。
 - State 編集では ChangeFeed の全体通知後に、変更された key slot を通知する。
 - scan は source invalidation を全 slot へ `MaybeDirty` として伝え、再計算で記録された変更 slot だけを dirty にし、残りを clean に戻す。
@@ -104,7 +104,7 @@
 
 - `collections::hash_map` に `StateHashMap`、`SignalHashMap`、reader、`Items` / `ItemsMut`、`HashMapChange` を追加した。
 - active index、entry arena、value arenaを分離し、`K: Clone` / `V: Clone`なしで削除キーと旧値をreaderのカーソル寿命まで保持するモデルを実装した。
-- `get` / `contains_key`はborrowed lookupに対応し、キーhashから作るslotへ依存関係を登録する。hash collisionでは余分な再評価だけを許容し、lookupの正しさを維持した。
+- `get`、`StateHashMap::contains_key`、HashSetの`contains`はborrowed lookupに対応し、キーhashから作るslotへ依存関係を登録する。hash collisionでは余分な再評価だけを許容し、lookupの正しさを維持した。
 - Stateのbatch editで、ChangeFeedの全体通知と変更key slotの通知を同じactionへ伝えるため、`ChangeFeedRefMut`にcrate-privateの同期通知コンテキスト連携を追加した。
 - scanでは全slotへの`MaybeDirty`通知、変更slotだけのdirty確定、変更なしのclean化を実装した。
 - `collections::hash_set` はHashMapの`V = ()`モデル、State、Signal、reader、editを再利用するfacadeとして実装した。重複insertは変更と通知を生成しない。

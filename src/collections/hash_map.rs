@@ -95,15 +95,6 @@ where
         Ref::filter_map(self.0.current_ref(), |current| current.get(key)).ok()
     }
 
-    /// Returns whether a key exists and registers a dependency on its hash slot.
-    pub fn contains_key<Q>(&self, key: &Q, sc: &mut SignalContext<'_, '_>) -> bool
-    where
-        K: std::borrow::Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.get(key, sc).is_some()
-    }
-
     /// Borrows all current entries and registers a collection-wide dependency.
     pub fn items<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> Items<'a, K, V, S> {
         self.0.items(self.0.clone().to_any(), sc)

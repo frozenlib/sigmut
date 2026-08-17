@@ -55,7 +55,7 @@ where
         T: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        self.0.contains_key(value, sc)
+        self.0.get(value, sc).is_some()
     }
 
     /// Borrows all current values and registers a collection-wide dependency.
