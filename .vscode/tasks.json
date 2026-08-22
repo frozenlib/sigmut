@@ -5,8 +5,6 @@
   "options": {
     "env": {
       // "RUST_BACKTRACE": "1",
-      // "RUSTFLAGS": "--cfg procmacro2_semver_exempt",
-      // "CARGO_TARGET_DIR": "Z:/temporary/target_dirs/${workspaceFolderBasename}/target/",
     },
   },
   "presentation": {
@@ -28,11 +26,27 @@
     },
     {
       "type": "shell",
-      "label": "cargo test",
+      "label": "cargo test fast",
       "command": "cargo",
       "args": [
         "nextest",
         "run",
+        "--all-targets",
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "dependsOn": [
+        "rustdoc-include"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "cargo test all",
+      "command": "cargo",
+      "args": [
+        "test",
+        "--doc",
       ],
       "problemMatcher": [
         "$rustc"
@@ -41,6 +55,216 @@
         "kind": "build",
         "isDefault": true
       },
+      "dependsOn": [
+        "cargo test fast"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "cargo watch test",
+      "command": "cargo-watch",
+      "args": [
+        "-c",
+        "-x",
+        "test"
+        // "nextest run",
+        // "nextest run -p {project} --test {file} -- {module}",        
+      ],
+      "problemMatcher": [],
+    },
+    {
+      "type": "shell",
+      "label": "cargo watch run",
+      "command": "cargo-watch",
+      "args": [
+        "-c",
+        "-x",
+        "run",
+      ],
+      "problemMatcher": [],
+    },
+    {
+      "type": "shell",
+      "label": "cargo watch run with windows terminal",
+      "command": "wt",
+      "args": [
+        "new-tab",
+        "cargo-watch",
+        "-c",
+        "-x",
+        "run",
+      ],
+      "problemMatcher": [],
+    },
+    {
+      "type": "shell",
+      "label": "cargo run example",
+      "command": "cargo",
+      "args": [
+        "run",
+        "--example",
+        "${fileBasenameNoExtension}"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "watch example",
+      "command": "watchexec -c --restart -- cargo run --example ${fileBasenameNoExtension}",
+      "args": [],
+      "problemMatcher": [
+        "$rustc"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "cargo doc open",
+      "command": "cargo",
+      "args": [
+        "doc",
+        "--open",
+        "--no-deps",
+        "--workspace",
+        "--all-features"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "dependsOn": [
+        "rustdoc-include"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "cargo llvm-cov open",
+      "command": "cargo",
+      "args": [
+        "llvm-cov",
+        "--open",
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "presentation": {
+        "panel": "dedicated",
+        "clear": true
+      },
+    },
+    {
+      "type": "shell",
+      "label": "cargo clippy",
+      "command": "cargo",
+      "args": [
+        "clippy",
+        "--all-features",
+        "--all-targets",
+        "--workspace",
+        "--",
+        "-W",
+        "clippy::all"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "cargo fix & fmt",
+      "command": "cargo fix --all-features --all-targets --allow-dirty --workspace && cargo clippy --fix --allow-dirty --all-features --all-targets --workspace && cargo fmt",
+      "args": [],
+      "problemMatcher": [
+        "$rustc"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "cargo bench",
+      "command": "cargo",
+      "args": [
+        "bench"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}/benchmarks"
+      },
+      "problemMatcher": [
+        "$rustc"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "cargo update minimal-versions",
+      "command": "cargo",
+      "args": [
+        "+nightly",
+        "update",
+        "-Z",
+        "minimal-versions"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "update compile error",
+      "command": "cargo",
+      "args": [
+        "test",
+        "--test",
+        "compile_fail",
+        "--",
+        "--ignored"
+      ],
+      "problemMatcher": [
+        "$rustc"
+      ],
+      "options": {
+        "env": {
+          "TRYBUILD": "overwrite",
+        }
+      }
+    },
+    {
+      "type": "shell",
+      "label": "check msrv",
+      "command": "cargo hack build --rust-version --workspace --ignore-private",
+      "args": [],
+      "problemMatcher": [
+        "$rustc"
+      ],
+    },
+    {
+      "type": "shell",
+      "label": "rustdoc-include",
+      "command": "rustdoc-include",
+      "args": [
+        "--root",
+        "${workspaceFolder}"
+      ],
+      "problemMatcher": [
+        {
+          "owner": "rustdoc-include",
+          "fileLocation": [
+            "relative",
+            "${workspaceFolder}"
+          ],
+          "pattern": [
+            {
+              "regexp": "^(error): (.*)$",
+              "severity": 1,
+              "message": 2,
+            },
+            {
+              "regexp": "^--> (.*):(\\d+)\\s*$",
+              "file": 1,
+              "line": 2,
+              "loop": true,
+            },
+          ]
+        },
+      ],
     },
     {
       "type": "shell",
@@ -84,10 +308,6 @@
       "problemMatcher": [
         "$rustc"
       ],
-      "presentation": {
-        "panel": "dedicated",
-        "clear": true
-      },
       "options": {
         "env": {
           "MIRIFLAGS": "-Zmiri-strict-provenance",
@@ -108,10 +328,6 @@
       "problemMatcher": [
         "$rustc"
       ],
-      "presentation": {
-        "panel": "dedicated",
-        "clear": true
-      },
       "options": {
         "env": {
           "MIRIFLAGS": "-Zmiri-strict-provenance",
@@ -129,146 +345,11 @@
       "problemMatcher": [
         "$rustc"
       ],
-      "presentation": {
-        "panel": "dedicated",
-        "clear": true
-      },
       // "options": {
       //   "env": {
       //     "MIRIFLAGS": "-Zmiri-backtrace=full",
       //   }
       // }
-    },
-    {
-      "type": "shell",
-      "label": "cargo watch test",
-      "command": "wt",
-      "args": [
-        "new-tab",
-        "cargo-watch",
-        "-c",
-        "-x",
-        // "test"
-        // "nextest run",
-        // "nextest run -p {project} --test {file} -- {module}",
-        "nextest run -p sigmut --test fmt",
-      ],
-      "problemMatcher": [],
-    },
-    {
-      "type": "shell",
-      "label": "cargo watch run",
-      "command": "wt",
-      "args": [
-        "new-tab",
-        "cargo-watch",
-        "-c",
-        "-x",
-        "run",
-      ],
-      "problemMatcher": [],
-    },
-    {
-      "type": "shell",
-      "label": "cargo run exmaple",
-      "command": "cargo",
-      "args": [
-        "run",
-        "--example",
-        "${fileBasenameNoExtension}"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-    },
-    {
-      "type": "shell",
-      "label": "cargo doc open",
-      "command": "cargo",
-      "args": [
-        "doc",
-        "--open",
-        "--no-deps",
-        "--all-features"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-    },
-    {
-      "type": "shell",
-      "label": "cargo clippy",
-      "command": "cargo",
-      "args": [
-        "clippy",
-        "--all-features",
-        "--tests",
-        "--lib",
-        "--",
-        "-W",
-        "clippy::all"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-    },
-    {
-      "type": "shell",
-      "label": "cargo fix & fmt",
-      "command": "cargo fix --all-features --all-targets --allow-dirty && cargo clippy --fix --allow-dirty --all-features --all-targets && cargo fmt",
-      "args": [],
-      "problemMatcher": [
-        "$rustc"
-      ],
-    },
-    {
-      "type": "shell",
-      "label": "cargo bench",
-      "command": "cargo",
-      "args": [
-        "+nightly",
-        "bench",
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}/bench"
-      },
-      "problemMatcher": [
-        "$rustc"
-      ],
-    },
-    {
-      "type": "shell",
-      "label": "cargo update minimal-versions",
-      "command": "cargo",
-      "args": [
-        "+nightly",
-        "update",
-        "-Z",
-        "minimal-versions"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-    },
-    {
-      "type": "shell",
-      "label": "update compile error",
-      "command": "cargo",
-      "args": [
-        "test",
-        "--test",
-        "compile_fail",
-        "--",
-        "--ignored"
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-      "options": {
-        "env": {
-          "TRYBUILD": "overwrite",
-        }
-      }
     },
   ],
 }
