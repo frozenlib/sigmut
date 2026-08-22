@@ -83,15 +83,15 @@ impl Parse for Input {
         let crate_path = input.parse()?;
         let comma0 = input.parse()?;
         let format = input.parse()?;
-        let comma1;
-        let args;
-        if input.is_empty() {
-            comma1 = None;
-            args = Punctuated::new();
+
+        let (comma1, args) = if input.is_empty() {
+            (None, Punctuated::new())
         } else {
-            comma1 = Some(input.parse()?);
-            args = input.parse_terminated(Arg::parse, Token![,])?;
-        }
+            (
+                Some(input.parse()?),
+                input.parse_terminated(Arg::parse, Token![,])?,
+            )
+        };
         Ok(Self {
             crate_path,
             _comma0: comma0,
