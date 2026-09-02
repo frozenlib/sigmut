@@ -5,13 +5,18 @@ use crate::{State, core::Runtime, effect};
 use pretty_assertions::assert_eq;
 
 fn immutable_signal_vecs() -> Vec<SignalVec<i32>> {
+    let rc_vec = Rc::new(vec![1, 2]);
+    let arc_vec = Arc::new(vec![1, 2]);
     let rc_slice = Rc::<[i32]>::from([1, 2]);
     let arc_slice = Arc::<[i32]>::from([1, 2]);
     let static_slice: &'static [i32] = &[1, 2];
 
     vec![
         vec![1, 2].into(),
-        Rc::new(vec![1, 2]).into(),
+        rc_vec.clone().into(),
+        (&rc_vec).into(),
+        arc_vec.clone().into(),
+        (&arc_vec).into(),
         [1, 2].into(),
         rc_slice.clone().into(),
         (&rc_slice).into(),
@@ -581,17 +586,25 @@ fn signal_vec_from_slice_and_vec_delta() {
 }
 
 #[test]
-fn signal_vec_shared_slice_refs_clone_the_owner() {
+fn signal_vec_shared_refs_clone_the_owner() {
     let mut rt = Runtime::new();
-    let rc = Rc::<[i32]>::from([1, 2]);
-    let arc = Arc::<[i32]>::from([1, 2]);
-    let from_rc: SignalVec<_> = (&rc).into();
-    let from_arc: SignalVec<_> = (&arc).into();
+    let rc_vec = Rc::new(vec![1, 2]);
+    let arc_vec = Arc::new(vec![1, 2]);
+    let rc_slice = Rc::<[i32]>::from([1, 2]);
+    let arc_slice = Arc::<[i32]>::from([1, 2]);
+    let from_rc_vec: SignalVec<_> = (&rc_vec).into();
+    let from_arc_vec: SignalVec<_> = (&arc_vec).into();
+    let from_rc_slice: SignalVec<_> = (&rc_slice).into();
+    let from_arc_slice: SignalVec<_> = (&arc_slice).into();
 
-    assert_eq!(Rc::strong_count(&rc), 2);
-    assert_eq!(Arc::strong_count(&arc), 2);
-    assert_eq!(from_rc.borrow(&mut rt.sc()), [1, 2]);
-    assert_eq!(from_arc.borrow(&mut rt.sc()), [1, 2]);
+    assert_eq!(Rc::strong_count(&rc_vec), 2);
+    assert_eq!(Arc::strong_count(&arc_vec), 2);
+    assert_eq!(Rc::strong_count(&rc_slice), 2);
+    assert_eq!(Arc::strong_count(&arc_slice), 2);
+    assert_eq!(from_rc_vec.borrow(&mut rt.sc()), [1, 2]);
+    assert_eq!(from_arc_vec.borrow(&mut rt.sc()), [1, 2]);
+    assert_eq!(from_rc_slice.borrow(&mut rt.sc()), [1, 2]);
+    assert_eq!(from_arc_slice.borrow(&mut rt.sc()), [1, 2]);
 }
 
 #[test]
@@ -599,9 +612,10 @@ fn signal_vec_owned_sources_do_not_require_clone() {
     struct NotClone(i32);
 
     let mut rt = Runtime::new();
-    let sources: [SignalVec<NotClone>; 2] = [
+    let sources: [SignalVec<NotClone>; 3] = [
         vec![NotClone(1), NotClone(2)].into(),
         [NotClone(1), NotClone(2)].into(),
+        Arc::new(vec![NotClone(1), NotClone(2)]).into(),
     ];
 
     for source in sources {
