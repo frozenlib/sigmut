@@ -6,6 +6,7 @@ use std::{
     marker::PhantomData,
     ops::{Deref, DerefMut, Index, RangeBounds},
     rc::Rc,
+    sync::Arc,
 };
 
 use derive_ex::{Ex, derive_ex};
@@ -32,7 +33,7 @@ impl<T: 'static> SignalVec<T> {
         f: impl FnMut(&mut VecRefMut<T>, &mut SignalContext<'_, '_>) + 'static,
     ) -> Self {
         let mut f = f;
-        Self(RawSignalVec::Changing(ChangeFeedSignal::from_scan(
+        Self(RawSignalVec::ChangeFeed(ChangeFeedSignal::from_scan(
             VecModel::new(),
             move |edit, sc| {
                 let mut items = VecRefMut {
@@ -46,12 +47,20 @@ impl<T: 'static> SignalVec<T> {
     /// Creates an independently advancing change reader.
     pub fn reader(&self) -> SignalVecReader<T> {
         SignalVecReader(match &self.0 {
-            RawSignalVec::Changing(signal) => RawSignalVecReader::Changing(signal.reader()),
-            RawSignalVec::Vec(vec) => RawSignalVecReader::Vec {
+            RawSignalVec::ChangeFeed(signal) => RawSignalVecReader::ChangeFeed(signal.reader()),
+            RawSignalVec::RcVec(vec) => RawSignalVecReader::RcVec {
                 vec: vec.clone(),
                 has_read: false,
             },
-            RawSignalVec::Slice(slice) => RawSignalVecReader::Slice {
+            RawSignalVec::RcSlice(slice) => RawSignalVecReader::RcSlice {
+                slice: slice.clone(),
+                has_read: false,
+            },
+            RawSignalVec::ArcSlice(slice) => RawSignalVecReader::ArcSlice {
+                slice: slice.clone(),
+                has_read: false,
+            },
+            RawSignalVec::StaticSlice(slice) => RawSignalVecReader::StaticSlice {
                 slice,
                 has_read: false,
             },
@@ -61,9 +70,11 @@ impl<T: 'static> SignalVec<T> {
     /// Borrows all current items and registers a collection-wide dependency.
     pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> VecRef<'a, T> {
         match &self.0 {
-            RawSignalVec::Changing(signal) => VecRef::from_ref(signal.borrow(sc)),
-            RawSignalVec::Vec(vec) => VecRef::from_slice_items(vec),
-            RawSignalVec::Slice(slice) => VecRef::from_slice_items(slice),
+            RawSignalVec::ChangeFeed(signal) => VecRef::from_ref(signal.borrow(sc)),
+            RawSignalVec::RcVec(vec) => VecRef::from_slice_items(vec),
+            RawSignalVec::RcSlice(slice) => VecRef::from_slice_items(slice),
+            RawSignalVec::ArcSlice(slice) => VecRef::from_slice_items(slice),
+            RawSignalVec::StaticSlice(slice) => VecRef::from_slice_items(slice),
         }
     }
 }
@@ -74,26 +85,53 @@ impl<T> From<Vec<T>> for SignalVec<T> {
 }
 impl<T> From<Rc<Vec<T>>> for SignalVec<T> {
     fn from(value: Rc<Vec<T>>) -> Self {
-        Self(RawSignalVec::Vec(value))
+        Self(RawSignalVec::RcVec(value))
+    }
+}
+impl<const N: usize, T> From<[T; N]> for SignalVec<T> {
+    fn from(value: [T; N]) -> Self {
+        Rc::<[T]>::from(value).into()
+    }
+}
+impl<T> From<Rc<[T]>> for SignalVec<T> {
+    fn from(value: Rc<[T]>) -> Self {
+        Self(RawSignalVec::RcSlice(value))
+    }
+}
+impl<T> From<&Rc<[T]>> for SignalVec<T> {
+    fn from(value: &Rc<[T]>) -> Self {
+        Rc::clone(value).into()
+    }
+}
+impl<T> From<Arc<[T]>> for SignalVec<T> {
+    fn from(value: Arc<[T]>) -> Self {
+        Self(RawSignalVec::ArcSlice(value))
+    }
+}
+impl<T> From<&Arc<[T]>> for SignalVec<T> {
+    fn from(value: &Arc<[T]>) -> Self {
+        Arc::clone(value).into()
     }
 }
 
 impl<T> From<&'static [T]> for SignalVec<T> {
     fn from(value: &'static [T]) -> Self {
-        Self(RawSignalVec::Slice(value))
+        Self(RawSignalVec::StaticSlice(value))
     }
 }
 impl<const N: usize, T> From<&'static [T; N]> for SignalVec<T> {
     fn from(value: &'static [T; N]) -> Self {
-        Self(RawSignalVec::Slice(value))
+        Self(RawSignalVec::StaticSlice(value))
     }
 }
 
 #[derive_ex(Clone)]
 enum RawSignalVec<T: 'static> {
-    Changing(ChangeFeedSignal<VecModel<T>>),
-    Vec(Rc<Vec<T>>),
-    Slice(&'static [T]),
+    ChangeFeed(ChangeFeedSignal<VecModel<T>>),
+    RcVec(Rc<Vec<T>>),
+    RcSlice(Rc<[T]>),
+    ArcSlice(Arc<[T]>),
+    StaticSlice(&'static [T]),
 }
 
 /// Reads current values and deltas from a signal vector.
@@ -107,21 +145,33 @@ pub struct SignalVecReader<T: 'static>(RawSignalVecReader<T>);
 #[derive(Ex)]
 #[derive_ex(Clone(bound()))]
 enum RawSignalVecReader<T: 'static> {
-    Changing(ChangeFeedReader<VecModel<T>>),
-    Vec { vec: Rc<Vec<T>>, has_read: bool },
-    Slice { slice: &'static [T], has_read: bool },
+    ChangeFeed(ChangeFeedReader<VecModel<T>>),
+    RcVec { vec: Rc<Vec<T>>, has_read: bool },
+    RcSlice { slice: Rc<[T]>, has_read: bool },
+    ArcSlice { slice: Arc<[T]>, has_read: bool },
+    StaticSlice { slice: &'static [T], has_read: bool },
 }
 
 impl<T: 'static> SignalVecReader<T> {
     pub fn read<'a, 'r: 'a>(&'a mut self, sc: &mut SignalContext<'r, '_>) -> VecRef<'a, T> {
         match &mut self.0 {
-            RawSignalVecReader::Changing(reader) => VecRef::from_ref(reader.read(sc)),
-            RawSignalVecReader::Vec { vec, has_read } => {
+            RawSignalVecReader::ChangeFeed(reader) => VecRef::from_ref(reader.read(sc)),
+            RawSignalVecReader::RcVec { vec, has_read } => {
                 let items = VecRef::from_slice(vec, !*has_read);
                 *has_read = true;
                 items
             }
-            RawSignalVecReader::Slice { slice, has_read } => {
+            RawSignalVecReader::RcSlice { slice, has_read } => {
+                let items = VecRef::from_slice(slice, !*has_read);
+                *has_read = true;
+                items
+            }
+            RawSignalVecReader::ArcSlice { slice, has_read } => {
+                let items = VecRef::from_slice(slice, !*has_read);
+                *has_read = true;
+                items
+            }
+            RawSignalVecReader::StaticSlice { slice, has_read } => {
                 let items = VecRef::from_slice(slice, !*has_read);
                 *has_read = true;
                 items
@@ -139,9 +189,17 @@ impl<T: 'static> SignalVecReader<T> {
     /// applying changes to such state.
     pub fn peek<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> VecRef<'a, T> {
         match &self.0 {
-            RawSignalVecReader::Changing(reader) => VecRef::from_ref(reader.peek(sc)),
-            RawSignalVecReader::Vec { vec, has_read } => VecRef::from_slice(vec, !*has_read),
-            RawSignalVecReader::Slice { slice, has_read } => VecRef::from_slice(slice, !*has_read),
+            RawSignalVecReader::ChangeFeed(reader) => VecRef::from_ref(reader.peek(sc)),
+            RawSignalVecReader::RcVec { vec, has_read } => VecRef::from_slice(vec, !*has_read),
+            RawSignalVecReader::RcSlice { slice, has_read } => {
+                VecRef::from_slice(slice, !*has_read)
+            }
+            RawSignalVecReader::ArcSlice { slice, has_read } => {
+                VecRef::from_slice(slice, !*has_read)
+            }
+            RawSignalVecReader::StaticSlice { slice, has_read } => {
+                VecRef::from_slice(slice, !*has_read)
+            }
         }
     }
 }
@@ -623,11 +681,11 @@ impl<T> StateVec<T> {
     }
     /// Returns a signal backed by this state.
     pub fn to_signal(&self) -> SignalVec<T> {
-        SignalVec(RawSignalVec::Changing(self.0.to_signal()))
+        SignalVec(RawSignalVec::ChangeFeed(self.0.to_signal()))
     }
     /// Creates an independently advancing change reader.
     pub fn reader(&self) -> SignalVecReader<T> {
-        SignalVecReader(RawSignalVecReader::Changing(self.0.reader()))
+        SignalVecReader(RawSignalVecReader::ChangeFeed(self.0.reader()))
     }
     /// Borrows all current items and registers a collection-wide dependency.
     pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> VecRef<'a, T> {

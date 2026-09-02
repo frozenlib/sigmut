@@ -1,8 +1,26 @@
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, rc::Rc, sync::Arc};
 
 use super::*;
 use crate::{State, core::Runtime, effect};
 use pretty_assertions::assert_eq;
+
+fn immutable_signal_vecs() -> Vec<SignalVec<i32>> {
+    let rc_slice = Rc::<[i32]>::from([1, 2]);
+    let arc_slice = Arc::<[i32]>::from([1, 2]);
+    let static_slice: &'static [i32] = &[1, 2];
+
+    vec![
+        vec![1, 2].into(),
+        Rc::new(vec![1, 2]).into(),
+        [1, 2].into(),
+        rc_slice.clone().into(),
+        (&rc_slice).into(),
+        arc_slice.clone().into(),
+        (&arc_slice).into(),
+        SignalVec::from(&[1, 2]),
+        static_slice.into(),
+    ]
+}
 
 #[test]
 fn state_vec_reader_delta() {
@@ -370,9 +388,8 @@ fn signal_vec_from_scan_reader_clones_have_independent_cursors() {
 #[test]
 fn immutable_signal_vec_reader_peek_does_not_advance() {
     let mut rt = Runtime::new();
-    let sources: [SignalVec<i32>; 2] = [SignalVec::from(&[1, 2]), vec![1, 2].into()];
 
-    for vec in sources {
+    for vec in immutable_signal_vecs() {
         let mut reader = vec.reader();
         {
             let items = reader.peek(&mut rt.sc());
@@ -413,9 +430,8 @@ fn immutable_signal_vec_reader_peek_does_not_advance() {
 #[test]
 fn immutable_signal_vec_reader_clones_have_independent_cursors() {
     let mut rt = Runtime::new();
-    let sources: [SignalVec<i32>; 2] = [SignalVec::from(&[1, 2]), vec![1, 2].into()];
 
-    for vec in sources {
+    for vec in immutable_signal_vecs() {
         let mut reader = vec.reader();
         let mut reader_clone = reader.clone();
 
@@ -561,6 +577,42 @@ fn signal_vec_from_slice_and_vec_delta() {
             let actual: Vec<_> = items.delta().collect();
             assert!(actual.is_empty());
         }
+    }
+}
+
+#[test]
+fn signal_vec_shared_slice_refs_clone_the_owner() {
+    let mut rt = Runtime::new();
+    let rc = Rc::<[i32]>::from([1, 2]);
+    let arc = Arc::<[i32]>::from([1, 2]);
+    let from_rc: SignalVec<_> = (&rc).into();
+    let from_arc: SignalVec<_> = (&arc).into();
+
+    assert_eq!(Rc::strong_count(&rc), 2);
+    assert_eq!(Arc::strong_count(&arc), 2);
+    assert_eq!(from_rc.borrow(&mut rt.sc()), [1, 2]);
+    assert_eq!(from_arc.borrow(&mut rt.sc()), [1, 2]);
+}
+
+#[test]
+fn signal_vec_owned_sources_do_not_require_clone() {
+    struct NotClone(i32);
+
+    let mut rt = Runtime::new();
+    let sources: [SignalVec<NotClone>; 2] = [
+        vec![NotClone(1), NotClone(2)].into(),
+        [NotClone(1), NotClone(2)].into(),
+    ];
+
+    for source in sources {
+        assert_eq!(
+            source
+                .borrow(&mut rt.sc())
+                .iter()
+                .map(|value| value.0)
+                .collect::<Vec<_>>(),
+            [1, 2]
+        );
     }
 }
 

@@ -1,6 +1,7 @@
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
+    sync::Arc,
     task::Poll,
 };
 
@@ -333,6 +334,33 @@ fn from_value() {
     let s = Signal::from_value(5);
     assert_eq!(s.get(&mut rt.sc()), 5);
     assert_eq!(s.try_borrow_constant(), Some(&5));
+}
+
+#[test]
+fn from_rc_and_rc_ref() {
+    let mut rt = Runtime::new();
+    let value: Rc<str> = Rc::from("hello");
+    let from_owned: Signal<str> = value.clone().into();
+    let from_ref: Signal<str> = (&value).into();
+
+    assert_eq!(Rc::strong_count(&value), 3);
+    assert_eq!(from_owned.get(&mut rt.sc()), "hello");
+    assert_eq!(from_ref.try_borrow_constant(), Some("hello"));
+    assert!(Signal::ptr_eq(&from_owned, &from_ref));
+}
+
+#[test]
+fn from_arc_and_arc_ref() {
+    let mut rt = Runtime::new();
+    let value: Arc<str> = Arc::from("hello");
+    let from_owned: Signal<str> = value.clone().into();
+    let from_ref: Signal<str> = (&value).into();
+
+    assert_eq!(Arc::strong_count(&value), 3);
+    assert_eq!(from_owned.get(&mut rt.sc()), "hello");
+    assert_eq!(from_ref.try_borrow_constant(), Some("hello"));
+    assert!(Signal::ptr_eq(&from_owned, &from_ref));
+    assert_eq!(format!("{from_owned:?}"), "\"hello\"");
 }
 
 #[test]

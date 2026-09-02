@@ -5,6 +5,7 @@ use std::{
     ops::{AsyncFn, BitAnd, BitOr},
     ptr,
     rc::Rc,
+    sync::Arc,
     task::Poll,
 };
 
@@ -87,12 +88,16 @@ impl<S: SignalNode> DynSignalNode for S {
 #[derive_ex(Clone)]
 enum RawSignal<T: ?Sized + 'static> {
     StaticRef(&'static T),
+    Rc(Rc<T>),
+    Arc(Arc<T>),
     Node(Rc<dyn DynSignalNode<Value = T>>),
 }
 impl<T: ?Sized + 'static> RawSignal<T> {
     fn ptr_eq(this: &Self, other: &Self) -> bool {
         match (this, other) {
             (Self::StaticRef(a), Self::StaticRef(b)) => ptr::eq(*a, *b),
+            (Self::Rc(a), Self::Rc(b)) => Rc::ptr_eq(a, b),
+            (Self::Arc(a), Self::Arc(b)) => Arc::ptr_eq(a, b),
             (Self::Node(a), Self::Node(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
@@ -139,7 +144,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     where
         T: Sized,
     {
-        Self::from_value_map(value, |x| x)
+        Rc::new(value).into()
     }
 
     /// Create a new `Signal` that does not change from its value, with a mapping function.
@@ -235,6 +240,8 @@ impl<T: ?Sized + 'static> Signal<T> {
     pub fn borrow<'a, 'r: 'a>(&'a self, sc: &mut SignalContext<'r, '_>) -> StateRef<'a, T> {
         match &self.0 {
             RawSignal::StaticRef(value) => StateRef::from(*value),
+            RawSignal::Rc(value) => StateRef::from(&**value),
+            RawSignal::Arc(value) => StateRef::from(&**value),
             RawSignal::Node(node) => node.dyn_borrow(node.clone(), sc),
         }
     }
@@ -246,6 +253,8 @@ impl<T: ?Sized + 'static> Signal<T> {
     pub fn try_borrow_constant(&self) -> Option<&T> {
         match &self.0 {
             RawSignal::StaticRef(value) => Some(value),
+            RawSignal::Rc(value) => Some(value),
+            RawSignal::Arc(value) => Some(value),
             RawSignal::Node(node) => node.dyn_try_borrow_constant(),
         }
     }
@@ -373,6 +382,26 @@ impl<T: ?Sized + 'static> Signal<T> {
         RawSignal::ptr_eq(&this.0, &other.0)
     }
 }
+impl<T: ?Sized + 'static> From<Rc<T>> for Signal<T> {
+    fn from(value: Rc<T>) -> Self {
+        Self(RawSignal::Rc(value))
+    }
+}
+impl<T: ?Sized + 'static> From<&Rc<T>> for Signal<T> {
+    fn from(value: &Rc<T>) -> Self {
+        Rc::clone(value).into()
+    }
+}
+impl<T: ?Sized + 'static> From<Arc<T>> for Signal<T> {
+    fn from(value: Arc<T>) -> Self {
+        Self(RawSignal::Arc(value))
+    }
+}
+impl<T: ?Sized + 'static> From<&Arc<T>> for Signal<T> {
+    fn from(value: &Arc<T>) -> Self {
+        Arc::clone(value).into()
+    }
+}
 impl<T: 'static> Signal<Poll<T>> {
     /// Waits until the current value is `Ready` and returns that value.
     pub async fn get_async(&self, sc: &mut AsyncSignalContext) -> T
@@ -386,6 +415,8 @@ impl<T: 'static + ?Sized + Debug> Debug for Signal<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.0 {
             RawSignal::StaticRef(value) => value.fmt(f),
+            RawSignal::Rc(value) => value.fmt(f),
+            RawSignal::Arc(value) => value.fmt(f),
             RawSignal::Node(node) => node.dyn_fmt_debug(f),
         }
     }
