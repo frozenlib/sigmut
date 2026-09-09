@@ -237,6 +237,306 @@ fn runtime_config_applies_when_an_async_action_wakes() {
 }
 
 #[test]
+fn async_action_inline_ready_updates_state_and_releases_capture_before_return() {
+    let mut rt = Runtime::new();
+    let state = crate::State::new(0);
+    let capture = Rc::new(());
+    let weak = Rc::downgrade(&capture);
+    rt.ac().start_async_inline({
+        let state = state.clone();
+        async move |aac| {
+            assert!(aac.is_running_inline());
+            let value = std::future::ready(42).await;
+            assert!(aac.is_running_inline());
+            aac.call(|ac| state.set(value, ac));
+            let _capture = capture;
+        }
+    });
+
+    assert_eq!(state.get(&mut rt.sc()), 42);
+    assert!(weak.upgrade().is_none());
+    assert!(!rt.dispatch_all_actions());
+}
+
+#[test]
+fn async_action_inline_resumes_only_in_requested_phase() {
+    let phase = ActionPhase::new(1);
+    let mut rt = Runtime::new();
+    let (first_sender, first_receiver) = oneshot_broadcast();
+    let (second_sender, second_receiver) = oneshot_broadcast();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let state = crate::State::new(0);
+    rt.ac().start_async_inline_in(phase, {
+        let calls = calls.clone();
+        let state = state.clone();
+        async move |aac| {
+            calls.borrow_mut().push(aac.is_running_inline());
+            aac.call(|ac| state.set(1, ac));
+            first_receiver.recv().await;
+            calls.borrow_mut().push(aac.is_running_inline());
+            aac.call(|ac| state.set(2, ac));
+            second_receiver.recv().await;
+            calls.borrow_mut().push(aac.is_running_inline());
+            aac.call(|ac| state.set(3, ac));
+        }
+    });
+    assert_eq!(state.get(&mut rt.sc()), 1);
+    assert!(!rt.dispatch_all_actions());
+    first_sender.send(());
+    assert!(!rt.dispatch_actions(ActionPhase::default()));
+    assert_eq!(*calls.borrow(), [true]);
+    assert!(rt.dispatch_action(phase));
+    assert_eq!(state.get(&mut rt.sc()), 2);
+    second_sender.send(());
+    assert!(!rt.dispatch_actions(ActionPhase::default()));
+    assert!(rt.dispatch_action(phase));
+    assert_eq!(*calls.borrow(), [true, false, false]);
+    assert_eq!(state.get(&mut rt.sc()), 3);
+}
+
+#[test]
+fn async_action_inline_self_wake_defers_repoll_and_preserves_queued_actions() {
+    let mut rt = Runtime::new();
+    let polls = Rc::new(Cell::new(0));
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    schedule_call(ActionPhase::default(), calls.clone(), 1);
+    rt.ac().start_async_inline({
+        let polls = polls.clone();
+        async move |aac| {
+            poll_fn(|cx| {
+                polls.set(polls.get() + 1);
+                match polls.get() {
+                    1 => {
+                        assert!(aac.is_running_inline());
+                        cx.waker().wake_by_ref();
+                        Poll::Pending
+                    }
+                    2 => {
+                        assert!(!aac.is_running_inline());
+                        Poll::Ready(())
+                    }
+                    _ => std::panic!("completed handler was polled again"),
+                }
+            })
+            .await;
+        }
+    });
+
+    assert_eq!(polls.get(), 1);
+    assert_eq!(*calls.borrow(), Vec::<i32>::new());
+    assert!(rt.dispatch_action(ActionPhase::default()));
+    assert_eq!(*calls.borrow(), [1]);
+    assert_eq!(polls.get(), 1);
+    assert!(rt.dispatch_action(ActionPhase::default()));
+    assert_eq!(polls.get(), 2);
+}
+
+#[test]
+fn async_action_inline_runtime_owns_pending_future_without_external_waker() {
+    let mut rt = Runtime::new();
+    let capture = Rc::new(());
+    let weak = Rc::downgrade(&capture);
+    rt.ac().start_async_inline(async move |_| {
+        std::future::pending::<()>().await;
+        drop(capture);
+    });
+
+    assert_eq!(weak.strong_count(), 1);
+    drop(rt);
+    assert!(weak.upgrade().is_none());
+}
+
+#[rstest::rstest]
+fn async_action_inline_late_wakes_do_not_repoll(#[values(false, true)] complete: bool) {
+    let mut rt = Runtime::new();
+    let waker = Rc::new(RefCell::new(None));
+    let polls = Rc::new(Cell::new(0));
+    let capture = Rc::new(());
+    let weak = Rc::downgrade(&capture);
+    rt.ac().start_async_inline({
+        let waker = waker.clone();
+        let polls = polls.clone();
+        async move |_| {
+            poll_fn(|cx| {
+                polls.set(polls.get() + 1);
+                *waker.borrow_mut() = Some(cx.waker().clone());
+                if complete {
+                    Poll::Ready(())
+                } else {
+                    Poll::Pending
+                }
+            })
+            .await;
+            drop(capture);
+        }
+    });
+    if complete {
+        assert!(weak.upgrade().is_none());
+        waker.borrow().as_ref().unwrap().wake_by_ref();
+        waker.borrow().as_ref().unwrap().wake_by_ref();
+        rt.dispatch_all_actions();
+        assert_eq!(polls.get(), 1);
+    }
+    drop(rt);
+    assert!(weak.upgrade().is_none());
+    waker.borrow().as_ref().unwrap().wake_by_ref();
+    let mut rt = Runtime::new();
+    rt.dispatch_all_actions();
+    assert_eq!(polls.get(), 1);
+}
+
+#[rstest::rstest]
+fn async_action_inline_rejects_invalid_phase_before_handler(#[values(false, true)] explicit: bool) {
+    let mut rt = Runtime::new_with_config(
+        RuntimeConfig::default().with_action_phases([ActionPhase::new(1)]),
+    );
+    let called = Rc::new(Cell::new(false));
+    let capture = Rc::new(());
+    let weak = Rc::downgrade(&capture);
+    let handler = {
+        let called = called.clone();
+        async move |_| {
+            called.set(true);
+            drop(capture);
+        }
+    };
+    assert!(
+        catch_unwind(AssertUnwindSafe(|| {
+            if explicit {
+                rt.ac().start_async_inline_in(ActionPhase::new(2), handler);
+            } else {
+                rt.ac().start_async_inline(handler);
+            }
+        }))
+        .is_err()
+    );
+
+    assert!(!called.get());
+    assert!(weak.upgrade().is_none());
+    assert!(!rt.dispatch_all_actions());
+}
+
+#[rstest::rstest]
+fn async_action_spawn_is_deferred_and_never_inline(#[values(false, true)] explicit: bool) {
+    let phase = if explicit {
+        ActionPhase::new(1)
+    } else {
+        ActionPhase::default()
+    };
+    let mut rt = Runtime::new();
+    let (sender, receiver) = oneshot_broadcast();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let handler = {
+        let calls = calls.clone();
+        async move |aac: &mut AsyncActionContext| {
+            calls.borrow_mut().push(aac.is_running_inline());
+            receiver.recv().await;
+            calls.borrow_mut().push(aac.is_running_inline());
+        }
+    };
+    if explicit {
+        spawn_action_async_in(phase, handler);
+    } else {
+        spawn_action_async(handler);
+    }
+    assert_eq!(*calls.borrow(), Vec::<bool>::new());
+    assert!(rt.dispatch_action(phase));
+    assert_eq!(*calls.borrow(), [false]);
+    sender.send(());
+    assert!(rt.dispatch_action(phase));
+    assert_eq!(*calls.borrow(), [false, false]);
+}
+
+#[test]
+fn async_action_inline_invocations_are_independent() {
+    let mut rt = Runtime::new();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let mut senders = Vec::new();
+    for id in 1..=2 {
+        let (sender, receiver) = oneshot_broadcast();
+        senders.push(sender);
+        rt.ac().start_async_inline_in(ActionPhase::new(id), {
+            let calls = calls.clone();
+            async move |aac| {
+                assert!(aac.is_running_inline());
+                receiver.recv().await;
+                assert!(!aac.is_running_inline());
+                calls.borrow_mut().push(id);
+            }
+        });
+    }
+    for sender in senders {
+        sender.send(());
+    }
+    assert!(rt.dispatch_action(ActionPhase::new(2)));
+    assert_eq!(*calls.borrow(), [2]);
+    assert!(rt.dispatch_action(ActionPhase::new(1)));
+    assert_eq!(*calls.borrow(), [2, 1]);
+}
+
+#[test]
+fn async_action_inline_nested_start_preserves_outer_status() {
+    let mut rt = Runtime::new();
+    let (sender, receiver) = oneshot_broadcast();
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    rt.ac().start_async_inline({
+        let calls = calls.clone();
+        async move |outer| {
+            for iteration in 0..2 {
+                let expected = iteration == 0;
+                assert_eq!(outer.is_running_inline(), expected);
+                outer.call(|ac| {
+                    ac.start_async_inline({
+                        let calls = calls.clone();
+                        async move |inner| {
+                            assert!(inner.is_running_inline());
+                            inner.call(|_| calls.borrow_mut().push(iteration));
+                        }
+                    });
+                });
+                assert_eq!(outer.is_running_inline(), expected);
+                if iteration == 0 {
+                    receiver.recv().await;
+                }
+            }
+        }
+    });
+    assert_eq!(*calls.borrow(), [0]);
+    sender.send(());
+    rt.dispatch_all_actions();
+    assert_eq!(*calls.borrow(), [0, 1]);
+}
+
+#[rstest::rstest]
+fn async_action_inline_status_is_false_outside_poll(
+    #[values("ready", "pending", "panic")] outcome: &str,
+) {
+    let mut rt = Runtime::new();
+    let context = Rc::new(RefCell::new(None));
+    let should_panic = outcome == "panic";
+    let outcome = outcome.to_owned();
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        rt.ac().start_async_inline({
+            let context = context.clone();
+            async move |aac| {
+                assert!(aac.is_running_inline());
+                *context.borrow_mut() = Some(aac);
+                match outcome.as_str() {
+                    "ready" => {}
+                    "pending" => std::future::pending::<()>().await,
+                    "panic" => std::panic!("handler panic"),
+                    _ => unreachable!(),
+                }
+            }
+        });
+    }));
+    assert_eq!(result.is_err(), should_panic);
+    assert!(!context.borrow().as_ref().unwrap().is_running_inline());
+    drop(rt);
+    assert!(!context.borrow().as_ref().unwrap().is_running_inline());
+}
+
+#[test]
 fn runtime_creation_rejects_a_second_runtime_without_corrupting_the_first() {
     let phase = ActionPhase::new(1);
     let mut rt = Runtime::new_with_config(RuntimeConfig::default().with_action_phases([phase]));

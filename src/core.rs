@@ -1,7 +1,7 @@
 use core::panic;
 use std::{
     any::Any,
-    cell::{Ref, RefCell},
+    cell::{Cell, Ref, RefCell},
     future::{Future, poll_fn},
     mem::{replace, swap, take, transmute},
     ops::AsyncFnOnce,
@@ -1093,6 +1093,61 @@ impl ActionContext {
     pub fn sc(&mut self) -> SignalContext<'_, '_> {
         self.0.sc()
     }
+
+    /// Starts an asynchronous action inline, resuming in the default phase.
+    ///
+    /// Polls the handler once using this context before returning. An immediately ready
+    /// `.await` does not suspend execution. If the handler completes, its future is dropped
+    /// before this method returns. Otherwise, the runtime owns the future and resumes it
+    /// after a wake in the default [`ActionPhase`], dropping it when the runtime shuts down.
+    /// No other queued actions are dispatched by this method.
+    ///
+    /// The handler owns its [`AsyncActionContext`]. Use [`AsyncActionContext::call`] to
+    /// modify state in synchronous sections, and [`AsyncActionContext::is_running_inline`]
+    /// to check whether execution is still inside this method's initial poll.
+    ///
+    /// # Panics
+    ///
+    /// Panics before invoking the handler if the default [`ActionPhase`] is not valid
+    /// according to the runtime's [`RuntimeConfig`].
+    ///
+    /// ```
+    /// use sigmut::{State, core::Runtime};
+    ///
+    /// let mut runtime = Runtime::new();
+    /// let state = State::new(0);
+    /// runtime.ac().start_async_inline({
+    ///     let state = state.clone();
+    ///     async move |aac| {
+    ///         let value = std::future::ready(42).await;
+    ///         assert!(aac.is_running_inline());
+    ///         aac.call(|ac| state.set(value, ac));
+    ///     }
+    /// });
+    /// assert_eq!(state.get(&mut runtime.sc()), 42);
+    /// ```
+    pub fn start_async_inline(&mut self, f: impl AsyncFnOnce(AsyncActionContext) + 'static) {
+        self.start_async_inline_in(ActionPhase::default(), f);
+    }
+
+    /// Starts an asynchronous action inline, resuming in the specified phase.
+    ///
+    /// Like [`start_async_inline`](Self::start_async_inline), the first poll runs
+    /// synchronously using this context. `resume_phase` only controls continuation after
+    /// the handler returns [`Poll::Pending`]; the first poll does not wait for that phase.
+    /// Even if the handler wakes itself, further polls are left to the runtime.
+    ///
+    /// # Panics
+    ///
+    /// Panics before invoking the handler if `resume_phase` is not valid according to
+    /// the runtime's [`RuntimeConfig`].
+    pub fn start_async_inline_in(
+        &mut self,
+        resume_phase: ActionPhase,
+        f: impl AsyncFnOnce(AsyncActionContext) + 'static,
+    ) {
+        AsyncAction::start(resume_phase, self, true, |aac| async move { f(aac).await });
+    }
 }
 
 /// Spawns a new action.
@@ -1116,6 +1171,10 @@ pub fn spawn_action_in(phase: ActionPhase, f: impl FnOnce(&mut ActionContext) + 
 
 /// Spawns a new asynchronous action.
 ///
+/// The handler starts when its scheduled action is dispatched, and always observes
+/// [`AsyncActionContext::is_running_inline`] as `false`. To poll a handler before returning,
+/// use [`ActionContext::start_async_inline`].
+///
 /// # Panics
 ///
 /// Panics if a [`Runtime`] exists and the default [`ActionPhase`] is not valid according to its
@@ -1126,6 +1185,10 @@ pub fn spawn_action_async(f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static
 
 /// Spawns a new asynchronous action with a specific phase.
 ///
+/// Both the initial poll and wake-driven continuations are scheduled in `phase`.
+/// The handler always observes [`AsyncActionContext::is_running_inline`] as `false`.
+/// To run the first poll immediately, use [`ActionContext::start_async_inline_in`].
+///
 /// # Panics
 ///
 /// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
@@ -1134,7 +1197,7 @@ pub fn spawn_action_async_in(
     f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static,
 ) {
     spawn_action_in(phase, move |ac| {
-        AsyncAction::start(phase, ac, |mut ac| async move {
+        AsyncAction::start(phase, ac, false, |mut ac| async move {
             f(&mut ac).await;
         })
     })
@@ -1230,10 +1293,12 @@ impl AsyncAction {
     fn start<Fut>(
         phase: ActionPhase,
         ac: &mut ActionContext,
+        inline: bool,
         f: impl FnOnce(AsyncActionContext) -> Fut + 'static,
     ) where
         Fut: Future<Output = ()> + 'static,
     {
+        Globals::assert_valid_action_phase(phase);
         let aac_source = AsyncActionContextSource::new();
         let aac = aac_source.context();
         let future = aac_source.call(ac, || f(aac));
@@ -1248,7 +1313,7 @@ impl AsyncAction {
             waker: WakeReaction::AsyncAction(action.clone()).into_waker(),
             future: Box::pin(future),
         });
-        action.next(ac);
+        action.poll(ac, inline);
     }
     fn call(
         self: &Rc<Self>,
@@ -1265,10 +1330,17 @@ impl AsyncAction {
         self.call(ac, |data| Some(data.take()?.id))
     }
     fn next(self: Rc<Self>, ac: &mut ActionContext) {
+        self.poll(ac, false);
+    }
+    fn poll(self: Rc<Self>, ac: &mut ActionContext, inline: bool) {
         self.call(ac, |data| {
             let d = data.as_mut()?;
             let mut cx = Context::from_waker(&d.waker);
-            if d.future.as_mut().poll(&mut cx).is_ready() {
+            if self
+                .aac_source
+                .with_running_inline(inline, || d.future.as_mut().poll(&mut cx))
+                .is_ready()
+            {
                 Some(data.take()?.id)
             } else {
                 None
@@ -1356,14 +1428,35 @@ impl Drop for RawWake {
     }
 }
 
-struct AsyncActionContextSource(Rc<ActionContextChannel>);
+struct AsyncActionContextData {
+    channel: ActionContextChannel,
+    is_running_inline: Cell<bool>,
+}
+
+struct AsyncActionContextSource(Rc<AsyncActionContextData>);
 
 impl AsyncActionContextSource {
     fn new() -> Self {
-        Self(Rc::new(ActionContextChannel::new()))
+        Self(Rc::new(AsyncActionContextData {
+            channel: ActionContextChannel::new(),
+            is_running_inline: Cell::new(false),
+        }))
     }
     fn call<T>(&self, ac: &mut ActionContext, f: impl FnOnce() -> T) -> T {
-        self.0.scope(ac, f)
+        self.0.channel.scope(ac, f)
+    }
+    fn with_running_inline<T>(&self, inline: bool, f: impl FnOnce() -> T) -> T {
+        struct ResetInline<'a>(&'a Cell<bool>);
+
+        impl Drop for ResetInline<'_> {
+            fn drop(&mut self) {
+                self.0.set(false);
+            }
+        }
+
+        self.0.is_running_inline.set(inline);
+        let _reset = ResetInline(&self.0.is_running_inline);
+        f()
     }
     fn context(&self) -> AsyncActionContext {
         AsyncActionContext(self.0.clone())
@@ -1371,11 +1464,27 @@ impl AsyncActionContextSource {
 }
 
 /// Context for asynchronous state change.
-pub struct AsyncActionContext(Rc<ActionContextChannel>);
+pub struct AsyncActionContext(Rc<AsyncActionContextData>);
 
 impl AsyncActionContext {
+    /// Returns whether this action is currently running inline.
+    ///
+    /// Returns `true` during the initial synchronous poll performed by
+    /// [`ActionContext::start_async_inline`] or [`ActionContext::start_async_inline_in`].
+    /// Immediately ready `.await` expressions keep this value `true`. It is `false` after
+    /// that poll returns or unwinds, including during later polls following a suspension.
+    /// Actions started by [`spawn_action_async`] or [`spawn_action_async_in`] always
+    /// observe `false`, even in their first poll.
+    ///
+    /// This describes the current execution, not how the action was originally started.
+    /// "Inline" refers to execution within the starting method's call, not compiler inlining.
+    pub fn is_running_inline(&self) -> bool {
+        self.0.is_running_inline.get()
+    }
+
     pub fn call<T>(&self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
         self.0
+            .channel
             .try_with(f)
             .expect("`AsyncActionContext` cannot be used after being moved.")
     }
