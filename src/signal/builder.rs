@@ -108,26 +108,43 @@ impl<B: Build> SignalBuilder<B> {
     where
         B::State: std::borrow::Borrow<T>,
     {
-        self.map(|st| std::borrow::Borrow::<T>::borrow(st))
+        self.map(std::borrow::Borrow::<T>::borrow)
     }
 
     pub fn map_value<T: 'static>(
         self,
         f: impl Fn(&B::State) -> T + 'static,
     ) -> SignalBuilder<impl Build<State = T>> {
-        self.map_raw(move |st, sc, _| {
-            StateRef::map_ref(st, |st, sc, _| StateRef::from_value(f(st), sc), sc)
-        })
+        // Local functions keep the adapter independent of the builder type.
+        fn adapter<Input: ?Sized + 'static, Output: 'static>(
+            f: impl Fn(&Input) -> Output + 'static,
+        ) -> impl for<'a, 'r> Fn(
+            StateRef<'a, Input>,
+            &mut SignalContext<'r, '_>,
+            &'a &'r (),
+        ) -> StateRef<'a, Output> {
+            move |st, sc, _| StateRef::map_ref(st, |st, sc, _| StateRef::from_value(f(st), sc), sc)
+        }
+        self.map_raw(adapter(f))
     }
     pub fn flat_map<U: ?Sized + 'static>(
         self,
         f: impl Fn(&B::State) -> &Signal<U> + 'static,
     ) -> SignalBuilder<impl Build<State = U>> {
-        self.map_raw(move |st, sc, _| {
-            StateRefBuilder::from_value_non_static(st, sc)
-                .map_ref(|st, sc, _| f(st).borrow(sc))
-                .build()
-        })
+        fn adapter<Input: ?Sized + 'static, Output: ?Sized + 'static>(
+            f: impl Fn(&Input) -> &Signal<Output> + 'static,
+        ) -> impl for<'a, 'r> Fn(
+            StateRef<'a, Input>,
+            &mut SignalContext<'r, '_>,
+            &'a &'r (),
+        ) -> StateRef<'a, Output> {
+            move |st, sc, _| {
+                StateRefBuilder::from_value_non_static(st, sc)
+                    .map_ref(|st, sc, _| f(st).borrow(sc))
+                    .build()
+            }
+        }
+        self.map_raw(adapter(f))
     }
 
     fn map_raw<T: ?Sized + 'static>(
@@ -172,7 +189,16 @@ pub trait Build: Sized {
         self,
         f: impl Fn(&Self::State) -> &T + 'static,
     ) -> impl Build<State = T> {
-        self.map_raw(move |st, sc, _| StateRef::map(st, &f, sc))
+        fn adapter<Input: ?Sized + 'static, Output: ?Sized + 'static>(
+            f: impl Fn(&Input) -> &Output + 'static,
+        ) -> impl for<'a, 'r> Fn(
+            StateRef<'a, Input>,
+            &mut SignalContext<'r, '_>,
+            &'a &'r (),
+        ) -> StateRef<'a, Output> {
+            move |st, sc, _| StateRef::map(st, &f, sc)
+        }
+        self.map_raw(adapter(f))
     }
     fn map_raw<T: ?Sized + 'static>(
         self,

@@ -11,7 +11,7 @@ use crate::{
     Signal, SignalContext, StateRef,
     core::{
         AsyncSignalContext, AsyncSourceBinder, BindKey, BindSink, BindSource, DirtyLevel,
-        NotifyContext, Reaction, ReactionContext, SinkBindings, Slot,
+        DiscardReaction, NotifyContext, Reaction, ReactionContext, SinkBindings, Slot,
     },
 };
 
@@ -101,12 +101,21 @@ where
     }
     fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if self.sinks.borrow().is_empty() && !self.discard_scheduled.replace(true) {
-            let reaction = Reaction::from_rc_fn(self.clone(), |this, rc| this.discard(rc));
+            let reaction = Reaction::from_discard(self.clone());
             rc.schedule_discard(reaction);
         }
     }
+}
 
-    fn discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
+impl<St, GetFut, Fut, Scan, Map> DiscardReaction for ScanAsyncNode<St, GetFut, Fut, Scan, Map>
+where
+    St: 'static,
+    GetFut: Fn(AsyncSignalContext) -> Fut + 'static,
+    Fut: Future + 'static,
+    Scan: FnMut(&mut St, Poll<Fut::Output>) -> bool + 'static,
+    Map: 'static,
+{
+    fn discard(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         self.discard_scheduled.set(false);
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();

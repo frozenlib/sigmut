@@ -943,6 +943,64 @@ fn builder_map_value() {
 }
 
 #[test]
+fn builder_discard_after_rebinding() {
+    let mut rt = Runtime::new();
+    let source = State::new(4);
+    let gets = Rc::new(Cell::new(0));
+    let discards = Rc::new(RefCell::new(Vec::new()));
+    let observed = Rc::new(RefCell::new(Vec::new()));
+    let signal = SignalBuilder::new({
+        let source = source.clone();
+        let gets = gets.clone();
+        move |sc| {
+            gets.set(gets.get() + 1);
+            source.get(sc)
+        }
+    })
+    .on_discard({
+        let discards = discards.clone();
+        move |value| discards.borrow_mut().push(*value)
+    })
+    .map_value(|value| value * 2)
+    .build();
+
+    // An unobserved read queues a discard; rebinding must preserve the cache.
+    assert_eq!([signal.get(&mut rt.sc()), signal.get(&mut rt.sc())], [8, 8]);
+    let subscription = signal.effect({
+        let observed = observed.clone();
+        move |value| observed.borrow_mut().push(*value)
+    });
+    rt.flush();
+    assert_eq!(gets.get(), 1);
+    assert_eq!(*discards.borrow(), Vec::<i32>::new());
+
+    source.set(7, rt.ac());
+    rt.flush();
+    assert_eq!(*observed.borrow(), vec![8, 14]);
+    assert_eq!(gets.get(), 2);
+
+    drop(subscription);
+    rt.flush();
+    assert_eq!(*discards.borrow(), vec![7]);
+    assert_eq!(signal.get(&mut rt.sc()), 14);
+    assert_eq!(gets.get(), 3);
+    rt.flush();
+    assert_eq!(*discards.borrow(), vec![7, 7]);
+}
+
+#[test]
+fn builder_maps_unsized_state() {
+    let mut rt = Runtime::new();
+    let signal = SignalBuilder::new(|_| String::from("hello"))
+        .map_borrow::<str>()
+        .map(|value| &value[1..])
+        .map_value(str::len)
+        .build();
+
+    assert_eq!(signal.get(&mut rt.sc()), 4);
+}
+
+#[test]
 fn builder_flat_map() {
     let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();

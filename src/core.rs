@@ -1493,7 +1493,15 @@ impl AsyncActionContext {
 /// Operations that do not modify state.
 pub struct Reaction(RawReaction);
 
+pub(crate) trait DiscardReaction: 'static {
+    fn discard(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>);
+}
+
 impl Reaction {
+    pub(crate) fn from_discard(this: Rc<dyn DiscardReaction>) -> Self {
+        Reaction(RawReaction::Discard(this))
+    }
+
     pub fn new(f: impl FnOnce(&mut ReactionContext<'_, '_>) + 'static) -> Self {
         Reaction(RawReaction::Box(downcast_or(f, |f| Box::new(f))))
     }
@@ -1550,6 +1558,7 @@ impl Reaction {
     fn run(self, rc: &mut ReactionContext<'_, '_>) {
         match self.0 {
             RawReaction::Box(f) => f(rc),
+            RawReaction::Discard(this) => this.discard(rc),
             RawReaction::Rc { this, f } => f(this, rc),
             RawReaction::Weak { this, f } => f(this, rc),
         }
@@ -1557,6 +1566,7 @@ impl Reaction {
 }
 
 enum RawReaction {
+    Discard(Rc<dyn DiscardReaction>),
     Box(Box<dyn FnOnce(&mut ReactionContext<'_, '_>)>),
     Rc {
         this: Rc<dyn Any>,

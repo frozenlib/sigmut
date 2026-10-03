@@ -16,6 +16,32 @@ fn schedule_reaction_call(phase: ReactionPhase, calls: Rc<RefCell<Vec<i32>>>, va
 }
 
 #[test]
+fn discard_reaction_shares_node_and_releases_it_after_call() {
+    struct Node(Rc<Cell<usize>>);
+
+    impl DiscardReaction for Node {
+        fn discard(self: Rc<Self>, _: &mut ReactionContext<'_, '_>) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+
+    let mut rt = Runtime::new();
+    let calls = Rc::new(Cell::new(0));
+    let node = Rc::new(Node(calls.clone()));
+    let reaction = Reaction::from_discard(node.clone());
+    let RawReaction::Discard(erased) = &reaction.0 else {
+        std::panic!("discard reaction must share the node");
+    };
+    assert!(std::ptr::eq(
+        Rc::as_ptr(&node),
+        Rc::as_ptr(erased).cast::<Node>()
+    ));
+    assert_eq!(Rc::strong_count(&node), 2);
+    reaction.run(&mut rt.rc());
+    assert_eq!((calls.get(), Rc::strong_count(&node)), (1, 1));
+}
+
+#[test]
 fn sink_bindings_update_does_not_downgrade_dirty() {
     struct NoopSink;
 

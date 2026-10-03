@@ -7,8 +7,8 @@ use std::{
 use crate::{
     Signal, SignalContext, StateRef,
     core::{
-        BindKey, BindSink, BindSource, DirtyLevel, NotifyContext, Reaction, ReactionContext,
-        SinkBindings, Slot, SourceBinder,
+        BindKey, BindSink, BindSource, DirtyLevel, DiscardReaction, NotifyContext, Reaction,
+        ReactionContext, SinkBindings, Slot, SourceBinder,
     },
 };
 
@@ -35,6 +35,24 @@ where
 pub(super) trait ScanFn<St> {
     const FILTER: bool;
     fn call(&mut self, st: &mut St, sc: &mut SignalContext<'_, '_>) -> bool;
+}
+
+pub(super) fn scan_builder_with<St, M>(
+    initial_state: St,
+    scan: impl ScanFn<St> + 'static,
+    discard: impl DiscardFn<St> + 'static,
+    map: M,
+) -> impl Build<State = M::Output>
+where
+    St: 'static,
+    M: MapFn<St> + 'static,
+{
+    ScanBuilder {
+        initial_state,
+        scan,
+        discard,
+        map,
+    }
 }
 
 impl<St, F: FnMut(&mut St, &mut SignalContext<'_, '_>)> ScanFn<St> for ScanFnVoid<F> {
@@ -229,12 +247,20 @@ where
     }
     fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if self.discard_scheduled.try_schedule(&self.sinks) {
-            let reaction = Reaction::from_rc_fn(self.clone(), |this, rc| this.discard(rc));
+            let reaction = Reaction::from_discard(self.clone());
             rc.schedule_discard(reaction);
         }
     }
+}
 
-    fn discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
+impl<St, Scan, D, M> DiscardReaction for ScanNode<St, Scan, D, M>
+where
+    St: 'static,
+    Scan: ScanFn<St> + 'static,
+    D: DiscardFn<St> + 'static,
+    M: MapFn<St> + 'static,
+{
+    fn discard(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         self.discard_scheduled.reset_schedule();
         if self.sinks.borrow().is_empty() {
             let mut d = self.data.borrow_mut();

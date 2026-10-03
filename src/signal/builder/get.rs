@@ -1,6 +1,11 @@
-use crate::{Signal, SignalBuilder, SignalContext, StateRef};
+use std::cell::Cell;
 
-use super::{Build, DedupBuild, GetBuild, ScanBuild};
+use crate::{Signal, SignalContext, StateRef};
+
+use super::{
+    Build, DedupBuild, DiscardFn, DiscardFnKeep, GetBuild, MapFn, ScanBuild,
+    scan::{ScanFn, scan_builder_with},
+};
 
 pub fn get_builder<T: 'static>(
     get: impl Fn(&mut SignalContext<'_, '_>) -> T + 'static,
@@ -8,16 +13,8 @@ pub fn get_builder<T: 'static>(
     GetBuilder(GetFnGet(get))
 }
 
-trait GetFn: Sized {
+trait GetFn: ScanFn<Option<Self::Output>> + 'static {
     type Output: 'static;
-    fn into_scan_build(self) -> impl ScanBuild<State = Option<Self::Output>>;
-    fn into_build(self) -> impl Build<State = Self::Output> {
-        self.into_scan_build()
-            .on_discard(|st| {
-                st.take();
-            })
-            .map(|st| st.as_ref().unwrap())
-    }
 }
 
 struct GetFnGet<F>(F);
@@ -28,11 +25,14 @@ where
     F: Fn(&mut SignalContext<'_, '_>) -> T + 'static,
 {
     type Output = T;
-    fn into_scan_build(self) -> impl ScanBuild<State = Option<Self::Output>> {
-        SignalBuilder::from_scan(None, move |st, sc| {
-            *st = Some((self.0)(sc));
-        })
-        .0
+}
+
+impl<T, F: Fn(&mut SignalContext<'_, '_>) -> T> ScanFn<Option<T>> for GetFnGet<F> {
+    const FILTER: bool = false;
+
+    fn call(&mut self, st: &mut Option<T>, sc: &mut SignalContext<'_, '_>) -> bool {
+        *st = Some((self.0)(sc));
+        true
     }
 }
 
@@ -40,23 +40,78 @@ struct GetFnGetDedup<F>(F);
 
 impl<T, F> GetFn for GetFnGetDedup<F>
 where
-    T: 'static,
+    T: 'static + PartialEq,
     F: Fn(&mut SignalContext<'_, '_>) -> T + 'static,
-    T: PartialEq,
 {
     type Output = T;
-    fn into_scan_build(self) -> impl ScanBuild<State = Option<Self::Output>> {
-        SignalBuilder::from_scan_filter(None, move |st, sc| {
-            let value = (self.0)(sc);
-            if let Some(old) = st
-                && old == &value
-            {
-                return false;
-            }
-            *st = Some(value);
-            true
-        })
-        .0
+}
+
+impl<T, F> ScanFn<Option<T>> for GetFnGetDedup<F>
+where
+    T: PartialEq,
+    F: Fn(&mut SignalContext<'_, '_>) -> T,
+{
+    const FILTER: bool = true;
+
+    fn call(&mut self, st: &mut Option<T>, sc: &mut SignalContext<'_, '_>) -> bool {
+        let value = (self.0)(sc);
+        if let Some(old) = st
+            && old == &value
+        {
+            return false;
+        }
+        *st = Some(value);
+        true
+    }
+}
+
+// These callbacks depend on the value or user callback, never on the getter.
+struct DiscardOption;
+
+impl<T> DiscardFn<Option<T>> for DiscardOption {
+    type ScheduledCell = Cell<bool>;
+
+    fn call(&self, st: &mut Option<T>) {
+        st.take();
+    }
+}
+
+struct DiscardOptionValue<F>(F);
+
+impl<T, F: Fn(T)> DiscardFn<Option<T>> for DiscardOptionValue<F> {
+    type ScheduledCell = Cell<bool>;
+
+    fn call(&self, st: &mut Option<T>) {
+        if let Some(st) = st.take() {
+            (self.0)(st);
+        }
+    }
+}
+
+struct DiscardOptionMut<F>(F);
+
+impl<T, F: Fn(&mut T)> DiscardFn<Option<T>> for DiscardOptionMut<F> {
+    type ScheduledCell = Cell<bool>;
+
+    fn call(&self, st: &mut Option<T>) {
+        if let Some(st) = st {
+            (self.0)(st);
+        }
+        st.take();
+    }
+}
+
+struct MapOption;
+
+impl<T: 'static> MapFn<Option<T>> for MapOption {
+    type Output = T;
+
+    fn apply<'a, 'r: 'a>(
+        &self,
+        input: StateRef<'a, Option<T>>,
+        sc: &mut SignalContext<'r, '_>,
+    ) -> StateRef<'a, T> {
+        StateRef::map(input, |st| st.as_ref().unwrap(), sc)
     }
 }
 
@@ -74,53 +129,27 @@ where
         GetBuilder(GetFnGetDedup(self.0.0))
     }
 }
-impl<Get> DedupBuild for GetBuilder<Get>
-where
-    Get: GetFn,
-{
+
+impl<Get: GetFn> DedupBuild for GetBuilder<Get> {
     fn on_discard_value(
         self,
         f: impl Fn(Self::State) + 'static,
     ) -> impl Build<State = Self::State> {
-        self.0
-            .into_scan_build()
-            .on_discard(move |st| {
-                if let Some(st) = st.take() {
-                    f(st);
-                }
-            })
-            .map(|st| st.as_ref().unwrap())
+        scan_builder_with(None, self.0, DiscardOptionValue(f), MapOption)
     }
 }
 
-impl<Get> ScanBuild for GetBuilder<Get>
-where
-    Get: GetFn,
-{
+impl<Get: GetFn> ScanBuild for GetBuilder<Get> {
     fn on_discard(self, f: impl Fn(&mut Self::State) + 'static) -> impl Build<State = Self::State> {
-        self.0
-            .into_scan_build()
-            .on_discard(move |st| {
-                if let Some(st) = st {
-                    f(st);
-                }
-                st.take();
-            })
-            .map(|st| st.as_ref().unwrap())
+        scan_builder_with(None, self.0, DiscardOptionMut(f), MapOption)
     }
 
     fn keep(self) -> impl Build<State = Self::State> {
-        self.0
-            .into_scan_build()
-            .keep()
-            .map(|st| st.as_ref().unwrap())
+        scan_builder_with(None, self.0, DiscardFnKeep, MapOption)
     }
 }
 
-impl<Get> Build for GetBuilder<Get>
-where
-    Get: GetFn,
-{
+impl<Get: GetFn> Build for GetBuilder<Get> {
     type State = Get::Output;
 
     fn map_raw<T: ?Sized + 'static>(
@@ -132,10 +161,10 @@ where
         ) -> StateRef<'a, T>
         + 'static,
     ) -> impl Build<State = T> {
-        self.0.into_build().map_raw(f)
+        scan_builder_with(None, self.0, DiscardOption, MapOption).map_raw(f)
     }
 
     fn build(self) -> Signal<Self::State> {
-        self.0.into_build().build()
+        scan_builder_with(None, self.0, DiscardOption, MapOption).build()
     }
 }
