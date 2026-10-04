@@ -796,24 +796,9 @@ impl SourceBindings {
         f: impl FnOnce(&mut SignalContext<'r, '_>) -> T,
         rc: &mut ReactionContext<'r, '_>,
     ) -> T {
-        let sources_len = if reset { 0 } else { self.0.len() };
-        let mut sink = Sink {
-            sink,
-            slot,
-            sources: take(self),
-            sources_len,
-        };
-        let mut sc = SignalContext {
-            rt: rc.0.rt,
-            bump: rc.0.bump,
-            sink: Some(&mut sink),
-        };
-
-        let ret = f(&mut sc);
-        *self = sink.sources;
-        for b in self.0.drain(sink.sources_len..) {
-            b.unbind(rc);
-        }
+        let mut sink = Sink::for_update(self, sink, slot, reset);
+        let ret = f(&mut sink.sc(rc));
+        sink.finish_update(self, rc);
         ret
     }
 
@@ -952,6 +937,37 @@ struct Sink {
     sources_len: usize,
 }
 impl Sink {
+    fn for_update(
+        sources: &mut SourceBindings,
+        sink: Weak<dyn BindSink>,
+        slot: Slot,
+        reset: bool,
+    ) -> Self {
+        Self {
+            sink,
+            slot,
+            sources_len: if reset { 0 } else { sources.0.len() },
+            sources: take(sources),
+        }
+    }
+
+    fn sc<'r, 's>(&'s mut self, rc: &'s mut ReactionContext<'r, '_>) -> SignalContext<'r, 's> {
+        SignalContext {
+            rt: rc.0.rt,
+            bump: rc.0.bump,
+            sink: Some(self),
+        }
+    }
+
+    fn finish_update(&mut self, sources: &mut SourceBindings, rc: &mut ReactionContext<'_, '_>) {
+        // Only a successful callback restores dependencies. On unwind, dropping
+        // this sink defers all unbinds, including dependencies added by the callback.
+        *sources = take(&mut self.sources);
+        for binding in sources.0.drain(self.sources_len..) {
+            binding.unbind(rc);
+        }
+    }
+
     #[must_use]
     fn push(&mut self, binding: SourceBinding) -> Option<SourceBinding> {
         let index = self.sources_len;

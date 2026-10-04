@@ -17,6 +17,9 @@ use super::{
     MapFnRaw, ScanBuild, ScanFnBool, ScanFnVoid, SignalNode,
 };
 
+#[cfg(test)]
+mod tests;
+
 pub(super) fn scan_builder<St>(
     initial_state: St,
     scan: impl ScanFn<St> + 'static,
@@ -128,7 +131,9 @@ where
 
     fn build(self) -> Signal<Self::State> {
         Signal::from_node(Rc::new_cyclic(|this| ScanNode {
-            sinks: RefCell::new(SinkBindings::new()),
+            bindings: ScanBindings {
+                sinks: RefCell::new(SinkBindings::new()),
+            },
             data: RefCell::new(ScanNodeData {
                 state: self.initial_state,
                 scan: self.scan,
@@ -147,11 +152,67 @@ struct ScanNodeData<St, Scan> {
     sb: SourceBinder,
 }
 
+impl<St, Scan: ScanFn<St>> ScanNodeData<St, Scan> {
+    fn update(&mut self, rc: &mut ReactionContext<'_, '_>) -> bool {
+        if self.sb.check(rc) {
+            self.sb.update(|sc| self.scan.call(&mut self.state, sc), rc)
+        } else {
+            false
+        }
+    }
+}
+
+// Management shared by every state, scan, discard callback and map type.
+struct ScanBindings {
+    sinks: RefCell<SinkBindings>,
+}
+
+impl ScanBindings {
+    fn is_dirty(&self, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
+        self.sinks.borrow().is_dirty(key, rc)
+    }
+
+    fn bind(&self, source: Rc<dyn BindSource>, sc: &mut SignalContext<'_, '_>) {
+        self.sinks.borrow_mut().bind(source, Slot(0), sc);
+    }
+
+    fn unbind(&self, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
+        self.sinks.borrow_mut().unbind(key, rc);
+    }
+
+    fn rebind(
+        &self,
+        source: Rc<dyn BindSource>,
+        slot: Slot,
+        key: BindKey,
+        sc: &mut SignalContext<'_, '_>,
+    ) {
+        self.sinks.borrow_mut().rebind(source, slot, key, sc);
+    }
+
+    fn notify(&self, level: DirtyLevel, filter: bool, nc: &mut NotifyContext) {
+        self.sinks.borrow_mut().notify(level.maybe_if(filter), nc);
+    }
+
+    fn update(&self, is_dirty: bool, rc: &mut ReactionContext<'_, '_>) {
+        self.sinks.borrow_mut().update(is_dirty, rc);
+    }
+
+    fn try_schedule_discard(&self, scheduled: &impl DiscardScheduledCell) -> bool {
+        scheduled.try_schedule(&self.sinks)
+    }
+
+    fn start_discard(&self, scheduled: &impl DiscardScheduledCell) -> bool {
+        scheduled.reset_schedule();
+        self.sinks.borrow().is_empty()
+    }
+}
+
 struct ScanNode<St, Scan, D, M>
 where
     D: DiscardFn<St>,
 {
-    sinks: RefCell<SinkBindings>,
+    bindings: ScanBindings,
     data: RefCell<ScanNodeData<St, Scan>>,
     discard: D,
     discard_scheduled: D::ScheduledCell,
@@ -193,15 +254,15 @@ where
 {
     fn check(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.update(rc);
-        self.sinks.borrow().is_dirty(key, rc)
+        self.bindings.is_dirty(key, rc)
     }
 
     fn unbind(self: Rc<Self>, _slot: Slot, key: BindKey, rc: &mut ReactionContext<'_, '_>) {
-        self.sinks.borrow_mut().unbind(key, rc);
+        self.bindings.unbind(key, rc);
         self.try_schedule_discard(rc);
     }
     fn rebind(self: Rc<Self>, slot: Slot, key: BindKey, sc: &mut SignalContext<'_, '_>) {
-        self.sinks.borrow_mut().rebind(self.clone(), slot, key, sc);
+        self.bindings.rebind(self.clone(), slot, key, sc);
         self.try_schedule_discard(sc.rc());
     }
 }
@@ -213,10 +274,9 @@ where
     M: MapFn<St> + 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
+        // Release the data borrow before notifying dependants.
         if self.data.borrow_mut().sb.on_notify(slot, level) {
-            self.sinks
-                .borrow_mut()
-                .notify(level.maybe_if(Scan::FILTER), nc)
+            self.bindings.notify(level, Scan::FILTER, nc);
         }
     }
 }
@@ -233,20 +293,16 @@ where
             return;
         }
         self.try_schedule_discard(rc);
-        let d = &mut *self.data.borrow_mut();
-        let is_dirty = if d.sb.check(rc) {
-            d.sb.update(|sc| d.scan.call(&mut d.state, sc), rc)
-        } else {
-            false
-        };
-        self.sinks.borrow_mut().update(is_dirty, rc);
+        let mut d = self.data.borrow_mut();
+        let is_dirty = d.update(rc);
+        self.bindings.update(is_dirty, rc);
     }
     fn watch(self: &Rc<Self>, sc: &mut SignalContext<'_, '_>) {
-        self.sinks.borrow_mut().bind(self.clone(), Slot(0), sc);
+        self.bindings.bind(self.clone(), sc);
         self.update(sc.rc());
     }
     fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
-        if self.discard_scheduled.try_schedule(&self.sinks) {
+        if self.bindings.try_schedule_discard(&self.discard_scheduled) {
             let reaction = Reaction::from_discard(self.clone());
             rc.schedule_discard(reaction);
         }
@@ -261,8 +317,7 @@ where
     M: MapFn<St> + 'static,
 {
     fn discard(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
-        self.discard_scheduled.reset_schedule();
-        if self.sinks.borrow().is_empty() {
+        if self.bindings.start_discard(&self.discard_scheduled) {
             let mut d = self.data.borrow_mut();
             self.discard.call(&mut d.state);
             d.sb.clear(rc);

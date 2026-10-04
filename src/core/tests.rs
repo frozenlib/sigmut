@@ -1,4 +1,5 @@
 use super::*;
+mod source_bindings;
 use crate::utils::sync::oneshot_broadcast;
 use pretty_assertions::assert_eq;
 use std::{
