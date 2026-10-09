@@ -16,6 +16,24 @@ fn schedule_reaction_call(phase: ReactionPhase, calls: Rc<RefCell<Vec<i32>>>, va
 }
 
 #[test]
+fn runtime_drop_releases_pending_callbacks_outside_the_global_borrow() {
+    struct ReenterOnDrop(Rc<Cell<usize>>);
+    impl Drop for ReenterOnDrop {
+        fn drop(&mut self) {
+            Globals::with(|_| self.0.set(self.0.get() + 1));
+        }
+    }
+    let runtime = Runtime::new();
+    let drops = Rc::new(Cell::new(0));
+    let action = ReenterOnDrop(drops.clone());
+    Action::new(move |_| drop(action)).schedule();
+    let reaction = ReenterOnDrop(drops.clone());
+    Reaction::new(move |_| drop(reaction)).schedule();
+    drop(runtime);
+    assert_eq!(drops.get(), 2);
+}
+
+#[test]
 fn discard_reaction_shares_node_and_releases_it_after_call() {
     struct Node(Rc<Cell<usize>>);
 

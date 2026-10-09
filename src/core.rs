@@ -220,10 +220,11 @@ impl Globals {
         Poll::Pending
     }
 
-    fn finish_runtime(&mut self) {
+    fn finish_runtime(&mut self) -> (Buckets<Reaction>, Buckets<Action>) {
         self.runtime_config = None;
-        self.reactions = Buckets::new();
-        self.actions = Buckets::new();
+        // callback の破棄は global borrow を解放してから行う。
+        // 捕捉した reactive 資源の Drop は依存関係解除を Globals へ登録する。
+        (take(&mut self.reactions), take(&mut self.actions))
     }
 
     fn wake(&mut self) {
