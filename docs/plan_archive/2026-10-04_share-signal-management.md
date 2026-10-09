@@ -17,7 +17,7 @@
 2. ScanNode の sinks / discard scheduling を state / callback と独立した helper にまとめる。data の RefCell は分割せず、再入制約と keep のゼロサイズ scheduling を維持する。
 3. 依存の再利用、reset=false、panic / drop、通知時の借用解放、discard の順序を検証する。
 4. workspace nextest、doctest、format、Clippy、利用可能な nightly Miri を実行する。
-5. widgets test exe の before/after を測定し、結果と再実行方法を docs/measurements と tools に保存して commit する。
+5. widgets test exe の before/after を測定し、結果と再実行方法を記録する。
 
 acoui / rt-local 本体と元の測定資料は変更しない。remote push / main 統合は行わない。
 
@@ -26,4 +26,4 @@ acoui / rt-local 本体と元の測定資料は変更しない。remote push / m
 実装、回帰テスト、workspace nextest / doctest / Clippy / Miri、consumer 654 テスト、
 widgets test exe の各 3 回の before/after 測定を完了した。
 生成コードの削減は再現したが、private bytes peak の削減は確認できなかった。
-条件・数値・限界は [測定報告](../measurements/2026-10-04_signal-management.md) に記録した。
+測定用コードと測定報告は削除済み。
