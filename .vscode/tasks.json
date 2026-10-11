@@ -36,9 +36,6 @@
       "problemMatcher": [
         "$rustc"
       ],
-      "dependsOn": [
-        "rustdoc-include"
-      ],
     },
     {
       "type": "shell",
@@ -62,23 +59,27 @@
     {
       "type": "shell",
       "label": "cargo watch test",
-      "command": "cargo-watch",
+      "command": "watchexec",
       "args": [
         "-c",
-        "-x",
+        "--restart",
+        "--",
+        "cargo",
         "test"
-        // "nextest run",
-        // "nextest run -p {project} --test {file} -- {module}",        
+        // "nextest", "run",
+        // "nextest", "run", "-p", "{project}", "--test", "{file}", "--", "{module}",
       ],
       "problemMatcher": [],
     },
     {
       "type": "shell",
       "label": "cargo watch run",
-      "command": "cargo-watch",
+      "command": "watchexec",
       "args": [
         "-c",
-        "-x",
+        "--restart",
+        "--",
+        "cargo",
         "run",
       ],
       "problemMatcher": [],
@@ -89,9 +90,11 @@
       "command": "wt",
       "args": [
         "new-tab",
-        "cargo-watch",
+        "watchexec",
         "-c",
-        "-x",
+        "--restart",
+        "--",
+        "cargo",
         "run",
       ],
       "problemMatcher": [],
@@ -131,9 +134,6 @@
       ],
       "problemMatcher": [
         "$rustc"
-      ],
-      "dependsOn": [
-        "rustdoc-include"
       ],
     },
     {
@@ -186,7 +186,7 @@
         "bench"
       ],
       "options": {
-        "cwd": "${workspaceFolder}/benchmarks"
+        "cwd": "${workspaceFolder}/bench"
       },
       "problemMatcher": [
         "$rustc"
@@ -237,37 +237,6 @@
     },
     {
       "type": "shell",
-      "label": "rustdoc-include",
-      "command": "rustdoc-include",
-      "args": [
-        "--root",
-        "${workspaceFolder}"
-      ],
-      "problemMatcher": [
-        {
-          "owner": "rustdoc-include",
-          "fileLocation": [
-            "relative",
-            "${workspaceFolder}"
-          ],
-          "pattern": [
-            {
-              "regexp": "^(error): (.*)$",
-              "severity": 1,
-              "message": 2,
-            },
-            {
-              "regexp": "^--> (.*):(\\d+)\\s*$",
-              "file": 1,
-              "line": 2,
-              "loop": true,
-            },
-          ]
-        },
-      ],
-    },
-    {
-      "type": "shell",
       "label": "cargo miri test",
       "command": "cargo",
       "args": [
@@ -300,8 +269,7 @@
         "+nightly",
         "miri",
         "test",
-        "--test",
-        "core",
+        "--lib",
         "--",
         "state_ref"
       ],
@@ -323,7 +291,7 @@
         "miri",
         "test",
         "--lib",
-        "ignal::signal_t::tests::cyclic",
+        "signal::signal_t::tests::cyclic",
       ],
       "problemMatcher": [
         "$rustc"
@@ -333,23 +301,6 @@
           "MIRIFLAGS": "-Zmiri-strict-provenance",
         }
       }
-    },
-    {
-      "type": "shell",
-      "label": "cargo llvm-cov open",
-      "command": "cargo",
-      "args": [
-        "llvm-cov",
-        "--open",
-      ],
-      "problemMatcher": [
-        "$rustc"
-      ],
-      // "options": {
-      //   "env": {
-      //     "MIRIFLAGS": "-Zmiri-backtrace=full",
-      //   }
-      // }
     },
   ],
 }
