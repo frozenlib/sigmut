@@ -175,6 +175,11 @@ impl Globals {
         !values.is_empty()
     }
 
+    fn push_unbinds(&mut self, bindings: SourceBindingsData) {
+        self.unbinds.push(bindings);
+        self.wake();
+    }
+
     fn push_notify(&mut self, sink: Weak<dyn BindSink>, slot: Slot) {
         self.notifys.push(NotifyReaction { sink, slot });
         self.wake();
@@ -220,10 +225,12 @@ impl Globals {
         Poll::Pending
     }
 
-    fn finish_runtime(&mut self) {
-        self.runtime_config = None;
-        self.reactions = Buckets::new();
-        self.actions = Buckets::new();
+    fn finish_runtime() {
+        let pending = Self::with(|g| {
+            g.runtime_config = None;
+            (take(&mut g.reactions), take(&mut g.actions))
+        });
+        drop(pending);
     }
 
     fn wake(&mut self) {
@@ -510,7 +517,7 @@ impl Drop for Runtime {
     fn drop(&mut self) {
         if self.is_owned {
             self.as_raw().cancel_async_actions();
-            Globals::with(|g| g.finish_runtime());
+            Globals::finish_runtime();
         } else {
             Globals::with(|g| {
                 assert!(g.runtime.is_none());
@@ -673,7 +680,7 @@ impl RawRuntime {
 impl Drop for RawRuntime {
     fn drop(&mut self) {
         self.cancel_async_actions();
-        Globals::with(|g| g.finish_runtime());
+        Globals::finish_runtime();
     }
 }
 
@@ -819,7 +826,7 @@ impl SourceBindings {
 impl Drop for SourceBindings {
     fn drop(&mut self) {
         if !self.0.is_empty() {
-            let _ = Globals::try_with(|g| g.unbinds.push(take(&mut self.0)));
+            let _ = Globals::try_with(|g| g.push_unbinds(take(&mut self.0)));
         }
     }
 }
