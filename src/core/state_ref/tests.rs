@@ -8,6 +8,7 @@ use std::{
 use assert_call::{Call, CallRecorder, call};
 use derive_ex::derive_ex;
 use parse_display::Display;
+use pretty_assertions::assert_eq;
 use rstest::rstest;
 
 use crate::{
@@ -364,7 +365,7 @@ impl StateRefKind {
 
 impl StateRefFn for () {
     fn call<'a, T: Debug + ?Sized>(&self, value: StateRef<'a, T>, _oc: &mut SignalContext<'a, '_>) {
-        black_box(&*value);
+        bbox(value);
     }
 }
 
@@ -483,6 +484,76 @@ fn _lifetime_covariant() {
 }
 
 fn bbox<T: ?Sized + Debug>(value: StateRef<T>) {
-    black_box(format!("{value:?}"));
+    assert_eq!(
+        [
+            format!("{value:?}"),
+            format!("{value:#?}"),
+            format!("{value:x?}")
+        ],
+        [
+            format!("{:?}", &*value),
+            format!("{:#?}", &*value),
+            format!("{:x?}", &*value)
+        ],
+    );
     black_box(&*value);
+}
+
+#[rstest]
+fn format_integer(#[values(-31, 0, 31)] value: i32) {
+    let r = StateRef::from(&value);
+    assert_eq!(
+        format!("{r}|{r:b}|{r:o}|{r:x}|{r:X}"),
+        format!("{value}|{value:b}|{value:o}|{value:x}|{value:X}"),
+    );
+    assert_eq!(
+        format!("{r:+08}|{r:#010b}|{r:#06o}|{r:#08x}|{r:#08X}"),
+        format!("{value:+08}|{value:#010b}|{value:#06o}|{value:#08x}|{value:#08X}"),
+    );
+}
+
+#[rstest]
+fn format_float(#[values(-12.5, 0.0, 12.5)] value: f64) {
+    let mut rt = Runtime::new();
+    let r = StateRef::from_value(value, &rt.sc());
+    assert_eq!(
+        format!("{r:e}|{r:E}|{r:+014.3e}|{r:*>14.3E}|{r:.2}"),
+        format!("{value:e}|{value:E}|{value:+014.3e}|{value:*>14.3E}|{value:.2}"),
+    );
+}
+
+#[test]
+fn format_unsized() {
+    let mut rt = Runtime::new();
+    let sc = rt.sc();
+    for r in [
+        StateRef::from("hello"),
+        StateRef::<str>::from_owned(String::from("hello"), &sc),
+    ] {
+        assert_eq!(
+            format!("{r}|{r:*>10.3}|{r:?}|{r:#?}"),
+            format!("{0}|{0:*>10.3}|{0:?}|{0:#?}", "hello"),
+        );
+    }
+    bbox(StateRef::from(&[1, 2, 3][..]));
+}
+
+#[test]
+fn format_dyn_display() {
+    let value = String::from("hello");
+    let r = StateRef::from(&value as &dyn Display);
+    assert_eq!(format!("{r:*>10.3}"), format!("{value:*>10.3}"));
+}
+
+#[test]
+fn format_pointer() {
+    let value = 42;
+    let pointer = &value as *const i32;
+    let r = StateRef::from(&pointer);
+    assert_eq!(
+        format!("{r:p}|{r:018p}"),
+        format!("{pointer:p}|{pointer:018p}"),
+    );
+    let r = StateRef::from(&pointer as &dyn std::fmt::Pointer);
+    assert_eq!(format!("{r:p}"), format!("{pointer:p}"));
 }

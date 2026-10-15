@@ -2,7 +2,7 @@ use std::{
     alloc::Layout,
     borrow::Borrow,
     cell::Ref,
-    fmt::Debug,
+    fmt,
     marker::PhantomData,
     mem::MaybeUninit,
     ops::Deref,
@@ -140,31 +140,6 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
             }
         }
     }
-
-    fn storage(&self) -> &str {
-        match &self.0 {
-            Data::ValueAndOwner { value, .. } => match value {
-                Value::Ref(r) => match r {
-                    RawRef::Ref(_) => "ref",
-                    RawRef::RefCell(_) => "ref_cell",
-                },
-                Value::Embedded(_) => "inline",
-            },
-            Data::ValueStatic(_) => "inline",
-        }
-    }
-    fn has_owner(&self) -> bool {
-        match &self.0 {
-            Data::ValueAndOwner { owner, .. } => owner.0.is_some(),
-            Data::ValueStatic(_) => false,
-        }
-    }
-    fn is_static(&self) -> bool {
-        match &self.0 {
-            Data::ValueAndOwner { is_static, .. } => *is_static,
-            Data::ValueStatic(_) => true,
-        }
-    }
 }
 impl<T: ?Sized> std::ops::Deref for StateRef<'_, T> {
     type Target = T;
@@ -190,16 +165,22 @@ impl<'a, T: ?Sized> From<Ref<'a, T>> for StateRef<'a, T> {
         })
     }
 }
-impl<T: ?Sized + Debug> Debug for StateRef<'_, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("DynRefInBump")
-            .field("value", &&**self)
-            .field("storage", &self.storage())
-            .field("has_owner", &self.has_owner())
-            .field("is_static", &self.is_static())
-            .finish()
-    }
+macro_rules! impl_fmt {
+    ($($trait:ident),* $(,)?) => {
+        $(
+            impl<T: ?Sized + fmt::$trait> fmt::$trait for StateRef<'_, T> {
+                #[inline]
+                fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    fmt::$trait::fmt(&**self, f)
+                }
+            }
+        )*
+    };
 }
+
+impl_fmt!(
+    Debug, Display, Binary, Octal, LowerHex, UpperHex, LowerExp, UpperExp, Pointer
+);
 
 enum Data<'a, T: ?Sized> {
     ValueAndOwner {
