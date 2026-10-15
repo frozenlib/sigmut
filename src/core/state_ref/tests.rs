@@ -1,4 +1,5 @@
 use std::{
+    borrow::Borrow,
     cell::RefCell,
     fmt::{Debug, Display},
     hint::black_box,
@@ -40,6 +41,20 @@ impl<T: Display> Drop for Value<T> {
 
 fn e_drop(value: impl Display) -> Call {
     Call::id(format!("drop {value}"))
+}
+
+struct OwnedStr(String);
+
+impl Borrow<str> for OwnedStr {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Drop for OwnedStr {
+    fn drop(&mut self) {
+        call!("drop {}", self.0);
+    }
 }
 
 #[test]
@@ -140,6 +155,26 @@ fn from_value_non_static_large() {
     c.verify(());
     drop(or);
     c.verify([e_drop("large2"), e_drop("large")]);
+}
+
+#[test]
+fn from_owned() {
+    let mut rt = Runtime::new();
+    let r: StateRef<'_, str> = StateRef::from_owned(String::from("hello"), &rt.sc());
+
+    assert_eq!(&*r, "hello");
+    assert_eq!(r.into_owned(), "hello");
+}
+
+#[test]
+fn from_owned_keeps_owner() {
+    let mut c = CallRecorder::new();
+    let mut rt = Runtime::new();
+    let r: StateRef<'_, str> = StateRef::from_owned(OwnedStr("hello".into()), &rt.sc());
+
+    c.verify(());
+    drop(r);
+    c.verify(e_drop("hello"));
 }
 
 #[test]

@@ -1,5 +1,6 @@
 use std::{
     alloc::Layout,
+    borrow::Borrow,
     cell::Ref,
     fmt::Debug,
     marker::PhantomData,
@@ -22,6 +23,7 @@ mod tests;
 /// | Type                          | Created by                       |
 /// | ----------------------------- | -------------------------------- |
 /// | `T`                           | [`from_value`](Self::from_value) |
+/// | `U` borrowed as `T`            | [`from_owned`](Self::from_owned) |
 /// | `&T`                          | [`From<&T>`]                     |
 /// | `RefCell<T>`                  | [`From<RefCell<T>>`]             |
 /// | `(StateRef<U>, Fn(&U) -> &T)` | [`map`](Self::map)               |
@@ -57,6 +59,17 @@ impl<'a, T: ?Sized> StateRef<'a, T> {
             },
             Err(value) => MaybeBox::alloc(value, sc.bump).into_data(false),
         })
+    }
+
+    /// Create a `StateRef` from an owned value that borrows as `T`.
+    ///
+    /// The owned value is retained by the returned `StateRef` for as long as the borrowed `T` is
+    /// used.
+    pub fn from_owned<'r: 'a, U>(owned: U, sc: &SignalContext<'r, '_>) -> Self
+    where
+        U: Borrow<T> + 'static,
+    {
+        StateRef::map(StateRef::from_value(owned, sc), |value| value.borrow(), sc)
     }
 
     /// Maps a `StateRef<T>` to a `StateRef<U>` using a function that returns a new `StateRef<U>`.
