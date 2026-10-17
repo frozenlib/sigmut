@@ -101,7 +101,7 @@ fn dropping_subscription_discards_signal_on_flush() {
     assert_eq!(discards.get(), 1);
 }
 
-#[rt_local::runtime::core::test]
+#[rt_local::runtime::blocking::test]
 async fn dropping_subscription_wakes_waiting_runtime_for_discard() {
     let mut runtime = Runtime::new();
     let discards = Rc::new(Cell::new(0));

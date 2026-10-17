@@ -14,7 +14,7 @@ use crate::{
 use assert_call::{CallRecorder, call};
 use futures::StreamExt;
 use pretty_assertions::assert_eq;
-use rt_local::{runtime::core::test, spawn_local, wait_for_idle};
+use rt_local::{runtime::blocking::test, spawn_local, wait_for_idle};
 
 use super::SignalNode;
 

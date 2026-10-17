@@ -92,7 +92,7 @@ Miri setup needed a temporary directory outside the workspace and a dedicated
 braces interpreted as Cargo build-dir variables. Setup and execution subsequently worked.
 Local logs and source manifests are in the ignored `target/verification` directory.
 
-### Existing Miri limitation
+### Registry-version Miri limitation (resolved by the follow-up below)
 
 `dropping_subscription_wakes_waiting_runtime_for_discard` fails Stacked Borrows
 at `drop(lend)` with `trying to retag ... Unique permission ... tag does not exist`.
@@ -113,6 +113,50 @@ Final Miri command:
 cargo +nightly miri test --lib --bins --tests -- -Z unstable-options --exclude-should-panic --skip dropping_subscription_wakes_waiting_runtime_for_discard
 ```
 
-This existing Miri issue, acoui integration, and external Tokio/UI resource lifetime
-integration remain unverified here. acoui must implement its own bridge revisions,
+At that verification point, the existing Miri issue, acoui integration, and external
+Tokio/UI resource lifetime integration remained unverified. acoui must implement its own bridge revisions,
 phase migration and drain/Closing boundary before adopting this contract; see the guide.
+
+## Follow-up: GitHub rt-local update, 2026-10-17
+
+The user requested testing the latest GitHub rt-local against the Miri failure.
+`git ls-remote --symref` confirmed that the repository has no `main` branch and
+its default branch is `master`, at `cd039904282f0376e811c805d4fdaa9cbc6b2219`.
+The dev-dependency now tracks `branch = "master"` without a `rev` pin; Cargo.lock
+records that commit for rt-local, rt-local-core and rt-local-macros. Other locked
+dependencies were preserved.
+
+The adopted `core/src/base_impl.rs` changes `RawRunnable::run` to project the
+pinned mutable reference before inspecting cancellation, borrowing only `task`.
+The previous field access through `Pin` borrowed the whole runnable, including
+references stored in the suspended future. The source change and the passing
+reproduction are consistent with resolving the reported invalidation.
+No rt-local source was edited in this task.
+
+The latest test entry point is `runtime::blocking`, so the two sigmut test uses
+of `runtime::core` were migrated. Assertions, test contents and enabled cases
+were unchanged. The original failing Miri test now passes on its own, and the
+full CI Miri invocation passes **without the previous extra skip**:
+
+```text
+cargo +nightly miri test --locked --lib --bins --tests -- -Z unstable-options --exclude-should-panic
+```
+
+Verification started at HEAD `a4b1372ab808fb60fbe11811bf49a459ed8af3cc`
+with only the dependency, lockfile and two test API migrations pending.
+The source manifest was unchanged before/after all runs:
+`1591b6285b3e6775101ca95896695f523bf6ac36222a9b355e1e723d80e4b582`.
+
+| Check | Actual result |
+| --- | --- |
+| Formerly failing Miri reproduction | Passed |
+| Full CI Miri command above | 369 passed; only CI's six should-panic exclusions and the existing ignored trybuild test retained |
+| `cargo test --locked --workspace --all-features` | 375 ordinary tests + 12 doc tests passed |
+| Direct minimal versions in the isolated copy, then workspace tests | 375 ordinary tests + 12 doc tests passed, using the same rt-local commit |
+| `cargo fmt --all --check` | Passed |
+| Clippy with `RUSTFLAGS="-D warnings"`, all features, tests and library | Passed |
+
+Logs are `target/verification/*rt-local-latest*`. The earlier Miri limitation is
+resolved with this Git dependency; acoui adoption and external-resource integration
+remain outside this task. No merge, push, PR, publication or rt-local source edit
+was performed.
