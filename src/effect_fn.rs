@@ -14,18 +14,16 @@ mod tests;
 /// Call a function each time a dependency changes.
 ///
 /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions)
-/// is called with `ReactionPhase::default()`,
+/// is called with `ReactionPhase::DEFAULT`,
 /// or when [`Runtime::dispatch_all_reactions`](crate::core::Runtime::dispatch_all_reactions) is called.
 /// However, if the dependency status has not changed since the previous call, it will not be called.
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
 ///
-/// # Panics
-///
-/// Panics if a [`Runtime`](crate::core::Runtime) exists and the default [`ReactionPhase`] is not
-/// valid according to its [`RuntimeConfig`](crate::core::RuntimeConfig).
+/// Its initial execution and pending updates survive Runtime shutdown, and resume
+/// when a Running runtime supports the shared default phase.
 pub fn effect(f: impl FnMut(&mut SignalContext<'_, '_>) + 'static) -> Subscription {
-    effect_in(ReactionPhase::default(), f)
+    effect_in(ReactionPhase::DEFAULT, f)
 }
 
 /// Call a function each time a dependency changes with [`ReactionPhase`] specified.
@@ -37,12 +35,12 @@ pub fn effect(f: impl FnMut(&mut SignalContext<'_, '_>) + 'static) -> Subscripti
 ///
 /// If the [`Subscription`] returned from this function is dropped, the function will not be called again.
 ///
-/// # Panics
-///
-/// Panics if a [`Runtime`](crate::core::Runtime) exists and `phase` is not valid according to its
-/// [`RuntimeConfig`](crate::core::RuntimeConfig).
+/// Unsupported phases sleep until a matching Running runtime exists. The
+/// subscription owns the callback and its resources; dropping it disables queued
+/// work. Runtime recreation does not replay a clean effect or restore external
+/// resources captured by the callback.
 pub fn effect_in(
-    phase: ReactionPhase,
+    phase: &'static ReactionPhase,
     f: impl FnMut(&mut SignalContext<'_, '_>) + 'static,
 ) -> Subscription {
     let node = EffectNode::new(f, phase);
@@ -57,13 +55,13 @@ struct EffectData<F> {
 
 struct EffectNode<F> {
     data: RefCell<EffectData<F>>,
-    phase: ReactionPhase,
+    phase: &'static ReactionPhase,
 }
 impl<F> EffectNode<F>
 where
     F: FnMut(&mut SignalContext<'_, '_>) + 'static,
 {
-    fn new(f: F, phase: ReactionPhase) -> Rc<Self> {
+    fn new(f: F, phase: &'static ReactionPhase) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
             data: RefCell::new(EffectData {
                 f,

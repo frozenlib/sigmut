@@ -48,7 +48,9 @@ impl AsyncSignalContext {
     /// Only the dependencies recorded in `SingalContext` in the last call of `f` are added to `AsyncSignalContext` dependencies.
     pub async fn poll_fn<T>(&mut self, f: impl Fn(&mut SignalContext<'_, '_>) -> Poll<T>) -> T {
         poll_fn(|cx| {
-            self.0
+            let mut waker = Some(cx.waker().clone());
+            let (ret, previous) = self
+                .0
                 .context
                 .try_with(|context| {
                     let s = &mut *self.0.s.borrow_mut();
@@ -58,13 +60,16 @@ impl AsyncSignalContext {
                         .update(sink, SLOT_POLL, true, &f, context.rc());
                     if ret.is_ready() {
                         context.extend(&mut s.poll_bindings);
-                        s.poll_waker.take();
-                    } else {
-                        s.poll_waker = Some(cx.waker().clone());
                     }
-                    ret
+                    let previous = std::mem::replace(
+                        &mut s.poll_waker,
+                        if ret.is_pending() { waker.take() } else { None },
+                    );
+                    (ret, previous)
                 })
-                .expect("`SignalContext` cannot be used after being moved.")
+                .expect("`SignalContext` cannot be used after being moved.");
+            drop(previous);
+            ret
         })
         .await
     }
@@ -158,7 +163,8 @@ impl AsyncSourceBinder {
                 self.dirty.apply_notify(level);
             }
             SLOT_POLL => {
-                if let Some(waker) = self.sc.0.s.borrow_mut().poll_waker.take() {
+                let waker = self.sc.0.s.borrow_mut().poll_waker.take();
+                if let Some(waker) = waker {
                     waker.wake();
                 }
             }

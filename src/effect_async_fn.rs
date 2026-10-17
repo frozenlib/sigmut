@@ -13,23 +13,21 @@ mod tests;
 
 /// Call an asynchronous function each time a dependency changes.
 ///
-/// # Panics
-///
-/// Panics if a [`Runtime`](crate::core::Runtime) exists and the default [`ReactionPhase`] is not
-/// valid according to its [`RuntimeConfig`](crate::core::RuntimeConfig).
+/// Its initial execution and pending updates survive Runtime shutdown, and resume
+/// when a Running runtime supports the shared default phase.
 pub fn effect_async(f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static) -> Subscription {
-    effect_async_in(ReactionPhase::default(), f)
+    effect_async_in(ReactionPhase::DEFAULT, f)
 }
 
 /// Call an asynchronous function each time a dependency changes with [`ReactionPhase`] specified.
 ///
-/// # Panics
-///
-/// Panics if a [`Runtime`](crate::core::Runtime) exists and `phase` is not valid according to its
-/// [`RuntimeConfig`](crate::core::RuntimeConfig).
+/// Unsupported phases sleep until a matching Running runtime exists. The
+/// subscription owns the callback and its resources; dropping it disables queued
+/// work. Runtime recreation does not replay a clean effect or restore external
+/// resources captured by the callback.
 #[allow(clippy::await_holding_refcell_ref)]
 pub fn effect_async_in(
-    phase: ReactionPhase,
+    phase: &'static ReactionPhase,
     f: impl AsyncFnMut(&mut AsyncSignalContext) + 'static,
 ) -> Subscription {
     let f = Rc::new(RefCell::new(f));
@@ -48,24 +46,24 @@ pub fn effect_async_in(
 
 struct EffectAsyncData<GetFut, Fut> {
     get_fut: GetFut,
-    fut: Pin<Box<Option<Fut>>>,
+    fut: Option<Pin<Box<Fut>>>,
     asb: AsyncSourceBinder,
 }
 
 struct EffectAsyncNode<GetFut, Fut> {
     data: RefCell<EffectAsyncData<GetFut, Fut>>,
-    phase: ReactionPhase,
+    phase: &'static ReactionPhase,
 }
 impl<GetFut, Fut> EffectAsyncNode<GetFut, Fut>
 where
     GetFut: FnMut(AsyncSignalContext) -> Fut + 'static,
     Fut: Future<Output = ()> + 'static,
 {
-    fn new(f: GetFut, phase: ReactionPhase) -> Rc<Self> {
+    fn new(f: GetFut, phase: &'static ReactionPhase) -> Rc<Self> {
         Rc::new_cyclic(|this| Self {
             data: RefCell::new(EffectAsyncData {
                 get_fut: f,
-                fut: Box::pin(None),
+                fut: None,
                 asb: AsyncSourceBinder::new(this),
             }),
             phase,
@@ -76,19 +74,29 @@ where
             .schedule_in(self.phase)
     }
     fn call(self: &Rc<Self>, rc: &mut ReactionContext) {
-        let d = &mut *self.data.borrow_mut();
-        if d.asb.is_clean() {
+        // Declare the detached future before the borrow so unwind also drops
+        // the borrow first. Pins stay attached to their heap allocation.
+        let mut future;
+        let mut data = self.data.borrow_mut();
+        if data.asb.is_clean() {
             return;
         }
-        if d.asb.check(rc) {
-            d.fut.set(None);
-            d.fut.set(Some(d.asb.init(&mut d.get_fut, rc)));
+        future = data.fut.take();
+        if data.asb.check(rc) {
+            drop(data);
+            drop(future);
+            data = self.data.borrow_mut();
+            let EffectAsyncData { asb, get_fut, .. } = &mut *data;
+            future = Some(Box::pin(asb.init(get_fut, rc)));
         }
-        if let Some(fut) = d.fut.as_mut().as_pin_mut()
-            && d.asb.poll(fut, rc).is_ready()
-        {
-            d.fut.set(None);
+        let complete = future
+            .as_mut()
+            .is_some_and(|future| data.asb.poll(future.as_mut(), rc).is_ready());
+        if !complete {
+            data.fut = future.take();
         }
+        drop(data);
+        drop(future);
     }
 }
 impl<F, Fut> BindSink for EffectAsyncNode<F, Fut>

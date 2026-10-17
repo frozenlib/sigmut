@@ -32,7 +32,7 @@ where
 }
 
 struct ScanAsyncNodeData<St, Fut, Scan> {
-    fut: Pin<Box<Option<Fut>>>,
+    fut: Option<Pin<Box<Fut>>>,
     asb: AsyncSourceBinder,
     state: St,
     scan: Scan,
@@ -63,7 +63,7 @@ where
         Rc::new_cyclic(|this| Self {
             get_fut,
             data: RefCell::new(ScanAsyncNodeData {
-                fut: Box::pin(None),
+                fut: None,
                 asb: AsyncSourceBinder::new(this),
                 state: initial_state,
                 scan,
@@ -75,30 +75,42 @@ where
     }
 
     fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
-        if rc.borrow(&self.data).asb.is_clean() {
+        if !rc.can_poll() || rc.borrow(&self.data).asb.is_clean() {
             return;
         }
         self.try_schedule_discard(rc);
-        let d = &mut *self.data.borrow_mut();
-        let mut is_dirty = false;
-        if d.asb.check(rc) {
-            d.fut.set(None);
-            d.fut.set(Some(d.asb.init(&self.get_fut, rc)));
-            is_dirty = true;
+        let mut future;
+        let mut data = self.data.borrow_mut();
+        future = data.fut.take();
+        let mut is_dirty = data.asb.check(rc);
+        if is_dirty {
+            drop(data);
+            drop(future);
+            data = self.data.borrow_mut();
+            future = Some(Box::pin(data.asb.init(&self.get_fut, rc)));
         }
-        let Some(fut) = d.fut.as_mut().as_pin_mut() else {
+        let Some(fut) = future.as_mut() else {
             return;
         };
-        let value = d.asb.poll(fut, rc);
+        let value = data.asb.poll(fut.as_mut(), rc);
         if value.is_ready() {
-            d.fut.set(None);
             is_dirty = true;
+        } else {
+            data.fut = future.take();
         }
+        let is_dirty = if is_dirty {
+            let ScanAsyncNodeData { scan, state, .. } = &mut *data;
+            (scan)(state, value)
+        } else {
+            false
+        };
+        drop(data);
+        drop(future);
         if is_dirty {
-            let is_dirty = (d.scan)(&mut d.state, value);
-            self.sinks.borrow_mut().update(is_dirty, rc);
+            self.sinks.borrow_mut().update(true, rc);
         }
     }
+
     fn try_schedule_discard(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if self.sinks.borrow().is_empty() && !self.discard_scheduled.replace(true) {
             let reaction = Reaction::from_discard(self.clone());
@@ -118,9 +130,12 @@ where
     fn discard(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         self.discard_scheduled.set(false);
         if self.sinks.borrow().is_empty() {
+            let future;
             let mut d = self.data.borrow_mut();
-            d.fut.set(None);
+            future = d.fut.take();
             d.asb.clear(rc);
+            drop(d);
+            drop(future);
         }
     }
 }

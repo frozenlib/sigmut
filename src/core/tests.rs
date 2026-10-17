@@ -1,3 +1,22 @@
+static ACTION_NEGATIVE: ActionPhase = ActionPhase::new();
+static ACTION_ONE: ActionPhase = ActionPhase::new();
+static ACTION_TWO: ActionPhase = ActionPhase::new();
+static REACTION_ONE: ReactionPhase = ReactionPhase::new();
+static REACTION_TWO: ReactionPhase = ReactionPhase::new();
+
+fn runtime() -> Runtime {
+    Runtime::new_with_config(
+        RuntimeConfig::default()
+            .with_action_phases([
+                ActionPhase::DEFAULT,
+                &ACTION_NEGATIVE,
+                &ACTION_ONE,
+                &ACTION_TWO,
+            ])
+            .with_reaction_phases([ReactionPhase::DEFAULT, &REACTION_TWO]),
+    )
+}
+
 use super::*;
 mod source_bindings;
 use crate::utils::sync::oneshot_broadcast;
@@ -8,11 +27,11 @@ use std::{
     rc::Rc,
 };
 
-fn schedule_call(phase: ActionPhase, calls: Rc<RefCell<Vec<i32>>>, value: i32) {
+fn schedule_call(phase: &'static ActionPhase, calls: Rc<RefCell<Vec<i32>>>, value: i32) {
     Action::new(move |_| calls.borrow_mut().push(value)).schedule_in(phase);
 }
 
-fn schedule_reaction_call(phase: ReactionPhase, calls: Rc<RefCell<Vec<i32>>>, value: i32) {
+fn schedule_reaction_call(phase: &'static ReactionPhase, calls: Rc<RefCell<Vec<i32>>>, value: i32) {
     Reaction::new(move |_| calls.borrow_mut().push(value)).schedule_in(phase);
 }
 
@@ -26,7 +45,7 @@ fn discard_reaction_shares_node_and_releases_it_after_call() {
         }
     }
 
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let calls = Rc::new(Cell::new(0));
     let node = Rc::new(Node(calls.clone()));
     let reaction = Reaction::from_discard(node.clone());
@@ -57,7 +76,7 @@ fn sink_bindings_update_does_not_downgrade_dirty() {
         slot: Slot(0),
         dirty: Dirty::Dirty,
     }));
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let mut rc = rt.rc();
 
     sinks.update(false, &mut rc);
@@ -66,45 +85,9 @@ fn sink_bindings_update_does_not_downgrade_dirty() {
 }
 
 #[test]
-fn runtime_config_phase_sets_cover_the_full_id_range() {
-    let all = RuntimeConfig::default();
-    let config = RuntimeConfig::default()
-        .with_action_phases([
-            ActionPhase::new(i8::MIN),
-            ActionPhase::new(0),
-            ActionPhase::new(i8::MAX),
-            ActionPhase::new(i8::MIN),
-        ])
-        .with_reaction_phases([ReactionPhase::new(i8::MIN), ReactionPhase::new(i8::MAX)]);
-    let empty = RuntimeConfig::default()
-        .with_action_phases([])
-        .with_reaction_phases([]);
-
-    assert_eq!(
-        [
-            all.action_phases.contains(i8::MIN),
-            all.action_phases.contains(i8::MAX),
-            config.action_phases.contains(i8::MIN),
-            config.action_phases.contains(-1),
-            config.action_phases.contains(0),
-            config.action_phases.contains(1),
-            config.action_phases.contains(i8::MAX),
-            config.reaction_phases.contains(i8::MIN),
-            config.reaction_phases.contains(0),
-            config.reaction_phases.contains(i8::MAX),
-            empty.action_phases.contains(0),
-            empty.reaction_phases.contains(0),
-        ],
-        [
-            true, true, true, false, true, false, true, true, false, true, false, false,
-        ]
-    );
-}
-
-#[test]
 fn runtime_with_config_accepts_configured_phases() {
-    let action_phase = ActionPhase::new(-1);
-    let reaction_phase = ReactionPhase::new(2);
+    let action_phase = &ACTION_NEGATIVE;
+    let reaction_phase = &REACTION_TWO;
     let mut rt = Runtime::new_with_config(
         RuntimeConfig::default()
             .with_action_phases([action_phase])
@@ -122,17 +105,17 @@ fn runtime_with_config_accepts_configured_phases() {
 
 #[test]
 fn runtime_with_config_rejects_invalid_schedules_before_queueing() {
-    let valid_action_phase = ActionPhase::new(1);
-    let valid_reaction_phase = ReactionPhase::new(1);
+    let valid_action_phase = &ACTION_ONE;
+    let valid_reaction_phase = &REACTION_ONE;
     let mut rt = Runtime::new_with_config(
         RuntimeConfig::default()
             .with_action_phases([valid_action_phase])
             .with_reaction_phases([valid_reaction_phase]),
     );
 
-    assert!(catch_unwind(|| Action::new(|_| {}).schedule_in(ActionPhase::new(2))).is_err());
-    assert!(catch_unwind(|| Reaction::new(|_| {}).schedule_in(ReactionPhase::new(2))).is_err());
-    assert!(catch_unwind(|| spawn_action_async_in(ActionPhase::new(2), async |_| {})).is_err());
+    assert!(catch_unwind(|| Action::new(|_| {}).schedule_in(&ACTION_TWO)).is_err());
+    Reaction::new(|_| {}).schedule_in(&REACTION_TWO);
+    assert!(catch_unwind(|| spawn_action_async_in(&ACTION_TWO, async |_| {})).is_err());
     assert!(!rt.dispatch_all_actions());
     assert!(!rt.dispatch_all_reactions());
 }
@@ -141,25 +124,25 @@ fn runtime_with_config_rejects_invalid_schedules_before_queueing() {
 fn runtime_with_config_rejects_invalid_dispatches_when_queues_are_empty() {
     let mut rt = Runtime::new_with_config(
         RuntimeConfig::default()
-            .with_action_phases([ActionPhase::default()])
-            .with_reaction_phases([ReactionPhase::default()]),
+            .with_action_phases([ActionPhase::DEFAULT])
+            .with_reaction_phases([ReactionPhase::DEFAULT]),
     );
 
     assert!(
         catch_unwind(AssertUnwindSafe(|| {
-            rt.dispatch_action(ActionPhase::new(1));
+            rt.dispatch_action(&ACTION_ONE);
         }))
         .is_err()
     );
     assert!(
         catch_unwind(AssertUnwindSafe(|| {
-            rt.dispatch_actions(ActionPhase::new(1));
+            rt.dispatch_actions(&ACTION_ONE);
         }))
         .is_err()
     );
     assert!(
         catch_unwind(AssertUnwindSafe(|| {
-            rt.dispatch_reactions(ReactionPhase::new(1));
+            rt.dispatch_reactions(&REACTION_ONE);
         }))
         .is_err()
     );
@@ -167,11 +150,9 @@ fn runtime_with_config_rejects_invalid_dispatches_when_queues_are_empty() {
 
 #[test]
 fn runtime_with_config_accepts_valid_phases_scheduled_before_creation() {
-    let action_phase = ActionPhase::new(1);
-    let reaction_phase = ReactionPhase::new(2);
+    let action_phase = &ACTION_ONE;
+    let reaction_phase = &REACTION_TWO;
     let calls = Rc::new(RefCell::new(Vec::new()));
-    schedule_call(action_phase, calls.clone(), 1);
-    schedule_call(action_phase, calls.clone(), 2);
     schedule_reaction_call(reaction_phase, calls.clone(), 3);
     schedule_reaction_call(reaction_phase, calls.clone(), 4);
 
@@ -181,57 +162,23 @@ fn runtime_with_config_accepts_valid_phases_scheduled_before_creation() {
             .with_reaction_phases([reaction_phase]),
     );
 
+    schedule_call(action_phase, calls.clone(), 1);
+    schedule_call(action_phase, calls.clone(), 2);
     assert!(rt.dispatch_actions(action_phase));
     assert!(rt.dispatch_reactions(reaction_phase));
     assert_eq!(*calls.borrow(), [1, 2, 3, 4]);
 }
 
 #[test]
-fn runtime_creation_rejects_and_preserves_preexisting_invalid_action() {
-    let phase = ActionPhase::new(1);
-    Action::new(|_| {}).schedule_in(phase);
-
-    assert!(
-        catch_unwind(|| {
-            Runtime::new_with_config(
-                RuntimeConfig::default().with_action_phases([ActionPhase::default()]),
-            );
-        })
-        .is_err()
-    );
-
-    let mut rt = Runtime::new();
-    assert!(rt.dispatch_action(phase));
-}
-
-#[test]
-fn runtime_creation_rejects_and_preserves_preexisting_invalid_reaction() {
-    let phase = ReactionPhase::new(1);
-    Reaction::new(|_| {}).schedule_in(phase);
-
-    assert!(
-        catch_unwind(|| {
-            Runtime::new_with_config(
-                RuntimeConfig::default().with_reaction_phases([ReactionPhase::default()]),
-            );
-        })
-        .is_err()
-    );
-
-    let mut rt = Runtime::new();
-    assert!(rt.dispatch_reactions(phase));
-}
-
-#[test]
 fn runtime_config_remains_active_during_runtime_call() {
-    let phase = ActionPhase::new(1);
+    let phase = &ACTION_ONE;
     let mut rt = Runtime::new_with_config(RuntimeConfig::default().with_action_phases([phase]));
     {
         let _lend = rt.lend();
         Runtime::call(|_| Action::new(|_| {}).schedule_in(phase));
         assert!(
             catch_unwind(|| {
-                Runtime::call(|_| Action::new(|_| {}).schedule_in(ActionPhase::default()));
+                Runtime::call(|_| Action::new(|_| {}).schedule_in(ActionPhase::DEFAULT));
             })
             .is_err()
         );
@@ -244,7 +191,7 @@ fn runtime_config_remains_active_during_runtime_call() {
 
 #[test]
 fn runtime_config_applies_when_an_async_action_wakes() {
-    let phase = ActionPhase::new(1);
+    let phase = &ACTION_ONE;
     let mut rt = Runtime::new_with_config(RuntimeConfig::default().with_action_phases([phase]));
     let (sender, receiver) = oneshot_broadcast();
     let called = Rc::new(Cell::new(false));
@@ -265,7 +212,7 @@ fn runtime_config_applies_when_an_async_action_wakes() {
 
 #[test]
 fn async_action_inline_ready_updates_state_and_releases_capture_before_return() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let state = crate::State::new(0);
     let capture = Rc::new(());
     let weak = Rc::downgrade(&capture);
@@ -287,8 +234,8 @@ fn async_action_inline_ready_updates_state_and_releases_capture_before_return() 
 
 #[test]
 fn async_action_inline_resumes_only_in_requested_phase() {
-    let phase = ActionPhase::new(1);
-    let mut rt = Runtime::new();
+    let phase = &ACTION_ONE;
+    let mut rt = runtime();
     let (first_sender, first_receiver) = oneshot_broadcast();
     let (second_sender, second_receiver) = oneshot_broadcast();
     let calls = Rc::new(RefCell::new(Vec::new()));
@@ -310,12 +257,12 @@ fn async_action_inline_resumes_only_in_requested_phase() {
     assert_eq!(state.get(&mut rt.sc()), 1);
     assert!(!rt.dispatch_all_actions());
     first_sender.send(());
-    assert!(!rt.dispatch_actions(ActionPhase::default()));
+    assert!(!rt.dispatch_actions(ActionPhase::DEFAULT));
     assert_eq!(*calls.borrow(), [true]);
     assert!(rt.dispatch_action(phase));
     assert_eq!(state.get(&mut rt.sc()), 2);
     second_sender.send(());
-    assert!(!rt.dispatch_actions(ActionPhase::default()));
+    assert!(!rt.dispatch_actions(ActionPhase::DEFAULT));
     assert!(rt.dispatch_action(phase));
     assert_eq!(*calls.borrow(), [true, false, false]);
     assert_eq!(state.get(&mut rt.sc()), 3);
@@ -323,10 +270,10 @@ fn async_action_inline_resumes_only_in_requested_phase() {
 
 #[test]
 fn async_action_inline_self_wake_defers_repoll_and_preserves_queued_actions() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let polls = Rc::new(Cell::new(0));
     let calls = Rc::new(RefCell::new(Vec::new()));
-    schedule_call(ActionPhase::default(), calls.clone(), 1);
+    schedule_call(ActionPhase::DEFAULT, calls.clone(), 1);
     rt.ac().start_async_inline({
         let polls = polls.clone();
         async move |aac| {
@@ -351,16 +298,16 @@ fn async_action_inline_self_wake_defers_repoll_and_preserves_queued_actions() {
 
     assert_eq!(polls.get(), 1);
     assert_eq!(*calls.borrow(), Vec::<i32>::new());
-    assert!(rt.dispatch_action(ActionPhase::default()));
+    assert!(rt.dispatch_action(ActionPhase::DEFAULT));
     assert_eq!(*calls.borrow(), [1]);
     assert_eq!(polls.get(), 1);
-    assert!(rt.dispatch_action(ActionPhase::default()));
+    assert!(rt.dispatch_action(ActionPhase::DEFAULT));
     assert_eq!(polls.get(), 2);
 }
 
 #[test]
 fn async_action_inline_runtime_owns_pending_future_without_external_waker() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let capture = Rc::new(());
     let weak = Rc::downgrade(&capture);
     rt.ac().start_async_inline(async move |_| {
@@ -375,7 +322,7 @@ fn async_action_inline_runtime_owns_pending_future_without_external_waker() {
 
 #[rstest::rstest]
 fn async_action_inline_late_wakes_do_not_repoll(#[values(false, true)] complete: bool) {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let waker = Rc::new(RefCell::new(None));
     let polls = Rc::new(Cell::new(0));
     let capture = Rc::new(());
@@ -407,16 +354,15 @@ fn async_action_inline_late_wakes_do_not_repoll(#[values(false, true)] complete:
     drop(rt);
     assert!(weak.upgrade().is_none());
     waker.borrow().as_ref().unwrap().wake_by_ref();
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     rt.dispatch_all_actions();
     assert_eq!(polls.get(), 1);
 }
 
 #[rstest::rstest]
 fn async_action_inline_rejects_invalid_phase_before_handler(#[values(false, true)] explicit: bool) {
-    let mut rt = Runtime::new_with_config(
-        RuntimeConfig::default().with_action_phases([ActionPhase::new(1)]),
-    );
+    let mut rt =
+        Runtime::new_with_config(RuntimeConfig::default().with_action_phases([&ACTION_ONE]));
     let called = Rc::new(Cell::new(false));
     let capture = Rc::new(());
     let weak = Rc::downgrade(&capture);
@@ -430,7 +376,7 @@ fn async_action_inline_rejects_invalid_phase_before_handler(#[values(false, true
     assert!(
         catch_unwind(AssertUnwindSafe(|| {
             if explicit {
-                rt.ac().start_async_inline_in(ActionPhase::new(2), handler);
+                rt.ac().start_async_inline_in(&ACTION_TWO, handler);
             } else {
                 rt.ac().start_async_inline(handler);
             }
@@ -446,11 +392,11 @@ fn async_action_inline_rejects_invalid_phase_before_handler(#[values(false, true
 #[rstest::rstest]
 fn async_action_spawn_is_deferred_and_never_inline(#[values(false, true)] explicit: bool) {
     let phase = if explicit {
-        ActionPhase::new(1)
+        &ACTION_ONE
     } else {
-        ActionPhase::default()
+        ActionPhase::DEFAULT
     };
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let (sender, receiver) = oneshot_broadcast();
     let calls = Rc::new(RefCell::new(Vec::new()));
     let handler = {
@@ -476,13 +422,13 @@ fn async_action_spawn_is_deferred_and_never_inline(#[values(false, true)] explic
 
 #[test]
 fn async_action_inline_invocations_are_independent() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let calls = Rc::new(RefCell::new(Vec::new()));
     let mut senders = Vec::new();
-    for id in 1..=2 {
+    for (id, phase) in [(1, &ACTION_ONE), (2, &ACTION_TWO)] {
         let (sender, receiver) = oneshot_broadcast();
         senders.push(sender);
-        rt.ac().start_async_inline_in(ActionPhase::new(id), {
+        rt.ac().start_async_inline_in(phase, {
             let calls = calls.clone();
             async move |aac| {
                 assert!(aac.is_running_inline());
@@ -495,15 +441,15 @@ fn async_action_inline_invocations_are_independent() {
     for sender in senders {
         sender.send(());
     }
-    assert!(rt.dispatch_action(ActionPhase::new(2)));
+    assert!(rt.dispatch_action(&ACTION_TWO));
     assert_eq!(*calls.borrow(), [2]);
-    assert!(rt.dispatch_action(ActionPhase::new(1)));
+    assert!(rt.dispatch_action(&ACTION_ONE));
     assert_eq!(*calls.borrow(), [2, 1]);
 }
 
 #[test]
 fn async_action_inline_nested_start_preserves_outer_status() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let (sender, receiver) = oneshot_broadcast();
     let calls = Rc::new(RefCell::new(Vec::new()));
     rt.ac().start_async_inline({
@@ -538,7 +484,7 @@ fn async_action_inline_nested_start_preserves_outer_status() {
 fn async_action_inline_status_is_false_outside_poll(
     #[values("ready", "pending", "panic")] outcome: &str,
 ) {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let context = Rc::new(RefCell::new(None));
     let should_panic = outcome == "panic";
     let outcome = outcome.to_owned();
@@ -565,7 +511,7 @@ fn async_action_inline_status_is_false_outside_poll(
 
 #[test]
 fn runtime_creation_rejects_a_second_runtime_without_corrupting_the_first() {
-    let phase = ActionPhase::new(1);
+    let phase = &ACTION_ONE;
     let mut rt = Runtime::new_with_config(RuntimeConfig::default().with_action_phases([phase]));
 
     assert!(catch_unwind(Runtime::new).is_err());
@@ -575,8 +521,8 @@ fn runtime_creation_rejects_a_second_runtime_without_corrupting_the_first() {
 
 #[test]
 fn dispatch_action_runs_one_action_in_fifo_order() {
-    let mut rt = Runtime::new();
-    let phase = ActionPhase::new(1);
+    let mut rt = runtime();
+    let phase = &ACTION_ONE;
     let calls = Rc::new(RefCell::new(Vec::new()));
     for value in [1, 2] {
         schedule_call(phase, calls.clone(), value);
@@ -591,9 +537,9 @@ fn dispatch_action_runs_one_action_in_fifo_order() {
 
 #[test]
 fn dispatch_action_only_runs_the_requested_phase() {
-    let mut rt = Runtime::new();
-    let first_phase = ActionPhase::new(1);
-    let second_phase = ActionPhase::new(2);
+    let mut rt = runtime();
+    let first_phase = &ACTION_ONE;
+    let second_phase = &ACTION_TWO;
     let calls = Rc::new(RefCell::new(Vec::new()));
     for (phase, value) in [(first_phase, 1), (second_phase, 2)] {
         schedule_call(phase, calls.clone(), value);
@@ -608,8 +554,8 @@ fn dispatch_action_only_runs_the_requested_phase() {
 
 #[test]
 fn dispatch_action_defers_actions_scheduled_in_the_same_phase() {
-    let mut rt = Runtime::new();
-    let phase = ActionPhase::new(1);
+    let mut rt = runtime();
+    let phase = &ACTION_ONE;
     let calls = Rc::new(RefCell::new(Vec::new()));
     Action::new({
         let calls = calls.clone();
@@ -628,9 +574,9 @@ fn dispatch_action_defers_actions_scheduled_in_the_same_phase() {
 
 #[test]
 fn dispatch_actions_retain_batch_semantics() {
-    let mut rt = Runtime::new();
-    let phase = ActionPhase::new(1);
-    let other_phase = ActionPhase::new(2);
+    let mut rt = runtime();
+    let phase = &ACTION_ONE;
+    let other_phase = &ACTION_TWO;
     let calls = Rc::new(RefCell::new(Vec::new()));
     Action::new({
         let calls = calls.clone();
@@ -657,7 +603,7 @@ fn dispatch_actions_retain_batch_semantics() {
 
 #[test]
 fn action_from_weak_fn_runs_when_alive() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let flag = Rc::new(Cell::new(false));
     let weak = Rc::downgrade(&flag);
     Action::from_weak_fn(weak, |flag, _| flag.set(true)).schedule();
@@ -667,14 +613,14 @@ fn action_from_weak_fn_runs_when_alive() {
 
 #[test]
 fn runtime_call_within_lend() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let _lend = rt.lend();
     Runtime::call(|_rt| {});
 }
 
 #[test]
 fn runtime_call_within_lend_2() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let _lend = rt.lend();
     Runtime::call(|_rt| {});
     Runtime::call(|_rt| {});
@@ -682,7 +628,7 @@ fn runtime_call_within_lend_2() {
 
 #[test]
 fn runtime_try_call_within_lend() {
-    let mut rt = Runtime::new();
+    let mut rt = runtime();
     let _lend = rt.lend();
     assert_eq!(Runtime::try_call(|_rt| 1), Ok(1));
 }
@@ -715,4 +661,91 @@ fn runtime_call_outside_lend() {
 #[should_panic(expected = "Runtime does not exist")]
 fn runtime_call_without_runtime() {
     Runtime::call(|_rt| {});
+}
+
+#[test]
+fn flush_settles_actions_created_by_carried_maintenance() {
+    struct Sink(Rc<Cell<usize>>);
+    impl BindSink for Sink {
+        fn notify(self: Rc<Self>, _: Slot, _: DirtyLevel, _: &mut NotifyContext) {
+            Action::new(move |_| self.0.set(self.0.get() + 1)).schedule();
+        }
+    }
+    let first = Runtime::new();
+    let calls = Rc::new(Cell::new(0));
+    let sink: Rc<dyn BindSink> = Rc::new(Sink(calls.clone()));
+    schedule_notify(Rc::downgrade(&sink), Slot(0));
+    drop(first);
+    let mut second = Runtime::new();
+    second.flush();
+    assert_eq!(calls.get(), 1);
+}
+
+#[rstest::rstest]
+fn driver_callbacks_release_both_tls_and_request_mutex(
+    #[values("schedule", "wake", "replace", "shutdown")] operation: &str,
+) {
+    use std::sync::atomic::AtomicBool;
+    struct Probe {
+        requests: WakeRequests,
+        outside: Arc<AtomicBool>,
+    }
+    impl Probe {
+        fn check(&self) {
+            let tls_free = GLOBALS.with(|g| g.try_borrow_mut().is_ok());
+            let mutex_free = self.requests.0.try_lock().is_ok();
+            self.outside
+                .fetch_and(tls_free && mutex_free, Ordering::Relaxed);
+        }
+    }
+    impl Wake for Probe {
+        fn wake(self: Arc<Self>) {
+            self.check();
+        }
+    }
+    impl Drop for Probe {
+        fn drop(&mut self) {
+            self.check();
+        }
+    }
+    struct Noop;
+    impl BindSink for Noop {
+        fn notify(self: Rc<Self>, _: Slot, _: DirtyLevel, _: &mut NotifyContext) {}
+    }
+    let mut runtime = Runtime::new();
+    let outside = Arc::new(AtomicBool::new(true));
+    let requests = Globals::with(|g| g.wakes.requests.clone());
+    let waker = Waker::from(Arc::new(Probe {
+        requests,
+        outside: outside.clone(),
+    }));
+    {
+        let mut lend = runtime.lend();
+        let mut wait = Box::pin(lend.wait_for_ready());
+        assert!(
+            wait.as_mut()
+                .poll(&mut Context::from_waker(&waker))
+                .is_pending()
+        );
+    }
+    drop(waker);
+    match operation {
+        "schedule" => Reaction::new(|_| {}).schedule(),
+        "wake" => waker_from_sink(Rc::downgrade(&Rc::new(Noop)), Slot(0)).wake(),
+        "replace" => {
+            let mut lend = runtime.lend();
+            let mut wait = Box::pin(lend.wait_for_ready());
+            assert!(
+                wait.as_mut()
+                    .poll(&mut Context::from_waker(Waker::noop()))
+                    .is_pending()
+            );
+        }
+        "shutdown" => runtime.begin_shutdown(),
+        _ => unreachable!(),
+    }
+    assert!(outside.load(Ordering::Relaxed));
+    drop(runtime);
+    let mut runtime = Runtime::new();
+    runtime.flush();
 }

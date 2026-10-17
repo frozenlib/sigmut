@@ -798,26 +798,29 @@ fn dedup_method() {
 
 #[test]
 fn effect_in_custom_phase() {
-    const CUSTOM_PHASE: ReactionPhase = ReactionPhase::new(1);
-    let mut rt = Runtime::new();
+    static CUSTOM_PHASE: ReactionPhase = ReactionPhase::new();
+    let mut rt = Runtime::new_with_config(
+        crate::core::RuntimeConfig::default()
+            .with_reaction_phases([ReactionPhase::DEFAULT, &CUSTOM_PHASE]),
+    );
     let mut cr = CallRecorder::new();
 
     let st = State::new(0);
     let signal = st.to_signal();
 
-    let _sub = signal.effect_in(CUSTOM_PHASE, |x| call!("{x}"));
+    let _sub = signal.effect_in(&CUSTOM_PHASE, |x| call!("{x}"));
 
-    rt.dispatch_reactions(ReactionPhase::default());
+    rt.dispatch_reactions(ReactionPhase::DEFAULT);
     cr.verify(());
 
-    rt.dispatch_reactions(CUSTOM_PHASE);
+    rt.dispatch_reactions(&CUSTOM_PHASE);
     cr.verify("0");
 
     st.set(10, rt.ac());
-    rt.dispatch_reactions(ReactionPhase::default());
+    rt.dispatch_reactions(ReactionPhase::DEFAULT);
     cr.verify(());
 
-    rt.dispatch_reactions(CUSTOM_PHASE);
+    rt.dispatch_reactions(&CUSTOM_PHASE);
     cr.verify("10");
 }
 

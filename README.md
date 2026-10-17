@@ -9,6 +9,8 @@
 > [!WARNING]
 > Warning: This crate is still in the very early stages of development. APIs will change. Documentation is sparse.
 
+[Runtime phases and shutdown contracts](docs/runtime-lifecycle.md)
+
 ## Features
 
 - [Signals-based API](#signals-based-api)

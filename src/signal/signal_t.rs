@@ -186,6 +186,10 @@ impl<T: ?Sized + 'static> Signal<T> {
     }
 
     /// Create a new `Signal` from a [`Future`].
+    ///
+    /// Its future follows the Signal lifetime across Runtime sessions. Closing
+    /// reads return the stored value without polling. Captured external resources
+    /// must outlive this Signal or be released by its owner.
     pub fn from_future(future: impl Future<Output = T> + 'static) -> Signal<Poll<T>>
     where
         T: Sized,
@@ -195,6 +199,9 @@ impl<T: ?Sized + 'static> Signal<T> {
     }
 
     /// Create a new `Signal` from a [`Stream`].
+    ///
+    /// Runtime shutdown pauses polling and retains the Stream. Closing reads
+    /// return the stored value; a later Running runtime can resume polling.
     pub fn from_stream(stream: impl Stream<Item = T> + 'static) -> Signal<Poll<T>>
     where
         T: Sized,
@@ -211,6 +218,9 @@ impl<T: ?Sized + 'static> Signal<T> {
     }
 
     /// Create a `Signal` from an asynchronous function to get a value.
+    ///
+    /// Its future follows the Signal's subscription and discard lifetime, not a
+    /// Runtime session. Closing reads do not initialize or poll the future.
     pub fn from_async(f: impl AsyncFn(&mut AsyncSignalContext) -> T + 'static) -> Signal<Poll<T>>
     where
         T: Sized,
@@ -333,7 +343,7 @@ impl<T: ?Sized + 'static> Signal<T> {
     ///
     /// First, call the function with the current value, then call the function each time the value changes.
     ///
-    /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions) is called with `ReactionPhase::default()`,
+    /// The function is called when [`Runtime::dispatch_reactions`](crate::core::Runtime::dispatch_reactions) is called with `ReactionPhase::DEFAULT`,
     /// or when [`Runtime::dispatch_all_reactions`](crate::core::Runtime::dispatch_all_reactions) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
@@ -350,7 +360,11 @@ impl<T: ?Sized + 'static> Signal<T> {
     /// or when [`Runtime::dispatch_all_reactions`](crate::core::Runtime::dispatch_all_reactions) is called.
     ///
     /// When the [`Subscription`] returned by this function is dropped, the subscription is canceled.
-    pub fn effect_in(&self, phase: ReactionPhase, mut f: impl FnMut(&T) + 'static) -> Subscription {
+    pub fn effect_in(
+        &self,
+        phase: &'static ReactionPhase,
+        mut f: impl FnMut(&T) + 'static,
+    ) -> Subscription {
         let this = self.clone();
         effect_in(phase, move |sc| f(&this.borrow(sc)))
     }

@@ -62,17 +62,24 @@ where
     type Item = T;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let waker = cx.waker().clone();
         let mut d = self.0.0.borrow_mut();
-        match take(&mut d.value) {
-            ValueState::None | ValueState::Pending(_) => {
-                d.value = ValueState::Pending(cx.waker().clone());
-                if !d.sb.is_clean() {
-                    self.0.schedule(&mut d);
-                }
-                Poll::Pending
+        let previous = take(&mut d.value);
+        if matches!(previous, ValueState::Ready(_)) {
+            drop(d);
+            if let ValueState::Ready(value) = previous {
+                return Poll::Ready(Some(value));
             }
-            ValueState::Ready(value) => Poll::Ready(Some(value)),
+            unreachable!();
         }
+        d.value = ValueState::Pending(waker);
+        let schedule = !d.sb.is_clean() && !replace(&mut d.is_scheduled, true);
+        drop(d);
+        drop(previous);
+        if schedule {
+            self.0.schedule();
+        }
+        Poll::Pending
     }
 }
 
@@ -82,9 +89,12 @@ where
     T: 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, _nc: &mut NotifyContext) {
-        let mut d = self.0.borrow_mut();
-        if d.sb.on_notify(slot, level) {
-            self.schedule(&mut d);
+        let schedule = {
+            let mut d = self.0.borrow_mut();
+            d.sb.on_notify(slot, level) && !replace(&mut d.is_scheduled, true)
+        };
+        if schedule {
+            self.schedule();
         }
     }
 }
@@ -94,21 +104,24 @@ where
     F: FnMut(&mut SignalContext<'_, '_>) -> T + 'static,
     T: 'static,
 {
-    fn schedule(self: &Rc<Self>, d: &mut Data<F, T>) {
-        if !d.is_scheduled {
-            d.is_scheduled = true;
-            Reaction::from_weak_fn(Rc::downgrade(self), Node::update).schedule();
-        }
+    fn schedule(self: &Rc<Self>) {
+        Reaction::from_weak_fn(Rc::downgrade(self), Node::update).schedule();
     }
 
     fn update(self: Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
-        let d = &mut *self.0.borrow_mut();
-        d.is_scheduled = false;
-        if d.sb.check(rc) {
-            let value = d.sb.update(|sc| (d.f)(sc), rc);
-            if let ValueState::Pending(waker) = replace(&mut d.value, ValueState::Ready(value)) {
-                waker.wake();
+        let previous = {
+            let mut d = self.0.borrow_mut();
+            let d = &mut *d;
+            d.is_scheduled = false;
+            if d.sb.check(rc) {
+                let value = d.sb.update(|sc| (d.f)(sc), rc);
+                Some(replace(&mut d.value, ValueState::Ready(value)))
+            } else {
+                None
             }
+        };
+        if let Some(ValueState::Pending(waker)) = previous {
+            waker.wake();
         }
     }
 }

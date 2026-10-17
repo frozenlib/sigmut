@@ -159,20 +159,26 @@ where
     }
 
     fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
-        if !rc.borrow(&self.data).is_wake() {
+        if !rc.can_poll() || !rc.borrow(&self.data).is_wake() {
             return;
         }
-        let d = &mut *self.data.borrow_mut();
+        let completed;
+        let mut data = self.data.borrow_mut();
+        let d = &mut *data;
         let t = d.reaction.as_mut().unwrap();
         let is_dirty = if let Poll::Ready(value) =
             t.future.as_mut().poll(&mut Context::from_waker(&t.waker))
         {
             let t = d.reaction.take().unwrap();
+            completed = Some((t.future, t.waker));
             t.f.call(&mut d.state, value)
         } else {
+            completed = None;
             t.is_wake = false;
             false
         };
+        drop(data);
+        drop(completed);
         self.sinks.borrow_mut().update(is_dirty, rc);
     }
 }
@@ -219,6 +225,7 @@ where
             return;
         }
         t.is_wake = true;
+        drop(d);
         self.sinks
             .borrow_mut()
             .notify(level.maybe_if(Scan::FILTER), nc)

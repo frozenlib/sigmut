@@ -1,12 +1,15 @@
 use std::{
     future::poll_fn,
-    mem::take,
+    mem::{replace, take},
     sync::{Arc, Mutex},
     task::{Poll, Waker},
 };
 
 use derive_ex::Ex;
 use slabmap::SlabMap;
+
+#[cfg(test)]
+mod tests;
 
 struct OneshotBroadcast<T> {
     value: Option<T>,
@@ -25,9 +28,12 @@ pub struct Sender<T>(Arc<Mutex<OneshotBroadcast<T>>>);
 
 impl<T> Sender<T> {
     pub fn send(&self, value: T) {
-        let mut data = self.0.lock().unwrap();
-        data.value = Some(value);
-        for (_, waker) in take(&mut data.waker) {
+        let (previous, wakers) = {
+            let mut data = self.0.lock().unwrap();
+            (data.value.replace(value), take(&mut data.waker))
+        };
+        drop(previous);
+        for (_, waker) in wakers {
             waker.wake();
         }
     }
@@ -41,16 +47,25 @@ impl<T: Clone> Receiver<T> {
     pub async fn recv(&self) -> T {
         let mut key = WakerKeyGuard::new(self);
         poll_fn(|cx| {
-            let mut d = self.0.lock().unwrap();
-            if let Some(value) = &d.value {
-                Poll::Ready(value.clone())
-            } else {
-                if let Some(key) = key.key {
-                    d.waker[key].clone_from(cx.waker());
+            let waker = cx.waker().clone();
+            let (value, previous) = {
+                let mut d = self.0.lock().unwrap();
+                if let Some(value) = &d.value {
+                    (Some(value.clone()), Some(waker))
                 } else {
-                    key.key = Some(d.waker.insert(cx.waker().clone()));
+                    let previous = if let Some(key) = key.key {
+                        Some(replace(&mut d.waker[key], waker))
+                    } else {
+                        key.key = Some(d.waker.insert(waker));
+                        None
+                    };
+                    (None, previous)
                 }
-                Poll::Pending
+            };
+            drop(previous);
+            match value {
+                Some(value) => Poll::Ready(value),
+                None => Poll::Pending,
             }
         })
         .await
@@ -71,7 +86,8 @@ impl<'a, T> WakerKeyGuard<'a, T> {
 impl<T> Drop for WakerKeyGuard<'_, T> {
     fn drop(&mut self) {
         if let Some(key) = self.key {
-            self.receiver.0.lock().unwrap().waker.remove(key);
+            let waker = self.receiver.0.lock().unwrap().waker.remove(key);
+            drop(waker);
         }
     }
 }

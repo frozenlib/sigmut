@@ -29,12 +29,16 @@ fn test_effect() {
 
 #[test]
 fn test_effect_in() {
-    let mut rt = Runtime::new();
     let mut cr = CallRecorder::new();
 
-    let phase_1 = ReactionPhase::new(1);
-    let phase_2 = ReactionPhase::new(2);
+    static PHASE_1: ReactionPhase = ReactionPhase::new();
+    let phase_1 = &PHASE_1;
+    static PHASE_2: ReactionPhase = ReactionPhase::new();
+    let phase_2 = &PHASE_2;
 
+    let mut rt = Runtime::new_with_config(
+        crate::core::RuntimeConfig::default().with_reaction_phases([phase_1, phase_2]),
+    );
     let s = Signal::from_value(10);
     let _e = effect_in(phase_1, move |sc| call!("{}", s.get(sc)));
     rt.dispatch_reactions(phase_2);

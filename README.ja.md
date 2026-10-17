@@ -9,6 +9,8 @@
 > [!WARNING]
 > 警告: このクレートはまだ開発の非常に初期段階です。API は変更される可能性が高く、ドキュメントもまだ少ない状態です。
 
+[Runtime の phase と終了契約](docs/runtime-lifecycle.md)
+
 ## 特徴
 
 - [シグナルベースの API](#シグナルベースの-api)

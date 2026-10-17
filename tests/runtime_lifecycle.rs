@@ -8,6 +8,48 @@ use pretty_assertions::assert_eq;
 use sigmut::{Action, Reaction, SignalBuilder, State, Subscription, core::Runtime, effect};
 
 #[rstest::rstest]
+fn effect_reservation_survives_runtime_drop(#[values(false, true)] initialized: bool) {
+    let mut runtime = Runtime::new();
+    let state = State::new(1);
+    let values = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let _subscription = effect({
+        let state = state.clone();
+        let values = values.clone();
+        move |sc| values.borrow_mut().push(state.get(sc))
+    });
+    if initialized {
+        runtime.flush();
+        state.set(2, runtime.ac());
+    }
+    drop(runtime);
+    let mut runtime = Runtime::new();
+    runtime.flush();
+    assert_eq!(
+        *values.borrow(),
+        if initialized { vec![1, 2] } else { vec![1] }
+    );
+}
+
+#[test]
+fn discard_reservation_survives_runtime_drop() {
+    let mut runtime = Runtime::new();
+    let discards = Rc::new(Cell::new(0));
+    runtime.rc().schedule_discard(Reaction::new({
+        let discards = discards.clone();
+        move |_| discards.set(discards.get() + 1)
+    }));
+    drop(runtime);
+    let mut runtime = Runtime::new();
+    runtime.flush();
+    assert_eq!(discards.get(), 1);
+}
+
+#[test]
+fn explicit_action_registration_requires_runtime() {
+    assert!(catch_unwind(|| Action::new(|_| {}).schedule()).is_err());
+}
+
+#[rstest::rstest]
 #[case::action(false)]
 #[case::reaction(true)]
 fn shutdown_releases_subscription_owned_by_pending_work(#[case] reaction: bool) {

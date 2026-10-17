@@ -2,13 +2,17 @@ use core::panic;
 use std::{
     any::Any,
     cell::{Cell, Ref, RefCell},
+    collections::VecDeque,
     future::{Future, poll_fn},
     mem::{replace, swap, take, transmute},
     ops::AsyncFnOnce,
     pin::Pin,
     rc::{Rc, Weak},
     result::Result,
-    sync::{Arc, Mutex, MutexGuard},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
+    },
     task::{Context, Poll, Wake, Waker},
     thread::AccessError,
 };
@@ -21,6 +25,9 @@ use slabmap::SlabMap;
 mod async_signal_context;
 mod context_channel;
 mod dirty;
+mod phases;
+use phases::PhaseOrder;
+pub use phases::{ActionPhase, ReactionPhase};
 mod raw_context;
 mod source_binder;
 mod state_ref;
@@ -33,7 +40,7 @@ pub use source_binder::SourceBinder;
 pub use state_ref::StateRef;
 pub use state_ref_builder::StateRefBuilder;
 
-use crate::utils::{buckets::Buckets, downcast_or};
+use crate::utils::downcast_or;
 
 thread_local! {
     static GLOBALS: RefCell<Globals> = RefCell::new(Globals::new());
@@ -41,104 +48,128 @@ thread_local! {
 
 struct Globals {
     runtime_config: Option<RuntimeConfig>,
+    closing: bool,
     runtime: Option<Box<RawRuntime>>,
     unbinds: Vec<SourceBindingsData>,
-    actions: Buckets<Action>,
+    actions: Vec<VecDeque<Action>>,
     notifys: Vec<NotifyReaction>,
-    need_wake: bool,
     wakes: WakeTable,
-    reactions: Buckets<Reaction>,
+    reactions: Vec<VecDeque<Reaction>>,
+    runnable_reactions: usize,
+    discards: Vec<Reaction>,
+    wake_driver: Option<Waker>,
 }
 impl Globals {
     fn new() -> Self {
         Self {
             runtime_config: None,
+            closing: false,
             runtime: None,
             unbinds: Vec::new(),
-            actions: Buckets::new(),
+            actions: Vec::new(),
             notifys: Vec::new(),
-            need_wake: false,
             wakes: WakeTable::default(),
-            reactions: Buckets::new(),
+            reactions: Vec::new(),
+            runnable_reactions: 0,
+            discards: Vec::new(),
+            wake_driver: None,
         }
     }
     fn with<T>(f: impl FnOnce(&mut Self) -> T) -> T {
-        GLOBALS.with(|g| f(&mut g.borrow_mut()))
+        Self::try_with(f).expect("sigmut thread local storage is unavailable")
     }
     fn try_with<T>(f: impl FnOnce(&mut Self) -> T) -> Result<T, AccessError> {
-        GLOBALS.try_with(|g| f(&mut g.borrow_mut()))
+        let (value, wake) = GLOBALS.try_with(|g| {
+            let mut g = g.borrow_mut();
+            let value = f(&mut g);
+            (value, g.wake_driver.take())
+        })?;
+        // User wakers may reenter sigmut. Never invoke them under a TLS borrow.
+        if let Some(wake) = wake {
+            wake.wake();
+        }
+        Ok(value)
     }
-    fn prepare_runtime(config: &RuntimeConfig) {
+    fn prepare_runtime() {
         Self::with(|g| {
-            if g.runtime_config.is_some() {
-                panic!("Only one `Runtime` can exist in the same thread at the same time.");
-            }
-            for id in g.actions.ids() {
-                config.assert_valid_action_phase(ActionPhase::new(
-                    id.try_into().expect("Action phase ID must fit in `i8`."),
-                ));
-            }
-            for id in g.reactions.ids() {
-                config.assert_valid_reaction_phase(ReactionPhase::new(
-                    id.try_into().expect("Reaction phase ID must fit in `i8`."),
-                ));
-            }
+            assert!(
+                g.runtime_config.is_none(),
+                "Only one `Runtime` can exist in the same thread at the same time."
+            )
         });
     }
     fn activate_runtime(config: RuntimeConfig) {
         Self::with(|g| {
-            debug_assert!(g.runtime_config.is_none());
+            g.runnable_reactions = config
+                .reaction_phases
+                .ids
+                .iter()
+                .map(|&id| g.reactions.get(id).map_or(0, VecDeque::len))
+                .sum();
+            g.actions = (0..config.action_phases.ids.len())
+                .map(|_| VecDeque::new())
+                .collect();
+            g.closing = false;
             g.runtime_config = Some(config);
         });
     }
-    fn push_reaction(
-        config: Option<&RuntimeConfig>,
-        reactions: &mut Buckets<Reaction>,
-        phase: ReactionPhase,
-        reaction: Reaction,
-    ) {
-        if let Some(config) = config {
-            config.assert_valid_reaction_phase(phase);
-        }
-        reactions.push(phase.0 as isize, reaction);
+    fn is_running() -> bool {
+        Self::with(|g| g.runtime_config.is_some() && !g.closing)
     }
-    fn push_action(
-        config: Option<&RuntimeConfig>,
-        actions: &mut Buckets<Action>,
-        phase: ActionPhase,
-        action: Action,
-    ) {
-        if let Some(config) = config {
-            config.assert_valid_action_phase(phase);
-        }
-        actions.push(phase.0 as isize, action);
-    }
-    fn assert_valid_action_phase(phase: ActionPhase) {
+    fn assert_valid_action_phase(phase: &'static ActionPhase) {
         Self::with(|g| {
-            if let Some(config) = &g.runtime_config {
+            let config = g
+                .runtime_config
+                .as_ref()
+                .expect("Action requires a Runtime");
+            if !g.closing {
                 config.assert_valid_action_phase(phase);
             }
         });
     }
-    fn assert_valid_reaction_phase(phase: ReactionPhase) {
+    fn assert_valid_reaction_phase(phase: &'static ReactionPhase) {
         Self::with(|g| {
-            if let Some(config) = &g.runtime_config {
-                config.assert_valid_reaction_phase(phase);
+            g.runtime_config
+                .as_ref()
+                .unwrap()
+                .assert_valid_reaction_phase(phase)
+        });
+    }
+    fn schedule_reaction(phase: &'static ReactionPhase, reaction: Reaction) {
+        let id = phase.id();
+        Self::with(|g| {
+            g.reactions
+                .resize_with(g.reactions.len().max(id + 1), VecDeque::new);
+            g.reactions[id].push_back(reaction);
+            if g.runtime_config
+                .as_ref()
+                .is_some_and(|c| c.reaction_phases.index(id).is_some())
+            {
+                g.runnable_reactions += 1;
+                if !g.closing {
+                    g.wake();
+                }
             }
         });
     }
-    fn schedule_reaction(phase: ReactionPhase, reaction: Reaction) {
+    fn schedule_action(phase: &'static ActionPhase, action: Action) {
+        // Keep rejected captures outside the TLS borrow, including during panic.
+        Self::assert_valid_action_phase(phase);
+        let mut action = Some(action);
         Self::with(|g| {
-            Self::push_reaction(g.runtime_config.as_ref(), &mut g.reactions, phase, reaction);
-            g.wake();
-        })
-    }
-
-    fn schedule_action(phase: ActionPhase, action: Action) {
-        Self::with(|g| {
-            Self::push_action(g.runtime_config.as_ref(), &mut g.actions, phase, action);
-            g.wake();
-        })
+            if !g.closing {
+                let index = g
+                    .runtime_config
+                    .as_ref()
+                    .unwrap()
+                    .action_phases
+                    .index(phase.id())
+                    .unwrap();
+                g.actions[index].push_back(action.take().unwrap());
+                g.wake();
+            }
+        });
+        drop(action);
     }
     fn get_notifys(notifys: &mut Vec<NotifyReaction>) -> bool {
         Self::with(|g| {
@@ -147,26 +178,73 @@ impl Globals {
         });
         !notifys.is_empty()
     }
-
-    fn get_reactions(phase: Option<ReactionPhase>, reactions: &mut Vec<Reaction>) {
+    fn get_reaction_batch(phase: Option<&'static ReactionPhase>, batch: &mut Vec<(usize, usize)>) {
         Self::with(|g| {
-            g.reactions.drain(phase.map(|p| p.0 as isize), reactions);
-        })
+            if g.closing {
+                return;
+            }
+            let mut add = |id: usize| {
+                let count = g.reactions.get(id).map_or(0, VecDeque::len);
+                if count != 0 {
+                    batch.push((id, count));
+                }
+            };
+            if let Some(phase) = phase {
+                add(phase.id());
+            } else {
+                for &id in &g.runtime_config.as_ref().unwrap().reaction_phases.ids {
+                    add(id);
+                }
+            }
+        });
     }
-    fn get_action(phase: ActionPhase) -> Option<Action> {
+    fn get_action(phase: &'static ActionPhase) -> Option<Action> {
         Self::with(|g| {
+            if g.closing {
+                return None;
+            }
             g.apply_wake();
-            g.actions.pop_front(phase.0 as isize)
+            let index = g
+                .runtime_config
+                .as_ref()
+                .unwrap()
+                .action_phases
+                .index(phase.id())
+                .unwrap();
+            g.actions[index].pop_front()
         })
     }
-    fn get_actions(phase: Option<ActionPhase>, actions: &mut Vec<Action>) -> bool {
+    fn get_action_batch(
+        phase: Option<&'static ActionPhase>,
+        batch: &mut Vec<(usize, usize)>,
+    ) -> bool {
         Self::with(|g| {
+            if g.closing {
+                return false;
+            }
             g.apply_wake();
-            g.actions.drain(phase.map(|p| p.0 as isize), actions);
-            !actions.is_empty()
+            let mut add = |index: usize| {
+                let count = g.actions[index].len();
+                if count != 0 {
+                    batch.push((index, count));
+                }
+            };
+            if let Some(phase) = phase {
+                add(g
+                    .runtime_config
+                    .as_ref()
+                    .unwrap()
+                    .action_phases
+                    .index(phase.id())
+                    .unwrap());
+            } else {
+                for index in 0..g.actions.len() {
+                    add(index);
+                }
+            }
+            !batch.is_empty()
         })
     }
-
     fn swap_source_bindings(
         f: impl FnOnce(&mut Self) -> &mut Vec<SourceBindingsData>,
         values: &mut Vec<SourceBindingsData>,
@@ -174,165 +252,174 @@ impl Globals {
         Self::with(|g| swap(f(g), values));
         !values.is_empty()
     }
-
     fn push_unbinds(&mut self, bindings: SourceBindingsData) {
         self.unbinds.push(bindings);
         self.wake();
     }
-
     fn push_notify(&mut self, sink: Weak<dyn BindSink>, slot: Slot) {
         self.notifys.push(NotifyReaction { sink, slot });
         self.wake();
     }
     fn apply_wake(&mut self) {
-        let mut requests = self.wakes.requests.0.lock().unwrap();
-        for key in requests.drops.drain(..) {
+        let (drops, wakes) = {
+            let mut requests = self.wakes.requests.0.lock().unwrap();
+            (take(&mut requests.drops), take(&mut requests.wakes))
+        };
+        for key in drops {
             self.wakes.reactions.remove(key);
         }
-        for key in requests.wakes.drain(..) {
-            if let Some(reaction) = self.wakes.reactions.get(key) {
-                match reaction {
-                    WakeReaction::Notify(reaction) => {
-                        self.notifys.push(reaction.clone());
-                    }
-                    WakeReaction::AsyncAction(action) => {
-                        Self::push_action(
-                            self.runtime_config.as_ref(),
-                            &mut self.actions,
-                            action.phase,
-                            action.to_action(),
-                        );
+        for (key, active) in wakes {
+            if !active.load(Ordering::Relaxed) {
+                continue;
+            }
+            match self.wakes.reactions.get(key) {
+                Some(WakeReaction::Notify(reaction)) => self.notifys.push(reaction.clone()),
+                Some(WakeReaction::AsyncAction { action, phase }) if !self.closing => {
+                    if let Some(index) = self
+                        .runtime_config
+                        .as_ref()
+                        .and_then(|c| c.action_phases.index(phase.id()))
+                        && action.strong_count() != 0
+                    {
+                        self.actions[index]
+                            .push_back(Action::from_weak_fn(action.clone(), AsyncAction::next));
                     }
                 }
+                _ => {}
             }
         }
     }
-    fn wait_for_ready(&mut self, cx: &Context) -> Poll<()> {
-        self.need_wake = false;
-        if !self.notifys.is_empty()
-            || !self.actions.is_empty()
-            || !self.reactions.is_empty()
-            || !self.unbinds.is_empty()
-        {
-            return Poll::Ready(());
-        }
-        let mut requests = self.wakes.requests.0.lock().unwrap();
-        if !requests.drops.is_empty() || !requests.wakes.is_empty() {
-            return Poll::Ready(());
-        }
-        requests.waker = Some(cx.waker().clone());
-        self.need_wake = true;
-        Poll::Pending
+    fn has_ready_work(&self, requests: &RawWakeRequests) -> bool {
+        !self.closing
+            && (!self.notifys.is_empty()
+                || self.actions.iter().any(|q| !q.is_empty())
+                || self.runnable_reactions != 0
+                || !self.unbinds.is_empty()
+                || !self.discards.is_empty()
+                || !requests.drops.is_empty()
+                || !requests.wakes.is_empty())
     }
-
-    fn finish_runtime() {
-        let pending = Self::with(|g| {
-            g.runtime_config = None;
-            (take(&mut g.reactions), take(&mut g.actions))
+    fn wait_for_ready(waker: &Waker) -> Poll<()> {
+        // Clone before entering either the TLS borrow or the request mutex.
+        let mut waker = Some(waker.clone());
+        let (result, previous) = Self::with(|g| {
+            g.apply_wake();
+            let mut requests = g.wakes.requests.0.lock().unwrap();
+            let ready = g.has_ready_work(&requests);
+            let previous = replace(
+                &mut requests.waker,
+                if !g.closing && !ready {
+                    waker.take()
+                } else {
+                    None
+                },
+            );
+            (
+                if ready {
+                    Poll::Ready(())
+                } else {
+                    Poll::Pending
+                },
+                previous,
+            )
         });
-        drop(pending);
+        drop(previous);
+        result
     }
-
+    fn begin_shutdown() -> (Vec<VecDeque<Action>>, Option<Waker>) {
+        Self::with(|g| {
+            g.closing = true;
+            let waker = g.wakes.requests.0.lock().unwrap().waker.take();
+            (take(&mut g.actions), waker)
+        })
+    }
+    fn finish_runtime() {
+        let waker = Self::with(|g| {
+            g.runtime_config = None;
+            g.runnable_reactions = 0;
+            g.wakes.requests.0.lock().unwrap().waker.take()
+        });
+        drop(waker);
+    }
     fn wake(&mut self) {
-        if !self.need_wake {
-            return;
-        }
-        self.need_wake = false;
-        self.wakes.requests.0.lock().unwrap().wake();
-    }
-}
-
-#[derive(Clone, Debug, Default)]
-enum ValidPhases {
-    #[default]
-    All,
-    Only(PhaseSet),
-}
-impl ValidPhases {
-    fn from_ids(ids: impl IntoIterator<Item = i8>) -> Self {
-        let mut phases = PhaseSet::default();
-        for id in ids {
-            phases.insert(id);
-        }
-        Self::Only(phases)
-    }
-    fn contains(&self, id: i8) -> bool {
-        match self {
-            Self::All => true,
-            Self::Only(phases) => phases.contains(id),
+        if self.wake_driver.is_none() {
+            self.wake_driver = self.wakes.requests.0.lock().unwrap().waker.take();
         }
     }
 }
 
-#[derive(Clone, Debug, Default)]
-struct PhaseSet([u64; 4]);
-impl PhaseSet {
-    fn index(id: i8) -> usize {
-        (i16::from(id) - i16::from(i8::MIN)) as usize
-    }
-    fn insert(&mut self, id: i8) {
-        let index = Self::index(id);
-        self.0[index / u64::BITS as usize] |= 1 << (index % u64::BITS as usize);
-    }
-    fn contains(&self, id: i8) -> bool {
-        let index = Self::index(id);
-        self.0[index / u64::BITS as usize] & (1 << (index % u64::BITS as usize)) != 0
-    }
-}
-
-/// Configuration for a [`Runtime`].
+/// Ordered phases supported by a [`Runtime`].
 ///
-/// By default, every [`ActionPhase`] and [`ReactionPhase`] is valid.
-///
-/// # Examples
+/// The default supports only the shared default phase of each kind. Lists replace
+/// the defaults, may be empty, and must not contain duplicates. Initialization
+/// allocates a lookup table through the largest registered ID; subsequent lookups
+/// are worst-case O(1), including unsupported IDs, and never grow that table.
 ///
 /// ```
-/// use sigmut::core::{ActionPhase, ReactionPhase, Runtime, RuntimeConfig};
-///
-/// let config = RuntimeConfig::default()
-///     .with_action_phases([ActionPhase::default(), ActionPhase::new(1)])
-///     .with_reaction_phases([ReactionPhase::default()]);
+/// use sigmut::core::{ActionPhase, Runtime, RuntimeConfig};
+/// static UPDATE: ActionPhase = ActionPhase::new();
+/// let config = RuntimeConfig::default().with_action_phases([&UPDATE]);
 /// let _runtime = Runtime::new_with_config(config);
 /// ```
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct RuntimeConfig {
-    action_phases: ValidPhases,
-    reaction_phases: ValidPhases,
+    action_phases: PhaseOrder,
+    reaction_phases: PhaseOrder,
+}
+impl Default for RuntimeConfig {
+    fn default() -> Self {
+        Self {
+            action_phases: PhaseOrder::new([ActionPhase::DEFAULT.id()]),
+            reaction_phases: PhaseOrder::new([ReactionPhase::DEFAULT.id()]),
+        }
+    }
 }
 impl RuntimeConfig {
-    /// Restricts the valid action phases to `phases`.
+    /// Sets the supported action phases in dispatch order, without adding defaults.
     ///
-    /// Passing an empty iterator disables every [`ActionPhase`].
+    /// # Panics
+    /// Panics if a phase appears more than once.
     #[must_use]
-    pub fn with_action_phases(mut self, phases: impl IntoIterator<Item = ActionPhase>) -> Self {
-        self.action_phases = ValidPhases::from_ids(phases.into_iter().map(|phase| phase.0));
+    pub fn with_action_phases(
+        mut self,
+        phases: impl IntoIterator<Item = &'static ActionPhase>,
+    ) -> Self {
+        self.action_phases = PhaseOrder::new(phases.into_iter().map(ActionPhase::id));
         self
     }
-
-    /// Restricts the valid reaction phases to `phases`.
+    /// Sets the supported reaction phases in dispatch order, without adding defaults.
     ///
-    /// Passing an empty iterator disables every [`ReactionPhase`].
+    /// # Panics
+    /// Panics if a phase appears more than once.
     #[must_use]
-    pub fn with_reaction_phases(mut self, phases: impl IntoIterator<Item = ReactionPhase>) -> Self {
-        self.reaction_phases = ValidPhases::from_ids(phases.into_iter().map(|phase| phase.0));
+    pub fn with_reaction_phases(
+        mut self,
+        phases: impl IntoIterator<Item = &'static ReactionPhase>,
+    ) -> Self {
+        self.reaction_phases = PhaseOrder::new(phases.into_iter().map(ReactionPhase::id));
         self
     }
-
-    fn assert_valid_action_phase(&self, phase: ActionPhase) {
+    fn assert_valid_action_phase(&self, phase: &'static ActionPhase) {
         assert!(
-            self.action_phases.contains(phase.0),
-            "ActionPhase `{phase}` is not valid for this `Runtime`."
+            self.action_phases.index(phase.id()).is_some(),
+            "unsupported ActionPhase"
         );
     }
-    fn assert_valid_reaction_phase(&self, phase: ReactionPhase) {
+    fn assert_valid_reaction_phase(&self, phase: &'static ReactionPhase) {
         assert!(
-            self.reaction_phases.contains(phase.0),
-            "ReactionPhase `{phase}` is not valid for this `Runtime`."
+            self.reaction_phases.index(phase.id()).is_some(),
+            "unsupported ReactionPhase"
         );
     }
 }
 
-/// Reactive runtime.
+/// Exclusive dispatcher and owner of the current thread's Action session.
+///
+/// A runtime starts Running and irreversibly enters Closing through
+/// [`begin_shutdown`](Self::begin_shutdown) or Drop. Reactions and lifetime
+/// maintenance persist in thread-local queues across runtimes; Actions do not.
+/// Phases select executable work and do not isolate graphs. Shared default-phase
+/// subscriptions may therefore execute under any default runtime on this thread.
 #[derive(Ex)]
 #[derive_ex(Default)]
 #[default(Self::new())]
@@ -355,7 +442,7 @@ pub enum RuntimeCallError {
 impl std::error::Error for RuntimeCallError {}
 
 impl Runtime {
-    /// Creates a runtime that accepts every action and reaction phase.
+    /// Creates a runtime supporting only the shared default phase of each kind.
     ///
     /// # Panics
     ///
@@ -366,21 +453,19 @@ impl Runtime {
 
     /// Creates a runtime with the specified configuration.
     ///
-    /// Actions and reactions may be scheduled before a runtime exists. They are checked against
-    /// `config` before the runtime is created.
+    /// Reactions may be queued at any time. Only configured phases are resumed,
+    /// in list order; unsupported phases remain dormant without making the runtime ready.
     ///
     /// # Panics
     ///
-    /// Panics if another [`Runtime`] exists in the current thread, or if an action or reaction has
-    /// already been scheduled in a phase that is not valid according to `config`.
+    /// Panics if another [`Runtime`] exists in the current thread.
     pub fn new_with_config(config: RuntimeConfig) -> Self {
-        Globals::prepare_runtime(&config);
+        Globals::prepare_runtime();
         let raw = Box::new(RawRuntime {
             rt: RuntimeData::new(),
             bump: Bump::new(),
             notifys_buffer: Vec::new(),
-            actions_buffer: Vec::new(),
-            reactions_buffer: Vec::new(),
+            batch_buffer: Vec::new(),
             unbinds_buffer: Vec::new(),
         });
         Globals::activate_runtime(config);
@@ -388,6 +473,21 @@ impl Runtime {
             is_owned: true,
             raw: Some(raw),
         }
+    }
+
+    /// Irreversibly stops dispatch and cancels all current and future Actions.
+    ///
+    /// Call from the control side between dispatches. Repeated calls are harmless.
+    /// Cancellation drops captures and futures outside scheduler borrows, with the
+    /// Closing binding and async cancellation context intact. State changes already
+    /// applied are not rolled back. Reactions and maintenance remain in TLS for a
+    /// later matching runtime. Reads of Signals holding futures return their
+    /// stored values without polling in Closing. Drop performs the same transition
+    /// automatically.
+    pub fn begin_shutdown(&mut self) {
+        let pending = Globals::begin_shutdown();
+        drop(pending);
+        self.as_raw().cancel_async_actions();
     }
 
     fn as_raw(&mut self) -> &mut RawRuntime {
@@ -416,7 +516,7 @@ impl Runtime {
     /// # Panics
     ///
     /// Panics if `phase` is not valid according to the runtime's [`RuntimeConfig`].
-    pub fn dispatch_action(&mut self, phase: ActionPhase) -> bool {
+    pub fn dispatch_action(&mut self, phase: &'static ActionPhase) -> bool {
         Globals::assert_valid_action_phase(phase);
         self.as_raw().dispatch_action(phase)
     }
@@ -431,7 +531,7 @@ impl Runtime {
     /// # Panics
     ///
     /// Panics if `phase` is not valid according to the runtime's [`RuntimeConfig`].
-    pub fn dispatch_actions(&mut self, phase: ActionPhase) -> bool {
+    pub fn dispatch_actions(&mut self, phase: &'static ActionPhase) -> bool {
         Globals::assert_valid_action_phase(phase);
         self.as_raw().dispatch_actions_with(Some(phase))
     }
@@ -452,7 +552,7 @@ impl Runtime {
     /// # Panics
     ///
     /// Panics if `phase` is not valid according to the runtime's [`RuntimeConfig`].
-    pub fn dispatch_reactions(&mut self, phase: ReactionPhase) -> bool {
+    pub fn dispatch_reactions(&mut self, phase: &'static ReactionPhase) -> bool {
         Globals::assert_valid_reaction_phase(phase);
         self.as_raw().dispatch_reactions_with(Some(phase))
     }
@@ -516,7 +616,7 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         if self.is_owned {
-            self.as_raw().cancel_async_actions();
+            self.begin_shutdown();
             Globals::finish_runtime();
         } else {
             Globals::with(|g| {
@@ -529,9 +629,12 @@ impl Drop for Runtime {
 pub struct RuntimeLend<'a>(&'a mut Runtime);
 
 impl RuntimeLend<'_> {
-    /// Wait while there is no process to be executed by [`Runtime::flush`].
+    /// Waits for executable work or lifetime maintenance.
+    ///
+    /// Dormant reaction phases do not count as ready. A Closing runtime never
+    /// becomes ready and does not retain a driver waker.
     pub async fn wait_for_ready(&mut self) {
-        poll_fn(|cx| Globals::with(|g| g.wait_for_ready(cx))).await
+        poll_fn(|cx| Globals::wait_for_ready(cx.waker())).await
     }
 }
 
@@ -546,8 +649,7 @@ struct RawRuntime {
     rt: RuntimeData,
     bump: Bump,
     notifys_buffer: Vec<NotifyReaction>,
-    actions_buffer: Vec<Action>,
-    reactions_buffer: Vec<Reaction>,
+    batch_buffer: Vec<(usize, usize)>,
     unbinds_buffer: Vec<SourceBindingsData>,
 }
 impl RawRuntime {
@@ -575,35 +677,50 @@ impl RawRuntime {
             sink: None,
         }
     }
-    fn dispatch_action(&mut self, phase: ActionPhase) -> bool {
+    fn dispatch_action(&mut self, phase: &'static ActionPhase) -> bool {
         let Some(action) = Globals::get_action(phase) else {
             return false;
         };
         action.call(self.ac());
         true
     }
-    fn dispatch_actions_with(&mut self, phase: Option<ActionPhase>) -> bool {
+    fn dispatch_actions_with(&mut self, phase: Option<&'static ActionPhase>) -> bool {
         let mut handled = false;
-        let mut actions = take(&mut self.actions_buffer);
-        while Globals::get_actions(phase, &mut actions) {
-            for action in actions.drain(..) {
-                action.call(self.ac());
-                handled = true;
+        let mut batch = take(&mut self.batch_buffer);
+        while Globals::get_action_batch(phase, &mut batch) {
+            for (index, count) in batch.drain(..) {
+                for _ in 0..count {
+                    let action = Globals::with(|g| g.actions[index].pop_front()).unwrap();
+                    action.call(self.ac());
+                    handled = true;
+                }
             }
         }
-        self.actions_buffer = actions;
+        self.batch_buffer = batch;
         handled
     }
 
-    fn dispatch_reactions_with(&mut self, phase: Option<ReactionPhase>) -> bool {
-        self.apply_notify();
-        let mut reactions = take(&mut self.reactions_buffer);
-        Globals::get_reactions(phase, &mut reactions);
-        let handled = !reactions.is_empty();
-        for reaction in reactions.drain(..) {
-            reaction.run(&mut self.rc_raw());
+    fn dispatch_reactions_with(&mut self, phase: Option<&'static ReactionPhase>) -> bool {
+        if !Globals::is_running() {
+            return false;
         }
-        self.reactions_buffer = reactions;
+        self.apply_notify();
+        let mut batch = take(&mut self.batch_buffer);
+        Globals::get_reaction_batch(phase, &mut batch);
+        let handled = !batch.is_empty();
+        // Snapshot only counts. Unexecuted work remains in its owning queue even
+        // when a callback unwinds; newly scheduled work waits for the next batch.
+        for (id, count) in batch.drain(..) {
+            for _ in 0..count {
+                let reaction = Globals::with(|g| {
+                    let reaction = g.reactions[id].pop_front().unwrap();
+                    g.runnable_reactions -= 1;
+                    reaction
+                });
+                reaction.run(&mut self.rc_raw());
+            }
+        }
+        self.batch_buffer = batch;
         handled
     }
     fn apply_unbind(&mut self) -> bool {
@@ -621,6 +738,9 @@ impl RawRuntime {
         handled
     }
     fn apply_notify(&mut self) -> bool {
+        if !Globals::is_running() {
+            return false;
+        }
         let mut handled = self.apply_unbind();
         let mut notifys = take(&mut self.notifys_buffer);
         while Globals::get_notifys(&mut notifys) {
@@ -634,9 +754,12 @@ impl RawRuntime {
     }
 
     fn dispatch_discards(&mut self) -> bool {
+        if !Globals::is_running() {
+            return false;
+        }
         let mut handled = false;
         loop {
-            if let Some(reaction) = self.rt.discards.pop() {
+            if let Some(reaction) = Globals::with(|g| g.discards.pop()) {
                 reaction.run(&mut self.rc_raw());
                 handled = true;
                 continue;
@@ -661,38 +784,30 @@ impl RawRuntime {
             if self.dispatch_discards() {
                 continue;
             }
-            break;
+            // Maintenance can enqueue Actions without executing any Reaction.
+            // Check the same readiness predicate as the waiting driver before
+            // declaring this runtime settled.
+            if !Globals::with(|g| g.has_ready_work(&g.wakes.requests.0.lock().unwrap())) {
+                break;
+            }
         }
     }
 
     fn cancel_async_actions(&mut self) {
-        let mut acts = Vec::new();
-        while !self.rt.async_actions.is_empty() {
-            acts.extend(self.rt.async_actions.values().cloned());
-            for act in &acts {
-                act.cancel(self.ac());
-            }
-            acts.clear();
+        let actions = take(&mut self.rt.async_actions);
+        for (_, action) in actions {
+            action.cancel(self.ac());
         }
     }
 }
 
-impl Drop for RawRuntime {
-    fn drop(&mut self) {
-        self.cancel_async_actions();
-        Globals::finish_runtime();
-    }
-}
-
 struct RuntimeData {
-    discards: Vec<Reaction>,
     async_actions: SlabMap<Rc<AsyncAction>>,
 }
 
 impl RuntimeData {
     pub fn new() -> Self {
         Self {
-            discards: Vec::new(),
             async_actions: SlabMap::new(),
         }
     }
@@ -993,6 +1108,10 @@ impl Sink {
 pub struct ReactionContext<'r, 's>(SignalContext<'r, 's>);
 
 impl<'r, 's> ReactionContext<'r, 's> {
+    pub(crate) fn can_poll(&self) -> bool {
+        Globals::is_running()
+    }
+
     fn new<'a>(sc: &'a mut SignalContext<'r, 's>) -> &'a mut Self {
         unsafe { transmute(sc) }
     }
@@ -1001,7 +1120,10 @@ impl<'r, 's> ReactionContext<'r, 's> {
     ///
     /// Registered reactions are called when [`Runtime::dispatch_discards`] is called.
     pub fn schedule_discard(&mut self, discard: Reaction) {
-        self.0.rt.discards.push(discard)
+        Globals::with(|g| {
+            g.discards.push(discard);
+            g.wake();
+        })
     }
 
     /// Call a function with a [`SignalContext`] that does not track dependencies.
@@ -1123,7 +1245,8 @@ impl ActionContext {
     /// `.await` does not suspend execution. If the handler completes, its future is dropped
     /// before this method returns. Otherwise, the runtime owns the future and resumes it
     /// after a wake in the default [`ActionPhase`], dropping it when the runtime shuts down.
-    /// No other queued actions are dispatched by this method.
+    /// No other queued actions are dispatched by this method. In Closing the
+    /// handler is cancelled without construction or polling.
     ///
     /// The handler owns its [`AsyncActionContext`]. Use [`AsyncActionContext::call`] to
     /// modify state in synchronous sections, and [`AsyncActionContext::is_running_inline`]
@@ -1131,7 +1254,7 @@ impl ActionContext {
     ///
     /// # Panics
     ///
-    /// Panics before invoking the handler if the default [`ActionPhase`] is not valid
+    /// Panics before invoking the handler if Running and the default [`ActionPhase`] is not valid
     /// according to the runtime's [`RuntimeConfig`].
     ///
     /// ```
@@ -1150,7 +1273,7 @@ impl ActionContext {
     /// assert_eq!(state.get(&mut runtime.sc()), 42);
     /// ```
     pub fn start_async_inline(&mut self, f: impl AsyncFnOnce(AsyncActionContext) + 'static) {
-        self.start_async_inline_in(ActionPhase::default(), f);
+        self.start_async_inline_in(ActionPhase::DEFAULT, f);
     }
 
     /// Starts an asynchronous action inline, resuming in the specified phase.
@@ -1162,11 +1285,11 @@ impl ActionContext {
     ///
     /// # Panics
     ///
-    /// Panics before invoking the handler if `resume_phase` is not valid according to
+    /// Panics before invoking the handler if Running and `resume_phase` is not valid according to
     /// the runtime's [`RuntimeConfig`].
     pub fn start_async_inline_in(
         &mut self,
-        resume_phase: ActionPhase,
+        resume_phase: &'static ActionPhase,
         f: impl AsyncFnOnce(AsyncActionContext) + 'static,
     ) {
         AsyncAction::start(resume_phase, self, true, |aac| async move { f(aac).await });
@@ -1177,8 +1300,7 @@ impl ActionContext {
 ///
 /// # Panics
 ///
-/// Panics if a [`Runtime`] exists and the default [`ActionPhase`] is not valid according to its
-/// [`RuntimeConfig`].
+/// Panics if no [`Runtime`] exists, or if Running and the default phase is unsupported.
 pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
     Action::new(f).schedule()
 }
@@ -1187,8 +1309,8 @@ pub fn spawn_action(f: impl FnOnce(&mut ActionContext) + 'static) {
 ///
 /// # Panics
 ///
-/// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
-pub fn spawn_action_in(phase: ActionPhase, f: impl FnOnce(&mut ActionContext) + 'static) {
+/// Panics if no [`Runtime`] exists, or if Running and `phase` is unsupported.
+pub fn spawn_action_in(phase: &'static ActionPhase, f: impl FnOnce(&mut ActionContext) + 'static) {
     Action::new(f).schedule_in(phase)
 }
 
@@ -1200,10 +1322,9 @@ pub fn spawn_action_in(phase: ActionPhase, f: impl FnOnce(&mut ActionContext) + 
 ///
 /// # Panics
 ///
-/// Panics if a [`Runtime`] exists and the default [`ActionPhase`] is not valid according to its
-/// [`RuntimeConfig`].
+/// Panics if no [`Runtime`] exists, or if Running and the default phase is unsupported.
 pub fn spawn_action_async(f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static) {
-    spawn_action_async_in(ActionPhase::default(), f)
+    spawn_action_async_in(ActionPhase::DEFAULT, f)
 }
 
 /// Spawns a new asynchronous action with a specific phase.
@@ -1214,9 +1335,9 @@ pub fn spawn_action_async(f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static
 ///
 /// # Panics
 ///
-/// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
+/// Panics if no [`Runtime`] exists, or if Running and `phase` is unsupported.
 pub fn spawn_action_async_in(
-    phase: ActionPhase,
+    phase: &'static ActionPhase,
     f: impl AsyncFnOnce(&mut AsyncActionContext) + 'static,
 ) {
     spawn_action_in(phase, move |ac| {
@@ -1226,7 +1347,12 @@ pub fn spawn_action_async_in(
     })
 }
 
-/// Operations that modify state.
+/// A recipe for state mutation, registered by [`schedule`](Self::schedule).
+///
+/// Construction does not need a runtime. Scheduling requires a runtime and
+/// transfers ownership to its session. Closing cancels the recipe without running
+/// it, releasing captures; captures may queue persistent Reactions on cancellation.
+/// Scheduling returns no completion handle; AsyncActions likewise return `()`.
 pub struct Action(RawAction);
 
 #[allow(clippy::type_complexity)]
@@ -1284,8 +1410,8 @@ impl Action {
     ///
     /// # Panics
     ///
-    /// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
-    pub fn schedule_in(self, phase: ActionPhase) {
+    /// Panics if no [`Runtime`] exists, or if Running and `phase` is unsupported.
+    pub fn schedule_in(self, phase: &'static ActionPhase) {
         Globals::schedule_action(phase, self)
     }
 
@@ -1293,10 +1419,9 @@ impl Action {
     ///
     /// # Panics
     ///
-    /// Panics if a [`Runtime`] exists and the default [`ActionPhase`] is not valid according to its
-    /// [`RuntimeConfig`].
+    /// Panics if no [`Runtime`] exists, or if Running and the default phase is unsupported.
     pub fn schedule(self) {
-        self.schedule_in(ActionPhase::default())
+        self.schedule_in(ActionPhase::DEFAULT)
     }
 
     fn call(self, ac: &mut ActionContext) {
@@ -1308,13 +1433,12 @@ impl Action {
     }
 }
 struct AsyncAction {
-    phase: ActionPhase,
     aac_source: AsyncActionContextSource,
     data: RefCell<Option<AsyncActionData>>,
 }
 impl AsyncAction {
     fn start<Fut>(
-        phase: ActionPhase,
+        phase: &'static ActionPhase,
         ac: &mut ActionContext,
         inline: bool,
         f: impl FnOnce(AsyncActionContext) -> Fut + 'static,
@@ -1322,63 +1446,81 @@ impl AsyncAction {
         Fut: Future<Output = ()> + 'static,
     {
         Globals::assert_valid_action_phase(phase);
+        if !Globals::is_running() {
+            return;
+        }
         let aac_source = AsyncActionContextSource::new();
         let aac = aac_source.context();
         let future = aac_source.call(ac, || f(aac));
         let action = Rc::new(Self {
-            phase,
             aac_source,
             data: RefCell::new(None),
         });
         let id = ac.0.rt.async_actions.insert(action.clone());
+        let wake = WakeReaction::AsyncAction {
+            action: Rc::downgrade(&action),
+            phase,
+        }
+        .into_raw_wake();
         *action.data.borrow_mut() = Some(AsyncActionData {
             id,
-            waker: WakeReaction::AsyncAction(action.clone()).into_waker(),
+            waker: wake.clone().into(),
+            wake,
             future: Box::pin(future),
         });
         action.poll(ac, inline);
     }
-    fn call(
-        self: &Rc<Self>,
-        ac: &mut ActionContext,
-        f: impl FnOnce(&mut Option<AsyncActionData>) -> Option<usize>,
-    ) {
-        let id_remove = self.aac_source.call(ac, || f(&mut self.data.borrow_mut()));
-        if let Some(id_remove) = id_remove {
-            ac.0.rt.async_actions.remove(id_remove);
-        }
-    }
-
     fn cancel(self: &Rc<Self>, ac: &mut ActionContext) {
-        self.call(ac, |data| Some(data.take()?.id))
+        let data = self.data.borrow_mut().take();
+        if let Some(data) = data {
+            self.aac_source.call(ac, || drop(data));
+        }
     }
     fn next(self: Rc<Self>, ac: &mut ActionContext) {
         self.poll(ac, false);
     }
     fn poll(self: Rc<Self>, ac: &mut ActionContext, inline: bool) {
-        self.call(ac, |data| {
-            let d = data.as_mut()?;
-            let mut cx = Context::from_waker(&d.waker);
-            if self
-                .aac_source
-                .with_running_inline(inline, || d.future.as_mut().poll(&mut cx))
-                .is_ready()
-            {
-                Some(data.take()?.id)
+        let Some(id) = self.data.borrow().as_ref().map(|data| data.id) else {
+            return;
+        };
+        // The executing future owns itself. Unwind must not leave an empty task
+        // registered forever, and its destructor still needs the original context.
+        ac.0.rt.async_actions.remove(id);
+        let pending = self.aac_source.call(ac, || {
+            let mut data = self.data.borrow_mut().take().unwrap();
+            let result = self.aac_source.with_running_inline(inline, || {
+                data.future
+                    .as_mut()
+                    .poll(&mut Context::from_waker(&data.waker))
+            });
+            if result.is_ready() {
+                drop(data);
+                false
             } else {
-                None
+                *self.data.borrow_mut() = Some(data);
+                true
             }
         });
-    }
-    fn to_action(self: &Rc<Self>) -> Action {
-        Action::from_rc_fn(self.clone(), Self::next)
+        if pending {
+            let id = ac.0.rt.async_actions.insert(self.clone());
+            self.data.borrow_mut().as_mut().unwrap().id = id;
+        }
     }
 }
 
 struct AsyncActionData {
     future: Pin<Box<dyn Future<Output = ()>>>,
     waker: Waker,
+    wake: Arc<RawWake>,
     id: usize,
+}
+impl Drop for AsyncActionData {
+    fn drop(&mut self) {
+        // Invalidate queued requests too: the slab slot may be reused while an
+        // old waker is still held externally. No old wake can target its successor.
+        self.wake.active.store(false, Ordering::Relaxed);
+        let _ = Globals::try_with(|g| g.wakes.reactions.remove(self.wake.key));
+    }
 }
 
 #[derive(Default)]
@@ -1394,11 +1536,17 @@ impl WakeTable {
 }
 enum WakeReaction {
     Notify(NotifyReaction),
-    AsyncAction(Rc<AsyncAction>),
+    AsyncAction {
+        action: Weak<AsyncAction>,
+        phase: &'static ActionPhase,
+    },
 }
 impl WakeReaction {
+    fn into_raw_wake(self) -> Arc<RawWake> {
+        Globals::with(|sc| sc.wakes.insert(self))
+    }
     fn into_waker(self) -> Waker {
-        Globals::with(|sc| sc.wakes.insert(self)).into()
+        self.into_raw_wake().into()
     }
 }
 pub fn waker_from_sink(sink: Weak<impl BindSink>, slot: Slot) -> Waker {
@@ -1410,44 +1558,53 @@ struct WakeRequests(Arc<Mutex<RawWakeRequests>>);
 
 #[derive(Default)]
 struct RawWakeRequests {
-    wakes: Vec<usize>,
+    wakes: Vec<(usize, Arc<AtomicBool>)>,
     drops: Vec<usize>,
     waker: Option<Waker>,
 }
-impl RawWakeRequests {
-    fn wake(&mut self) {
-        if let Some(waker) = self.waker.take() {
-            waker.wake();
-        }
-    }
-}
-
 struct RawWake {
     requests: WakeRequests,
     key: usize,
+    active: Arc<AtomicBool>,
 }
 impl RawWake {
     fn new(requests: &WakeRequests, key: usize) -> Arc<Self> {
         Arc::new(RawWake {
             requests: requests.clone(),
             key,
+            active: Arc::new(AtomicBool::new(true)),
         })
-    }
-    fn requests(&self) -> MutexGuard<'_, RawWakeRequests> {
-        self.requests.0.lock().unwrap()
     }
 }
 
 impl Wake for RawWake {
     fn wake(self: Arc<Self>) {
-        let mut requests = self.requests();
-        requests.wakes.push(self.key);
-        requests.wake();
+        let waker = {
+            let mut requests = self.requests.0.lock().unwrap();
+            if !self.active.load(Ordering::Relaxed) {
+                return;
+            }
+            requests.wakes.push((self.key, self.active.clone()));
+            requests.waker.take()
+        };
+        if let Some(waker) = waker {
+            waker.wake();
+        }
     }
 }
 impl Drop for RawWake {
     fn drop(&mut self) {
-        self.requests().drops.push(self.key);
+        if !self.active.load(Ordering::Relaxed) {
+            return;
+        }
+        let waker = {
+            let mut requests = self.requests.0.lock().unwrap();
+            requests.drops.push(self.key);
+            requests.waker.take()
+        };
+        if let Some(waker) = waker {
+            waker.wake();
+        }
     }
 }
 
@@ -1505,6 +1662,11 @@ impl AsyncActionContext {
         self.0.is_running_inline.get()
     }
 
+    /// Uses this Action's context during its poll or cancellation destructor.
+    ///
+    /// # Panics
+    /// Panics outside that synchronous scope, including after the session ends.
+    /// A later Runtime never reactivates this context.
     pub fn call<T>(&self, f: impl FnOnce(&mut ActionContext) -> T) -> T {
         self.0
             .channel
@@ -1561,22 +1723,18 @@ impl Reaction {
         })
     }
 
-    /// Schedules this reaction with a specific phase.
+    /// Queues this reaction persistently in the specified phase.
     ///
-    /// # Panics
-    ///
-    /// Panics if a [`Runtime`] exists and `phase` is not valid according to its [`RuntimeConfig`].
-    pub fn schedule_in(self, phase: ReactionPhase) {
+    /// Accepted without a Runtime, during Closing, and for unsupported phases.
+    /// A matching Running runtime dispatches it in phase-local FIFO order. An
+    /// arbitrary closure retains its captures until dispatch or thread exit;
+    /// owner-bound work should use [`from_weak_fn`](Self::from_weak_fn).
+    pub fn schedule_in(self, phase: &'static ReactionPhase) {
         Globals::schedule_reaction(phase, self)
     }
-    /// Schedules this reaction with the default phase.
-    ///
-    /// # Panics
-    ///
-    /// Panics if a [`Runtime`] exists and the default [`ReactionPhase`] is not valid according to
-    /// its [`RuntimeConfig`].
+    /// Queues this reaction in the shared default phase.
     pub fn schedule(self) {
-        self.schedule_in(ReactionPhase::default());
+        self.schedule_in(ReactionPhase::DEFAULT);
     }
     fn run(self, rc: &mut ReactionContext<'_, '_>) {
         match self.0 {
@@ -1601,40 +1759,6 @@ enum RawReaction {
         #[allow(clippy::type_complexity)]
         f: Box<dyn Fn(Weak<dyn Any>, &mut ReactionContext<'_, '_>)>,
     },
-}
-
-/// Phase of reactions performed by the reactive runtime.
-#[derive(Clone, Copy, Debug, Ex)]
-#[derive_ex(PartialEq, Eq, Hash)]
-#[repr(transparent)]
-#[derive(Default)]
-pub struct ReactionPhase(i8);
-impl ReactionPhase {
-    pub const fn new(id: i8) -> Self {
-        Self(id)
-    }
-}
-impl std::fmt::Display for ReactionPhase {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-/// Phase of actions performed by the reactive runtime.
-#[derive(Clone, Copy, Debug, Ex)]
-#[derive_ex(PartialEq, Eq, Hash)]
-#[repr(transparent)]
-#[derive(Default)]
-pub struct ActionPhase(i8);
-impl ActionPhase {
-    pub const fn new(id: i8) -> Self {
-        Self(id)
-    }
-}
-impl std::fmt::Display for ActionPhase {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
 }
 
 #[cfg(test)]

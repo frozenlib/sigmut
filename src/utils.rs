@@ -5,8 +5,6 @@ use std::{
     ops::{Bound, Range, RangeBounds},
 };
 
-pub(crate) mod buckets;
-pub(crate) mod isize_map;
 pub mod sync;
 
 #[cfg(test)]
