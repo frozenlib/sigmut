@@ -17,6 +17,9 @@ use crate::{
 
 use super::SignalNode;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn build_scan_async<St, T, Fut>(
     initial_state: St,
     get_fut: impl Fn(AsyncSignalContext) -> Fut + 'static,
@@ -79,33 +82,30 @@ where
             return;
         }
         self.try_schedule_discard(rc);
-        let mut future;
-        let mut data = self.data.borrow_mut();
-        future = data.fut.take();
-        let mut is_dirty = data.asb.check(rc);
-        if is_dirty {
-            drop(data);
-            drop(future);
-            data = self.data.borrow_mut();
-            future = Some(Box::pin(data.asb.init(&self.get_fut, rc)));
-        }
-        let Some(fut) = future.as_mut() else {
-            return;
+        let is_dirty = {
+            let data = &mut *self.data.borrow_mut();
+            // Restore only Pending futures, before invoking the scan callback.
+            let mut future = data.fut.take();
+            let mut is_dirty = data.asb.check(rc);
+            if is_dirty {
+                drop(future.take());
+                future = Some(Box::pin(data.asb.init(&self.get_fut, rc)));
+            }
+            let Some(fut) = future.as_mut() else {
+                return;
+            };
+            let value = data.asb.poll(fut.as_mut(), rc);
+            if value.is_ready() {
+                is_dirty = true;
+            } else {
+                data.fut = future.take();
+            }
+            if is_dirty {
+                (data.scan)(&mut data.state, value)
+            } else {
+                false
+            }
         };
-        let value = data.asb.poll(fut.as_mut(), rc);
-        if value.is_ready() {
-            is_dirty = true;
-        } else {
-            data.fut = future.take();
-        }
-        let is_dirty = if is_dirty {
-            let ScanAsyncNodeData { scan, state, .. } = &mut *data;
-            (scan)(state, value)
-        } else {
-            false
-        };
-        drop(data);
-        drop(future);
         if is_dirty {
             self.sinks.borrow_mut().update(true, rc);
         }

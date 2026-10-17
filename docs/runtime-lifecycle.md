@@ -104,8 +104,15 @@ AsyncSourceBinder が発行する AsyncSignalContext は同時に 1 つだけと
 再初期化前に旧 context、またはそれを保持する Future を破棄する。
 poll_fn の待機 Waker はこの排他性の下で内部 borrow 中に更新・破棄できる。
 
-effect_async / Signal 保持 Future の完了・差し替え・discard で内部が Future を破棄するときは、
-ノードのデータ borrow を外す。ユーザー callback / poll 自身の実行中は既存の循環依存検出が適用される。
+effect_async / from_async は poll 前に Future をノードから取り出し、Pending のときだけ戻す。
+poll が panic した Future は破棄し、再 poll しない。from_async は scan 前に Pending Future を戻すため、
+scan の panic では Pending Future を保持し、完了 Future は破棄する。
+差し替えでは旧 Future の破棄後に init する。完了時は scan、完了資源の破棄、sink 更新の順序を保つ。
+
+これらの Future、終了 Stream、scan の capture、内部 Waker はノードのデータ borrow 中に破棄できる。
+更新中の Runtime は Runtime::call で再取得できず、読み取りに使った context channel への再入も
+channel の borrow 検査で拒否される。Drop から Reaction を予約することはできるが、
+同じノードを同期的に再評価する保証はない。ユーザー callback / poll 中の循環依存検出も維持する。
 
 ## 永続 bridge と外部資源
 

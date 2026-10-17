@@ -74,29 +74,23 @@ where
             .schedule_in(self.phase)
     }
     fn call(self: &Rc<Self>, rc: &mut ReactionContext) {
-        // Declare the detached future before the borrow so unwind also drops
-        // the borrow first. Pins stay attached to their heap allocation.
-        let mut future;
-        let mut data = self.data.borrow_mut();
+        let data = &mut *self.data.borrow_mut();
         if data.asb.is_clean() {
             return;
         }
-        future = data.fut.take();
+        // A panicking poll must not leave its future available for another poll.
+        let mut future = data.fut.take();
         if data.asb.check(rc) {
-            drop(data);
-            drop(future);
-            data = self.data.borrow_mut();
-            let EffectAsyncData { asb, get_fut, .. } = &mut *data;
+            drop(future.take());
+            let EffectAsyncData { asb, get_fut, .. } = data;
             future = Some(Box::pin(asb.init(get_fut, rc)));
         }
         let complete = future
             .as_mut()
             .is_some_and(|future| data.asb.poll(future.as_mut(), rc).is_ready());
         if !complete {
-            data.fut = future.take();
+            data.fut = future;
         }
-        drop(data);
-        drop(future);
     }
 }
 impl<F, Fut> BindSink for EffectAsyncNode<F, Fut>

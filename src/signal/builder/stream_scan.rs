@@ -137,27 +137,26 @@ where
         if !rc.can_poll() || !rc.borrow(&self.data).is_wake() {
             return;
         }
-        let mut completed = None;
-        let mut data = self.data.borrow_mut();
-        let d = &mut *data;
-        let t = d.reaction.as_mut().unwrap();
-        let mut is_dirty = false;
-        if let Poll::Ready(item) = t
-            .stream
-            .as_mut()
-            .poll_next(&mut Context::from_waker(&t.waker))
-        {
-            let is_end = item.is_none();
-            is_dirty = (t.scan)(&mut d.state, item);
-            if is_end {
-                completed = d.reaction.take();
+        let is_dirty = {
+            let d = &mut *self.data.borrow_mut();
+            let t = d.reaction.as_mut().unwrap();
+            let mut is_dirty = false;
+            if let Poll::Ready(item) = t
+                .stream
+                .as_mut()
+                .poll_next(&mut Context::from_waker(&t.waker))
+            {
+                let is_end = item.is_none();
+                is_dirty = (t.scan)(&mut d.state, item);
+                if is_end {
+                    d.reaction.take();
+                }
             }
-        }
-        if let Some(t) = d.reaction.as_mut() {
-            t.is_wake = false;
-        }
-        drop(data);
-        drop(completed);
+            if let Some(t) = d.reaction.as_mut() {
+                t.is_wake = false;
+            }
+            is_dirty
+        };
         self.sinks.borrow_mut().update(is_dirty, rc);
     }
 }
