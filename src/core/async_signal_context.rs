@@ -48,7 +48,6 @@ impl AsyncSignalContext {
     /// Only the dependencies recorded in `SingalContext` in the last call of `f` are added to `AsyncSignalContext` dependencies.
     pub async fn poll_fn<T>(&mut self, f: impl Fn(&mut SignalContext<'_, '_>) -> Poll<T>) -> T {
         poll_fn(|cx| {
-            let mut waker = Some(cx.waker().clone());
             let (ret, previous) = self
                 .0
                 .context
@@ -63,7 +62,7 @@ impl AsyncSignalContext {
                     }
                     let previous = std::mem::replace(
                         &mut s.poll_waker,
-                        if ret.is_pending() { waker.take() } else { None },
+                        ret.is_pending().then(|| cx.waker().clone()),
                     );
                     (ret, previous)
                 })

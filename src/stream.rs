@@ -62,14 +62,13 @@ where
     type Item = T;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let waker = cx.waker().clone();
         let mut d = self.0.0.borrow_mut();
         let previous = take(&mut d.value);
         if let ValueState::Ready(value) = previous {
             drop(d);
             return Poll::Ready(Some(value));
         }
-        d.value = ValueState::Pending(waker);
+        d.value = ValueState::Pending(cx.waker().clone());
         let schedule = !d.sb.is_clean() && !replace(&mut d.is_scheduled, true);
         drop(d);
         drop(previous);

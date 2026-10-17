@@ -47,26 +47,20 @@ impl<T: Clone> Receiver<T> {
     pub async fn recv(&self) -> T {
         let mut key = WakerKeyGuard::new(self);
         poll_fn(|cx| {
-            let waker = cx.waker().clone();
-            let (value, previous) = {
+            let previous = {
                 let mut d = self.0.lock().unwrap();
                 if let Some(value) = &d.value {
-                    (Some(value.clone()), Some(waker))
+                    return Poll::Ready(value.clone());
+                }
+                if let Some(key) = key.key {
+                    Some(replace(&mut d.waker[key], cx.waker().clone()))
                 } else {
-                    let previous = if let Some(key) = key.key {
-                        Some(replace(&mut d.waker[key], waker))
-                    } else {
-                        key.key = Some(d.waker.insert(waker));
-                        None
-                    };
-                    (None, previous)
+                    key.key = Some(d.waker.insert(cx.waker().clone()));
+                    None
                 }
             };
             drop(previous);
-            match value {
-                Some(value) => Poll::Ready(value),
-                None => Poll::Pending,
-            }
+            Poll::Pending
         })
         .await
     }

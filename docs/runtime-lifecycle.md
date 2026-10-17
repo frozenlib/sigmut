@@ -96,7 +96,8 @@ capture の破棄による既存 channel の取消し通知を妨げない。
 持続 Stream / Future が対応 phase 待ちで Pending であることは Action の取消しとは異なる。
 rt-local の Task API や戻り値は変更しない。
 
-Waker の clone / wake / Drop は scheduler の TLS borrow / wake request Mutex の外で行う。
+Waker の clone は内部 borrow / Mutex 内で行える前提とする。
+wake / Drop は scheduler の TLS borrow / wake request Mutex の外で行う。
 driver への通知、oneshot の通知・Waker 差し替え・登録解除、stream の待機 Waker も同様。
 effect_async / Signal 保持 Future の完了・差し替え・discard で内部が Future を破棄するときは、
 ノードのデータ borrow を外す。ユーザー callback / poll 自身の実行中は既存の循環依存検出が適用される。

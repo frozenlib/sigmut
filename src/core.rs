@@ -277,19 +277,13 @@ impl Globals {
                 || !requests.wakes.is_empty())
     }
     fn wait_for_ready(waker: &Waker) -> Poll<()> {
-        // Clone before entering either the TLS borrow or the request mutex.
-        let mut waker = Some(waker.clone());
         let (result, previous) = Self::with(|g| {
             g.apply_wake();
             let mut requests = g.wakes.requests.0.lock().unwrap();
             let ready = g.has_ready_work(&requests);
             let previous = replace(
                 &mut requests.waker,
-                if !g.closing && !ready {
-                    waker.take()
-                } else {
-                    None
-                },
+                (!g.closing && !ready).then(|| waker.clone()),
             );
             (
                 if ready {
