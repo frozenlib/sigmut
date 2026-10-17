@@ -48,8 +48,7 @@ impl AsyncSignalContext {
     /// Only the dependencies recorded in `SingalContext` in the last call of `f` are added to `AsyncSignalContext` dependencies.
     pub async fn poll_fn<T>(&mut self, f: impl Fn(&mut SignalContext<'_, '_>) -> Poll<T>) -> T {
         poll_fn(|cx| {
-            let (ret, previous) = self
-                .0
+            self.0
                 .context
                 .try_with(|context| {
                     let s = &mut *self.0.s.borrow_mut();
@@ -59,16 +58,15 @@ impl AsyncSignalContext {
                         .update(sink, SLOT_POLL, true, &f, context.rc());
                     if ret.is_ready() {
                         context.extend(&mut s.poll_bindings);
+                        s.poll_waker = None;
+                    } else if let Some(waker) = &mut s.poll_waker {
+                        waker.clone_from(cx.waker());
+                    } else {
+                        s.poll_waker = Some(cx.waker().clone());
                     }
-                    let previous = std::mem::replace(
-                        &mut s.poll_waker,
-                        ret.is_pending().then(|| cx.waker().clone()),
-                    );
-                    (ret, previous)
+                    ret
                 })
-                .expect("`SignalContext` cannot be used after being moved.");
-            drop(previous);
-            ret
+                .expect("`SignalContext` cannot be used after being moved.")
         })
         .await
     }
@@ -85,6 +83,12 @@ impl AsyncSignalContextSource {
         }))
     }
     pub fn sc(&self) -> AsyncSignalContext {
+        // Only this source and its issued context own the shared data.
+        assert_eq!(
+            Rc::strong_count(&self.0),
+            1,
+            "an AsyncSignalContext from this binder is already alive"
+        );
         AsyncSignalContext(self.0.clone())
     }
     pub fn with<T>(&self, sc: &mut SignalContext<'_, '_>, f: impl FnOnce() -> T) -> T {
@@ -115,14 +119,23 @@ impl AsyncSourceBinder {
     pub fn check(&mut self, rc: &mut ReactionContext<'_, '_>) -> bool {
         self.sources.check_with(&mut self.dirty, rc)
     }
+
+    /// Initializes a computation with this binder's [`AsyncSignalContext`].
+    ///
+    /// Drop the previous context, or the future owning it, before initializing
+    /// another computation. Each binder may have only one live context.
+    ///
+    /// # Panics
+    ///
+    /// Panics if a context issued by this binder is still alive.
     pub fn init<T>(
         &mut self,
         f: impl FnOnce(AsyncSignalContext) -> T,
         rc: &mut ReactionContext<'_, '_>,
     ) -> T {
+        let asc = self.sc.sc();
         self.dirty = Dirty::Clean;
         self.is_wake = true;
-        let asc = self.sc.sc();
         let sink = self.sc.0.sink.clone();
         self.sources
             .update(sink, SLOT_DEPS, true, |sc| self.sc.with(sc, || f(asc)), rc)

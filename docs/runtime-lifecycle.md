@@ -99,6 +99,11 @@ rt-local の Task API や戻り値は変更しない。
 Waker の clone は内部 borrow / Mutex 内で行える前提とする。
 wake / Drop は scheduler の TLS borrow / wake request Mutex の外で行う。
 driver への通知、oneshot の通知・Waker 差し替え・登録解除、stream の待機 Waker も同様。
+
+AsyncSourceBinder が発行する AsyncSignalContext は同時に 1 つだけとし、
+再初期化前に旧 context、またはそれを保持する Future を破棄する。
+poll_fn の待機 Waker はこの排他性の下で内部 borrow 中に更新・破棄できる。
+
 effect_async / Signal 保持 Future の完了・差し替え・discard で内部が Future を破棄するときは、
 ノードのデータ borrow を外す。ユーザー callback / poll 自身の実行中は既存の循環依存検出が適用される。
 
