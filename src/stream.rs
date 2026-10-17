@@ -65,12 +65,9 @@ where
         let waker = cx.waker().clone();
         let mut d = self.0.0.borrow_mut();
         let previous = take(&mut d.value);
-        if matches!(previous, ValueState::Ready(_)) {
+        if let ValueState::Ready(value) = previous {
             drop(d);
-            if let ValueState::Ready(value) = previous {
-                return Poll::Ready(Some(value));
-            }
-            unreachable!();
+            return Poll::Ready(Some(value));
         }
         d.value = ValueState::Pending(waker);
         let schedule = !d.sb.is_clean() && !replace(&mut d.is_scheduled, true);

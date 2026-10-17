@@ -347,6 +347,8 @@ fn closing_cancels_actions_without_polling_and_keeps_binding() {
     runtime
         .ac()
         .start_async_inline_in(&OTHER, async |_| panic!("Closing polled inline"));
+    assert!(!runtime.dispatch_action(&OTHER));
+    assert!(!runtime.dispatch_actions(&OTHER));
     let reactions = Rc::new(Cell::new(0));
     Reaction::new({
         let reactions = reactions.clone();
@@ -399,6 +401,41 @@ impl Drop for DuringDrop {
     fn drop(&mut self) {
         self.0.take().unwrap()();
     }
+}
+
+#[rstest::rstest]
+fn rejected_action_captures_drop_outside_scheduler_borrow(
+    #[values("absent", "running", "closing")] status: &str,
+) {
+    let mut runtime = if status == "absent" {
+        None
+    } else {
+        Some(Runtime::new())
+    };
+    if status == "closing" {
+        runtime.as_mut().unwrap().begin_shutdown();
+    }
+    let calls = Rc::new(RefCell::new(Vec::new()));
+    let guard = DuringDrop(Some(Box::new({
+        let calls = calls.clone();
+        move || {
+            calls.borrow_mut().push("drop");
+            Reaction::new(move |_| calls.borrow_mut().push("reaction")).schedule();
+        }
+    })));
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        Action::new(move |_| {
+            let _guard = guard;
+            panic!("rejected Action ran");
+        })
+        .schedule_in(&OTHER);
+    }));
+    assert_eq!(result.is_err(), status != "closing");
+    assert_eq!(*calls.borrow(), ["drop"]);
+    drop(runtime);
+    let mut next = Runtime::new();
+    next.flush();
+    assert_eq!(*calls.borrow(), ["drop", "reaction"]);
 }
 
 #[test]
@@ -544,9 +581,10 @@ impl Wake for CountWake {
 
 #[test]
 fn cancelled_action_wake_does_not_wake_next_driver() {
-    let mut first = Runtime::new();
+    let mut first =
+        Runtime::new_with_config(RuntimeConfig::default().with_action_phases([&COMMAND, &OTHER]));
     let old_wake = Rc::new(RefCell::new(None));
-    first.ac().start_async_inline({
+    first.ac().start_async_inline_in(&COMMAND, {
         let old_wake = old_wake.clone();
         async move |_| {
             poll_fn(|cx| {
@@ -559,9 +597,10 @@ fn cancelled_action_wake_does_not_wake_next_driver() {
     // Leave a queued request while cancellation retires the registration.
     old_wake.borrow().as_ref().unwrap().wake_by_ref();
     drop(first);
-    let mut second = Runtime::new();
+    let mut second =
+        Runtime::new_with_config(RuntimeConfig::default().with_action_phases([&OTHER, &COMMAND]));
     let polls = Rc::new(Cell::new(0));
-    second.ac().start_async_inline({
+    second.ac().start_async_inline_in(&OTHER, {
         let polls = polls.clone();
         async move |_| {
             poll_fn(|_| {

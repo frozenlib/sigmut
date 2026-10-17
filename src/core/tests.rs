@@ -189,10 +189,15 @@ fn runtime_config_remains_active_during_runtime_call() {
     assert!(!rt.dispatch_action(phase));
 }
 
-#[test]
-fn runtime_config_applies_when_an_async_action_wakes() {
+#[rstest::rstest]
+fn runtime_config_applies_when_an_async_action_wakes(#[values(false, true)] reverse: bool) {
     let phase = &ACTION_ONE;
-    let mut rt = Runtime::new_with_config(RuntimeConfig::default().with_action_phases([phase]));
+    let phases = if reverse {
+        [&ACTION_TWO, phase]
+    } else {
+        [phase, &ACTION_TWO]
+    };
+    let mut rt = Runtime::new_with_config(RuntimeConfig::default().with_action_phases(phases));
     let (sender, receiver) = oneshot_broadcast();
     let called = Rc::new(Cell::new(false));
     spawn_action_async_in(phase, {
@@ -206,6 +211,8 @@ fn runtime_config_applies_when_an_async_action_wakes() {
     assert!(rt.dispatch_action(phase));
     assert!(!called.get());
     sender.send(());
+    assert!(!rt.dispatch_action(&ACTION_TWO));
+    assert!(!called.get());
     assert!(rt.dispatch_action(phase));
     assert!(called.get());
 }

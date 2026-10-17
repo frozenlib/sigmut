@@ -116,16 +116,20 @@ impl Globals {
     fn is_running() -> bool {
         Self::with(|g| g.runtime_config.is_some() && !g.closing)
     }
-    fn assert_valid_action_phase(phase: &'static ActionPhase) {
-        Self::with(|g| {
-            let config = g
-                .runtime_config
-                .as_ref()
-                .expect("Action requires a Runtime");
-            if !g.closing {
-                config.assert_valid_action_phase(phase);
-            }
-        });
+    fn action_phase_index(&self, phase: &'static ActionPhase) -> Option<usize> {
+        let config = self
+            .runtime_config
+            .as_ref()
+            .expect("Action requires a Runtime");
+        if self.closing {
+            return None;
+        }
+        Some(
+            config
+                .action_phases
+                .index(phase.id())
+                .expect("unsupported ActionPhase"),
+        )
     }
     fn assert_valid_reaction_phase(phase: &'static ReactionPhase) {
         Self::with(|g| {
@@ -154,17 +158,9 @@ impl Globals {
     }
     fn schedule_action(phase: &'static ActionPhase, action: Action) {
         // Keep rejected captures outside the TLS borrow, including during panic.
-        Self::assert_valid_action_phase(phase);
         let mut action = Some(action);
         Self::with(|g| {
-            if !g.closing {
-                let index = g
-                    .runtime_config
-                    .as_ref()
-                    .unwrap()
-                    .action_phases
-                    .index(phase.id())
-                    .unwrap();
+            if let Some(index) = g.action_phase_index(phase) {
                 g.actions[index].push_back(action.take().unwrap());
                 g.wake();
             }
@@ -200,17 +196,8 @@ impl Globals {
     }
     fn get_action(phase: &'static ActionPhase) -> Option<Action> {
         Self::with(|g| {
-            if g.closing {
-                return None;
-            }
+            let index = g.action_phase_index(phase)?;
             g.apply_wake();
-            let index = g
-                .runtime_config
-                .as_ref()
-                .unwrap()
-                .action_phases
-                .index(phase.id())
-                .unwrap();
             g.actions[index].pop_front()
         })
     }
@@ -222,6 +209,7 @@ impl Globals {
             if g.closing {
                 return false;
             }
+            let index = phase.map(|phase| g.action_phase_index(phase).unwrap());
             g.apply_wake();
             let mut add = |index: usize| {
                 let count = g.actions[index].len();
@@ -229,14 +217,8 @@ impl Globals {
                     batch.push((index, count));
                 }
             };
-            if let Some(phase) = phase {
-                add(g
-                    .runtime_config
-                    .as_ref()
-                    .unwrap()
-                    .action_phases
-                    .index(phase.id())
-                    .unwrap());
+            if let Some(index) = index {
+                add(index);
             } else {
                 for index in 0..g.actions.len() {
                     add(index);
@@ -274,16 +256,11 @@ impl Globals {
             }
             match self.wakes.reactions.get(key) {
                 Some(WakeReaction::Notify(reaction)) => self.notifys.push(reaction.clone()),
-                Some(WakeReaction::AsyncAction { action, phase }) if !self.closing => {
-                    if let Some(index) = self
-                        .runtime_config
-                        .as_ref()
-                        .and_then(|c| c.action_phases.index(phase.id()))
-                        && action.strong_count() != 0
-                    {
-                        self.actions[index]
-                            .push_back(Action::from_weak_fn(action.clone(), AsyncAction::next));
-                    }
+                Some(WakeReaction::AsyncAction { action, index })
+                    if !self.closing && action.strong_count() != 0 =>
+                {
+                    self.actions[*index]
+                        .push_back(Action::from_weak_fn(action.clone(), AsyncAction::next));
                 }
                 _ => {}
             }
@@ -399,12 +376,6 @@ impl RuntimeConfig {
         self.reaction_phases = PhaseOrder::new(phases.into_iter().map(ReactionPhase::id));
         self
     }
-    fn assert_valid_action_phase(&self, phase: &'static ActionPhase) {
-        assert!(
-            self.action_phases.index(phase.id()).is_some(),
-            "unsupported ActionPhase"
-        );
-    }
     fn assert_valid_reaction_phase(&self, phase: &'static ReactionPhase) {
         assert!(
             self.reaction_phases.index(phase.id()).is_some(),
@@ -517,7 +488,6 @@ impl Runtime {
     ///
     /// Panics if `phase` is not valid according to the runtime's [`RuntimeConfig`].
     pub fn dispatch_action(&mut self, phase: &'static ActionPhase) -> bool {
-        Globals::assert_valid_action_phase(phase);
         self.as_raw().dispatch_action(phase)
     }
 
@@ -532,7 +502,6 @@ impl Runtime {
     ///
     /// Panics if `phase` is not valid according to the runtime's [`RuntimeConfig`].
     pub fn dispatch_actions(&mut self, phase: &'static ActionPhase) -> bool {
-        Globals::assert_valid_action_phase(phase);
         self.as_raw().dispatch_actions_with(Some(phase))
     }
 
@@ -1445,10 +1414,9 @@ impl AsyncAction {
     ) where
         Fut: Future<Output = ()> + 'static,
     {
-        Globals::assert_valid_action_phase(phase);
-        if !Globals::is_running() {
+        let Some(index) = Globals::with(|g| g.action_phase_index(phase)) else {
             return;
-        }
+        };
         let aac_source = AsyncActionContextSource::new();
         let aac = aac_source.context();
         let future = aac_source.call(ac, || f(aac));
@@ -1459,7 +1427,7 @@ impl AsyncAction {
         let id = ac.0.rt.async_actions.insert(action.clone());
         let wake = WakeReaction::AsyncAction {
             action: Rc::downgrade(&action),
-            phase,
+            index,
         }
         .into_raw_wake();
         *action.data.borrow_mut() = Some(AsyncActionData {
@@ -1538,7 +1506,8 @@ enum WakeReaction {
     Notify(NotifyReaction),
     AsyncAction {
         action: Weak<AsyncAction>,
-        phase: &'static ActionPhase,
+        // Cancellation invalidates this wake before another session can reuse the index.
+        index: usize,
     },
 }
 impl WakeReaction {
