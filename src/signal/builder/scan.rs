@@ -130,32 +130,29 @@ where
     }
 
     fn build(self) -> Signal<Self::State> {
-        Signal::from_node(Rc::new_cyclic(|this| ScanNode {
-            bindings: ScanBindings {
-                sinks: RefCell::new(SinkBindings::new()),
-            },
-            data: RefCell::new(ScanNodeData {
-                state: self.initial_state,
-                scan: self.scan,
-                sb: SourceBinder::new(this, Slot(0)),
-            }),
-            discard: self.discard,
-            discard_scheduled: Default::default(),
-            map: self.map,
-        }))
+        let mut scan = self.scan;
+        Signal::from_node(ScanNode::new(
+            self.initial_state,
+            Box::new(move |st, sc| scan.call(st, sc)),
+            Scan::FILTER,
+            self.discard,
+            self.map,
+        ))
     }
 }
 
-struct ScanNodeData<St, Scan> {
+type ScanCallback<St> = Box<dyn FnMut(&mut St, &mut SignalContext<'_, '_>) -> bool>;
+
+struct ScanNodeData<St> {
     state: St,
-    scan: Scan,
+    scan: ScanCallback<St>,
     sb: SourceBinder,
 }
 
-impl<St, Scan: ScanFn<St>> ScanNodeData<St, Scan> {
+impl<St> ScanNodeData<St> {
     fn update(&mut self, rc: &mut ReactionContext<'_, '_>) -> bool {
         if self.sb.check(rc) {
-            self.sb.update(|sc| self.scan.call(&mut self.state, sc), rc)
+            self.sb.update(|sc| (self.scan)(&mut self.state, sc), rc)
         } else {
             false
         }
@@ -208,20 +205,20 @@ impl ScanBindings {
     }
 }
 
-struct ScanNode<St, Scan, D, M>
+struct ScanNode<St, D, M>
 where
     D: DiscardFn<St>,
 {
     bindings: ScanBindings,
-    data: RefCell<ScanNodeData<St, Scan>>,
+    data: RefCell<ScanNodeData<St>>,
+    filter: bool,
     discard: D,
     discard_scheduled: D::ScheduledCell,
     map: M,
 }
-impl<St, Scan, D, M> SignalNode for ScanNode<St, Scan, D, M>
+impl<St, D, M> SignalNode for ScanNode<St, D, M>
 where
     St: 'static,
-    Scan: ScanFn<St> + 'static,
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
@@ -245,10 +242,9 @@ where
         write!(f, "<scan>")
     }
 }
-impl<St, Scan, D, M> BindSource for ScanNode<St, Scan, D, M>
+impl<St, D, M> BindSource for ScanNode<St, D, M>
 where
     St: 'static,
-    Scan: ScanFn<St> + 'static,
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
@@ -266,28 +262,50 @@ where
         self.try_schedule_discard(sc.rc());
     }
 }
-impl<St, Scan, D, M> BindSink for ScanNode<St, Scan, D, M>
+impl<St, D, M> BindSink for ScanNode<St, D, M>
 where
     St: 'static,
-    Scan: ScanFn<St> + 'static,
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
     fn notify(self: Rc<Self>, slot: Slot, level: DirtyLevel, nc: &mut NotifyContext) {
         // Release the data borrow before notifying dependants.
         if self.data.borrow_mut().sb.on_notify(slot, level) {
-            self.bindings.notify(level, Scan::FILTER, nc);
+            self.bindings.notify(level, self.filter, nc);
         }
     }
 }
 
-impl<St, Scan, D, M> ScanNode<St, Scan, D, M>
+impl<St, D, M> ScanNode<St, D, M>
 where
     St: 'static,
-    Scan: ScanFn<St> + 'static,
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
+    fn new(
+        initial_state: St,
+        scan: ScanCallback<St>,
+        filter: bool,
+        discard: D,
+        map: M,
+    ) -> Rc<Self> {
+        // Keep the cyclic constructor independent of the concrete scan callback.
+        Rc::new_cyclic(|this| Self {
+            bindings: ScanBindings {
+                sinks: RefCell::new(SinkBindings::new()),
+            },
+            data: RefCell::new(ScanNodeData {
+                state: initial_state,
+                scan,
+                sb: SourceBinder::new(this, Slot(0)),
+            }),
+            filter,
+            discard,
+            discard_scheduled: Default::default(),
+            map,
+        })
+    }
+
     fn update(self: &Rc<Self>, rc: &mut ReactionContext<'_, '_>) {
         if rc.borrow(&self.data).sb.is_clean() {
             return;
@@ -309,10 +327,9 @@ where
     }
 }
 
-impl<St, Scan, D, M> DiscardReaction for ScanNode<St, Scan, D, M>
+impl<St, D, M> DiscardReaction for ScanNode<St, D, M>
 where
     St: 'static,
-    Scan: ScanFn<St> + 'static,
     D: DiscardFn<St> + 'static,
     M: MapFn<St> + 'static,
 {
