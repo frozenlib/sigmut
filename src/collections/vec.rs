@@ -19,7 +19,7 @@ use crate::{
         ChangeFeedDelta, ChangeFeedModel, ChangeFeedReader, ChangeFeedRef, ChangeFeedRefMut,
         ChangeFeedSignal, ChangeFeedState,
     },
-    utils::{IndexNewToOld, is_sorted, to_range},
+    utils::{IndexNewToOld, IndexNewToOldBuf, to_range},
 };
 
 #[derive(Ex)]
@@ -447,10 +447,11 @@ impl<T: 'static> VecRefMut<'_, T> {
     {
         self.sort_by(|a, b| a.cmp(b))
     }
-    pub fn sort_by(&mut self, compare: impl FnMut(&T, &T) -> Ordering) {
-        if let Some(change) = self.data.sort_as(compare, true) {
-            self.data.record(change);
-        }
+    pub fn sort_by(&mut self, mut compare: impl FnMut(&T, &T) -> Ordering) {
+        let order = IndexNewToOld::from_sort_by(&self.data.items, |&a, &b| {
+            compare(&self.data.values[a], &self.data.values[b])
+        });
+        self.reorder_owned(order);
     }
     pub fn sort_by_key<K: Ord>(&mut self, mut key: impl FnMut(&T) -> K) {
         self.sort_by(|a, b| key(a).cmp(&key(b)))
@@ -462,14 +463,49 @@ impl<T: 'static> VecRefMut<'_, T> {
     {
         self.sort_unstable_by(|a, b| a.cmp(b))
     }
-    pub fn sort_unstable_by(&mut self, compare: impl FnMut(&T, &T) -> Ordering) {
-        if let Some(change) = self.data.sort_as(compare, false) {
-            self.data.record(change);
-        }
+    pub fn sort_unstable_by(&mut self, mut compare: impl FnMut(&T, &T) -> Ordering) {
+        let order = IndexNewToOld::from_sort_unstable_by(&self.data.items, |&a, &b| {
+            compare(&self.data.values[a], &self.data.values[b])
+        });
+        self.reorder_owned(order);
     }
     pub fn sort_unstable_by_key<K: Ord>(&mut self, mut key: impl FnMut(&T) -> K) {
         self.sort_unstable_by(|a, b| key(a).cmp(&key(b)))
     }
+
+    /// Reorders the current items according to `order` and records a [`VecChange::Reorder`].
+    ///
+    /// Indices refer to the positions immediately before this call. An identity permutation
+    /// leaves the items unchanged and records no change.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use sigmut::{collections::vec::StateVec, core::Runtime, utils::IndexNewToOld};
+    ///
+    /// let mut rt = Runtime::new();
+    /// let values: StateVec<_> = ["a", "b", "c"].into_iter().collect();
+    /// let order = IndexNewToOld::from_sort(&[30, 10, 20]);
+    /// values.borrow_mut(rt.ac()).reorder(&order);
+    /// assert_eq!(values.borrow(&mut rt.sc()), ["b", "c", "a"]);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics before changing any items if the lengths differ, an index is out of bounds,
+    /// or an index occurs more than once.
+    pub fn reorder(&mut self, order: &IndexNewToOld) {
+        self.reorder_owned(order.to_owned());
+    }
+
+    fn reorder_owned(&mut self, order: IndexNewToOldBuf) {
+        if order.as_slice().iter().copied().eq(0..self.len()) {
+            return;
+        }
+        order.apply_to(&mut self.data.items);
+        self.data.record(ChangeData::Reorder { new_to_old: order });
+    }
+
     pub fn drain(&mut self, range: impl RangeBounds<usize>) {
         let range = to_range(range, self.len());
         for index in (range.start..range.end).rev() {
@@ -633,7 +669,8 @@ pub enum VecChange<'a, T: ?Sized> {
     Swap {
         index: (usize, usize),
     },
-    Sort(&'a IndexNewToOld),
+    /// Reorders the items present immediately before this change.
+    Reorder(&'a IndexNewToOld),
 }
 
 #[derive(Debug)]
@@ -658,8 +695,8 @@ enum ChangeData {
     Swap {
         index: (usize, usize),
     },
-    Sort {
-        new_to_old: Vec<usize>,
+    Reorder {
+        new_to_old: IndexNewToOldBuf,
     },
 }
 
@@ -691,7 +728,7 @@ impl ChangeData {
                 new_index,
             },
             &ChangeData::Swap { index } => VecChange::Swap { index },
-            ChangeData::Sort { new_to_old } => VecChange::Sort(IndexNewToOld::new(new_to_old)),
+            ChangeData::Reorder { new_to_old } => VecChange::Reorder(new_to_old),
         }
     }
 }
@@ -813,26 +850,6 @@ impl<T: 'static> VecModel<T> {
     fn get(&self, index: usize) -> Option<&T> {
         Some(&self.values[*self.items.get(index)?])
     }
-    fn sort_as(
-        &mut self,
-        mut compare: impl FnMut(&T, &T) -> Ordering,
-        stable: bool,
-    ) -> Option<ChangeData> {
-        let mut new_to_old: Vec<_> = (0..self.items.len()).collect();
-        let compare = |&i0: &usize, &i1: &usize| {
-            compare(&self.values[self.items[i0]], &self.values[self.items[i1]])
-        };
-        if stable {
-            new_to_old.sort_unstable_by(compare);
-        } else {
-            new_to_old.sort_by(compare);
-        }
-        if is_sorted(&new_to_old) {
-            return None;
-        }
-        IndexNewToOld::new(&new_to_old).apply_to(&mut self.items);
-        Some(ChangeData::Sort { new_to_old })
-    }
     fn iter(&self) -> Iter<'_, T> {
         Iter::new(IterSource::Model(self))
     }
@@ -849,7 +866,7 @@ impl<T: 'static> ChangeFeedModel for VecModel<T> {
             ChangeData::Insert { .. }
             | ChangeData::Move { .. }
             | ChangeData::Swap { .. }
-            | ChangeData::Sort { .. } => {}
+            | ChangeData::Reorder { .. } => {}
         }
     }
 }

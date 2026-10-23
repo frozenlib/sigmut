@@ -494,7 +494,7 @@ fn sort_and_drain_delta() {
     {
         let items = reader.read(&mut rt.sc());
         let actual: Vec<_> = items.delta().collect();
-        let expected = vec![VecChange::Sort(IndexNewToOld::new(&[1, 2, 0]))];
+        let expected = vec![VecChange::Reorder(IndexNewToOld::new(&[1, 2, 0]))];
         assert_eq!(actual, expected);
     }
 
@@ -528,6 +528,176 @@ fn sort_and_drain_delta() {
         ];
         assert_eq!(actual, expected);
     }
+}
+
+#[rstest::rstest]
+#[case::sort(|items: &mut VecRefMut<'_, usize>| items.sort())]
+#[case::sort_by(|items: &mut VecRefMut<'_, usize>| items.sort_by(Ord::cmp))]
+#[case::sort_by_key(|items: &mut VecRefMut<'_, usize>| items.sort_by_key(|value| *value))]
+fn stable_sort_records_stable_permutation(#[case] sort: fn(&mut VecRefMut<'_, usize>)) {
+    let mut rt = Runtime::new();
+    let vec: StateVec<_> = (0..128).map(|index| index % 4).collect();
+    let mut reader = vec.reader();
+    let _ = reader.read(&mut rt.sc());
+
+    sort(&mut vec.borrow_mut(rt.ac()));
+
+    let expected: Vec<_> = (0..4)
+        .flat_map(|key| (0..128).filter(move |index| index % 4 == key))
+        .collect();
+    let items = reader.read(&mut rt.sc());
+    assert_eq!(
+        items.delta().collect::<Vec<_>>(),
+        vec![VecChange::Reorder(IndexNewToOld::new(&expected))]
+    );
+}
+
+#[test]
+fn reorder_records_changes_relative_to_each_current_order() {
+    let mut rt = Runtime::new();
+    let vec: StateVec<_> = ["a", "b", "c"].into_iter().collect();
+    let mut reader = vec.reader();
+    let _ = reader.read(&mut rt.sc());
+
+    {
+        let mut items = vec.borrow_mut(rt.ac());
+        items.insert(1, "x");
+        let order = IndexNewToOld::from_sort(&[1, 2, 3, 0]);
+        items.reorder(&order);
+        items.remove(2);
+        items.reorder(IndexNewToOld::new(&[1, 2, 0]));
+    }
+
+    let items = reader.read(&mut rt.sc());
+    assert_eq!(items, ["a", "b", "c"]);
+    let changes: Vec<_> = items.delta().collect();
+    assert_eq!(
+        changes,
+        vec![
+            VecChange::Insert {
+                index: 1,
+                new_value: &"x",
+            },
+            VecChange::Reorder(IndexNewToOld::new(&[3, 0, 1, 2])),
+            VecChange::Remove {
+                index: 2,
+                old_value: &"x",
+            },
+            VecChange::Reorder(IndexNewToOld::new(&[1, 2, 0])),
+        ]
+    );
+
+    let mut replayed = vec!["a", "b", "c"];
+    for change in changes {
+        match change {
+            VecChange::Insert { index, new_value } => replayed.insert(index, *new_value),
+            VecChange::Remove { index, .. } => {
+                replayed.remove(index);
+            }
+            VecChange::Reorder(order) => order.apply_to(&mut replayed),
+            _ => panic!("unexpected change"),
+        }
+    }
+    assert_eq!(replayed, items.iter().copied().collect::<Vec<_>>());
+}
+
+#[rstest::rstest]
+#[case::empty(&[])]
+#[case::singleton(&[0])]
+#[case::multiple(&[0, 1, 2])]
+fn reorder_identity_records_no_change_or_notification(#[case] indices: &[usize]) {
+    let mut rt = Runtime::new();
+    let vec: StateVec<_> = (0..indices.len()).collect();
+    let mut reader = vec.reader();
+    let _ = reader.read(&mut rt.sc());
+    let calls = Rc::new(Cell::new(0));
+    let _subscription = effect({
+        let vec = vec.clone();
+        let calls = calls.clone();
+        move |sc| {
+            drop(vec.borrow(sc));
+            calls.set(calls.get() + 1);
+        }
+    });
+    rt.flush();
+
+    vec.borrow_mut(rt.ac()).reorder(IndexNewToOld::new(indices));
+    rt.flush();
+
+    assert_eq!(calls.get(), 1);
+    let items = reader.read(&mut rt.sc());
+    assert_eq!(items, indices.to_vec());
+    assert_eq!(items.delta().collect::<Vec<_>>(), []);
+}
+
+#[rstest::rstest]
+#[case::duplicate(&[0, 0, 2])]
+#[case::out_of_bounds(&[0, 1, 3])]
+#[case::too_short(&[0, 1])]
+#[case::too_long(&[0, 1, 2, 3])]
+#[case::empty(&[])]
+fn reorder_rejects_invalid_order_without_changing_items_or_history(#[case] indices: &[usize]) {
+    let mut rt = Runtime::new();
+    let vec: StateVec<_> = [10, 20, 30].into_iter().collect();
+    let mut reader = vec.reader();
+    let _ = reader.read(&mut rt.sc());
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        vec.borrow_mut(rt.ac()).reorder(IndexNewToOld::new(indices));
+    }));
+
+    assert!(result.is_err());
+    let items = reader.read(&mut rt.sc());
+    assert_eq!(items, [10, 20, 30]);
+    assert_eq!(items.delta().collect::<Vec<_>>(), []);
+}
+
+#[rstest::rstest]
+#[case::sort_unstable(|items: &mut VecRefMut<'_, i32>| items.sort_unstable())]
+#[case::sort_unstable_by(|items: &mut VecRefMut<'_, i32>| items.sort_unstable_by(Ord::cmp))]
+#[case::sort_unstable_by_key(|items: &mut VecRefMut<'_, i32>| items.sort_unstable_by_key(|value| *value))]
+fn unstable_sort_records_replayable_permutation(#[case] sort: fn(&mut VecRefMut<'_, i32>)) {
+    let mut rt = Runtime::new();
+    let vec: StateVec<_> = [4, 1, 3, 1, 2].into_iter().collect();
+    vec.borrow_mut(rt.ac()).swap(0, 4);
+    let mut reader = vec.reader();
+    let mut replayed = reader
+        .read(&mut rt.sc())
+        .iter()
+        .copied()
+        .collect::<Vec<_>>();
+
+    sort(&mut vec.borrow_mut(rt.ac()));
+
+    let items = reader.read(&mut rt.sc());
+    assert_eq!(items, [1, 1, 2, 3, 4]);
+    let changes: Vec<_> = items.delta().collect();
+    let [VecChange::Reorder(order)] = changes.as_slice() else {
+        panic!("expected one reorder change");
+    };
+    order.apply_to(&mut replayed);
+    assert_eq!(replayed, [1, 1, 2, 3, 4]);
+}
+
+#[rstest::rstest]
+#[case::stable(|items: &mut VecRefMut<'_, i32>| items.sort_by(|_, _| panic!("compare failed")))]
+#[case::unstable(|items: &mut VecRefMut<'_, i32>| items.sort_unstable_by(|_, _| panic!("compare failed")))]
+fn sort_comparison_panic_leaves_items_and_history_unchanged(
+    #[case] sort: fn(&mut VecRefMut<'_, i32>),
+) {
+    let mut rt = Runtime::new();
+    let vec: StateVec<_> = [3, 1, 2].into_iter().collect();
+    let mut reader = vec.reader();
+    let _ = reader.read(&mut rt.sc());
+
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        sort(&mut vec.borrow_mut(rt.ac()));
+    }));
+
+    assert!(result.is_err());
+    let items = reader.read(&mut rt.sc());
+    assert_eq!(items, [3, 1, 2]);
+    assert_eq!(items.delta().collect::<Vec<_>>(), []);
 }
 
 #[test]

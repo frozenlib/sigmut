@@ -22,7 +22,7 @@ fn main() {
                     *sum -= old_value;
                     *sum += new_value;
                 }
-                VecChange::Move { .. } | VecChange::Swap { .. } | VecChange::Sort(_) => {}
+                VecChange::Move { .. } | VecChange::Swap { .. } | VecChange::Reorder(_) => {}
             }
         }
     })

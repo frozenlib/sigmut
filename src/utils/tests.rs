@@ -24,6 +24,84 @@ fn index_new_to_old_apply() {
     assert_eq!(idx.as_slice(), &[2, 0, 1][..]);
 }
 
+#[rstest::rstest]
+#[case::empty(&[], &[])]
+#[case::singleton(&[7], &[0])]
+#[case::sorted(&[1, 2, 3], &[0, 1, 2])]
+#[case::reversed(&[3, 2, 1], &[2, 1, 0])]
+#[case::equal(&[1, 1, 1], &[0, 1, 2])]
+#[case::mixed(&[2, -1, 2, 0, -1], &[1, 4, 3, 0, 2])]
+fn index_new_to_old_from_sort(#[case] items: &[i32], #[case] expected: &[usize]) {
+    assert_eq!(IndexNewToOld::from_sort(items).as_slice(), expected);
+}
+
+#[test]
+fn index_new_to_old_from_sort_with_stateful_functions_and_non_clone_items() {
+    struct Item(i32);
+
+    let mut key_calls = 0;
+    let mut compare_calls = 0;
+    let (by_key, by_compare) = {
+        let items = [Item(2), Item(1), Item(1), Item(3)];
+        let by_key = IndexNewToOld::from_sort_by_key(&items, |item| {
+            key_calls += 1;
+            item.0
+        });
+        let by_compare = IndexNewToOld::from_sort_by(&items, |a, b| {
+            compare_calls += 1;
+            b.0.cmp(&a.0)
+        });
+        assert_eq!(items.map(|item| item.0), [2, 1, 1, 3]);
+        (by_key, by_compare)
+    };
+
+    assert!(key_calls > 0);
+    assert!(compare_calls > 0);
+    assert_eq!(by_key.as_slice(), &[1, 2, 0, 3]);
+    assert_eq!(by_compare.as_slice(), &[3, 0, 1, 2]);
+}
+
+#[rstest::rstest]
+#[case::empty(&[])]
+#[case::singleton(&[0])]
+#[case::identity(&[0, 1, 2])]
+#[case::reverse(&[3, 2, 1, 0])]
+#[case::disjoint_cycles(&[1, 0, 3, 2, 4])]
+#[case::long_cycle(&[1, 2, 3, 4, 0])]
+fn index_new_to_old_applies_permutations(#[case] indices: &[usize]) {
+    let order = IndexNewToOld::new(indices);
+    let mut items: Vec<_> = (0..indices.len()).collect();
+    order.apply_to(&mut items);
+    assert_eq!(items, indices);
+}
+
+#[test]
+fn index_new_to_old_owned_buffer_outlives_borrowed_indices() {
+    let order = {
+        let indices = vec![2, 0, 1];
+        IndexNewToOld::new(&indices).to_owned()
+    };
+    let borrowed: &IndexNewToOld = order.borrow();
+    let mut items = ['a', 'b', 'c'];
+    borrowed.apply_to(&mut items);
+    assert_eq!(items, ['c', 'a', 'b']);
+}
+
+#[rstest::rstest]
+#[case::duplicate(&[0, 0, 2])]
+#[case::out_of_bounds(&[0, 1, 3])]
+#[case::too_short(&[0, 1])]
+#[case::too_long(&[0, 1, 2, 3])]
+fn index_new_to_old_rejects_invalid_order_before_mutation(#[case] order: &[usize]) {
+    let mut items = ['a', 'b', 'c'];
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        IndexNewToOld::new(order).apply_to(&mut items);
+    }));
+
+    assert!(result.is_err());
+    assert_eq!(items, ['a', 'b', 'c']);
+}
+
 #[test]
 fn changes_and_ref_count_ops() {
     let mut changes = Changes::new();

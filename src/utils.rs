@@ -1,8 +1,10 @@
 use std::{
     any::Any,
+    borrow::Borrow,
+    cmp::Ordering,
     collections::VecDeque,
     mem::transmute,
-    ops::{Bound, Range, RangeBounds},
+    ops::{Bound, Deref, Range, RangeBounds},
 };
 
 pub mod sync;
@@ -44,23 +46,79 @@ where
     }
 }
 
+/// Maps each new position to its old position in a permutation.
 #[derive(Debug, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct IndexNewToOld([usize]);
 impl IndexNewToOld {
+    /// Borrows indices without validating that they form a permutation.
     pub fn new(new_to_old: &[usize]) -> &Self {
         unsafe { transmute(new_to_old) }
     }
 
+    /// Creates the permutation that stably sorts `items` in ascending order.
+    ///
+    /// The input is unchanged, and the result does not borrow it.
+    pub fn from_sort<T: Ord>(items: &[T]) -> IndexNewToOldBuf {
+        Self::from_sort_by(items, Ord::cmp)
+    }
+
+    /// Creates the permutation that stably sorts `items` by a key.
+    ///
+    /// The input is unchanged. Equal keys retain their original order, and `key` may be
+    /// called more than once per item.
+    pub fn from_sort_by_key<T, K: Ord>(
+        items: &[T],
+        mut key: impl FnMut(&T) -> K,
+    ) -> IndexNewToOldBuf {
+        Self::from_sort_by(items, |a, b| key(a).cmp(&key(b)))
+    }
+
+    /// Creates the permutation that stably sorts `items` with a comparison function.
+    ///
+    /// The input is unchanged. Elements that compare equal retain their original order.
+    /// The comparison function must define a total order, as for [`slice::sort_by`].
+    pub fn from_sort_by<T>(
+        items: &[T],
+        mut compare: impl FnMut(&T, &T) -> Ordering,
+    ) -> IndexNewToOldBuf {
+        let mut new_to_old: Vec<_> = (0..items.len()).collect();
+        new_to_old.sort_by(|&a, &b| compare(&items[a], &items[b]));
+        IndexNewToOldBuf(new_to_old)
+    }
+
+    pub(crate) fn from_sort_unstable_by<T>(
+        items: &[T],
+        mut compare: impl FnMut(&T, &T) -> Ordering,
+    ) -> IndexNewToOldBuf {
+        let mut new_to_old: Vec<_> = (0..items.len()).collect();
+        new_to_old.sort_unstable_by(|&a, &b| compare(&items[a], &items[b]));
+        IndexNewToOldBuf(new_to_old)
+    }
+
+    /// Builds the inverse mapping from old positions to new positions.
+    ///
+    /// # Panics
+    ///
+    /// Panics if an index is out of bounds or occurs more than once.
     pub fn build_old_to_new(&self) -> Vec<usize> {
         let mut old_to_new = vec![usize::MAX; self.0.len()];
         for (new_index, &old_index) in self.0.iter().enumerate() {
+            assert!(old_index < self.0.len(), "old index out of bounds");
+            assert_eq!(old_to_new[old_index], usize::MAX, "duplicate old index");
             old_to_new[old_index] = new_index;
         }
         old_to_new
     }
 
+    /// Reorders `items` so each new position contains the specified old item.
+    ///
+    /// # Panics
+    ///
+    /// Panics before changing `items` if the lengths differ, an index is out of bounds,
+    /// or an index occurs more than once.
     pub fn apply_to<T>(&self, items: &mut [T]) {
+        assert_eq!(self.0.len(), items.len(), "permutation length mismatch");
         let mut old_to_new = self.build_old_to_new();
         for old in 0..items.len() {
             loop {
@@ -75,6 +133,32 @@ impl IndexNewToOld {
     }
     pub fn as_slice(&self) -> &[usize] {
         &self.0
+    }
+}
+
+/// Owns a permutation and dereferences to [`IndexNewToOld`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct IndexNewToOldBuf(Vec<usize>);
+
+impl Deref for IndexNewToOldBuf {
+    type Target = IndexNewToOld;
+
+    fn deref(&self) -> &Self::Target {
+        IndexNewToOld::new(&self.0)
+    }
+}
+
+impl Borrow<IndexNewToOld> for IndexNewToOldBuf {
+    fn borrow(&self) -> &IndexNewToOld {
+        self
+    }
+}
+
+impl ToOwned for IndexNewToOld {
+    type Owned = IndexNewToOldBuf;
+
+    fn to_owned(&self) -> Self::Owned {
+        IndexNewToOldBuf(self.0.to_vec())
     }
 }
 impl std::ops::Index<usize> for IndexNewToOld {
@@ -190,15 +274,6 @@ impl RefCountOps {
             items.decrement_ref_count(age);
         }
     }
-}
-
-pub(crate) fn is_sorted(items: &[usize]) -> bool {
-    for i in 1..items.len() {
-        if items[i - 1] > items[i] {
-            return false;
-        }
-    }
-    true
 }
 
 pub(crate) fn to_range(range: impl RangeBounds<usize>, len: usize) -> Range<usize> {
