@@ -440,15 +440,14 @@ impl Runtime {
         }
     }
 
-    /// Irreversibly stops dispatch and cancels all current and future Actions.
+    /// Stops dispatch and cancels queued [`Action`]s and unfinished asynchronous Actions.
     ///
-    /// Call from the control side between dispatches. Repeated calls are harmless.
-    /// Cancellation drops captures and futures outside scheduler borrows, with the
-    /// Closing binding and async cancellation context intact. State changes already
-    /// applied are not rolled back. Reactions and maintenance remain in TLS for a
-    /// later matching runtime. Reads of Signals holding futures return their
-    /// stored values without polling in Closing. Drop performs the same transition
-    /// automatically.
+    /// These Actions are cancelled by dropping them. Until this [`Runtime`] is
+    /// dropped, newly scheduled Actions of either kind are also immediately dropped
+    /// and cancelled without execution or polling.
+    ///
+    /// After the runtime is dropped, scheduling either kind panics unless a new
+    /// runtime exists. This applies whether or not this method was called.
     pub fn begin_shutdown(&mut self) {
         let pending = Globals::begin_shutdown();
         drop(pending);
